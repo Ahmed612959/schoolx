@@ -4,7 +4,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const crypto = require('crypto');
-const path = require('path');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const session = require('express-session');
@@ -12,39 +11,52 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 
+// ====================== إعدادات trust proxy (مهم لـ Vercel) ======================
+app.set('trust proxy', 1);
+
 // ====================== MIDDLEWARE ======================
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
-// ====================== CORS متقدم لـ Vercel ======================
-const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5500',
-    'https://school-system-fiv.vercel.app',
-    process.env.FRONTEND_URL
-].filter(Boolean);
+// ====================== CORS شامل لجميع الطلبات ======================
+// السماح لجميع الأصول (الحل الأبسط لـ Vercel)
+app.use((req, res, next) => {
+    // السماح لأي Origin
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token');
+    
+    // معالجة طلبات OPTIONS (preflight)
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
 
+// CORS باستخدام المكتبة كطبقة إضافية
 app.use(cors({
     origin: function(origin, callback) {
+        // السماح لجميع الأصول في بيئة Vercel
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-            return callback(null, true);
-        }
-        return callback(new Error('CORS policy violation'), false);
+        return callback(null, true);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'Accept']
 }));
 
-// ====================== Helmet Security (مخفف لـ Vercel) ======================
+// ====================== Helmet (مخفف) ======================
 app.use(helmet({
-    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: false,
     crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
 }));
 
 // ====================== Rate Limiting ======================
@@ -52,6 +64,8 @@ const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
     message: { error: 'لقد تجاوزت الحد المسموح من الطلبات' },
+    trustProxy: true,
+    skip: (req) => req.method === 'OPTIONS' // تخطي OPTIONS requests
 });
 app.use('/api/', limiter);
 
@@ -59,6 +73,8 @@ const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
     message: { error: 'محاولات تسجيل دخول كثيرة، حاول مرة أخرى بعد 15 دقيقة' },
+    trustProxy: true,
+    skip: (req) => req.method === 'OPTIONS'
 });
 
 // ====================== متغيرات البيئة ======================
@@ -72,7 +88,7 @@ console.log('MONGODB_URI:', MONGODB_URI ? '✅ Found' : '❌ Not found');
 async function hashPassword(password) {
     return new Promise((resolve, reject) => {
         const salt = crypto.randomBytes(32).toString('hex');
-        crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
+        crypto.scrypt(password, salt, 64, (err, derivedKey) => {
             if (err) reject(err);
             resolve(`${salt}:${derivedKey.toString('hex')}`);
         });
@@ -82,14 +98,14 @@ async function hashPassword(password) {
 async function verifyPassword(password, hash) {
     return new Promise((resolve, reject) => {
         const [salt, key] = hash.split(':');
-        crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
+        crypto.scrypt(password, salt, 64, (err, derivedKey) => {
             if (err) reject(err);
             resolve(key === derivedKey.toString('hex'));
         });
     });
 }
 
-// ====================== Session Setup (نسخة مبسطة لـ Vercel) ======================
+// ====================== Session Setup ======================
 const MemoryStore = require('express-session').MemoryStore;
 
 app.use(session({
@@ -98,26 +114,17 @@ app.use(session({
     saveUninitialized: false,
     store: new MemoryStore(),
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: true,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'lax'
+        sameSite: 'none'
     },
-    name: 'institute_session'
+    name: 'school_session'
 }));
-
-// معالج للتأكد من وجود session
-app.use((req, res, next) => {
-    if (!req.session) {
-        req.session = {};
-        req.session.id = crypto.randomBytes(16).toString('hex');
-        req.session.csrfToken = crypto.randomBytes(32).toString('hex');
-    }
-    next();
-});
 
 // ====================== الاتصال بقاعدة البيانات ======================
 let dbConnected = false;
+let Admin, Student, Violation, Notification, Attendance, Exam, ExamResult, File;
 
 if (MONGODB_URI && MONGODB_URI !== '') {
     console.log('📡 Connecting to MongoDB...');
@@ -128,118 +135,113 @@ if (MONGODB_URI && MONGODB_URI !== '') {
     .then(() => {
         console.log('✅ MongoDB connected successfully');
         dbConnected = true;
-    })
-    .catch(err => console.error('❌ MongoDB connection error:', err.message));
-} else {
-    console.log('⚠️ No MONGODB_URI provided, running without database (demo mode)');
-}
+        
+        // تعريف النماذج
+        const adminSchema = new mongoose.Schema({
+            fullName: String,
+            username: { type: String, unique: true },
+            password: String,
+            role: { type: String, default: 'admin' },
+            lastLogin: Date,
+            lastIP: String,
+            failedAttempts: { type: Number, default: 0 },
+            lockedUntil: Date,
+            profile: { phone: String, email: String },
+            refreshToken: String
+        }, { timestamps: true });
 
-// ====================== النماذج (Schemas) ======================
-let Admin, Student, Violation, Notification, Attendance, Exam, ExamResult, File;
+        const studentSchema = new mongoose.Schema({
+            fullName: String,
+            studentCode: { type: String, required: true, unique: true },
+            username: { type: String, unique: true },
+            password: String,
+            grade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+            semester: String,
+            subjects: Array,
+            role: { type: String, default: 'student' },
+            lastLogin: Date,
+            lastIP: String,
+            profile: {
+                phone: String,
+                parentName: String,
+                parentId: String
+            },
+            refreshToken: String
+        }, { timestamps: true });
 
-if (MONGODB_URI && MONGODB_URI !== '') {
-    const adminSchema = new mongoose.Schema({
-        fullName: String,
-        username: { type: String, unique: true },
-        password: String,
-        role: { type: String, default: 'admin' },
-        lastLogin: Date,
-        lastIP: String,
-        failedAttempts: { type: Number, default: 0 },
-        lockedUntil: Date,
-        profile: { phone: String, email: String },
-        refreshToken: String
-    }, { timestamps: true });
+        const violationSchema = new mongoose.Schema({
+            studentId: String,
+            type: String,
+            reason: String,
+            penalty: String,
+            parentSummons: Boolean,
+            date: String
+        }, { timestamps: true });
 
-    const studentSchema = new mongoose.Schema({
-        fullName: String,
-        studentCode: { type: String, required: true, unique: true },
-        username: { type: String, unique: true },
-        password: String,
-        grade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
-        semester: String,
-        subjects: Array,
-        role: { type: String, default: 'student' },
-        lastLogin: Date,
-        lastIP: String,
-        profile: {
-            phone: String,
-            parentName: String,
-            parentId: String
-        },
-        refreshToken: String
-    }, { timestamps: true });
+        const notificationSchema = new mongoose.Schema({
+            text: String,
+            date: String
+        }, { timestamps: true });
 
-    const violationSchema = new mongoose.Schema({
-        studentId: String,
-        type: String,
-        reason: String,
-        penalty: String,
-        parentSummons: Boolean,
-        date: String
-    }, { timestamps: true });
+        const attendanceSchema = new mongoose.Schema({
+            studentCode: { type: String, required: true },
+            studentName: { type: String, required: true },
+            date: { type: String, required: true },
+            status: { type: String, enum: ['present', 'absent', 'late'], default: 'present' },
+            note: { type: String, default: '' },
+            recordedBy: { type: String, default: '' }
+        }, { timestamps: true });
 
-    const notificationSchema = new mongoose.Schema({
-        text: String,
-        date: String
-    }, { timestamps: true });
+        const examSchema = new mongoose.Schema({
+            name: { type: String, required: true },
+            stage: { type: String, required: true },
+            code: { type: String, required: true, unique: true },
+            duration: { type: Number, required: true },
+            questions: [{
+                type: { type: String, required: true },
+                text: { type: String, required: true },
+                options: [String],
+                correctAnswer: String,
+                correctAnswers: [String]
+            }]
+        }, { timestamps: true });
 
-    const attendanceSchema = new mongoose.Schema({
-        studentCode: { type: String, required: true },
-        studentName: { type: String, required: true },
-        date: { type: String, required: true },
-        status: { type: String, enum: ['present', 'absent', 'late'], default: 'present' },
-        note: { type: String, default: '' },
-        recordedBy: { type: String, default: '' }
-    }, { timestamps: true });
+        const examResultSchema = new mongoose.Schema({
+            examCode: { type: String, required: true },
+            studentId: { type: String, required: true },
+            score: { type: Number, required: true },
+            completionTime: { type: Date, default: Date.now }
+        });
 
-    const examSchema = new mongoose.Schema({
-        name: { type: String, required: true },
-        stage: { type: String, required: true },
-        code: { type: String, required: true, unique: true },
-        duration: { type: Number, required: true },
-        questions: [{
+        const fileSchema = new mongoose.Schema({
+            name: { type: String, required: true },
+            description: String,
+            filename: { type: String, required: true },
+            originalName: { type: String, required: true },
             type: { type: String, required: true },
-            text: { type: String, required: true },
-            options: [String],
-            correctAnswer: String,
-            correctAnswers: [String]
-        }]
-    }, { timestamps: true });
+            size: Number,
+            grade: { type: String, enum: ['first', 'second', 'third'], required: true },
+            subject: { type: String, required: true },
+            downloads: { type: Number, default: 0 },
+            uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+            createdAt: { type: Date, default: Date.now }
+        });
 
-    const examResultSchema = new mongoose.Schema({
-        examCode: { type: String, required: true },
-        studentId: { type: String, required: true },
-        score: { type: Number, required: true },
-        completionTime: { type: Date, default: Date.now }
-    });
-
-    const fileSchema = new mongoose.Schema({
-        name: { type: String, required: true },
-        description: String,
-        url: { type: String, required: true },
-        type: { type: String, required: true },
-        size: Number,
-        grade: { type: String, enum: ['first', 'second', 'third'], required: true },
-        subject: { type: String, required: true },
-        downloads: { type: Number, default: 0 },
-        uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
-        createdAt: { type: Date, default: Date.now }
-    });
-
-    Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
-    Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
-    Violation = mongoose.models.Violation || mongoose.model('Violation', violationSchema);
-    Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
-    Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
-    Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
-    ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
-    File = mongoose.models.File || mongoose.model('File', fileSchema);
+        Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
+        Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
+        Violation = mongoose.models.Violation || mongoose.model('Violation', violationSchema);
+        Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+        Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
+        Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
+        ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
+        File = mongoose.models.File || mongoose.model('File', fileSchema);
+    })
+    .catch(err => console.error('❌ MongoDB error:', err.message));
 }
 
 // ====================== دوال مساعدة ======================
 function requireDb(req, res, next) {
-    if (!dbConnected || mongoose.connection.readyState !== 1) {
+    if (!dbConnected) {
         return res.status(503).json({ error: 'قاعدة البيانات غير متصلة حالياً' });
     }
     next();
@@ -248,8 +250,8 @@ function requireDb(req, res, next) {
 function setAuthCookie(res, token) {
     res.cookie('authToken', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 24 * 60 * 60 * 1000,
         path: '/'
     });
@@ -283,23 +285,13 @@ function isAdmin(req, res, next) {
     next();
 }
 
-function verifyCsrfToken(req, res, next) {
-    const csrfToken = req.headers['x-csrf-token'];
-    const sessionCsrf = req.session?.csrfToken;
-    
-    if (!csrfToken || !sessionCsrf || csrfToken !== sessionCsrf) {
-        return res.status(403).json({ error: 'طلب غير مصرح به' });
-    }
-    next();
-}
-
 // ====================== Test endpoint ======================
 app.get('/api/test', (req, res) => {
     res.json({ 
         status: 'ok', 
         mongodb_status: dbConnected ? 'connected' : 'disconnected',
         message: 'API is working on Vercel!',
-        timestamp: new Date().toISOString()
+        cors_headers: 'enabled'
     });
 });
 
@@ -311,14 +303,13 @@ app.get('/api/check-username', async (req, res) => {
             return res.json({ available: false });
         }
         
-        if (!dbConnected) {
+        if (!dbConnected || !Student) {
             return res.json({ available: true });
         }
         
-        const existingAdmin = await Admin.findOne({ username: username.toLowerCase() });
         const existingStudent = await Student.findOne({ username: username.toLowerCase() });
         
-        const available = !existingAdmin && !existingStudent;
+        const available = !existingStudent;
         res.json({ available });
     } catch (error) {
         console.error('Error checking username:', error);
@@ -335,7 +326,7 @@ app.post('/api/students/register', async (req, res) => {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
         
-        if (!dbConnected) {
+        if (!dbConnected || !Student) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة حالياً' });
         }
         
@@ -367,7 +358,7 @@ app.post('/api/students/register', async (req, res) => {
         
         await student.save();
         
-        console.log(`✅ تم إنشاء حساب جديد للطالب: ${fullName} (${username})`);
+        console.log(`✅ تم إنشاء حساب جديد للطالب: ${fullName}`);
         res.json({ success: true, message: 'تم إنشاء الحساب بنجاح' });
         
     } catch (error) {
@@ -380,167 +371,101 @@ app.post('/api/students/register', async (req, res) => {
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
-        const clientIP = req.ip || req.connection?.remoteAddress;
         
         if (!username || !password) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
 
-        if (!dbConnected) {
-            if (username === 'demo' && password === 'demo123') {
-                const token = jwt.sign(
-                    { id: 'demo', username: 'demo', type: 'student', fullName: 'طالب تجريبي', studentCode: '12345' },
-                    JWT_SECRET,
-                    { expiresIn: '24h' }
-                );
-                setAuthCookie(res, token);
-                const csrfToken = crypto.randomBytes(32).toString('hex');
-                req.session.csrfToken = csrfToken;
-                return res.json({
-                    success: true,
-                    csrfToken: csrfToken,
-                    user: { username: 'demo', fullName: 'طالب تجريبي', type: 'student', id: '12345' }
-                });
-            }
-            return res.status(401).json({ error: 'بيانات غير صحيحة (وضع تجريبي: استخدم demo/demo123)' });
+        // وضع تجريبي - admin
+        if (username === 'admin' && password === 'admin123') {
+            const token = jwt.sign(
+                { id: 'admin1', username: 'admin', type: 'admin', fullName: 'مدير النظام' },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+            setAuthCookie(res, token);
+            return res.json({
+                success: true,
+                user: { username: 'admin', fullName: 'مدير النظام', type: 'admin', id: 'admin1' }
+            });
         }
-
-        let user = await Admin.findOne({ username: username.toLowerCase() });
-        let userType = 'admin';
-
-        if (!user) {
-            user = await Student.findOne({ username: username.toLowerCase() });
-            userType = 'student';
-        }
-
-        if (!user) {
-            return res.status(401).json({ error: 'بيانات غير صحيحة' });
-        }
-
-        if (user.lockedUntil && user.lockedUntil > new Date()) {
-            const remainingMinutes = Math.ceil((user.lockedUntil - new Date()) / 60000);
-            return res.status(401).json({ error: `الحساب مقفل مؤقتاً. حاول مرة أخرى بعد ${remainingMinutes} دقيقة` });
-        }
-
-        const isMatch = await verifyPassword(password, user.password);
         
-        if (!isMatch) {
-            user.failedAttempts = (user.failedAttempts || 0) + 1;
-            if (user.failedAttempts >= 5) {
-                user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
-            }
-            await user.save();
-            return res.status(401).json({ error: 'بيانات غير صحيحة' });
+        // وضع تجريبي - student
+        if (username === 'student' && password === 'student123') {
+            const token = jwt.sign(
+                { id: 'student1', username: 'student', type: 'student', fullName: 'طالب تجريبي', studentCode: '12345' },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+            setAuthCookie(res, token);
+            return res.json({
+                success: true,
+                user: { username: 'student', fullName: 'طالب تجريبي', type: 'student', id: '12345' }
+            });
         }
-
-        user.failedAttempts = 0;
-        user.lockedUntil = null;
-        user.lastLogin = new Date();
-        user.lastIP = clientIP;
-        await user.save();
-
-        const token = jwt.sign(
-            { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode },
-            JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        const refreshToken = jwt.sign(
-            { id: user._id, type: 'refresh' },
-            JWT_SECRET,
-            { expiresIn: '7d' }
-        );
         
-        user.refreshToken = refreshToken;
-        await user.save();
+        // وضع مع قاعدة البيانات
+        if (dbConnected && Student) {
+            let user = await Admin?.findOne({ username: username.toLowerCase() });
+            let userType = 'admin';
 
-        setAuthCookie(res, token);
-        
-        const csrfToken = crypto.randomBytes(32).toString('hex');
-        req.session.csrfToken = csrfToken;
-
-        res.json({
-            success: true,
-            csrfToken: csrfToken,
-            user: {
-                username: user.username,
-                fullName: user.fullName,
-                type: userType,
-                id: user.studentCode || user._id
+            if (!user) {
+                user = await Student.findOne({ username: username.toLowerCase() });
+                userType = 'student';
             }
-        });
 
+            if (user) {
+                const isMatch = await verifyPassword(password, user.password);
+                
+                if (isMatch) {
+                    const token = jwt.sign(
+                        { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode },
+                        JWT_SECRET,
+                        { expiresIn: '24h' }
+                    );
+                    setAuthCookie(res, token);
+                    return res.json({
+                        success: true,
+                        user: {
+                            username: user.username,
+                            fullName: user.fullName,
+                            type: userType,
+                            id: user.studentCode || user._id
+                        }
+                    });
+                }
+            }
+        }
+        
+        return res.status(401).json({ error: 'بيانات غير صحيحة (admin/admin123 أو student/student123)' });
+        
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ error: 'خطأ في السيرفر: ' + error.message });
-    }
-});
-
-// ====================== تجديد التوكن ======================
-app.post('/api/refresh-token', async (req, res) => {
-    const token = req.cookies?.authToken;
-    if (!token) {
-        return res.status(401).json({ error: 'لا توجد جلسة' });
-    }
-    
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        if (dbConnected) {
-            let user = await Admin.findById(decoded.id);
-            if (!user) user = await Student.findById(decoded.id);
-            
-            if (!user || !user.refreshToken) {
-                return res.status(401).json({ error: 'جلسة غير صالحة' });
-            }
-        }
-        
-        const newToken = jwt.sign(
-            { id: decoded.id, username: decoded.username, type: decoded.type, fullName: decoded.fullName, studentCode: decoded.studentCode },
-            JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-        
-        setAuthCookie(res, newToken);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(401).json({ error: 'جلسة منتهية' });
+        res.status(500).json({ error: 'خطأ في السيرفر' });
     }
 });
 
 // ====================== التحقق من الجلسة ======================
-app.get('/api/verify-session', verifyToken, async (req, res) => {
+app.get('/api/verify-session', verifyToken, (req, res) => {
     res.json({ valid: true, user: req.user });
 });
 
 // ====================== تسجيل الخروج ======================
-app.post('/api/logout', verifyToken, async (req, res) => {
-    if (dbConnected) {
-        let user = await Admin.findById(req.user.id);
-        if (!user) user = await Student.findById(req.user.id);
-        if (user) user.refreshToken = null;
-        await user?.save();
-    }
-    
-    req.session.destroy();
+app.post('/api/logout', (req, res) => {
     res.clearCookie('authToken', { path: '/' });
     res.json({ success: true });
 });
 
-// ====================== APIs الخاصة بالطلاب ======================
-app.get('/api/admin/students', verifyToken, isAdmin, requireDb, async (req, res) => {
+// ====================== جلب الطلاب (للأدمن) ======================
+app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
     try {
+        if (!dbConnected || !Student) {
+            return res.json([
+                { fullName: 'أحمد محمد (تجريبي)', username: 'ahmed', studentCode: '2024001', grade: 'first', profile: { phone: '01012345678', parentName: 'محمد أحمد', parentId: '12345678901234' } },
+                { fullName: 'سارة علي (تجريبي)', username: 'sara', studentCode: '2024002', grade: 'second', profile: { phone: '01087654321', parentName: 'علي محمد', parentId: '12345678905678' } }
+            ]);
+        }
         const students = await Student.find().select('-password -refreshToken');
-        res.json(students);
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب الطلاب' });
-    }
-});
-
-app.get('/api/students/by-grade/:grade', verifyToken, isAdmin, requireDb, async (req, res) => {
-    try {
-        const { grade } = req.params;
-        const students = await Student.find({ grade }).select('-password -refreshToken');
         res.json(students);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب الطلاب' });
@@ -590,8 +515,14 @@ app.delete('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) 
 });
 
 // ====================== الإشعارات ======================
-app.get('/api/notifications', requireDb, async (req, res) => { 
-    try { 
+app.get('/api/notifications', async (req, res) => { 
+    try {
+        if (!dbConnected || !Notification) {
+            return res.json([
+                { id: '1', text: '📢 اختبارات الفصل الدراسي الأول تبدأ الأسبوع القادم', date: '2024-01-15' },
+                { id: '2', text: '🎓 موعد تسليم مشاريع التخرج 30 يناير', date: '2024-01-14' }
+            ]);
+        }
         const notifications = await Notification.find().sort({ createdAt: -1 });
         res.json(notifications); 
     } catch (error) { 
@@ -599,7 +530,7 @@ app.get('/api/notifications', requireDb, async (req, res) => {
     } 
 });
 
-app.post('/api/notifications', verifyToken, isAdmin, verifyCsrfToken, requireDb, async (req, res) => {
+app.post('/api/notifications', verifyToken, isAdmin, async (req, res) => {
     try {
         const { text, date } = req.body;
         if (!text || text.trim() === '') {
@@ -613,7 +544,7 @@ app.post('/api/notifications', verifyToken, isAdmin, verifyCsrfToken, requireDb,
     }
 });
 
-app.delete('/api/notifications/:id', verifyToken, isAdmin, verifyCsrfToken, requireDb, async (req, res) => {
+app.delete('/api/notifications/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const deleted = await Notification.findByIdAndDelete(id);
@@ -625,8 +556,13 @@ app.delete('/api/notifications/:id', verifyToken, isAdmin, verifyCsrfToken, requ
 });
 
 // ====================== المخالفات ======================
-app.get('/api/violations', verifyToken, isAdmin, requireDb, async (req, res) => {
+app.get('/api/violations', verifyToken, isAdmin, async (req, res) => {
     try {
+        if (!dbConnected || !Violation) {
+            return res.json([
+                { id: '1', studentId: '2024001', reason: 'تأخر متكرر', penalty: 'إنذار', date: '2024-01-10' }
+            ]);
+        }
         const violations = await Violation.find().sort({ createdAt: -1 });
         res.json(violations);
     } catch (error) {
@@ -634,7 +570,7 @@ app.get('/api/violations', verifyToken, isAdmin, requireDb, async (req, res) => 
     }
 });
 
-app.post('/api/violations', verifyToken, isAdmin, verifyCsrfToken, requireDb, async (req, res) => {
+app.post('/api/violations', verifyToken, isAdmin, async (req, res) => {
     try {
         const { studentId, type, reason, penalty, parentSummons, date } = req.body;
         if (!studentId || !reason || !penalty) {
@@ -655,7 +591,7 @@ app.post('/api/violations', verifyToken, isAdmin, verifyCsrfToken, requireDb, as
     }
 });
 
-app.delete('/api/violations/:id', verifyToken, isAdmin, verifyCsrfToken, requireDb, async (req, res) => {
+app.delete('/api/violations/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const deleted = await Violation.findByIdAndDelete(id);
@@ -667,8 +603,11 @@ app.delete('/api/violations/:id', verifyToken, isAdmin, verifyCsrfToken, require
 });
 
 // ====================== إنشاء مدير تجريبي ======================
-app.post('/api/create-test-admin', requireDb, async (req, res) => {
+app.post('/api/create-test-admin', async (req, res) => {
     try {
+        if (!dbConnected || !Admin) {
+            return res.json({ message: 'وضع تجريبي - admin/admin123', username: 'admin', password: 'admin123' });
+        }
         const existingAdmin = await Admin.findOne({ username: 'admin' });
         if (existingAdmin) return res.json({ message: 'المدير موجود مسبقاً', username: 'admin', password: 'admin123' });
         const hashedPassword = await hashPassword('admin123');
@@ -680,30 +619,15 @@ app.post('/api/create-test-admin', requireDb, async (req, res) => {
     }
 });
 
-// ====================== مسار إفتراضي ======================
+// ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
     res.json({
-        message: 'API is running on Vercel',
-        endpoints: [
-            '/api/test',
-            '/api/login',
-            '/api/admin/students',
-            '/api/students/register',
-            '/api/check-username',
-            '/api/notifications',
-            '/api/violations'
-        ]
+        message: 'معهد رعاية الضبعية - API',
+        status: 'running',
+        version: '1.0.0',
+        endpoints: ['/api/test', '/api/login', '/api/admin/students', '/api/notifications', '/api/violations']
     });
 });
 
-// ====================== Error Handling ======================
-app.use((err, req, res, next) => {
-    console.error('❌ Unhandled Error:', err);
-    if (res.headersSent) {
-        return next(err);
-    }
-    res.status(500).json({ error: 'حدث خطأ داخلي في السيرفر' });
-});
-
-// ====================== التصدير لـ Vercel ======================
+// ====================== تصدير لـ Vercel ======================
 module.exports = app;
