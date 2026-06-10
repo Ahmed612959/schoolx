@@ -1,8 +1,8 @@
-// admin.js - النسخة الكاملة النهائية (جميع الوظائف شغالة)
+// admin.js - النسخة الكاملة النهائية (جميع الوظائف شغالة مع Supabase)
 
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://localhost:3000' 
-    : '';
+    : 'https://schoolx-eta.vercel.app';
 
 // ====================== دوال الأمان الأساسية ======================
 function getCsrfToken() { 
@@ -49,7 +49,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ====================== API Request ======================
+// ====================== API Request (معدلة لـ Supabase) ======================
 async function apiRequest(endpoint, options = {}) {
     const csrfToken = getCsrfToken();
     const headers = { 'Content-Type': 'application/json', ...options.headers };
@@ -121,16 +121,19 @@ window.logout = async () => {
 
 // ====================== تعريف الدرجات ======================
 const SUBJECTS_CONFIG = { 
+    "مبادئ وأسس تمريض": { max: 40 },
     "اللغة العربية": { max: 20 }, 
     "اللغة الإنجليزية": { max: 20 }, 
-    "علوم تطبيقية": { max: 40 }, 
-    "طب باطنة": { max: 20 }, 
-    "تمريض باطني جراحي": { max: 24 }, 
-    "حاسب آلي": { max: 20 }, 
-    "الدين": { max: 32, isExtra: true } 
+    "الفيزياء": { max: 20 }, 
+    "الكيمياء": { max: 20 }, 
+    "التشريح / علم وظائف الأعضاء": { max: 20 }, 
+    "التربية الدينية": { max: 20 }, 
+    "الكمبيوتر": { max: 20 },
+    "التاريخ": { max: 20, isExtra: true },
+    "الجغرافيا": { max: 20, isExtra: true }
 };
-const TOTAL_POSSIBLE = 144;
-const ORDERED_SUBJECTS = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي", "الدين"];
+const TOTAL_POSSIBLE = 180;
+const ORDERED_SUBJECTS = ["مبادئ وأسس تمريض", "اللغة العربية", "اللغة الإنجليزية", "الفيزياء", "الكيمياء", "التشريح / علم وظائف الأعضاء", "التربية الدينية", "الكمبيوتر"];
 
 function calculateStudentTotal(student) { 
     if (!student.subjects) return 0; 
@@ -164,7 +167,7 @@ function getStudentsWithGrades(list) {
 let allStudents = [], studentsWithGrades = [], admins = [], violations = [];
 let notifications = [];
 
-// ====================== الإشعارات ======================
+// ====================== الإشعارات (معدلة لـ Supabase) ======================
 async function loadNotifications() {
     try {
         const response = await fetch(`${BASE_URL}/api/notifications`, {
@@ -199,7 +202,7 @@ function renderNotifications() {
             <td style="text-align:right;">${escapeHtml(notification.text)}</td>
             <td style="text-align:center;">${notification.date || '-'}</td>
             <td style="text-align:center;">
-                <button class="delete-btn" onclick="deleteNotification('${notification._id}')">
+                <button class="delete-btn" onclick="deleteNotification('${notification.id}')">
                     <i class="fas fa-trash"></i> حذف
                 </button>
             </td>
@@ -282,19 +285,18 @@ window.deleteNotification = async function(id) {
     }
 };
 
-// ====================== تحميل البيانات الأساسية ======================
+// ====================== تحميل البيانات الأساسية (معدلة لـ Supabase) ======================
 async function loadInitialData() {
     showToast('جاري تحميل البيانات...', 'info');
     allStudents = await getFromServer('/api/admin/students');
     admins = await getFromServer('/api/admins');
-    violations = await getFromServer('/api/admin/violations');
+    violations = await getFromServer('/api/violations');
     await loadNotifications();
     studentsWithGrades = getStudentsWithGrades(allStudents);
     renderAdmins();
     renderResults();
     renderStats();
-    // في نهاية دالة loadInitialData، بعد renderStats()
-renderTopStudents();
+    renderTopStudents();
     renderViolations();
     showToast(`✅ تم التحميل: ${allStudents.length} طالب`, 'success');
 }
@@ -351,14 +353,14 @@ function renderResults(filter = '') {
         let pText = { excellent: 'ممتاز', 'very-good': 'جيد جداً', good: 'جيد', pass: 'ناجح', fail: 'راسب' }[pClass];
         let row = tbody.insertRow();
         row.innerHTML = `<td style="text-align:right;"><strong>${escapeHtml(student.fullName)}</strong><br><small>رقم الجلوس: ${student.studentCode}</small></td><td style="text-align:right;">${subjectsHtml}</td><td style="text-align:center;"><span class="total-cell">${total} / ${TOTAL_POSSIBLE}</span></td><td style="text-align:center;"><span class="percentage-cell ${pClass}">${percentage.toFixed(1)}% (${pText})</span></td><td style="text-align:center;"><button class="table-action-btn edit-action" onclick="editStudent('${student.studentCode}')" title="تعديل"><i class="fas fa-edit"></i></button><button class="table-action-btn delete-action" onclick="deleteStudent('${student.studentCode}')" title="حذف"><i class="fas fa-trash"></i></button></td>`;
-        updateTopStudentsAfterDataChange();
     });
+    updateTopStudentsAfterDataChange();
 }
 
 // ====================== إدارة الأدمنز ======================
 function renderAdmins() { 
     const t = document.getElementById('users-table-body'); 
-    if (t) t.innerHTML = admins.map(a => `<tr><td>${escapeHtml(a.fullName)}</td><td>${a.username}</td><td>${a.username !== 'admin' ? `<button class="delete-btn" onclick="deleteAdmin('${a.username}')"><i class="fas fa-trash"></i> حذف</button>` : 'رئيسي'}</td></tr>`).join(''); 
+    if (t) t.innerHTML = admins.map(a => `<tr><td>${escapeHtml(a.full_name || a.fullName)}</td><td>${a.username}</td><td>${a.username !== 'admin' ? `<button class="delete-btn" onclick="deleteAdmin('${a.username}')"><i class="fas fa-trash"></i> حذف</button>` : 'رئيسي'}</td></tr>`).join(''); 
 }
 
 window.deleteAdmin = async (u) => { 
@@ -430,8 +432,7 @@ document.getElementById('add-result-form')?.addEventListener('submit', async (e)
         { name: "الكيمياء", grade: parseInt(document.getElementById('subject5').value) || 0 },
         { name: "التشريح / علم وظائف الأعضاء", grade: parseInt(document.getElementById('subject6').value) || 0 },
         { name: "التربية الدينية", grade: parseInt(document.getElementById('subject7').value) || 0 },
-        { name: "الكمبيوتر", grade: parseInt(document.getElementById('subject8').value) || 0 },
-        { name: "الدين", grade: parseInt(document.getElementById('subject7').value) || 0 }
+        { name: "الكمبيوتر", grade: parseInt(document.getElementById('subject8').value) || 0 }
     ]; 
     if (sem === 'first') { 
         let hg = parseInt(document.getElementById('subject9').value) || 0; 
@@ -443,7 +444,7 @@ document.getElementById('add-result-form')?.addEventListener('submit', async (e)
     if (!fn || !code) return showToast('اسم الطالب ورقم الجلوس مطلوبان', 'error'); 
     let existing = allStudents.find(s => s.studentCode === code); 
     if (existing) await saveToServer(`/api/students/${code}`, { subjects, semester: sem }, 'PUT'); 
-    else await saveToServer('/api/students', { fullName: fn, id: code, subjects, semester: sem }); 
+    else await saveToServer('/api/students', { fullName: fn, studentCode: code, subjects, semester: sem }); 
     allStudents = await getFromServer('/api/admin/students'); 
     studentsWithGrades = getStudentsWithGrades(allStudents); 
     renderResults(); 
@@ -470,8 +471,8 @@ async function renderViolations() {
             <td>${escapeHtml(v.penalty)}</td>
             <td>${v.parentSummons ? '✅ نعم' : '❌ لا'}</td>
             <td>
-                <button class="edit-btn" onclick="editViolation('${v._id}')"><i class="fas fa-edit"></i> تعديل</button>
-                <button class="delete-btn" onclick="deleteViolation('${v._id}')"><i class="fas fa-trash"></i> حذف</button>
+                <button class="edit-btn" onclick="editViolation('${v.id}')"><i class="fas fa-edit"></i> تعديل</button>
+                <button class="delete-btn" onclick="deleteViolation('${v.id}')"><i class="fas fa-trash"></i> حذف</button>
             </td>
         </tr>`; 
     }).join('');
@@ -480,7 +481,7 @@ async function renderViolations() {
 let editingViolationId = null;
 
 window.editViolation = function(id) { 
-    let v = violations.find(vv => vv._id === id); 
+    let v = violations.find(vv => vv.id === id); 
     if (v) { 
         editingViolationId = id; 
         document.getElementById('violation-student-id').value = v.studentId; 
@@ -502,14 +503,6 @@ window.cancelEditViolation = function() {
     showToast('✅ تم إلغاء التعديل', 'info'); 
 };
 
-async function sendWhatsApp(phone, studentName, type, reason, penalty) { 
-    let ph = phone.replace(/[^0-9]/g, ''); 
-    if (ph.startsWith('0')) ph = '20' + ph.substring(1); 
-    if (!ph.startsWith('20')) ph = '20' + ph; 
-    let msg = `📢 *تنبيه من معهد رعاية الضبعية*\n\n👨‍🎓 الطالب: ${studentName}\n⚠️ النوع: ${type === 'warning' ? 'إنذار' : 'مخالفة'}\n📝 السبب: ${reason}\n⚖️ العقوبة: ${penalty}\n📅 التاريخ: ${new Date().toLocaleString('ar-EG')}`; 
-    window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank'); 
-}
-
 document.getElementById('add-violation-form')?.addEventListener('submit', async (e) => { 
     e.preventDefault(); 
     let sid = document.getElementById('violation-student-id').value.trim(), typ = document.getElementById('violation-type').value, rsn = document.getElementById('violation-reason').value.trim(), pnl = document.getElementById('violation-penalty').value.trim(), ps = document.getElementById('parent-summons').checked, pPhone = document.getElementById('parent-phone')?.value.trim(); 
@@ -525,20 +518,20 @@ document.getElementById('add-violation-form')?.addEventListener('submit', async 
     } else { 
         await saveToServer('/api/violations', data); 
     } 
-    violations = await getFromServer('/api/admin/violations'); 
+    violations = await getFromServer('/api/violations'); 
     renderViolations(); 
     e.target.reset(); 
     showToast('✅ تمت العملية', 'success'); 
     if (pPhone && pPhone.length >= 10) { 
-        await sendWhatsApp(pPhone, student.fullName, typ, rsn, pnl); 
-        showToast('📱 تم فتح واتساب', 'info'); 
+        let msg = `📢 تنبيه من معهد رعاية الضبعية\n\n👨‍🎓 الطالب: ${student.fullName}\n⚠️ النوع: ${typ === 'warning' ? 'إنذار' : 'مخالفة'}\n📝 السبب: ${rsn}\n⚖️ العقوبة: ${pnl}`; 
+        window.open(`https://wa.me/20${pPhone.replace(/^0/, '')}?text=${encodeURIComponent(msg)}`, '_blank'); 
     } 
 });
 
 window.deleteViolation = async (id) => { 
     if (confirm('⚠️ حذف المخالفة؟')) { 
         await saveToServer(`/api/violations/${id}`, {}, 'DELETE'); 
-        violations = await getFromServer('/api/admin/violations'); 
+        violations = await getFromServer('/api/violations'); 
         renderViolations(); 
         showToast('🗑️ تم الحذف', 'success'); 
         if (editingViolationId === id) cancelEditViolation(); 
@@ -762,18 +755,18 @@ async function loadExamsList() {
         if (!tbody) return;
         
         if (!exams || exams.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">📭 لا توجد اختبارات مسجلة</td></tr>';
+            tbody.innerHTML = '<td><td colspan="7" style="text-align:center;">📭 لا توجد اختبارات مسجلة<\/td></tr>';
             return;
         }
         
         tbody.innerHTML = exams.map(ex => `
             <tr>
-                <td style="text-align:right;">${escapeHtml(ex.name)}</td>
-                <td style="text-align:center;"><strong style="color:#0F2B3D;">${escapeHtml(ex.code)}</strong></td>
-                <td style="text-align:center;">${ex.stage === 'first' ? 'الأولى ثانوي' : 'الثانية ثانوي'}</td>
-                <td style="text-align:center;">${ex.duration} دقيقة</td>
-                <td style="text-align:center;">${ex.questions?.length || 0}</td>
-                <td style="text-align:center;">${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td>
+                <td style="text-align:right;">${escapeHtml(ex.name)}<\/td>
+                <td style="text-align:center;"><strong style="color:#0F2B3D;">${escapeHtml(ex.code)}<\/strong><\/td>
+                <td style="text-align:center;">${ex.stage === 'first' ? 'الأولى ثانوي' : 'الثانية ثانوي'}<\/td>
+                <td style="text-align:center;">${ex.duration} دقيقة<\/td>
+                <td style="text-align:center;">${ex.questions?.length || 0}<\/td>
+                <td style="text-align:center;">${new Date(ex.createdAt).toLocaleDateString('ar-EG')}<\/td>
                 <td style="text-align:center;">
                     <button class="edit-btn" onclick="viewExam('${ex.code}')" style="background:#3498DB; color:white; border:none; padding:6px 12px; border-radius:20px; margin:2px; cursor:pointer;">
                         <i class="fas fa-eye"></i> عرض
@@ -781,14 +774,14 @@ async function loadExamsList() {
                     <button class="delete-btn" onclick="deleteExam('${ex.code}')" style="background:#E74C3C; color:white; border:none; padding:6px 12px; border-radius:20px; margin:2px; cursor:pointer;">
                         <i class="fas fa-trash"></i> حذف
                     </button>
-                </td>
-             </tr>
+                <\/td>
+              <\/tr>
         `).join('');
     } catch (error) {
         console.error('Error loading exams:', error);
         const tbody = document.getElementById('exams-list-body');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">❌ فشل تحميل الاختبارات</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">❌ فشل تحميل الاختبارات<\/td></tr>';
         }
     }
 }
@@ -918,13 +911,13 @@ document.getElementById('fetch-results')?.addEventListener('click', async () => 
                     <tbody>
                         ${results.map(r => `
                             <tr style="border-bottom:1px solid #eee;">
-                                <td style="padding:10px; text-align:center;">${escapeHtml(r.studentId)}</td>
-                                <td style="padding:10px; text-align:center;"><strong style="color:#27AE60;">${r.score.toFixed(1)}%</strong></td>
-                                <td style="padding:10px; text-align:center;">${new Date(r.completionTime).toLocaleString('ar-EG')}</td>
-                            </tr>
+                                <td style="padding:10px; text-align:center;">${escapeHtml(r.studentId)}<\/td>
+                                <td style="padding:10px; text-align:center;"><strong style="color:#27AE60;">${r.score.toFixed(1)}%</strong><\/td>
+                                <td style="padding:10px; text-align:center;">${new Date(r.completionTime).toLocaleString('ar-EG')}<\/td>
+                            <\/tr>
                         `).join('')}
                     </tbody>
-                </table>
+                <\/table>
             </div>
         `;
     } catch (error) {
@@ -937,7 +930,7 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== تحليل Excel ======================
+// ====================== تحليل Excel (مضاف مرة أخرى) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
@@ -956,7 +949,7 @@ window.analyzeExcel = async () => {
                 if (row[7]) subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) });
                 let existing = allStudents.find(s => s.studentCode == row[0]); 
                 if (existing) await saveToServer(`/api/students/${row[0]}`, { fullName: row[1], subjects }, 'PUT'); 
-                else await saveToServer('/api/students', { fullName: row[1], id: row[0], subjects }); 
+                else await saveToServer('/api/students', { fullName: row[1], studentCode: row[0], subjects }); 
             } 
         } 
         allStudents = await getFromServer('/api/admin/students'); 
@@ -968,8 +961,12 @@ window.analyzeExcel = async () => {
     reader.readAsArrayBuffer(file); 
 };
 
-document.getElementById('analyze-excel')?.addEventListener('click', window.analyzeExcel);
+// إضافة مستمع حدث لتحليل Excel
+if (document.getElementById('analyze-excel')) {
+    document.getElementById('analyze-excel').addEventListener('click', window.analyzeExcel);
+}
 
+// ====================== تصدير Excel ======================
 document.getElementById('export-excel')?.addEventListener('click', () => { 
     let wsData = [["اسم الطالب", "رقم الجلوس", "المواد والدرجات", "المجموع", "النسبة"]]; 
     studentsWithGrades.forEach(s => { 
@@ -1004,11 +1001,6 @@ function renderAdminWelcomeMessage() {
     if (d && u) d.textContent = `أهلًا بك يا ${u.fullName || u.username} في لوحة التحكم`; 
 }
 
-function renderNavbar() { 
-    let n = document.getElementById('nav-bar'); 
-    if (n) n.innerHTML = `<a href="Home.html"><i class="fas fa-home"></i> الرئيسية</a><a href="admin.html"><i class="fas fa-cogs"></i> لوحة التحكم</a><a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>`; 
-}
-
 window.toggleSubjects = function() { 
     let sem = document.getElementById('semester')?.value, hg = document.getElementById('history-group'), gg = document.getElementById('geography-group'); 
     if (hg && gg) { 
@@ -1017,27 +1009,20 @@ window.toggleSubjects = function() {
     } 
 };
 
-// ====================== نظام العشرة الأوائل وشهادات التقدير ======================
-
+// ====================== العشرة الأوائل وشهادات التقدير ======================
 let topStudentsList = [];
 let currentCertificateStudent = null;
 
-// حساب العشرة الأوائل بناءً على النسبة المئوية
 function calculateTopStudents() {
     const studentsWithScores = studentsWithGrades.map(student => ({
         ...student,
         total: calculateStudentTotal(student),
         percentage: calculateStudentPercentage(student)
     }));
-    
-    // ترتيب تنازلي حسب النسبة
     studentsWithScores.sort((a, b) => b.percentage - a.percentage);
-    
-    // أخذ العشرة الأوائل فقط
     return studentsWithScores.slice(0, 10);
 }
 
-// عرض العشرة الأوائل في واجهة المستخدم
 function renderTopStudents() {
     const container = document.getElementById('top-students-grid');
     if (!container) return;
@@ -1083,14 +1068,12 @@ function renderTopStudents() {
     }).join('');
 }
 
-// تحديث قائمة الأوائل
 window.refreshTopStudents = function() {
     showToast('جاري تحديث قائمة الأوائل...', 'info');
     renderTopStudents();
     showToast('✅ تم تحديث قائمة العشرة الأوائل', 'success');
 };
 
-// عرض شهادة تقدير لطالب معين
 window.showCertificate = function(student) {
     currentCertificateStudent = student;
     const container = document.getElementById('certificate-container');
@@ -1105,7 +1088,7 @@ window.showCertificate = function(student) {
     });
     
     const rank = topStudentsList.findIndex(s => s.studentCode === student.studentCode) + 1;
-    const rankText = getRankText(rank);
+    const rankText = rank === 1 ? 'المركز الأول 🥇' : (rank === 2 ? 'المركز الثاني 🥈' : (rank === 3 ? 'المركز الثالث 🥉' : `المركز ${rank} 🎖️`));
     
     container.innerHTML = `
         <div class="certificate" id="certificate-to-print">
@@ -1140,14 +1123,8 @@ window.showCertificate = function(student) {
                 <i class="far fa-calendar-alt"></i> التاريخ: ${currentDate}
             </div>
             <div class="certificate-signature">
-                <div>
-                    <hr>
-                    <p>مدير المعهد</p>
-                </div>
-                <div>
-                    <hr>
-                    <p>وكيل المعهد</p>
-                </div>
+                <div><hr><p>مدير المعهد</p></div>
+                <div><hr><p>وكيل المعهد</p></div>
             </div>
         </div>
     `;
@@ -1155,24 +1132,12 @@ window.showCertificate = function(student) {
     modal.classList.add('show');
 };
 
-// الحصول على النص المناسب للترتيب
-function getRankText(rank) {
-    switch(rank) {
-        case 1: return 'المركز الأول 🥇';
-        case 2: return 'المركز الثاني 🥈';
-        case 3: return 'المركز الثالث 🥉';
-        default: return `المركز ${rank} 🎖️`;
-    }
-}
-
-// إغلاق مودال الشهادة
 window.closeCertificateModal = function() {
     const modal = document.getElementById('certificate-modal');
     if (modal) modal.classList.remove('show');
     currentCertificateStudent = null;
 };
 
-// طباعة الشهادة الحالية
 window.printCurrentCertificate = function() {
     const certificateContent = document.getElementById('certificate-to-print');
     if (!certificateContent) return;
@@ -1186,131 +1151,36 @@ window.printCurrentCertificate = function() {
             <title>شهادة تقدير - ${currentCertificateStudent?.fullName || 'طالب'}</title>
             <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
             <style>
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }
-                body {
-                    font-family: 'Tajawal', sans-serif;
-                    background: white;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    padding: 20px;
-                }
-                .certificate {
-                    background: linear-gradient(135deg, #fff 0%, #fdf8ed 100%);
-                    padding: 40px;
-                    margin: 20px;
-                    border: 20px double #c4a35a;
-                    border-radius: 28px;
-                    text-align: center;
-                    position: relative;
-                    max-width: 800px;
-                    width: 100%;
-                }
-                .certificate-logo img {
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 50%;
-                    border: 3px solid #c4a35a;
-                }
-                .certificate-title {
-                    font-size: 2rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 20px 0;
-                }
-                .certificate-subtitle {
-                    font-size: 1rem;
-                    color: #64748b;
-                    margin-bottom: 30px;
-                    border-bottom: 2px solid #c4a35a;
-                    display: inline-block;
-                    padding-bottom: 5px;
-                }
-                .certificate-student-name {
-                    font-size: 1.8rem;
-                    font-weight: 800;
-                    background: linear-gradient(135deg, #c4a35a, #a07d3a);
-                    background-clip: text;
-                    -webkit-background-clip: text;
-                    color: transparent;
-                    margin: 20px 0;
-                }
-                .certificate-rank span {
-                    font-size: 1.5rem;
-                    font-weight: 800;
-                    color: gold;
-                }
-                .certificate-percentage {
-                    font-size: 1.4rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 15px 0;
-                }
-                .certificate-date {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 1px dashed #cbd5e1;
-                }
-                .certificate-signature {
-                    margin-top: 30px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 0 20px;
-                }
-                .certificate-signature hr {
-                    width: 150px;
-                    margin: 5px 0;
-                    border: 1px solid #cbd5e1;
-                }
-                @media print {
-                    body {
-                        padding: 0;
-                        margin: 0;
-                    }
-                    .certificate {
-                        margin: 0;
-                        page-break-inside: avoid;
-                    }
-                }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Tajawal', sans-serif; background: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+                .certificate { background: linear-gradient(135deg, #fff 0%, #fdf8ed 100%); padding: 40px; margin: 20px; border: 20px double #c4a35a; border-radius: 28px; text-align: center; max-width: 800px; width: 100%; }
+                .certificate-logo img { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #c4a35a; }
+                .certificate-title { font-size: 2rem; font-weight: 800; color: #1a4f6e; margin: 20px 0; }
+                .certificate-subtitle { font-size: 1rem; color: #64748b; margin-bottom: 30px; border-bottom: 2px solid #c4a35a; display: inline-block; padding-bottom: 5px; }
+                .certificate-student-name { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, #c4a35a, #a07d3a); background-clip: text; -webkit-background-clip: text; color: transparent; margin: 20px 0; }
+                .certificate-rank span { font-size: 1.5rem; font-weight: 800; color: gold; }
+                .certificate-percentage { font-size: 1.4rem; font-weight: 800; color: #1a4f6e; margin: 15px 0; }
+                .certificate-date { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #cbd5e1; }
+                .certificate-signature { margin-top: 30px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
+                .certificate-signature hr { width: 150px; margin: 5px 0; border: 1px solid #cbd5e1; }
+                @media print { body { padding: 0; margin: 0; } .certificate { margin: 0; page-break-inside: avoid; } }
             </style>
         </head>
         <body>
             ${certificateContent.outerHTML}
-            <script>
-                window.onload = () => {
-                    window.print();
-                    window.onafterprint = () => window.close();
-                };
-            <\/script>
+            <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); };<\/script>
         </body>
         </html>
     `);
     printWindow.document.close();
 };
 
-// تحميل الشهادة كـ PDF
 window.downloadCurrentCertificate = async function() {
     if (!currentCertificateStudent) return;
-    
     showToast('جاري إنشاء ملف PDF...', 'info');
-    
-    // استخدام html2pdf إذا كان متاحاً
     if (typeof html2pdf !== 'undefined') {
         const element = document.getElementById('certificate-to-print');
-        const opt = {
-            margin: [0.5, 0.5, 0.5, 0.5],
-            filename: `شهادة_تقدير_${currentCertificateStudent.fullName}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, letterRendering: true },
-            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-        };
-        html2pdf().set(opt).from(element).save();
+        html2pdf().set({ margin: [0.5,0.5,0.5,0.5], filename: `شهادة_تقدير_${currentCertificateStudent.fullName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } }).from(element).save();
         showToast('✅ تم حفظ الشهادة', 'success');
     } else {
         showToast('⚠️ يرجى استخدام طباعة ثم حفظ كـ PDF من قائمة الطباعة', 'warning');
@@ -1318,7 +1188,6 @@ window.downloadCurrentCertificate = async function() {
     }
 };
 
-// طباعة جميع الشهادات للأوائل
 window.printAllCertificates = function() {
     if (topStudentsList.length === 0) {
         showToast('لا توجد بيانات لعرض شهادات الأوائل', 'error');
@@ -1326,11 +1195,7 @@ window.printAllCertificates = function() {
     }
     
     const printWindow = window.open('', '_blank');
-    const currentDate = new Date().toLocaleDateString('ar-EG', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
+    const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
     
     let allCertificatesHtml = `
         <!DOCTYPE html>
@@ -1341,91 +1206,19 @@ window.printAllCertificates = function() {
             <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                    font-family: 'Tajawal', sans-serif;
-                    background: white;
-                    padding: 20px;
-                }
-                .certificate-page {
-                    page-break-after: always;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                }
-                .certificate {
-                    background: linear-gradient(135deg, #fff 0%, #fdf8ed 100%);
-                    padding: 40px;
-                    margin: 20px;
-                    border: 20px double #c4a35a;
-                    border-radius: 28px;
-                    text-align: center;
-                    position: relative;
-                    max-width: 800px;
-                    width: 100%;
-                }
-                .certificate-logo img {
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 50%;
-                    border: 3px solid #c4a35a;
-                }
-                .certificate-title {
-                    font-size: 2rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 20px 0;
-                }
-                .certificate-subtitle {
-                    font-size: 1rem;
-                    color: #64748b;
-                    margin-bottom: 30px;
-                    border-bottom: 2px solid #c4a35a;
-                    display: inline-block;
-                    padding-bottom: 5px;
-                }
-                .certificate-student-name {
-                    font-size: 1.8rem;
-                    font-weight: 800;
-                    background: linear-gradient(135deg, #c4a35a, #a07d3a);
-                    background-clip: text;
-                    -webkit-background-clip: text;
-                    color: transparent;
-                    margin: 20px 0;
-                }
-                .certificate-rank span {
-                    font-size: 1.5rem;
-                    font-weight: 800;
-                    color: gold;
-                }
-                .certificate-percentage {
-                    font-size: 1.4rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 15px 0;
-                }
-                .certificate-date {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 1px dashed #cbd5e1;
-                }
-                .certificate-signature {
-                    margin-top: 30px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 0 20px;
-                }
-                .certificate-signature hr {
-                    width: 150px;
-                    margin: 5px 0;
-                    border: 1px solid #cbd5e1;
-                }
-                @media print {
-                    .certificate-page {
-                        page-break-after: always;
-                    }
-                }
+                body { font-family: 'Tajawal', sans-serif; background: white; padding: 20px; }
+                .certificate-page { page-break-after: always; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+                .certificate { background: linear-gradient(135deg, #fff 0%, #fdf8ed 100%); padding: 40px; margin: 20px; border: 20px double #c4a35a; border-radius: 28px; text-align: center; max-width: 800px; width: 100%; }
+                .certificate-logo img { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #c4a35a; }
+                .certificate-title { font-size: 2rem; font-weight: 800; color: #1a4f6e; margin: 20px 0; }
+                .certificate-subtitle { font-size: 1rem; color: #64748b; margin-bottom: 30px; border-bottom: 2px solid #c4a35a; display: inline-block; padding-bottom: 5px; }
+                .certificate-student-name { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, #c4a35a, #a07d3a); background-clip: text; -webkit-background-clip: text; color: transparent; margin: 20px 0; }
+                .certificate-rank span { font-size: 1.5rem; font-weight: 800; color: gold; }
+                .certificate-percentage { font-size: 1.4rem; font-weight: 800; color: #1a4f6e; margin: 15px 0; }
+                .certificate-date { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #cbd5e1; }
+                .certificate-signature { margin-top: 30px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
+                .certificate-signature hr { width: 150px; margin: 5px 0; border: 1px solid #cbd5e1; }
+                @media print { .certificate-page { page-break-after: always; } }
             </style>
         </head>
         <body>
@@ -1433,78 +1226,40 @@ window.printAllCertificates = function() {
     
     topStudentsList.forEach((student, index) => {
         const rank = index + 1;
-        const rankText = getRankText(rank);
+        const rankText = rank === 1 ? 'المركز الأول 🥇' : (rank === 2 ? 'المركز الثاني 🥈' : (rank === 3 ? 'المركز الثالث 🥉' : `المركز ${rank} 🎖️`));
         
         allCertificatesHtml += `
             <div class="certificate-page">
                 <div class="certificate">
-                    <div class="certificate-logo">
-                        <img src="logo.png" alt="شعار المعهد" onerror="this.style.display='none'">
-                    </div>
-                    <div class="certificate-title">
-                        <i class="fas fa-award"></i> شهادة تقدير
-                    </div>
-                    <div class="certificate-subtitle">
-                        معهد رعاية الضبعية الفني للتمريض
-                    </div>
+                    <div class="certificate-logo"><img src="logo.png" alt="شعار المعهد" onerror="this.style.display='none'"></div>
+                    <div class="certificate-title"><i class="fas fa-award"></i> شهادة تقدير</div>
+                    <div class="certificate-subtitle">معهد رعاية الضبعية الفني للتمريض</div>
                     <div class="certificate-body">
                         <p>تُمنح هذه الشهادة للطالب/ة</p>
-                        <div class="certificate-student-name">
-                            ${escapeHtml(student.fullName)}
-                        </div>
+                        <div class="certificate-student-name">${escapeHtml(student.fullName)}</div>
                         <p>رقم الجلوس: <strong>${student.studentCode}</strong></p>
-                        <div class="certificate-rank">
-                            🏆 <span>${rankText}</span> 🏆
-                        </div>
-                        <div class="certificate-percentage">
-                            ⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐
-                        </div>
+                        <div class="certificate-rank">🏆 <span>${rankText}</span> 🏆</div>
+                        <div class="certificate-percentage">⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐</div>
                         <p>📊 المجموع الكلي: ${student.total} / ${TOTAL_POSSIBLE}</p>
-                        <p style="margin-top: 15px; color: #666;">
-                            وذلك تقديراً لتفوقه وجهده المتميز خلال الفصل الدراسي،
-                            <br>ونتمنى له دوام النجاح والتفوق.
-                        </p>
+                        <p style="margin-top: 15px; color: #666;">وذلك تقديراً لتفوقه وجهده المتميز خلال الفصل الدراسي،<br>ونتمنى له دوام النجاح والتفوق.</p>
                     </div>
-                    <div class="certificate-date">
-                        <i class="far fa-calendar-alt"></i> التاريخ: ${currentDate}
-                    </div>
-                    <div class="certificate-signature">
-                        <div><hr><p>مدير المعهد</p></div>
-                        <div><hr><p>وكيل المعهد</p></div>
-                    </div>
+                    <div class="certificate-date"><i class="far fa-calendar-alt"></i> التاريخ: ${currentDate}</div>
+                    <div class="certificate-signature"><div><hr><p>مدير المعهد</p></div><div><hr><p>وكيل المعهد</p></div></div>
                 </div>
             </div>
         `;
     });
     
-    allCertificatesHtml += `
-            <script>
-                window.onload = () => {
-                    window.print();
-                    window.onafterprint = () => window.close();
-                };
-            <\/script>
-        </body>
-        </html>
-    `;
-    
+    allCertificatesHtml += `<script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); };<\/script></body></html>`;
     printWindow.document.write(allCertificatesHtml);
     printWindow.document.close();
 };
 
-// تحديث العشرة الأوائل عند تحميل/تحديث البيانات
-// أضف هذا داخل دالة renderResults و loadInitialData
-function updateTopStudentsAfterDataChange() {
-    renderTopStudents();
-}
-
-// استدعاء التحديث بعد حفظ/حذف/تعديل البيانات
-// قم بإضافة هذا السطر في نهاية دوال: renderResults, deleteStudent, saveToServer المتعلقة بالطلاب
+function updateTopStudentsAfterDataChange() { renderTopStudents(); }
 
 // ====================== بدء التشغيل ======================
 (async function init() { 
     if (await verifyAdminAccess()) { 
-        renderNavbar(); 
         renderAdminWelcomeMessage(); 
         await loadInitialData(); 
         await loadExamsList(); 
