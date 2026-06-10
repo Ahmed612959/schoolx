@@ -211,7 +211,6 @@
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 return 'http://localhost:3000';
             }
-            // استخدم رابط Vercel الخاص بك
             return 'https://schoolx-m32d8mifr-ahmeds-projects-522c87ce.vercel.app';
         })();
         
@@ -262,46 +261,24 @@
                 }
             } catch (error) {
                 console.error('Server connection error:', error);
-                showMessage('⚠️ لا يمكن الاتصال بالسيرفر! سيتم حفظ الأدمن محلياً مؤقتاً', 'info');
                 return false;
             }
             return false;
         }
 
-        // إنشاء حساب أدمن (متوافق مع Supabase API)
+        // إنشاء حساب أدمن (بدون وضع تجريبي)
         async function createAdmin(fullName, username, password) {
-            // محاولة الاتصال بالسيرفر أولاً
-            const isServerConnected = await checkServer();
+            const response = await fetch(`${BASE_URL}/api/admins`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ fullName, username, password })
+            });
             
-            if (isServerConnected) {
-                // استخدام API السيرفر
-                const response = await fetch(`${BASE_URL}/api/admins`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({ fullName, username, password })
-                });
-                
-                return response;
-            } else {
-                // وضع تجريبي - حفظ في localStorage
-                const admins = JSON.parse(localStorage.getItem('demo_admins') || '[]');
-                const existingAdmin = admins.find(a => a.username === username);
-                if (existingAdmin) {
-                    throw new Error('اسم المستخدم موجود مسبقاً');
-                }
-                admins.push({ fullName, username, password, role: 'admin', createdAt: new Date().toISOString() });
-                localStorage.setItem('demo_admins', JSON.stringify(admins));
-                
-                // محاكاة استجابة ناجحة
-                return {
-                    ok: true,
-                    json: async () => ({ success: true, message: 'تم إنشاء حساب الأدمن بنجاح (وضع تجريبي)', admin: { fullName, username } })
-                };
-            }
+            return response;
         }
 
         // إنشاء حساب أدمن
@@ -326,6 +303,13 @@
             
             if (password.length < 6) {
                 showMessage('❌ كلمة المرور يجب أن تكون 6 أحرف على الأقل!', 'error');
+                return;
+            }
+            
+            // التحقق من اتصال السيرفر
+            const isServerConnected = await checkServer();
+            if (!isServerConnected) {
+                showMessage('❌ لا يمكن الاتصال بالسيرفر. تأكد من أن السيرفر يعمل.', 'error');
                 return;
             }
             
