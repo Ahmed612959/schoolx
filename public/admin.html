@@ -65,19 +65,21 @@
             </table>
         </div>
     </div>
-<!-- ====================== أزرار تسجيل الحضور ====================== -->
-<h2><i class="fas fa-calendar-alt"></i> تسجيل الحضور والغياب</h2>
-<div class="grade-buttons" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0;">
-    <a href="attendance-first.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
-        <i class="fas fa-calendar-check"></i> 🎓 الصف الأول
-    </a>
-    <a href="attendance-second.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
-        <i class="fas fa-calendar-check"></i> 📚 الصف الثاني
-    </a>
-    <a href="attendance-third.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
-        <i class="fas fa-calendar-check"></i> 📖 الصف الثالث
-    </a>
-</div>
+
+    <!-- ====================== أزرار تسجيل الحضور ====================== -->
+    <h2><i class="fas fa-calendar-alt"></i> تسجيل الحضور والغياب</h2>
+    <div class="grade-buttons" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0;">
+        <a href="attendance-first.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
+            <i class="fas fa-calendar-check"></i> 🎓 الصف الأول
+        </a>
+        <a href="attendance-second.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
+            <i class="fas fa-calendar-check"></i> 📚 الصف الثاني
+        </a>
+        <a href="attendance-third.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
+            <i class="fas fa-calendar-check"></i> 📖 الصف الثالث
+        </a>
+    </div>
+
     <!-- ====================== إضافة نتيجة طالب ====================== -->
     <h2><i class="fas fa-edit"></i> إضافة / تعديل نتيجة طالب</h2>
     <div class="add-result-section">
@@ -109,6 +111,12 @@
             <div class="input-group" id="geography-group" style="display:none;"><label>🌍 الجغرافيا</label><input type="number" id="subject10" min="0" max="100" placeholder="0-100"></div>
             <button type="submit" class="submit-btn"><i class="fas fa-save"></i> حفظ النتيجة</button>
         </form>
+    </div>
+
+    <!-- ====================== رفع Excel ====================== -->
+    <div class="excel-upload-section" style="margin: 20px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <input type="file" id="excel-upload" accept=".xlsx, .xls" style="padding: 8px; border: 1px solid #c4a35a; border-radius: 8px;">
+        <button id="analyze-excel" class="submit-btn"><i class="fas fa-file-excel"></i> تحليل Excel</button>
     </div>
 
     <!-- ====================== قائمة النتائج ====================== -->
@@ -181,7 +189,7 @@
                     </tr>
                 </thead>
                 <tbody id="violations-table-body">
-                    <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل البيانات...<\/td></tr>
+                    <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل البيانات...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -191,8 +199,7 @@
     <h2><i class="fas fa-chart-bar"></i> إحصائيات سريعة</h2>
     <div class="stats-section" id="stats-section"></div>
 
-
-        <!-- ====================== العشرة الأوائل وشهادات التقدير ====================== -->
+    <!-- ====================== العشرة الأوائل وشهادات التقدير ====================== -->
     <h2><i class="fas fa-trophy"></i> العشرة الأوائل - شهادات التقدير</h2>
     <div class="top-students-section" id="top-students-section">
         <div class="top-students-header">
@@ -227,7 +234,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- ====================== إدارة الإشعارات ====================== -->
     <h2><i class="fas fa-bell"></i> إدارة الإشعارات العامة</h2>
@@ -293,7 +299,7 @@
                 </tr>
             </thead>
             <tbody id="exams-list-body">
-                <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل الاختبارات...<\/td></tr>
+                <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل الاختبارات...</td></tr>
             </tbody>
         </table>
     </div>
