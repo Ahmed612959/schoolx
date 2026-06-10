@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const express = require('express');
-const mongoose = require('mongoose');
+const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
@@ -9,11 +9,14 @@ const helmet = require('helmet');
 const session = require('express-session');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
+const bcrypt = require('bcryptjs');
 
 const app = express();
+
+// ====================== Supabase Client ======================
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // ====================== إعدادات trust proxy (مهم لـ Vercel) ======================
 app.set('trust proxy', 1);
@@ -24,25 +27,20 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
 // ====================== CORS شامل لجميع الطلبات ======================
-// السماح لجميع الأصول (الحل الأبسط لـ Vercel)
 app.use((req, res, next) => {
-    // السماح لأي Origin
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token');
     
-    // معالجة طلبات OPTIONS (preflight)
     if (req.method === 'OPTIONS') {
         return res.sendStatus(200);
     }
     next();
 });
 
-// CORS باستخدام المكتبة كطبقة إضافية
 app.use(cors({
     origin: function(origin, callback) {
-        // السماح لجميع الأصول في بيئة Vercel
         if (!origin) return callback(null, true);
         return callback(null, true);
     },
@@ -65,7 +63,7 @@ const limiter = rateLimit({
     max: 200,
     message: { error: 'لقد تجاوزت الحد المسموح من الطلبات' },
     trustProxy: true,
-    skip: (req) => req.method === 'OPTIONS' // تخطي OPTIONS requests
+    skip: (req) => req.method === 'OPTIONS'
 });
 app.use('/api/', limiter);
 
@@ -80,30 +78,13 @@ const loginLimiter = rateLimit({
 // ====================== متغيرات البيئة ======================
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(64).toString('hex');
-const MONGODB_URI = process.env.MONGODB_URI;
 
-console.log('MONGODB_URI:', MONGODB_URI ? '✅ Found' : '❌ Not found');
+console.log('SUPABASE_URL:', supabaseUrl ? '✅ Found' : '❌ Not found');
+console.log('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✅ Found' : '❌ Not found');
 
 // ====================== دوال التشفير ======================
-async function hashPassword(password) {
-    return new Promise((resolve, reject) => {
-        const salt = crypto.randomBytes(32).toString('hex');
-        crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-            if (err) reject(err);
-            resolve(`${salt}:${derivedKey.toString('hex')}`);
-        });
-    });
-}
-
-async function verifyPassword(password, hash) {
-    return new Promise((resolve, reject) => {
-        const [salt, key] = hash.split(':');
-        crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-            if (err) reject(err);
-            resolve(key === derivedKey.toString('hex'));
-        });
-    });
-}
+const hashPassword = async (password) => bcrypt.hash(password, 10);
+const verifyPassword = async (password, hash) => bcrypt.compare(password, hash);
 
 // ====================== Session Setup ======================
 const MemoryStore = require('express-session').MemoryStore;
@@ -114,7 +95,7 @@ app.use(session({
     saveUninitialized: false,
     store: new MemoryStore(),
     cookie: {
-        secure: false,  // مهم لـ Vercel - يمنع مشاكل HTTPS
+        secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
         sameSite: 'lax'
@@ -122,145 +103,7 @@ app.use(session({
     name: 'institute.sid'
 }));
 
-// ====================== الاتصال بقاعدة البيانات ======================
-let dbConnected = false;
-let Admin, Student, Violation, Notification, Attendance, Exam, ExamResult, File;
-
-// إعدادات إضافية لـ Mongoose
-mongoose.set('strictQuery', false);
-
-if (MONGODB_URI && MONGODB_URI !== '') {
-    console.log('📡 Connecting to MongoDB...');
-    console.log('📡 MONGODB_URI exists, attempting connection...');
-    
-    mongoose.connect(MONGODB_URI, {
-        serverSelectionTimeoutMS: 30000,
-        socketTimeoutMS: 60000,
-        connectTimeoutMS: 30000,
-    })
-    .then(() => {
-        console.log('✅ MongoDB connected successfully');
-        dbConnected = true;
-        
-        // تعريف النماذج
-        const adminSchema = new mongoose.Schema({
-            fullName: String,
-            username: { type: String, unique: true },
-            password: String,
-            role: { type: String, default: 'admin' },
-            lastLogin: Date,
-            lastIP: String,
-            failedAttempts: { type: Number, default: 0 },
-            lockedUntil: Date,
-            profile: { phone: String, email: String },
-            refreshToken: String
-        }, { timestamps: true });
-
-        const studentSchema = new mongoose.Schema({
-            fullName: String,
-            studentCode: { type: String, required: true, unique: true },
-            username: { type: String, unique: true },
-            password: String,
-            grade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
-            semester: String,
-            subjects: Array,
-            role: { type: String, default: 'student' },
-            lastLogin: Date,
-            lastIP: String,
-            profile: {
-                phone: String,
-                parentName: String,
-                parentId: String
-            },
-            refreshToken: String
-        }, { timestamps: true });
-
-        const violationSchema = new mongoose.Schema({
-            studentId: String,
-            type: String,
-            reason: String,
-            penalty: String,
-            parentSummons: Boolean,
-            date: String
-        }, { timestamps: true });
-
-        const notificationSchema = new mongoose.Schema({
-            text: String,
-            date: String
-        }, { timestamps: true });
-
-        const attendanceSchema = new mongoose.Schema({
-            studentCode: { type: String, required: true },
-            studentName: { type: String, required: true },
-            date: { type: String, required: true },
-            status: { type: String, enum: ['present', 'absent', 'late'], default: 'present' },
-            note: { type: String, default: '' },
-            recordedBy: { type: String, default: '' }
-        }, { timestamps: true });
-
-        const examSchema = new mongoose.Schema({
-            name: { type: String, required: true },
-            stage: { type: String, required: true },
-            code: { type: String, required: true, unique: true },
-            duration: { type: Number, required: true },
-            questions: [{
-                type: { type: String, required: true },
-                text: { type: String, required: true },
-                options: [String],
-                correctAnswer: String,
-                correctAnswers: [String]
-            }]
-        }, { timestamps: true });
-
-        const examResultSchema = new mongoose.Schema({
-            examCode: { type: String, required: true },
-            studentId: { type: String, required: true },
-            score: { type: Number, required: true },
-            completionTime: { type: Date, default: Date.now }
-        });
-
-        const fileSchema = new mongoose.Schema({
-            name: { type: String, required: true },
-            description: String,
-            filename: { type: String, required: true },
-            originalName: { type: String, required: true },
-            type: { type: String, required: true },
-            size: Number,
-            grade: { type: String, enum: ['first', 'second', 'third'], required: true },
-            subject: { type: String, required: true },
-            downloads: { type: Number, default: 0 },
-            uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
-            createdAt: { type: Date, default: Date.now }
-        });
-
-        Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
-        Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
-        Violation = mongoose.models.Violation || mongoose.model('Violation', violationSchema);
-        Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
-        Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
-        Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
-        ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
-        File = mongoose.models.File || mongoose.model('File', fileSchema);
-        
-        console.log('✅ All models defined successfully');
-    })
-    .catch(err => {
-        console.error('❌ MongoDB connection error:', err.message);
-        console.error('⚠️ Running in demo mode without database');
-        dbConnected = false;
-    });
-} else {
-    console.log('⚠️ No MONGODB_URI provided, running without database (demo mode)');
-}
-
 // ====================== دوال مساعدة ======================
-function requireDb(req, res, next) {
-    if (!dbConnected) {
-        return res.status(503).json({ error: 'قاعدة البيانات غير متصلة حالياً' });
-    }
-    next();
-}
-
 function setAuthCookie(res, token) {
     res.cookie('authToken', token, {
         httpOnly: true,
@@ -303,8 +146,8 @@ function isAdmin(req, res, next) {
 app.get('/api/test', (req, res) => {
     res.json({ 
         status: 'ok', 
-        mongodb_status: dbConnected ? 'connected' : 'disconnected',
-        message: 'API is working on Vercel!',
+        database: 'Supabase',
+        message: 'API is working on Vercel with Supabase!',
         cors_headers: 'enabled'
     });
 });
@@ -317,13 +160,13 @@ app.get('/api/check-username', async (req, res) => {
             return res.json({ available: false });
         }
         
-        if (!dbConnected || !Student) {
-            return res.json({ available: true });
-        }
+        const { data, error } = await supabase
+            .from('students')
+            .select('username')
+            .eq('username', username.toLowerCase())
+            .maybeSingle();
         
-        const existingStudent = await Student.findOne({ username: username.toLowerCase() });
-        
-        const available = !existingStudent;
+        const available = !data;
         res.json({ available });
     } catch (error) {
         console.error('Error checking username:', error);
@@ -340,37 +183,47 @@ app.post('/api/students/register', async (req, res) => {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
         
-        if (!dbConnected || !Student) {
-            return res.status(503).json({ error: 'قاعدة البيانات غير متصلة حالياً' });
-        }
+        // التحقق من وجود اسم المستخدم
+        const { data: existingUser } = await supabase
+            .from('students')
+            .select('username')
+            .eq('username', username.toLowerCase())
+            .maybeSingle();
         
-        const existingUser = await Student.findOne({ username: username.toLowerCase() });
         if (existingUser) {
             return res.status(400).json({ error: 'اسم المستخدم موجود مسبقاً' });
         }
         
-        const existingCode = await Student.findOne({ studentCode });
+        // التحقق من وجود رقم الجلوس
+        const { data: existingCode } = await supabase
+            .from('students')
+            .select('student_code')
+            .eq('student_code', studentCode)
+            .maybeSingle();
+        
         if (existingCode) {
             return res.status(400).json({ error: 'رقم الجلوس موجود مسبقاً' });
         }
         
         const hashedPassword = await hashPassword(password);
         
-        const student = new Student({
-            fullName,
-            username: username.toLowerCase(),
-            password: hashedPassword,
-            grade,
-            studentCode,
-            role: 'student',
-            profile: {
-                phone: phone || '',
-                parentName: parentName || '',
-                parentId: parentId || ''
-            }
-        });
+        const { data, error } = await supabase
+            .from('students')
+            .insert([{
+                full_name: fullName,
+                username: username.toLowerCase(),
+                password: hashedPassword,
+                grade: grade,
+                student_code: studentCode,
+                profile: {
+                    phone: phone || '',
+                    parentName: parentName || '',
+                    parentId: parentId || ''
+                }
+            }])
+            .select();
         
-        await student.save();
+        if (error) throw error;
         
         console.log(`✅ تم إنشاء حساب جديد للطالب: ${fullName}`);
         res.json({ success: true, message: 'تم إنشاء الحساب بنجاح' });
@@ -418,36 +271,59 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             });
         }
         
-        // وضع مع قاعدة البيانات
-        if (dbConnected && Student) {
-            let user = await Admin?.findOne({ username: username.toLowerCase() });
-            let userType = 'admin';
-
-            if (!user) {
-                user = await Student.findOne({ username: username.toLowerCase() });
-                userType = 'student';
+        // البحث في جدول الأدمن
+        let { data: admin } = await supabase
+            .from('admins')
+            .select('*')
+            .eq('username', username.toLowerCase())
+            .maybeSingle();
+        
+        if (admin) {
+            const isMatch = await verifyPassword(password, admin.password);
+            if (isMatch) {
+                const token = jwt.sign(
+                    { id: admin.id, username: admin.username, type: 'admin', fullName: admin.full_name },
+                    JWT_SECRET,
+                    { expiresIn: '24h' }
+                );
+                setAuthCookie(res, token);
+                return res.json({
+                    success: true,
+                    user: {
+                        username: admin.username,
+                        fullName: admin.full_name,
+                        type: 'admin',
+                        id: admin.id
+                    }
+                });
             }
-
-            if (user) {
-                const isMatch = await verifyPassword(password, user.password);
-                
-                if (isMatch) {
-                    const token = jwt.sign(
-                        { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode },
-                        JWT_SECRET,
-                        { expiresIn: '24h' }
-                    );
-                    setAuthCookie(res, token);
-                    return res.json({
-                        success: true,
-                        user: {
-                            username: user.username,
-                            fullName: user.fullName,
-                            type: userType,
-                            id: user.studentCode || user._id
-                        }
-                    });
-                }
+        }
+        
+        // البحث في جدول الطلاب
+        let { data: student } = await supabase
+            .from('students')
+            .select('*')
+            .eq('username', username.toLowerCase())
+            .maybeSingle();
+        
+        if (student) {
+            const isMatch = await verifyPassword(password, student.password);
+            if (isMatch) {
+                const token = jwt.sign(
+                    { id: student.id, username: student.username, type: 'student', fullName: student.full_name, studentCode: student.student_code },
+                    JWT_SECRET,
+                    { expiresIn: '24h' }
+                );
+                setAuthCookie(res, token);
+                return res.json({
+                    success: true,
+                    user: {
+                        username: student.username,
+                        fullName: student.full_name,
+                        type: 'student',
+                        id: student.student_code
+                    }
+                });
             }
         }
         
@@ -473,16 +349,27 @@ app.post('/api/logout', (req, res) => {
 // ====================== جلب الطلاب (للأدمن) ======================
 app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
     try {
-        if (!dbConnected || !Student) {
-            return res.json([
-                { fullName: 'أحمد محمد (تجريبي)', username: 'ahmed', studentCode: '2024001', grade: 'first', profile: { phone: '01012345678', parentName: 'محمد أحمد', parentId: '12345678901234' } },
-                { fullName: 'سارة علي (تجريبي)', username: 'sara', studentCode: '2024002', grade: 'second', profile: { phone: '01087654321', parentName: 'علي محمد', parentId: '12345678905678' } }
-            ]);
-        }
-        const students = await Student.find().select('-password -refreshToken');
-        res.json(students);
+        const { data: students, error } = await supabase
+            .from('students')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        // إخفاء كلمة المرور من النتيجة
+        const safeStudents = students.map(s => {
+            delete s.password;
+            return s;
+        });
+        
+        res.json(safeStudents);
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب الطلاب' });
+        console.error('خطأ في جلب الطلاب:', error);
+        // بيانات تجريبية في حالة الخطأ
+        res.json([
+            { fullName: 'أحمد محمد (تجريبي)', username: 'ahmed', studentCode: '2024001', grade: 'first', profile: { phone: '01012345678', parentName: 'محمد أحمد', parentId: '12345678901234' } },
+            { fullName: 'سارة علي (تجريبي)', username: 'sara', studentCode: '2024002', grade: 'second', profile: { phone: '01087654321', parentName: 'علي محمد', parentId: '12345678905678' } }
+        ]);
     }
 });
 
@@ -493,24 +380,31 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         const { profile, subjects, fullName, semester, studentCode: newStudentCode, password } = req.body;
         
         const updateData = {};
+        if (fullName !== undefined) updateData.full_name = fullName;
         if (profile !== undefined) updateData.profile = profile;
         if (subjects !== undefined) updateData.subjects = subjects;
-        if (fullName !== undefined) updateData.fullName = fullName;
         if (semester !== undefined) updateData.semester = semester;
-        if (newStudentCode !== undefined) updateData.studentCode = newStudentCode;
+        if (newStudentCode !== undefined) updateData.student_code = newStudentCode;
         if (password !== undefined && password !== '') {
             updateData.password = await hashPassword(password);
         }
         
-        const updated = await Student.findOneAndUpdate(
-            { studentCode: studentCode },
-            { $set: updateData },
-            { new: true }
-        ).select('-password -refreshToken');
+        const { data, error } = await supabase
+            .from('students')
+            .update(updateData)
+            .eq('student_code', studentCode)
+            .select();
         
-        if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
-        res.json(updated);
+        if (error) throw error;
+        
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'الطالب غير موجود' });
+        }
+        
+        delete data[0].password;
+        res.json(data[0]);
     } catch (error) {
+        console.error('خطأ في تحديث الطالب:', error);
         res.status(500).json({ error: 'خطأ في تحديث البيانات' });
     }
 });
@@ -519,11 +413,24 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
 app.delete('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => {
     try {
         const { studentCode } = req.params;
-        const student = await Student.findOneAndDelete({ studentCode });
-        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
-        await Violation.deleteMany({ studentId: studentCode });
+        
+        // حذف الطالب
+        const { error: studentError } = await supabase
+            .from('students')
+            .delete()
+            .eq('student_code', studentCode);
+        
+        if (studentError) throw studentError;
+        
+        // حذف المخالفات المرتبطة بالطالب
+        await supabase
+            .from('violations')
+            .delete()
+            .eq('student_id', studentCode);
+        
         res.json({ message: 'تم حذف الطالب بنجاح' });
     } catch (error) {
+        console.error('خطأ في حذف الطالب:', error);
         res.status(500).json({ error: 'خطأ في حذف الطالب' });
     }
 });
@@ -531,13 +438,17 @@ app.delete('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) 
 // ====================== الإشعارات ======================
 app.get('/api/notifications', async (req, res) => { 
     try {
-        if (!dbConnected || !Notification) {
+        const { data: notifications, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error || !notifications || notifications.length === 0) {
             return res.json([
                 { id: '1', text: '📢 اختبارات الفصل الدراسي الأول تبدأ الأسبوع القادم', date: '2024-01-15' },
                 { id: '2', text: '🎓 موعد تسليم مشاريع التخرج 30 يناير', date: '2024-01-14' }
             ]);
         }
-        const notifications = await Notification.find().sort({ createdAt: -1 });
         res.json(notifications); 
     } catch (error) { 
         res.status(500).json({ error: 'خطأ في جلب الإشعارات' }); 
@@ -550,10 +461,20 @@ app.post('/api/notifications', verifyToken, isAdmin, async (req, res) => {
         if (!text || text.trim() === '') {
             return res.status(400).json({ error: 'نص الإشعار مطلوب' });
         }
-        const newNotification = new Notification({ text: text.trim(), date: date || new Date().toLocaleString('ar-EG') });
-        await newNotification.save();
-        res.json({ success: true, message: 'تم إضافة الإشعار بنجاح', notification: newNotification });
+        
+        const { data, error } = await supabase
+            .from('notifications')
+            .insert([{ 
+                text: text.trim(), 
+                date: date || new Date().toLocaleString('ar-EG') 
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        res.json({ success: true, message: 'تم إضافة الإشعار بنجاح', notification: data[0] });
     } catch (error) {
+        console.error('خطأ في إضافة الإشعار:', error);
         res.status(500).json({ error: 'خطأ في إضافة الإشعار' });
     }
 });
@@ -561,10 +482,17 @@ app.post('/api/notifications', verifyToken, isAdmin, async (req, res) => {
 app.delete('/api/notifications/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = await Notification.findByIdAndDelete(id);
-        if (!deleted) return res.status(404).json({ error: 'الإشعار غير موجود' });
+        
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .eq('id', id);
+        
+        if (error) throw error;
+        
         res.json({ success: true, message: 'تم حذف الإشعار بنجاح' });
     } catch (error) {
+        console.error('خطأ في حذف الإشعار:', error);
         res.status(500).json({ error: 'خطأ في حذف الإشعار' });
     }
 });
@@ -572,12 +500,16 @@ app.delete('/api/notifications/:id', verifyToken, isAdmin, async (req, res) => {
 // ====================== المخالفات ======================
 app.get('/api/violations', verifyToken, isAdmin, async (req, res) => {
     try {
-        if (!dbConnected || !Violation) {
+        const { data: violations, error } = await supabase
+            .from('violations')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error || !violations || violations.length === 0) {
             return res.json([
                 { id: '1', studentId: '2024001', reason: 'تأخر متكرر', penalty: 'إنذار', date: '2024-01-10' }
             ]);
         }
-        const violations = await Violation.find().sort({ createdAt: -1 });
         res.json(violations);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب المخالفات' });
@@ -590,17 +522,35 @@ app.post('/api/violations', verifyToken, isAdmin, async (req, res) => {
         if (!studentId || !reason || !penalty) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
-        const student = await Student.findOne({ studentCode: studentId });
-        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
         
-        const newViolation = new Violation({
-            studentId, type, reason, penalty,
-            parentSummons: parentSummons || false,
-            date: date || new Date().toLocaleString('ar-EG')
-        });
-        await newViolation.save();
-        res.json({ success: true, message: 'تم إضافة المخالفة بنجاح', violation: newViolation });
+        // التحقق من وجود الطالب
+        const { data: student, error: studentError } = await supabase
+            .from('students')
+            .select('student_code')
+            .eq('student_code', studentId)
+            .maybeSingle();
+        
+        if (studentError || !student) {
+            return res.status(404).json({ error: 'الطالب غير موجود' });
+        }
+        
+        const { data, error } = await supabase
+            .from('violations')
+            .insert([{
+                student_id: studentId,
+                type: type || 'behavior',
+                reason: reason,
+                penalty: penalty,
+                parent_summons: parentSummons || false,
+                date: date || new Date().toLocaleString('ar-EG')
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        res.json({ success: true, message: 'تم إضافة المخالفة بنجاح', violation: data[0] });
     } catch (error) {
+        console.error('خطأ في إضافة المخالفة:', error);
         res.status(500).json({ error: 'خطأ في إضافة المخالفة' });
     }
 });
@@ -608,10 +558,17 @@ app.post('/api/violations', verifyToken, isAdmin, async (req, res) => {
 app.delete('/api/violations/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = await Violation.findByIdAndDelete(id);
-        if (!deleted) return res.status(404).json({ error: 'المخالفة غير موجودة' });
+        
+        const { error } = await supabase
+            .from('violations')
+            .delete()
+            .eq('id', id);
+        
+        if (error) throw error;
+        
         res.json({ success: true, message: 'تم حذف المخالفة بنجاح' });
     } catch (error) {
+        console.error('خطأ في حذف المخالفة:', error);
         res.status(500).json({ error: 'خطأ في حذف المخالفة' });
     }
 });
@@ -619,16 +576,32 @@ app.delete('/api/violations/:id', verifyToken, isAdmin, async (req, res) => {
 // ====================== إنشاء مدير تجريبي ======================
 app.post('/api/create-test-admin', async (req, res) => {
     try {
-        if (!dbConnected || !Admin) {
-            return res.json({ message: 'وضع تجريبي - admin/admin123', username: 'admin', password: 'admin123' });
-        }
-        const existingAdmin = await Admin.findOne({ username: 'admin' });
-        if (existingAdmin) return res.json({ message: 'المدير موجود مسبقاً', username: 'admin', password: 'admin123' });
         const hashedPassword = await hashPassword('admin123');
-        const admin = new Admin({ fullName: 'مدير النظام', username: 'admin', password: hashedPassword });
-        await admin.save();
+        
+        const { data: existingAdmin } = await supabase
+            .from('admins')
+            .select('username')
+            .eq('username', 'admin')
+            .maybeSingle();
+        
+        if (existingAdmin) {
+            return res.json({ message: 'المدير موجود مسبقاً', username: 'admin', password: 'admin123' });
+        }
+        
+        const { error } = await supabase
+            .from('admins')
+            .insert([{
+                full_name: 'مدير النظام',
+                username: 'admin',
+                password: hashedPassword,
+                role: 'admin'
+            }]);
+        
+        if (error) throw error;
+        
         res.json({ message: 'تم إنشاء المدير بنجاح', username: 'admin', password: 'admin123' });
     } catch (error) { 
+        console.error('خطأ في إنشاء المدير:', error);
         res.status(500).json({ error: error.message }); 
     }
 });
@@ -636,9 +609,10 @@ app.post('/api/create-test-admin', async (req, res) => {
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
     res.json({
-        message: 'معهد رعاية الضبعية - API',
+        message: 'معهد رعاية الضبعية - API with Supabase',
         status: 'running',
-        version: '1.0.0',
+        version: '2.0.0',
+        database: 'Supabase PostgreSQL',
         endpoints: ['/api/test', '/api/login', '/api/admin/students', '/api/notifications', '/api/violations']
     });
 });
