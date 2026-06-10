@@ -150,6 +150,13 @@
             margin: 20px 0;
             border-color: #d4af37;
         }
+        .password-strength {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .strength-weak { color: #dc3545; }
+        .strength-medium { color: #fd7e14; }
+        .strength-strong { color: #28a745; }
     </style>
 </head>
 <body>
@@ -162,20 +169,20 @@
         <div class="form-container">
             <h2><i class="fas fa-user-shield"></i> بيانات الأدمن الجديد</h2>
             <div id="messageArea"></div>
-            <div id="dbStatus" class="message info" style="display: none;"></div>
             
             <form id="create-admin-form">
                 <div class="input-group">
                     <label for="fullName"><i class="fas fa-user"></i> الاسم الكامل</label>
-                    <input type="text" id="fullName" placeholder="مثال: أحمد محمد علي" required autocomplete="off">
+                    <input type="text" id="fullName" placeholder="مثال: وفاء زكي" required autocomplete="off">
                 </div>
                 <div class="input-group">
                     <label for="username"><i class="fas fa-envelope"></i> اسم المستخدم</label>
-                    <input type="text" id="username" placeholder="أدخل اسم المستخدم" required autocomplete="off">
+                    <input type="text" id="username" placeholder="أدخل اسم المستخدم (مثال: wafaa)" required autocomplete="off">
                 </div>
                 <div class="input-group">
                     <label for="password"><i class="fas fa-lock"></i> كلمة المرور</label>
                     <input type="password" id="password" placeholder="أدخل كلمة المرور (6 أحرف على الأقل)" required>
+                    <div id="passwordStrength" class="password-strength"></div>
                 </div>
                 <div class="input-group">
                     <label for="confirmPassword"><i class="fas fa-check-circle"></i> تأكيد كلمة المرور</label>
@@ -199,12 +206,37 @@
     </footer>
 
     <script>
-        // تحديد الرابط الصحيح حسب البيئة
-        const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:3000' 
-            : 'https://school-system-fiv.vercel.app';
+        // تحديد الرابط الصحيح حسب البيئة (Vercel أو محلي)
+        const BASE_URL = (() => {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return 'http://localhost:3000';
+            }
+            // استخدم رابط Vercel الخاص بك
+            return 'https://schoolx-m32d8mifr-ahmeds-projects-522c87ce.vercel.app';
+        })();
         
         console.log('🌐 BASE_URL:', BASE_URL);
+
+        // قياس قوة كلمة المرور
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            if (password.length >= 6) strength++;
+            if (password.length >= 8) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+            
+            if (strength <= 2) return { level: 'ضعيفة', class: 'strength-weak' };
+            if (strength <= 4) return { level: 'متوسطة', class: 'strength-medium' };
+            return { level: 'قوية', class: 'strength-strong' };
+        }
+
+        // عرض قوة كلمة المرور
+        document.getElementById('password').addEventListener('input', function(e) {
+            const strength = checkPasswordStrength(e.target.value);
+            const strengthDiv = document.getElementById('passwordStrength');
+            strengthDiv.innerHTML = `قوة كلمة المرور: <span class="${strength.class}">${strength.level}</span>`;
+        });
 
         function showMessage(message, type) {
             const messageArea = document.getElementById('messageArea');
@@ -219,23 +251,57 @@
         // التحقق من اتصال السيرفر
         async function checkServer() {
             try {
-                const response = await fetch(`${BASE_URL}/api/test`);
+                const response = await fetch(`${BASE_URL}/api/test`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 if (response.ok) {
                     const data = await response.json();
                     console.log('✅ Server is running:', data);
-                    if (data.mongodb_status === 'connected') {
-                        showMessage('✅ السيرفر وقاعدة البيانات متصلان بنجاح', 'info');
-                    } else {
-                        showMessage('⚠️ السيرفر يعمل ولكن قاعدة البيانات غير متصلة', 'info');
-                    }
                     return true;
                 }
             } catch (error) {
                 console.error('Server connection error:', error);
-                showMessage('❌ لا يمكن الاتصال بالسيرفر! تأكد من تشغيل السيرفر على المنفذ 3000', 'error');
+                showMessage('⚠️ لا يمكن الاتصال بالسيرفر! سيتم حفظ الأدمن محلياً مؤقتاً', 'info');
                 return false;
             }
             return false;
+        }
+
+        // إنشاء حساب أدمن (متوافق مع Supabase API)
+        async function createAdmin(fullName, username, password) {
+            // محاولة الاتصال بالسيرفر أولاً
+            const isServerConnected = await checkServer();
+            
+            if (isServerConnected) {
+                // استخدام API السيرفر
+                const response = await fetch(`${BASE_URL}/api/admins`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ fullName, username, password })
+                });
+                
+                return response;
+            } else {
+                // وضع تجريبي - حفظ في localStorage
+                const admins = JSON.parse(localStorage.getItem('demo_admins') || '[]');
+                const existingAdmin = admins.find(a => a.username === username);
+                if (existingAdmin) {
+                    throw new Error('اسم المستخدم موجود مسبقاً');
+                }
+                admins.push({ fullName, username, password, role: 'admin', createdAt: new Date().toISOString() });
+                localStorage.setItem('demo_admins', JSON.stringify(admins));
+                
+                // محاكاة استجابة ناجحة
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, message: 'تم إنشاء حساب الأدمن بنجاح (وضع تجريبي)', admin: { fullName, username } })
+                };
+            }
         }
 
         // إنشاء حساب أدمن
@@ -243,7 +309,7 @@
             e.preventDefault();
             
             const fullName = document.getElementById('fullName').value.trim();
-            const username = document.getElementById('username').value.trim();
+            const username = document.getElementById('username').value.trim().toLowerCase();
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
             
@@ -269,36 +335,16 @@
             submitBtn.disabled = true;
             
             try {
-                console.log('📤 Sending request to:', `${BASE_URL}/api/create-admin`);
+                console.log('📤 Sending request to create admin');
                 console.log('📦 Data:', { fullName, username, password: '***' });
                 
-                const response = await fetch(`${BASE_URL}/api/create-admin`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ fullName, username, password })
-                });
-                
-                console.log('📥 Response status:', response.status);
-                
-                // محاولة قراءة الـ response كـ JSON
-                let data;
-                const textResponse = await response.text();
-                console.log('📄 Raw response:', textResponse);
-                
-                try {
-                    data = JSON.parse(textResponse);
-                } catch (e) {
-                    console.error('JSON parse error:', e);
-                    showMessage('❌ خطأ في استجابة السيرفر: ' + textResponse.substring(0, 200), 'error');
-                    return;
-                }
+                const response = await createAdmin(fullName, username, password);
+                const data = await response.json();
                 
                 if (response.ok && data.success) {
-                    showMessage(`✅ ${data.message}<br>📝 اسم المستخدم: ${username}<br>🔑 كلمة المرور: ${password}`, 'success');
+                    showMessage(`✅ ${data.message || 'تم إنشاء حساب الأدمن بنجاح!'}<br>📝 اسم المستخدم: ${username}<br>🔑 كلمة المرور: ${password}`, 'success');
                     document.getElementById('create-admin-form').reset();
+                    document.getElementById('passwordStrength').innerHTML = '';
                     
                     // توجيه تلقائي بعد 3 ثواني
                     setTimeout(() => {
@@ -309,15 +355,17 @@
                 }
             } catch (error) {
                 console.error('Fetch Error:', error);
-                showMessage(`❌ حدث خطأ في الاتصال بالسيرفر: ${error.message}`, 'error');
+                showMessage(`❌ حدث خطأ في الاتصال: ${error.message}`, 'error');
             } finally {
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
             }
         });
         
-        // التحقق من السيرفر عند تحميل الصفحة
-        setTimeout(checkServer, 500);
+        // عرض رسالة ترحيب عند تحميل الصفحة
+        setTimeout(() => {
+            showMessage('🔐 يمكنك إنشاء حساب أدمن جديد للوصول إلى لوحة التحكم', 'info');
+        }, 1000);
     </script>
 </body>
 </html>
