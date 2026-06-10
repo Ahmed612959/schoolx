@@ -105,18 +105,14 @@ async function verifyPassword(password, hash) {
     });
 }
 
-// Session Setup مع MongoDB Store
-const MongoStore = require('connect-mongo');
+// استبدل كل Session Setup بـ:
+const MemoryStore = require('express-session').MemoryStore;
 
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-        mongoUrl: MONGODB_URI,
-        ttl: 24 * 60 * 60,
-        autoRemove: 'native'
-    }),
+    store: new MemoryStore(),
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
