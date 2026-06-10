@@ -105,7 +105,7 @@ async function verifyPassword(password, hash) {
     });
 }
 
-// استبدل كل Session Setup بـ:
+// ====================== Session Setup ======================
 const MemoryStore = require('express-session').MemoryStore;
 
 app.use(session({
@@ -114,7 +114,7 @@ app.use(session({
     saveUninitialized: false,
     store: new MemoryStore(),
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: false,  // مهم لـ Vercel - يمنع مشاكل HTTPS
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
         sameSite: 'lax'
@@ -126,11 +126,17 @@ app.use(session({
 let dbConnected = false;
 let Admin, Student, Violation, Notification, Attendance, Exam, ExamResult, File;
 
+// إعدادات إضافية لـ Mongoose
+mongoose.set('strictQuery', false);
+
 if (MONGODB_URI && MONGODB_URI !== '') {
     console.log('📡 Connecting to MongoDB...');
+    console.log('📡 MONGODB_URI exists, attempting connection...');
+    
     mongoose.connect(MONGODB_URI, {
-        serverSelectionTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
+        serverSelectionTimeoutMS: 30000,
+        socketTimeoutMS: 60000,
+        connectTimeoutMS: 30000,
     })
     .then(() => {
         console.log('✅ MongoDB connected successfully');
@@ -235,8 +241,16 @@ if (MONGODB_URI && MONGODB_URI !== '') {
         Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
         ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
         File = mongoose.models.File || mongoose.model('File', fileSchema);
+        
+        console.log('✅ All models defined successfully');
     })
-    .catch(err => console.error('❌ MongoDB error:', err.message));
+    .catch(err => {
+        console.error('❌ MongoDB connection error:', err.message);
+        console.error('⚠️ Running in demo mode without database');
+        dbConnected = false;
+    });
+} else {
+    console.log('⚠️ No MONGODB_URI provided, running without database (demo mode)');
 }
 
 // ====================== دوال مساعدة ======================
