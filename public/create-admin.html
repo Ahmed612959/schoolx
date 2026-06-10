@@ -206,12 +206,12 @@
     </footer>
 
     <script>
-        // تحديد الرابط الصحيح حسب البيئة (Vercel أو محلي)
+        // تحديد الرابط الصحيح حسب البيئة
         const BASE_URL = (() => {
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 return 'http://localhost:3000';
             }
-            return 'https://schoolx-m32d8mifr-ahmeds-projects-522c87ce.vercel.app';
+            return 'https://schoolx-eta.vercel.app';
         })();
         
         console.log('🌐 BASE_URL:', BASE_URL);
@@ -266,7 +266,7 @@
             return false;
         }
 
-        // إنشاء حساب أدمن (بدون وضع تجريبي)
+        // إنشاء حساب أدمن
         async function createAdmin(fullName, username, password) {
             const response = await fetch(`${BASE_URL}/api/admins`, {
                 method: 'POST',
