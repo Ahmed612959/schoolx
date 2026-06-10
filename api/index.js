@@ -90,8 +90,20 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(64).toString('hex');
 
 // ====================== دوال التشفير ======================
-const hashPassword = async (password) => bcrypt.hash(password, 10);
-const verifyPassword = async (password, hash) => bcrypt.compare(password, hash);
+const SALT_ROUNDS = 10;
+const hashPassword = async (password) => {
+    if (!password) throw new Error('كلمة المرور مطلوبة');
+    return await bcrypt.hash(password, SALT_ROUNDS);
+};
+const verifyPassword = async (password, hash) => {
+    if (!password || !hash) return false;
+    try {
+        return await bcrypt.compare(password, hash);
+    } catch (error) {
+        console.error('خطأ في التحقق من كلمة المرور:', error);
+        return false;
+    }
+};
 
 // ====================== Session Setup ======================
 const MemoryStore = require('express-session').MemoryStore;
@@ -218,7 +230,7 @@ app.post('/api/students/register', async (req, res) => {
         
         const hashedPassword = await hashPassword(password);
         
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('students')
             .insert([{
                 full_name: fullName,
@@ -231,11 +243,12 @@ app.post('/api/students/register', async (req, res) => {
                     parentName: parentName || '',
                     parentId: parentId || ''
                 }
-            }]);
+            }])
+            .select();
         
         if (error) throw error;
         
-        console.log(`✅ تم إنشاء حساب جديد للطالب: ${fullName}`);
+        console.log(`✅ تم إنشاء حساب جديد للطالب: ${fullName} (${username})`);
         res.json({ success: true, message: 'تم إنشاء الحساب بنجاح' });
         
     } catch (error) {
@@ -248,6 +261,8 @@ app.post('/api/students/register', async (req, res) => {
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
+        
+        console.log(`🔍 محاولة تسجيل دخول: ${username}`);
         
         if (!username || !password) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
@@ -281,15 +296,22 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             });
         }
         
-        // البحث في جدول الأدمن
-        const { data: admin } = await supabase
+        // البحث في جدول الأدمن (Supabase)
+        const { data: admin, error: adminError } = await supabase
             .from('admins')
             .select('*')
             .eq('username', username.toLowerCase())
             .maybeSingle();
         
+        console.log('📦 البحث في جدول الأدمن:', admin ? '✅ موجود' : '❌ غير موجود');
+        
         if (admin) {
+            console.log('🔐 كلمة المرور المدخلة:', password);
+            console.log('🔐 كلمة المرور المخزنة:', admin.password);
+            
             const isMatch = await verifyPassword(password, admin.password);
+            console.log('✅ تطابق كلمة المرور للأدمن:', isMatch ? 'نعم' : 'لا');
+            
             if (isMatch) {
                 const token = jwt.sign(
                     { id: admin.id, username: admin.username, type: 'admin', fullName: admin.full_name },
@@ -309,15 +331,22 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             }
         }
         
-        // البحث في جدول الطلاب
-        const { data: student } = await supabase
+        // البحث في جدول الطلاب (Supabase)
+        const { data: student, error: studentError } = await supabase
             .from('students')
             .select('*')
             .eq('username', username.toLowerCase())
             .maybeSingle();
         
+        console.log('📦 البحث في جدول الطلاب:', student ? '✅ موجود' : '❌ غير موجود');
+        
         if (student) {
+            console.log('🔐 كلمة المرور المدخلة:', password);
+            console.log('🔐 كلمة المرور المخزنة:', student.password);
+            
             const isMatch = await verifyPassword(password, student.password);
+            console.log('✅ تطابق كلمة المرور للطالب:', isMatch ? 'نعم' : 'لا');
+            
             if (isMatch) {
                 const token = jwt.sign(
                     { id: student.id, username: student.username, type: 'student', fullName: student.full_name, studentCode: student.student_code },
@@ -337,11 +366,12 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             }
         }
         
+        console.log('❌ فشل تسجيل الدخول: بيانات غير صحيحة');
         return res.status(401).json({ error: 'بيانات غير صحيحة (admin/admin123 أو student/student123)' });
         
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ error: 'خطأ في السيرفر' });
+        res.status(500).json({ error: 'خطأ في السيرفر: ' + error.message });
     }
 });
 
