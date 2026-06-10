@@ -105,21 +105,25 @@ async function verifyPassword(password, hash) {
     });
 }
 
-// ====================== Session Setup ======================
-const MemoryStore = require('express-session').MemoryStore;
+// Session Setup مع MongoDB Store
+const MongoStore = require('connect-mongo');
 
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStore(),
+    store: MongoStore.create({
+        mongoUrl: MONGODB_URI,
+        ttl: 24 * 60 * 60,
+        autoRemove: 'native'
+    }),
     cookie: {
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'none'
+        sameSite: 'lax'
     },
-    name: 'school_session'
+    name: 'institute.sid'
 }));
 
 // ====================== الاتصال بقاعدة البيانات ======================
