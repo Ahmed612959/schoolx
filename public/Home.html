@@ -2,126 +2,110 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, shrink-to-fit=no">
-    <meta name="google-adsense-account" content="ca-pub-7676282531413677">
-    <title>نتايج الطلاب - معهد رعاية الضبعية الفني للتمريض</title>
-    <link rel="stylesheet" href="Home.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>نتايج الطلاب - معهد رعاية الضبعية</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
-        /* ============================================
-           التصميم المتكامل - معهد رعاية الضبعية
-           نسخة نهائية - جميع الجداول ظاهرة
-           ============================================ */
-        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: 'Tajawal', 'Segoe UI', sans-serif;
+            font-family: 'Tajawal', sans-serif;
             background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
             color: #1e293b;
-            line-height: 1.5;
             min-height: 100vh;
-            padding-bottom: 80px;
+            padding-bottom: 85px;
         }
-        
+
         /* ========== الهيدر ========== */
         .main-header {
-            background: linear-gradient(135deg, #0f2b3d 0%, #1a4f6e 100%);
-            padding: 12px 24px;
+            background: linear-gradient(135deg, #0f2b3d, #1a4f6e);
+            padding: 12px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 10px;
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             border-bottom: 3px solid #c4a35a;
         }
-        
+
         .logo {
-            width: 45px;
-            height: 45px;
-            object-fit: cover;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
-            background: white;
-            padding: 4px;
             border: 2px solid #c4a35a;
-            transition: all 0.3s ease;
+            padding: 3px;
+            background: white;
         }
-        
-        .logo:hover {
-            transform: scale(1.05);
-        }
-        
+
         .main-header h1 {
-            font-size: 1rem;
-            font-weight: 700;
+            font-size: 0.95rem;
             color: #c4a35a;
+            font-weight: 700;
         }
-        
+
         .logout-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 6px 18px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 6px 16px;
             border-radius: 50px;
             font-weight: 600;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: white;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
-        
+
         .logout-btn:hover {
             background: #c4a35a;
             color: #0f2b3d;
             transform: translateY(-2px);
         }
-        
+
         /* ========== الحاوية الرئيسية ========== */
         .main-container {
             max-width: 1200px;
             margin: 20px auto;
-            padding: 0 20px;
+            padding: 0 16px;
         }
-        
+
         .result-form-container {
             background: white;
             border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
             border: 1px solid #e2e8f0;
         }
-        
-        /* رسالة الترحيب */
+
         .welcome-message {
             background: #e8f0f6;
             border-radius: 16px;
-            padding: 12px 20px;
-            margin-bottom: 24px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
             text-align: center;
             font-weight: 600;
             font-size: 0.85rem;
             color: #1a4f6e;
             border-right: 4px solid #c4a35a;
         }
-        
+
         /* ========== العناوين ========== */
-        h2 {
-            font-size: 1.2rem;
+        .section-title {
+            font-size: 1.15rem;
             font-weight: 700;
             color: #0f2b3d;
             margin-bottom: 16px;
@@ -129,9 +113,9 @@
             border-bottom: 3px solid #c4a35a;
             display: inline-block;
         }
-        
-        h3 {
-            font-size: 0.95rem;
+
+        .subsection-title {
+            font-size: 0.9rem;
             font-weight: 600;
             color: #1a4f6e;
             margin: 20px 0 12px;
@@ -139,14 +123,14 @@
             align-items: center;
             gap: 8px;
             border-right: 3px solid #c4a35a;
-            padding-right: 12px;
+            padding-right: 10px;
         }
-        
+
         /* ========== الحقول ========== */
         .input-group {
             margin-bottom: 16px;
         }
-        
+
         .input-group label {
             display: block;
             font-weight: 600;
@@ -154,12 +138,12 @@
             color: #334155;
             font-size: 0.8rem;
         }
-        
+
         .input-group label i {
             color: #c4a35a;
             margin-left: 6px;
         }
-        
+
         .input-group input {
             width: 100%;
             padding: 10px 14px;
@@ -167,420 +151,307 @@
             border-radius: 14px;
             font-family: inherit;
             font-size: 0.85rem;
-            transition: all 0.3s ease;
-            background: white;
+            transition: all 0.3s;
         }
-        
+
         .input-group input:focus {
             outline: none;
             border-color: #c4a35a;
-            box-shadow: 0 0 0 3px rgba(196, 163, 90, 0.15);
+            box-shadow: 0 0 0 3px rgba(196,163,90,0.15);
         }
-        
-        /* ========== زر البحث ========== */
+
         .submit-btn {
-            background: linear-gradient(135deg, #c4a35a 0%, #a07d3a 100%);
+            background: linear-gradient(135deg, #c4a35a, #a07d3a);
             color: #0f2b3d;
             border: none;
-            padding: 10px 24px;
+            padding: 10px 20px;
             border-radius: 50px;
             font-weight: 700;
             font-size: 0.85rem;
             cursor: pointer;
-            transition: all 0.3s ease;
+            width: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            width: 100%;
-            box-shadow: 0 4px 12px rgba(196, 163, 90, 0.3);
+            transition: all 0.3s;
+            margin-top: 5px;
         }
-        
+
         .submit-btn:hover {
             transform: translateY(-2px);
             filter: brightness(1.02);
-            box-shadow: 0 6px 16px rgba(196, 163, 90, 0.4);
         }
-        
-        /* ========== الجدول - التصميم الأساسي ========== */
-        .result-table {
-            margin-top: 24px;
-        }
-        
-        .table-wrapper {
-            overflow-x: auto;
-            border-radius: 16px;
+
+        /* ========== بطاقات النتيجة (بديل الجدول) ========== */
+        .result-card {
             background: white;
+            border-radius: 20px;
             border: 1px solid #e2e8f0;
+            overflow: hidden;
+            margin-top: 20px;
         }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
-        }
-        
-        th {
-            background: linear-gradient(135deg, #1a4f6e 0%, #0d3b54 100%);
+
+        .result-header {
+            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
             color: white;
-            padding: 12px 8px;
-            font-weight: 600;
-            text-align: center;
-            font-size: 0.8rem;
-            border-bottom: 2px solid #c4a35a;
-        }
-        
-        td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            vertical-align: top;
-            background: white;
-            transition: all 0.2s ease;
-        }
-        
-        tr:hover td {
-            background: #faf6ed;
-        }
-        
-        td:first-child {
-            font-weight: 600;
-            background: #f8fafc;
-        }
-        
-        td:nth-child(3),
-        td:nth-child(4) {
-            text-align: center;
-            vertical-align: middle;
-        }
-        
-        /* ========== المواد والدرجات ========== */
-        .subjects-container {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        
-        .subject-row {
+            padding: 12px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .result-header span {
+            font-size: 0.85rem;
+        }
+
+        .result-header strong {
+            color: #c4a35a;
+        }
+
+        .result-body {
+            padding: 16px;
+        }
+
+        .info-row {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .info-label {
+            font-weight: 700;
+            color: #1a4f6e;
+            display: flex;
+            align-items: center;
             gap: 6px;
-            padding: 5px 0;
-            border-bottom: 1px solid #f1f5f9;
         }
-        
-        .subject-row:last-child {
-            border-bottom: none;
+
+        .info-value {
+            font-weight: 500;
+            color: #334155;
         }
-        
+
+        .subjects-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .subject-item {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
         .subject-name {
             display: flex;
             align-items: center;
             gap: 8px;
-            font-weight: 500;
+            font-weight: 600;
             color: #334155;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
         }
-        
+
         .subject-name i {
             color: #c4a35a;
-            width: 18px;
-            font-size: 0.75rem;
+            width: 20px;
         }
-        
+
         .subject-grade {
-            font-weight: 700;
-            color: #1a4f6e;
             background: #e8f0f6;
-            padding: 2px 10px;
+            padding: 4px 12px;
             border-radius: 50px;
-            font-size: 0.7rem;
-            white-space: nowrap;
+            font-weight: 700;
+            font-size: 0.8rem;
+            color: #1a4f6e;
         }
-        
-        .extra-subject {
+
+        .extra-subject-item {
             background: #faf6ed;
-            padding: 6px 10px;
+            border-right: 3px solid #c4a35a;
+        }
+
+        .total-percentage {
+            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
+            color: white;
+            padding: 12px;
             border-radius: 12px;
-            margin-top: 6px;
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .total-percentage span {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: inline-block;
+            margin: 0 5px;
+        }
+
+        .percentage-excellent { background: #1a4f6e; color: #c4a35a; }
+        .percentage-passed { background: #2d6a4f; color: white; }
+        .percentage-failed { background: #b91c1c; color: white; }
+
+        /* ========== بطاقات الإشعارات والمخالفات ========== */
+        .notifications-section, .violations-section {
+            margin-top: 24px;
+            background: white;
+            border-radius: 20px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .notification-item, .violation-item {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 6px;
-            border-right: 3px solid #c4a35a;
+            gap: 10px;
         }
-        
-        .extra-subject .subject-name {
-            color: #d97706;
+
+        .notification-text {
+            flex: 2;
+            font-size: 0.8rem;
+            color: #334155;
         }
-        
-        .extra-subject .subject-grade {
+
+        .notification-date {
+            font-size: 0.7rem;
+            color: #64748b;
+        }
+
+        .violation-type {
+            font-weight: 700;
+            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 50px;
+        }
+
+        .violation-type.warning {
             background: #fef3c7;
             color: #d97706;
         }
-        
-        /* ========== المجموع والنسبة ========== */
-        .total-cell {
-            display: inline-block;
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.75rem;
+
+        .violation-type.violation {
+            background: #fee2e2;
+            color: #b91c1c;
         }
-        
-        .percentage-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.75rem;
-        }
-        
-        .percentage-badge.excellent {
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: #c4a35a;
-        }
-        
-        .percentage-badge.passed {
-            background: linear-gradient(135deg, #2d6a4f, #1b4d3b);
-            color: white;
-        }
-        
-        .percentage-badge.failed {
-            background: linear-gradient(135deg, #b91c1c, #991b1b);
-            color: white;
-        }
-        
-        /* ========== الجداول الأخرى (الإشعارات والمخالفات) ========== */
-        .notifications-section,
-        .violations-section {
-            margin: 24px 0;
-            background: white;
-            border-radius: 24px;
-            padding: 20px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-        
-        .notifications-section h2,
-        .violations-section h3 {
-            margin-top: 0;
-        }
-        
-        .notifications-table-wrapper,
-        .violations-table-wrapper {
-            overflow-x: auto;
-            border-radius: 16px;
-            background: white;
-            border: 1px solid #e2e8f0;
-        }
-        
-        .notifications-table,
-        .violations-table {
-            width: 100%;
-            border-collapse: collapse;
+
+        .violation-reason {
             font-size: 0.8rem;
+            color: #334155;
+            flex: 2;
         }
-        
-        .notifications-table th,
-        .violations-table th {
-            background: linear-gradient(135deg, #1a4f6e 0%, #0d3b54 100%);
-            color: white;
-            padding: 10px 8px;
-            font-weight: 600;
-            text-align: center;
+
+        .violation-penalty {
             font-size: 0.75rem;
+            background: #e2e8f0;
+            padding: 3px 10px;
+            border-radius: 50px;
         }
-        
-        .notifications-table td,
-        .violations-table td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: center;
-            font-size: 0.75rem;
-        }
-        
-        .notifications-table tr:hover td,
-        .violations-table tr:hover td {
-            background: #faf6ed;
-        }
-        
+
         /* ========== الناف بار ========== */
         .nav-bar {
-            background: rgba(255, 255, 255, 0.98);
+            background: rgba(255,255,255,0.98);
             backdrop-filter: blur(12px);
             border-radius: 50px;
             margin: 0 auto 12px auto;
-            padding: 6px 16px;
+            padding: 8px 16px;
             display: flex;
             justify-content: center;
-            gap: 4px;
+            gap: 8px;
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
             z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-            border: 1px solid rgba(196, 163, 90, 0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            border: 1px solid rgba(196,163,90,0.3);
             width: fit-content;
             max-width: 95%;
-            min-width: 280px;
         }
-        
+
         .nav-bar a {
             text-decoration: none;
             color: #64748b;
-            font-weight: 500;
-            display: inline-flex;
+            display: flex;
             flex-direction: column;
             align-items: center;
             gap: 3px;
-            transition: all 0.3s ease;
             padding: 6px 12px;
             border-radius: 40px;
-            font-size: 0.65rem;
+            font-size: 0.6rem;
+            transition: all 0.3s;
         }
-        
+
         .nav-bar a i {
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
-        
+
         .nav-bar a:hover {
             color: #c4a35a;
             background: #faf6ed;
             transform: translateY(-2px);
         }
-        
+
         /* ========== حالة عدم وجود بيانات ========== */
-        .empty-result {
+        .empty-state {
             text-align: center;
             padding: 30px 16px;
             background: #f8fafc;
             border-radius: 16px;
+            color: #64748b;
         }
-        
-        .empty-result i {
+
+        .empty-state i {
             font-size: 2rem;
             color: #cbd5e1;
             margin-bottom: 10px;
+            display: block;
         }
-        
-        .empty-result p {
-            color: #64748b;
-            font-size: 0.75rem;
-        }
-        
-        /* ========== التجاوب مع الشاشات ========== */
-        @media (max-width: 768px) {
-            .main-header {
-                padding: 10px 16px;
-            }
-            
-            .main-header h1 {
-                font-size: 0.85rem;
-            }
-            
-            .logo {
-                width: 35px;
-                height: 35px;
-            }
-            
-            .logout-btn {
-                padding: 5px 12px;
-                font-size: 0.65rem;
-            }
-            
-            .main-container {
-                padding: 0 16px;
-            }
-            
-            .result-form-container,
-            .notifications-section,
-            .violations-section {
-                padding: 16px;
-            }
-            
-            /* الجداول تعرض بشكل عمودي على الموبايل */
-            table,
-            .notifications-table,
-            .violations-table,
-            thead,
-            tbody,
-            th,
-            td,
-            tr {
-                display: block;
-            }
-            
-            thead {
-                display: none;
-            }
-            
-            tr {
-                margin-bottom: 16px;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                overflow: hidden;
-            }
-            
-            td {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                gap: 10px;
-                padding: 10px 12px;
-                border-bottom: 1px solid #e2e8f0;
-                text-align: right;
-            }
-            
-            td:last-child {
-                border-bottom: none;
-            }
-            
-            td::before {
-                content: attr(data-label);
-                font-weight: 700;
-                color: #1a4f6e;
-                background: #e8f0f6;
-                padding: 4px 8px;
-                border-radius: 8px;
-                font-size: 0.7rem;
-                min-width: 90px;
-            }
-            
-            /* الناف بار */
-            .nav-bar {
-                border-radius: 40px;
-                padding: 5px 12px;
-                gap: 2px;
-                min-width: 260px;
-            }
-            
-            .nav-bar a {
-                padding: 5px 8px;
-            }
-            
-            .nav-bar a i {
-                font-size: 1rem;
-            }
-            
-            .nav-bar a span {
-                font-size: 0.55rem;
-            }
-        }
-        
-        @media (max-width: 480px) {
+
+        /* ========== التجاوب ========== */
+        @media (max-width: 640px) {
             .main-header {
                 flex-direction: column;
                 text-align: center;
             }
             
-            .dashboard-content {
+            .result-header {
                 flex-direction: column;
+                text-align: center;
+            }
+            
+            .info-row {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .subject-item {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .notification-item, .violation-item {
+                flex-direction: column;
+                text-align: center;
             }
             
             .nav-bar a span {
@@ -588,133 +459,77 @@
             }
             
             .nav-bar a i {
-                font-size: 1.1rem;
+                font-size: 1.2rem;
             }
             
             .nav-bar a {
-                padding: 6px 10px;
+                padding: 8px 14px;
             }
-            
-            .nav-bar {
-                min-width: 220px;
+        }
+
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .nav-bar a span {
+                font-size: 0.55rem;
+            }
+            .nav-bar a i {
+                font-size: 0.9rem;
             }
         }
     </style>
 </head>
 <body>
     <header class="main-header">
-        <img src="logo.png" alt="شعار معهد رعاية الضبعية" class="logo">
+        <img src="logo.png" alt="شعار المعهد" class="logo" onerror="this.style.display='none'">
         <h1>نتايج الطلاب - معهد رعاية الضبعية الفني للتمريض</h1>
-        <button class="logout-btn" onclick="logout()">تسجيل الخروج</button>
+        <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
     </header>
 
     <div class="main-container">
         <div class="result-form-container">
-            <div class="welcome-message" id="welcome-message"></div>
+            <div class="welcome-message" id="welcomeMessage"></div>
             
-            <h2>ابحث عن نتيجتك</h2>
-            <form id="search-form">
+            <div class="section-title">ابحث عن نتيجتك</div>
+            
+            <form id="searchForm">
                 <div class="input-group">
-                    <label for="search-name"><i class="fas fa-user"></i> اسم الطالب</label>
-                    <input type="text" id="search-name" name="student-name" placeholder="أدخل اسم الطالب" required>
+                    <label><i class="fas fa-user"></i> اسم الطالب</label>
+                    <input type="text" id="studentName" placeholder="أدخل اسم الطالب" required>
                 </div>
                 <div class="input-group">
-                    <label for="search-id"><i class="fas fa-id-card"></i> رقم الجلوس</label>
-                    <input type="text" id="search-id" name="student-id" placeholder="أدخل رقم الجلوس" required>
+                    <label><i class="fas fa-id-card"></i> رقم الجلوس</label>
+                    <input type="text" id="studentCode" placeholder="أدخل رقم الجلوس" required>
                 </div>
                 <button type="submit" class="submit-btn"><i class="fas fa-search"></i> عرض النتيجة</button>
             </form>
 
-            <!-- ========== جدول النتيجة ========== -->
-            <div class="result-table">
-                <h3><i class="fas fa-chart-line"></i> النتيجة</h3>
-                <div class="table-wrapper">
-                    <table id="resultsTable">
-                        <thead>
-                            <tr>
-                                <th>البيانات</th>
-                                <th>القيم</th>
-                                <th>المجموع</th>
-                                <th>النسبة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="result-table-body">
-                            <tr><td colspan="4" class="empty-result"><i class="fas fa-search"></i><br>قم بالبحث لعرض النتيجة</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <!-- ========== قسم النتيجة ========== -->
+            <div id="resultContainer" style="display: none;"></div>
 
-            <!-- ========== جدول الإشعارات ========== -->
+            <!-- ========== الإشعارات ========== -->
             <div class="notifications-section">
-                <h2><i class="fas fa-bell"></i> الإشعارات</h2>
-                <div class="notifications-table-wrapper">
-                    <table class="notifications-table">
-                        <thead>
-                            <tr>
-                                <th>نص الإشعار</th>
-                                <th>تاريخ الإضافة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notifications-table-body">
-                            <tr><td colspan="2" class="empty-result">📭 لا توجد إشعارات حاليًا</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- ========== جدول المخالفات ========== -->
-            <div class="violations-section">
-                <h3><i class="fas fa-exclamation-triangle"></i> الإنذارات والمخالفات</h3>
-                <div class="violations-table-wrapper">
-                    <table class="violations-table">
-                        <thead>
-                            <tr>
-                                <th>النوع</th>
-                                <th>السبب</th>
-                                <th>العقوبة</th>
-                                <th>استدعاء ولي الأمر</th>
-                                <th>تاريخ الإضافة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="violations-table-body">
-                            <tr><td colspan="5" class="empty-result">✅ لا توجد مخالفات مسجلة</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                <div class="subsection-title"><i class="fas fa-bell"></i> الإشعارات</div>
+                <div id="notificationsList"></div>
             </div>
         </div>
     </div>
 
-    <nav class="nav-bar" id="nav-bar"></nav>
+    <nav class="nav-bar" id="navBar"></nav>
 
     <script src="auth.js"></script>
     <script>
         const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
         
         function getLoggedInUser() {
-            const userStr = sessionStorage.getItem('userData');
-            if (!userStr) return null;
             try {
-                return JSON.parse(userStr);
-            } catch {
-                return null;
-            }
+                const userStr = sessionStorage.getItem('userData');
+                return userStr ? JSON.parse(userStr) : null;
+            } catch { return null; }
         }
         
-        function showToast(message, type = 'success') {
+        function showToast(msg, type = 'success') {
             if (typeof Toastify !== 'undefined') {
-                Toastify({
-                    text: message,
-                    duration: 3000,
-                    gravity: "top",
-                    position: "center",
-                    backgroundColor: type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8',
-                    style: { fontFamily: '"Tajawal", sans-serif', fontSize: '14px', direction: 'rtl', borderRadius: '12px', padding: '12px 20px' }
-                }).showToast();
-            } else {
-                alert(message);
-            }
+                Toastify({ text: msg, duration: 3000, gravity: "top", position: "center", backgroundColor: type === 'success' ? '#28a745' : '#dc3545', style: { fontFamily: 'Tajawal', borderRadius: '12px' } }).showToast();
+            } else { alert(msg); }
         }
         
         function escapeHtml(text) {
@@ -724,241 +539,205 @@
             return div.innerHTML;
         }
         
-        async function fetchStudentByCode(studentCode) {
+        async function fetchStudentByCode(code) {
             try {
-                const response = await fetch(`${BASE_URL}/api/student/by-code/${encodeURIComponent(studentCode)}`, {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
+                const res = await fetch(`${BASE_URL}/api/student/by-code/${encodeURIComponent(code)}`, { credentials: 'include' });
+                if (res.ok) return await res.json();
                 return null;
-            } catch (error) {
-                console.error('خطأ في جلب الطالب:', error);
-                return null;
-            }
+            } catch { return null; }
         }
         
-        async function fetchViolationsForStudent(studentId) {
+        async function fetchViolations(studentId) {
             try {
-                const response = await fetch(`${BASE_URL}/api/violations/student/${encodeURIComponent(studentId)}`, {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
+                const res = await fetch(`${BASE_URL}/api/violations/student/${encodeURIComponent(studentId)}`, { credentials: 'include' });
+                if (res.ok) return await res.json();
                 return [];
-            } catch (error) {
-                console.error('خطأ في جلب المخالفات:', error);
-                return [];
-            }
+            } catch { return []; }
         }
         
         async function loadNotifications() {
             try {
-                const response = await fetch(`${BASE_URL}/api/notifications`);
-                if (response.ok) {
-                    const notifications = await response.json();
-                    const tableBody = document.getElementById('notifications-table-body');
-                    if (tableBody) {
-                        if (!notifications || notifications.length === 0) {
-                            tableBody.innerHTML = '<tr><td colspan="2" class="empty-result">📭 لا توجد إشعارات حاليًا</td></tr>';
-                            return;
-                        }
-                        tableBody.innerHTML = notifications.map(n => `
-                            <tr>
-                                <td data-label="نص الإشعار">${escapeHtml(n.text)}</td>
-                                <td data-label="تاريخ الإضافة">${n.date || 'غير محدد'}</td>
-                            </tr>
-                        `).join('');
+                const res = await fetch(`${BASE_URL}/api/notifications`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const container = document.getElementById('notificationsList');
+                    if (!container) return;
+                    
+                    if (!data || data.length === 0) {
+                        container.innerHTML = '<div class="empty-state"><i class="fas fa-bell-slash"></i> لا توجد إشعارات حالياً</div>';
+                        return;
                     }
+                    
+                    container.innerHTML = data.map(n => `
+                        <div class="notification-item">
+                            <div class="notification-text"><i class="fas fa-circle" style="font-size: 8px; color: #c4a35a; margin-left: 8px;"></i> ${escapeHtml(n.text)}</div>
+                            <div class="notification-date"><i class="far fa-calendar-alt"></i> ${n.date || 'غير محدد'}</div>
+                        </div>
+                    `).join('');
                 }
-            } catch (error) {
-                console.error('خطأ في تحميل الإشعارات:', error);
-            }
+            } catch(e) { console.error(e); }
         }
         
-        function renderStudentResult(student, studentViolations, resultBody, violationsBody) {
-            if (!student.subjects || student.subjects.length === 0) {
-                resultBody.innerHTML = '<tr><td colspan="4" class="empty-result">📭 لا توجد درجات مسجلة لهذا الطالب</td></tr>';
-                if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5" class="empty-result">✅ لا توجد مخالفات</td></tr>';
+        function renderResult(student, violations) {
+            const container = document.getElementById('resultContainer');
+            if (!container) return;
+            
+            if (!student || !student.subjects || student.subjects.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i> لا توجد درجات مسجلة لهذا الطالب</div>';
+                container.style.display = 'block';
                 return;
             }
             
-            const subjectMaxGrades = {
-                "اللغة العربية": 20,
-                "اللغة الإنجليزية": 20,
-                "علوم تطبيقية": 40,
-                "طب باطنة": 20,
-                "تمريض باطني جراحي": 24,
-                "حاسب آلي": 20
-            };
-            const TOTAL_POSSIBLE = 144;
-            const orderedSubjects = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي"];
-            const extraSubjectsList = ["الدين"];
+            const subjectMax = { "اللغة العربية": 20, "اللغة الإنجليزية": 20, "علوم تطبيقية": 40, "طب باطنة": 20, "تمريض باطني جراحي": 24, "حاسب آلي": 20 };
+            const ordered = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي"];
+            const extras = ["الدين"];
             
             let total = 0;
-            let subjectsHtml = '<div class="subjects-container">';
+            let subjectsHtml = '<div class="subjects-list">';
             
-            orderedSubjects.forEach(subjName => {
-                const subject = student.subjects.find(s => s.name === subjName);
-                const grade = subject ? (subject.grade || 0) : 0;
+            ordered.forEach(sub => {
+                const subj = student.subjects.find(s => s.name === sub);
+                const grade = subj ? (subj.grade || 0) : 0;
                 total += grade;
                 subjectsHtml += `
-                    <div class="subject-row">
-                        <div class="subject-name"><i class="fas fa-book"></i> ${subjName}</div>
-                        <div class="subject-grade">${grade} / ${subjectMaxGrades[subjName]}</div>
+                    <div class="subject-item">
+                        <div class="subject-name"><i class="fas fa-book"></i> ${sub}</div>
+                        <div class="subject-grade">${grade} / ${subjectMax[sub]}</div>
                     </div>
                 `;
             });
             
-            extraSubjectsList.forEach(subjName => {
-                const subject = student.subjects.find(s => s.name === subjName);
-                const grade = subject ? (subject.grade || 0) : 0;
+            extras.forEach(sub => {
+                const subj = student.subjects.find(s => s.name === sub);
+                const grade = subj ? (subj.grade || 0) : 0;
                 if (grade > 0) {
                     subjectsHtml += `
-                        <div class="extra-subject">
-                            <div class="subject-name"><i class="fas fa-pray"></i> ${subjName}</div>
-                            <div class="subject-grade">${grade} / 32 (خارج المجموع)</div>
+                        <div class="subject-item extra-subject-item">
+                            <div class="subject-name"><i class="fas fa-pray"></i> ${sub}</div>
+                            <div class="subject-grade">${grade} / 32 <small>(خارج المجموع)</small></div>
                         </div>
                     `;
                 }
             });
             subjectsHtml += '</div>';
             
-            const percentage = (total / TOTAL_POSSIBLE) * 100;
-            let percentageClass = percentage >= 85 ? 'excellent' : (percentage >= 60 ? 'passed' : 'failed');
+            const percentage = (total / 144) * 100;
+            let percentClass = percentage >= 85 ? 'percentage-excellent' : (percentage >= 60 ? 'percentage-passed' : 'percentage-failed');
             
-            resultBody.innerHTML = `
-                <tr>
-                    <td data-label="البيانات">الاسم الكامل</td>
-                    <td data-label="القيم">${escapeHtml(student.fullName)}</td>
-                    <td rowspan="2" data-label="المجموع"><span class="total-cell">${total} / ${TOTAL_POSSIBLE}</span></td>
-                    <td rowspan="2" data-label="النسبة"><span class="percentage-badge ${percentageClass}">${percentage.toFixed(1)}%</span></td>
-                </tr>
-                <tr>
-                    <td data-label="البيانات">رقم الجلوس</td>
-                    <td data-label="القيم">${escapeHtml(student.studentCode)}</td>
-                </tr>
-                <tr>
-                    <td colspan="2" data-label="المواد">${subjectsHtml}</td>
-                </tr>
-            `;
-            
-            if (violationsBody) {
-                if (studentViolations && studentViolations.length > 0) {
-                    violationsBody.innerHTML = studentViolations.map(v => `
-                        <tr>
-                            <td data-label="النوع">${v.type === 'warning' ? '⚠️ إنذار' : '🚫 مخالفة'}</td>
-                            <td data-label="السبب">${escapeHtml(v.reason)}</td>
-                            <td data-label="العقوبة">${escapeHtml(v.penalty)}</td>
-                            <td data-label="استدعاء ولي الأمر">${v.parentSummons ? '✅ نعم' : '❌ لا'}</td>
-                            <td data-label="تاريخ الإضافة">${v.date || '-'}</td>
-                        </tr>
-                    `).join('');
-                } else {
-                    violationsBody.innerHTML = '<table><td colspan="5" class="empty-result">✅ لا توجد مخالفات مسجلة</td></tr>';
-                }
+            let violationsHtml = '';
+            if (violations && violations.length > 0) {
+                violationsHtml = `
+                    <div class="subsection-title" style="margin-top: 20px;"><i class="fas fa-exclamation-triangle"></i> الإنذارات والمخالفات</div>
+                    ${violations.map(v => `
+                        <div class="violation-item">
+                            <div class="violation-type ${v.type === 'warning' ? 'warning' : 'violation'}">${v.type === 'warning' ? '⚠️ إنذار' : '🚫 مخالفة'}</div>
+                            <div class="violation-reason">${escapeHtml(v.reason)}</div>
+                            <div class="violation-penalty">${escapeHtml(v.penalty)}</div>
+                            <div class="notification-date">${v.date || '-'}</div>
+                        </div>
+                    `).join('')}
+                `;
+            } else {
+                violationsHtml = `<div class="empty-state" style="margin-top: 16px;"><i class="fas fa-check-circle"></i> لا توجد مخالفات مسجلة</div>`;
             }
-        }
-        
-        function setupSearchForm() {
-            const form = document.getElementById('search-form');
-            if (!form) return;
             
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const name = document.getElementById('search-name')?.value.trim();
-                const studentCode = document.getElementById('search-id')?.value.trim();
-                const resultBody = document.getElementById('result-table-body');
-                const violationsBody = document.getElementById('violations-table-body');
-                
-                if (!name || !studentCode) {
-                    showToast('⚠️ يرجى إدخال الاسم ورقم الجلوس معًا!', 'error');
-                    return;
-                }
-                
-                showToast('🔍 جاري البحث...', 'info');
-                
-                try {
-                    const student = await fetchStudentByCode(studentCode);
-                    
-                    if (student && student.fullName.includes(name)) {
-                        const studentViolations = await fetchViolationsForStudent(student.studentCode);
-                        renderStudentResult(student, studentViolations, resultBody, violationsBody);
-                        showToast('✅ تم العثور على الطالب بنجاح!', 'success');
-                    } else {
-                        resultBody.innerHTML = '<tr><td colspan="4" class="empty-result">❌ لا توجد نتيجة بهذا الاسم ورقم الجلوس!</td></tr>';
-                        violationsBody.innerHTML = '<tr><td colspan="5" class="empty-result">❌ لا توجد نتيجة!</td></tr>';
-                        showToast('❌ الطالب غير موجود! تأكد من رقم الجلوس', 'error');
-                    }
-                } catch (error) {
-                    console.error('خطأ في البحث:', error);
-                    resultBody.innerHTML = '<tr><td colspan="4" class="empty-result">❌ حدث خطأ في البحث!</td></tr>';
-                    violationsBody.innerHTML = '<tr><td colspan="5" class="empty-result">❌ حدث خطأ!</td></tr>';
-                    showToast('❌ حدث خطأ في الاتصال بالسيرفر', 'error');
-                }
-            });
+            container.innerHTML = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <span><i class="fas fa-user-graduate"></i> <strong>${escapeHtml(student.fullName)}</strong></span>
+                        <span><i class="fas fa-id-card"></i> رقم الجلوس: <strong>${student.studentCode}</strong></span>
+                    </div>
+                    <div class="result-body">
+                        <div class="info-row">
+                            <div class="info-label"><i class="fas fa-chalkboard-user"></i> الصف الدراسي</div>
+                            <div class="info-value">${student.grade === 'first' ? 'الأول الثانوي' : (student.grade === 'second' ? 'الثاني الثانوي' : 'الثالث الثانوي')}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><i class="fas fa-phone-alt"></i> رقم الهاتف</div>
+                            <div class="info-value">${student.profile?.phone || 'غير مسجل'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><i class="fas fa-user-friends"></i> ولي الأمر</div>
+                            <div class="info-value">${student.profile?.parentName || 'غير مسجل'}</div>
+                        </div>
+                        ${subjectsHtml}
+                        <div class="total-percentage ${percentClass}">
+                            📊 المجموع الكلي: <span>${total} / 144</span> | 🎯 النسبة المئوية: <span>${percentage.toFixed(1)}%</span>
+                        </div>
+                        ${violationsHtml}
+                    </div>
+                </div>
+            `;
+            container.style.display = 'block';
         }
         
         function renderWelcomeMessage() {
-            const welcomeDiv = document.querySelector('.welcome-message');
             const user = getLoggedInUser();
-            if (!welcomeDiv) return;
+            const el = document.getElementById('welcomeMessage');
+            if (!el) return;
             if (user) {
-                const name = user.fullName || user.username;
-                welcomeDiv.textContent = user.type === 'admin' ? `👋 أهلًا يا قائد العمليات، ${name}! 🛠️` : `🎉 مرحبًا يا نجم، ${name}! نتايجك في انتظارك! 📚`;
+                el.textContent = user.type === 'admin' ? `👋 أهلًا بك في لوحة التحكم، ${user.fullName || user.username}` : `🎉 مرحبًا ${user.fullName || user.username}! يمكنك البحث عن نتيجتك أدناه`;
             } else {
-                welcomeDiv.textContent = '👋 مرحبًا بك! سجل الدخول لرؤية نتائجك';
+                el.textContent = '👋 مرحبًا بك! سجل الدخول لرؤية نتائجك';
             }
         }
         
         function renderNavbar() {
             const user = getLoggedInUser();
-            const navBar = document.getElementById('nav-bar');
-            if (!navBar) return;
+            const nav = document.getElementById('navBar');
+            if (!nav) return;
             
             const links = [
-                { href: 'index.html', icon: 'fa-solid fa-house', title: 'الرئيسية' },
-                { href: 'Home.html', icon: 'fa-solid fa-chart-simple', title: 'النتائج' },
-                { href: 'profile.html', icon: 'fa-solid fa-user', title: 'الملف الشخصي' },
-                { href: 'exams.html', icon: 'fa-solid fa-book-open', title: 'الاختبارات' },
-                { href: 'file-library.html', icon: 'fas fa-folder-open', title: 'المكتبة' }
+                { href: 'index.html', icon: 'fa-house', title: 'الرئيسية' },
+                { href: 'Home.html', icon: 'fa-chart-simple', title: 'النتائج' },
+                { href: 'profile.html', icon: 'fa-user', title: 'الملف' },
+                { href: 'exams.html', icon: 'fa-book-open', title: 'الاختبارات' },
+                { href: 'file-library.html', icon: 'fa-folder-open', title: 'المكتبة' }
             ];
+            if (user?.type === 'admin') links.push({ href: 'admin.html', icon: 'fa-cogs', title: 'التحكم' });
             
-            if (user?.type === 'admin') {
-                links.push({ href: 'admin.html', icon: 'fas fa-cogs', title: 'لوحة التحكم' });
-            }
-            
-            navBar.innerHTML = links.map(l => `<a href="${l.href}" title="${l.title}"><i class="${l.icon}"></i><span>${l.title}</span></a>`).join('');
+            nav.innerHTML = links.map(l => `<a href="${l.href}"><i class="fas ${l.icon}"></i><span>${l.title}</span></a>`).join('');
         }
         
         async function logout() {
+            try { await fetch(`${BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' }); } catch(e) {}
+            sessionStorage.clear();
+            window.location.href = 'login.html';
+        }
+        
+        document.querySelector('.logout-btn')?.addEventListener('click', logout);
+        
+        document.getElementById('searchForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('studentName').value.trim();
+            const code = document.getElementById('studentCode').value.trim();
+            
+            if (!name || !code) {
+                showToast('⚠️ يرجى إدخال الاسم ورقم الجلوس', 'error');
+                return;
+            }
+            
+            showToast('🔍 جاري البحث...', 'info');
+            
             try {
-                await fetch(`${BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
-            } catch (err) {}
-            finally {
-                sessionStorage.clear();
-                window.location.href = 'login.html';
+                const student = await fetchStudentByCode(code);
+                if (student && student.fullName.includes(name)) {
+                    const violations = await fetchViolations(student.studentCode);
+                    renderResult(student, violations);
+                    showToast('✅ تم العثور على الطالب', 'success');
+                } else {
+                    document.getElementById('resultContainer').innerHTML = '<div class="empty-state"><i class="fas fa-user-slash"></i> لا توجد نتيجة بهذا الاسم ورقم الجلوس</div>';
+                    document.getElementById('resultContainer').style.display = 'block';
+                    showToast('❌ الطالب غير موجود', 'error');
+                }
+            } catch(err) {
+                showToast('❌ حدث خطأ في الاتصال', 'error');
             }
-        }
+        });
         
-        function setupLogoutButton() {
-            const logoutBtn = document.querySelector('.logout-btn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', logout);
-            }
-        }
-        
-        async function init() {
-            renderWelcomeMessage();
-            renderNavbar();
-            setupSearchForm();
-            setupLogoutButton();
-            await loadNotifications();
-        }
-        
-        init();
+        renderWelcomeMessage();
+        renderNavbar();
+        loadNotifications();
     </script>
 </body>
 </html>
