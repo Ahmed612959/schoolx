@@ -1,964 +1,993 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, shrink-to-fit=no">
-    <meta name="google-adsense-account" content="ca-pub-7676282531413677">
-    <title>نتايج الطلاب - معهد رعاية الضبعية الفني للتمريض</title>
-    <link rel="stylesheet" href="Home.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-    <link rel="icon" type="image/png" href="/logo.png">
-    <style>
-        /* ============================================
-           التصميم المتكامل - معهد رعاية الضبعية
-           نسخة نهائية - جميع الجداول ظاهرة
-           ============================================ */
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Tajawal', 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
-            color: #1e293b;
-            line-height: 1.5;
-            min-height: 100vh;
-            padding-bottom: 80px;
-        }
-        
-        /* ========== الهيدر ========== */
-        .main-header {
-            background: linear-gradient(135deg, #0f2b3d 0%, #1a4f6e 100%);
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            border-bottom: 3px solid #c4a35a;
-        }
-        
-        .logo {
-            width: 45px;
-            height: 45px;
-            object-fit: cover;
-            border-radius: 50%;
-            background: white;
-            padding: 4px;
-            border: 2px solid #c4a35a;
-            transition: all 0.3s ease;
-        }
-        
-        .logo:hover {
-            transform: scale(1.05);
-        }
-        
-        .main-header h1 {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #c4a35a;
-        }
-        
-        .logout-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 6px 18px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 0.75rem;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .logout-btn:hover {
-            background: #c4a35a;
-            color: #0f2b3d;
-            transform: translateY(-2px);
-        }
-        
-        /* ========== الحاوية الرئيسية ========== */
-        .main-container {
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 0 20px;
-        }
-        
-        .result-form-container {
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-            border: 1px solid #e2e8f0;
-        }
-        
-        /* رسالة الترحيب */
-        .welcome-message {
-            background: #e8f0f6;
-            border-radius: 16px;
-            padding: 12px 20px;
-            margin-bottom: 24px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #1a4f6e;
-            border-right: 4px solid #c4a35a;
-        }
-        
-        /* ========== العناوين ========== */
-        h2 {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #0f2b3d;
-            margin-bottom: 16px;
-            padding-bottom: 8px;
-            border-bottom: 3px solid #c4a35a;
-            display: inline-block;
-        }
-        
-        h3 {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: #1a4f6e;
-            margin: 20px 0 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-right: 3px solid #c4a35a;
-            padding-right: 12px;
-        }
-        
-        /* ========== الحقول ========== */
-        .input-group {
-            margin-bottom: 16px;
-        }
-        
-        .input-group label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: #334155;
-            font-size: 0.8rem;
-        }
-        
-        .input-group label i {
-            color: #c4a35a;
-            margin-left: 6px;
-        }
-        
-        .input-group input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 2px solid #e2e8f0;
-            border-radius: 14px;
-            font-family: inherit;
-            font-size: 0.85rem;
-            transition: all 0.3s ease;
-            background: white;
-        }
-        
-        .input-group input:focus {
-            outline: none;
-            border-color: #c4a35a;
-            box-shadow: 0 0 0 3px rgba(196, 163, 90, 0.15);
-        }
-        
-        /* ========== زر البحث ========== */
-        .submit-btn {
-            background: linear-gradient(135deg, #c4a35a 0%, #a07d3a 100%);
-            color: #0f2b3d;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            width: 100%;
-            box-shadow: 0 4px 12px rgba(196, 163, 90, 0.3);
-        }
-        
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            filter: brightness(1.02);
-            box-shadow: 0 6px 16px rgba(196, 163, 90, 0.4);
-        }
-        
-        /* ========== الجدول - التصميم الأساسي ========== */
-        .result-table {
-            margin-top: 24px;
-        }
-        
-        .table-wrapper {
-            overflow-x: auto;
-            border-radius: 16px;
-            background: white;
-            border: 1px solid #e2e8f0;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
-        }
-        
-        th {
-            background: linear-gradient(135deg, #1a4f6e 0%, #0d3b54 100%);
-            color: white;
-            padding: 12px 8px;
-            font-weight: 600;
-            text-align: center;
-            font-size: 0.8rem;
-            border-bottom: 2px solid #c4a35a;
-        }
-        
-        td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            vertical-align: top;
-            background: white;
-            transition: all 0.2s ease;
-        }
-        
-        tr:hover td {
-            background: #faf6ed;
-        }
-        
-        td:first-child {
-            font-weight: 600;
-            background: #f8fafc;
-        }
-        
-        td:nth-child(3),
-        td:nth-child(4) {
-            text-align: center;
-            vertical-align: middle;
-        }
-        
-        /* ========== المواد والدرجات ========== */
-        .subjects-container {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        
-        .subject-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 6px;
-            padding: 5px 0;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        
-        .subject-row:last-child {
-            border-bottom: none;
-        }
-        
-        .subject-name {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-            color: #334155;
-            font-size: 0.75rem;
-        }
-        
-        .subject-name i {
-            color: #c4a35a;
-            width: 18px;
-            font-size: 0.75rem;
-        }
-        
-        .subject-grade {
-            font-weight: 700;
-            color: #1a4f6e;
-            background: #e8f0f6;
-            padding: 2px 10px;
-            border-radius: 50px;
-            font-size: 0.7rem;
-            white-space: nowrap;
-        }
-        
-        .extra-subject {
-            background: #faf6ed;
-            padding: 6px 10px;
-            border-radius: 12px;
-            margin-top: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 6px;
-            border-right: 3px solid #c4a35a;
-        }
-        
-        .extra-subject .subject-name {
-            color: #d97706;
-        }
-        
-        .extra-subject .subject-grade {
-            background: #fef3c7;
-            color: #d97706;
-        }
-        
-        /* ========== المجموع والنسبة ========== */
-        .total-cell {
-            display: inline-block;
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.75rem;
-        }
-        
-        .percentage-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.75rem;
-        }
-        
-        .percentage-badge.excellent {
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: #c4a35a;
-        }
-        
-        .percentage-badge.passed {
-            background: linear-gradient(135deg, #2d6a4f, #1b4d3b);
-            color: white;
-        }
-        
-        .percentage-badge.failed {
-            background: linear-gradient(135deg, #b91c1c, #991b1b);
-            color: white;
-        }
-        
-        /* ========== الجداول الأخرى (الإشعارات والمخالفات) ========== */
-        .notifications-section,
-        .violations-section {
-            margin: 24px 0;
-            background: white;
-            border-radius: 24px;
-            padding: 20px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-        
-        .notifications-section h2,
-        .violations-section h3 {
-            margin-top: 0;
-        }
-        
-        .notifications-table-wrapper,
-        .violations-table-wrapper {
-            overflow-x: auto;
-            border-radius: 16px;
-            background: white;
-            border: 1px solid #e2e8f0;
-        }
-        
-        .notifications-table,
-        .violations-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
-        }
-        
-        .notifications-table th,
-        .violations-table th {
-            background: linear-gradient(135deg, #1a4f6e 0%, #0d3b54 100%);
-            color: white;
-            padding: 10px 8px;
-            font-weight: 600;
-            text-align: center;
-            font-size: 0.75rem;
-        }
-        
-        .notifications-table td,
-        .violations-table td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: center;
-            font-size: 0.75rem;
-        }
-        
-        .notifications-table tr:hover td,
-        .violations-table tr:hover td {
-            background: #faf6ed;
-        }
-        
-        /* ========== الناف بار ========== */
-        .nav-bar {
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(12px);
-            border-radius: 50px;
-            margin: 0 auto 12px auto;
-            padding: 6px 16px;
-            display: flex;
-            justify-content: center;
-            gap: 4px;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-            border: 1px solid rgba(196, 163, 90, 0.3);
-            width: fit-content;
-            max-width: 95%;
-            min-width: 280px;
-        }
-        
-        .nav-bar a {
-            text-decoration: none;
-            color: #64748b;
-            font-weight: 500;
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3px;
-            transition: all 0.3s ease;
-            padding: 6px 12px;
-            border-radius: 40px;
-            font-size: 0.65rem;
-        }
-        
-        .nav-bar a i {
-            font-size: 1.1rem;
-        }
-        
-        .nav-bar a:hover {
-            color: #c4a35a;
-            background: #faf6ed;
-            transform: translateY(-2px);
-        }
-        
-        /* ========== حالة عدم وجود بيانات ========== */
-        .empty-result {
-            text-align: center;
-            padding: 30px 16px;
-            background: #f8fafc;
-            border-radius: 16px;
-        }
-        
-        .empty-result i {
-            font-size: 2rem;
-            color: #cbd5e1;
-            margin-bottom: 10px;
-        }
-        
-        .empty-result p {
-            color: #64748b;
-            font-size: 0.75rem;
-        }
-        
-        /* ========== التجاوب مع الشاشات ========== */
-        @media (max-width: 768px) {
-            .main-header {
-                padding: 10px 16px;
-            }
-            
-            .main-header h1 {
-                font-size: 0.85rem;
-            }
-            
-            .logo {
-                width: 35px;
-                height: 35px;
-            }
-            
-            .logout-btn {
-                padding: 5px 12px;
-                font-size: 0.65rem;
-            }
-            
-            .main-container {
-                padding: 0 16px;
-            }
-            
-            .result-form-container,
-            .notifications-section,
-            .violations-section {
-                padding: 16px;
-            }
-            
-            /* الجداول تعرض بشكل عمودي على الموبايل */
-            table,
-            .notifications-table,
-            .violations-table,
-            thead,
-            tbody,
-            th,
-            td,
-            tr {
-                display: block;
-            }
-            
-            thead {
-                display: none;
-            }
-            
-            tr {
-                margin-bottom: 16px;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                overflow: hidden;
-            }
-            
-            td {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                gap: 10px;
-                padding: 10px 12px;
-                border-bottom: 1px solid #e2e8f0;
-                text-align: right;
-            }
-            
-            td:last-child {
-                border-bottom: none;
-            }
-            
-            td::before {
-                content: attr(data-label);
-                font-weight: 700;
-                color: #1a4f6e;
-                background: #e8f0f6;
-                padding: 4px 8px;
-                border-radius: 8px;
-                font-size: 0.7rem;
-                min-width: 90px;
-            }
-            
-            /* الناف بار */
-            .nav-bar {
-                border-radius: 40px;
-                padding: 5px 12px;
-                gap: 2px;
-                min-width: 260px;
-            }
-            
-            .nav-bar a {
-                padding: 5px 8px;
-            }
-            
-            .nav-bar a i {
-                font-size: 1rem;
-            }
-            
-            .nav-bar a span {
-                font-size: 0.55rem;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .main-header {
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            .dashboard-content {
-                flex-direction: column;
-            }
-            
-            .nav-bar a span {
-                display: none;
-            }
-            
-            .nav-bar a i {
-                font-size: 1.1rem;
-            }
-            
-            .nav-bar a {
-                padding: 6px 10px;
-            }
-            
-            .nav-bar {
-                min-width: 220px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <header class="main-header">
-        <img src="logo.png" alt="شعار معهد رعاية الضبعية" class="logo">
-        <h1>نتايج الطلاب - معهد رعاية الضبعية الفني للتمريض</h1>
-        <button class="logout-btn" onclick="logout()">تسجيل الخروج</button>
-    </header>
+/* ============================================
+   التصميم الطبي المتكامل - معهد رعاية الضبعية
+   نسخة محسنة - بدون تمرير أفقي للجدول
+   ============================================ */
 
-    <div class="main-container">
-        <div class="result-form-container">
-            <div class="welcome-message" id="welcome-message"></div>
-            
-            <h2>ابحث عن نتيجتك</h2>
-            <form id="search-form">
-                <div class="input-group">
-                    <label for="search-name"><i class="fas fa-user"></i> اسم الطالب</label>
-                    <input type="text" id="search-name" name="student-name" placeholder="أدخل اسم الطالب" required>
-                </div>
-                <div class="input-group">
-                    <label for="search-id"><i class="fas fa-id-card"></i> رقم الجلوس</label>
-                    <input type="text" id="search-id" name="student-id" placeholder="أدخل رقم الجلوس" required>
-                </div>
-                <button type="submit" class="submit-btn"><i class="fas fa-search"></i> عرض النتيجة</button>
-            </form>
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Tajawal:wght@400;500;600;700;800;900&display=swap');
 
-            <!-- ========== جدول النتيجة ========== -->
-            <div class="result-table">
-                <h3><i class="fas fa-chart-line"></i> النتيجة</h3>
-                <div class="table-wrapper">
-                    <table id="resultsTable">
-                        <thead>
-                            <tr>
-                                <th>البيانات</th>
-                                <th>القيم</th>
-                                <th>المجموع</th>
-                                <th>النسبة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="result-table-body">
-                            <tr><td colspan="4" class="empty-result"><i class="fas fa-search"></i><br>قم بالبحث لعرض النتيجة</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+/* ========== المتغيرات ========== */
+:root {
+    --primary: #1a4f6e;
+    --primary-dark: #0d3b54;
+    --primary-light: #e8f0f6;
+    --accent: #c4a35a;
+    --accent-dark: #a07d3a;
+    --accent-light: #faf6ed;
+    --success: #2d6a4f;
+    --danger: #b91c1c;
+    --warning: #d97706;
+    --white: #ffffff;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 28px;
+    --radius-full: 9999px;
+    --transition: all 0.25s ease;
+}
 
-            <!-- ========== جدول الإشعارات ========== -->
-            <div class="notifications-section">
-                <h2><i class="fas fa-bell"></i> الإشعارات</h2>
-                <div class="notifications-table-wrapper">
-                    <table class="notifications-table">
-                        <thead>
-                            <tr>
-                                <th>نص الإشعار</th>
-                                <th>تاريخ الإضافة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notifications-table-body">
-                            <tr><td colspan="2" class="empty-result">📭 لا توجد إشعارات حاليًا</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-            <!-- ========== جدول المخالفات ========== -->
-            <div class="violations-section">
-                <h3><i class="fas fa-exclamation-triangle"></i> الإنذارات والمخالفات</h3>
-                <div class="violations-table-wrapper">
-                    <table class="violations-table">
-                        <thead>
-                            <tr>
-                                <th>النوع</th>
-                                <th>السبب</th>
-                                <th>العقوبة</th>
-                                <th>استدعاء ولي الأمر</th>
-                                <th>تاريخ الإضافة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="violations-table-body">
-                            <tr><td colspan="5" class="empty-result">✅ لا توجد مخالفات مسجلة</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+body {
+    font-family: 'Tajawal', 'Inter', sans-serif;
+    background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
+    color: var(--gray-700);
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 75px;
+}
 
-    <nav class="nav-bar" id="nav-bar"></nav>
+/* ========== الهيدر ========== */
+.main-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-md);
+    border-bottom: 3px solid var(--accent);
+}
 
-    <script src="auth.js"></script>
-    <script>
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-        
-        function getLoggedInUser() {
-            const userStr = sessionStorage.getItem('userData');
-            if (!userStr) return null;
-            try {
-                return JSON.parse(userStr);
-            } catch {
-                return null;
-            }
-        }
-        
-        function showToast(message, type = 'success') {
-            if (typeof Toastify !== 'undefined') {
-                Toastify({
-                    text: message,
-                    duration: 3000,
-                    gravity: "top",
-                    position: "center",
-                    backgroundColor: type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8',
-                    style: { fontFamily: '"Tajawal", sans-serif', fontSize: '14px', direction: 'rtl', borderRadius: '12px', padding: '12px 20px' }
-                }).showToast();
-            } else {
-                alert(message);
-            }
-        }
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        async function fetchStudentByCode(studentCode) {
-            try {
-                const response = await fetch(`${BASE_URL}/api/student/by-code/${encodeURIComponent(studentCode)}`, {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
-                return null;
-            } catch (error) {
-                console.error('خطأ في جلب الطالب:', error);
-                return null;
-            }
-        }
-        
-        async function fetchViolationsForStudent(studentId) {
-            try {
-                const response = await fetch(`${BASE_URL}/api/violations/student/${encodeURIComponent(studentId)}`, {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
-                return [];
-            } catch (error) {
-                console.error('خطأ في جلب المخالفات:', error);
-                return [];
-            }
-        }
-        
-        async function loadNotifications() {
-            try {
-                const response = await fetch(`${BASE_URL}/api/notifications`);
-                if (response.ok) {
-                    const notifications = await response.json();
-                    const tableBody = document.getElementById('notifications-table-body');
-                    if (tableBody) {
-                        if (!notifications || notifications.length === 0) {
-                            tableBody.innerHTML = '<tr><td colspan="2" class="empty-result">📭 لا توجد إشعارات حاليًا</td></tr>';
-                            return;
-                        }
-                        tableBody.innerHTML = notifications.map(n => `
-                            <tr>
-                                <td data-label="نص الإشعار">${escapeHtml(n.text)}</td>
-                                <td data-label="تاريخ الإضافة">${n.date || 'غير محدد'}</td>
-                            </tr>
-                        `).join('');
-                    }
-                }
-            } catch (error) {
-                console.error('خطأ في تحميل الإشعارات:', error);
-            }
-        }
-        
-        function renderStudentResult(student, studentViolations, resultBody, violationsBody) {
-            if (!student.subjects || student.subjects.length === 0) {
-                resultBody.innerHTML = '<tr><td colspan="4" class="empty-result">📭 لا توجد درجات مسجلة لهذا الطالب</td></tr>';
-                if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5" class="empty-result">✅ لا توجد مخالفات</td></tr>';
-                return;
-            }
-            
-            const subjectMaxGrades = {
-                "اللغة العربية": 20,
-                "اللغة الإنجليزية": 20,
-                "علوم تطبيقية": 40,
-                "طب باطنة": 20,
-                "تمريض باطني جراحي": 24,
-                "حاسب آلي": 20
-            };
-            const TOTAL_POSSIBLE = 144;
-            const orderedSubjects = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي"];
-            const extraSubjectsList = ["الدين"];
-            
-            let total = 0;
-            let subjectsHtml = '<div class="subjects-container">';
-            
-            orderedSubjects.forEach(subjName => {
-                const subject = student.subjects.find(s => s.name === subjName);
-                const grade = subject ? (subject.grade || 0) : 0;
-                total += grade;
-                subjectsHtml += `
-                    <div class="subject-row">
-                        <div class="subject-name"><i class="fas fa-book"></i> ${subjName}</div>
-                        <div class="subject-grade">${grade} / ${subjectMaxGrades[subjName]}</div>
-                    </div>
-                `;
-            });
-            
-            extraSubjectsList.forEach(subjName => {
-                const subject = student.subjects.find(s => s.name === subjName);
-                const grade = subject ? (subject.grade || 0) : 0;
-                if (grade > 0) {
-                    subjectsHtml += `
-                        <div class="extra-subject">
-                            <div class="subject-name"><i class="fas fa-pray"></i> ${subjName}</div>
-                            <div class="subject-grade">${grade} / 32 (خارج المجموع)</div>
-                        </div>
-                    `;
-                }
-            });
-            subjectsHtml += '</div>';
-            
-            const percentage = (total / TOTAL_POSSIBLE) * 100;
-            let percentageClass = percentage >= 85 ? 'excellent' : (percentage >= 60 ? 'passed' : 'failed');
-            
-            resultBody.innerHTML = `
-                <tr>
-                    <td data-label="البيانات">الاسم الكامل</td>
-                    <td data-label="القيم">${escapeHtml(student.fullName)}</td>
-                    <td rowspan="2" data-label="المجموع"><span class="total-cell">${total} / ${TOTAL_POSSIBLE}</span></td>
-                    <td rowspan="2" data-label="النسبة"><span class="percentage-badge ${percentageClass}">${percentage.toFixed(1)}%</span></td>
-                </tr>
-                <tr>
-                    <td data-label="البيانات">رقم الجلوس</td>
-                    <td data-label="القيم">${escapeHtml(student.studentCode)}</td>
-                </tr>
-                <tr>
-                    <td colspan="2" data-label="المواد">${subjectsHtml}</td>
-                </tr>
-            `;
-            
-            if (violationsBody) {
-                if (studentViolations && studentViolations.length > 0) {
-                    violationsBody.innerHTML = studentViolations.map(v => `
-                        <tr>
-                            <td data-label="النوع">${v.type === 'warning' ? '⚠️ إنذار' : '🚫 مخالفة'}</td>
-                            <td data-label="السبب">${escapeHtml(v.reason)}</td>
-                            <td data-label="العقوبة">${escapeHtml(v.penalty)}</td>
-                            <td data-label="استدعاء ولي الأمر">${v.parentSummons ? '✅ نعم' : '❌ لا'}</td>
-                            <td data-label="تاريخ الإضافة">${v.date || '-'}</td>
-                        </tr>
-                    `).join('');
-                } else {
-                    violationsBody.innerHTML = '<table><td colspan="5" class="empty-result">✅ لا توجد مخالفات مسجلة</td></tr>';
-                }
-            }
-        }
-        
-        function setupSearchForm() {
-            const form = document.getElementById('search-form');
-            if (!form) return;
-            
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const name = document.getElementById('search-name')?.value.trim();
-                const studentCode = document.getElementById('search-id')?.value.trim();
-                const resultBody = document.getElementById('result-table-body');
-                const violationsBody = document.getElementById('violations-table-body');
-                
-                if (!name || !studentCode) {
-                    showToast('⚠️ يرجى إدخال الاسم ورقم الجلوس معًا!', 'error');
-                    return;
-                }
-                
-                showToast('🔍 جاري البحث...', 'info');
-                
-                try {
-                    const student = await fetchStudentByCode(studentCode);
-                    
-                    if (student && student.fullName.includes(name)) {
-                        const studentViolations = await fetchViolationsForStudent(student.studentCode);
-                        renderStudentResult(student, studentViolations, resultBody, violationsBody);
-                        showToast('✅ تم العثور على الطالب بنجاح!', 'success');
-                    } else {
-                        resultBody.innerHTML = '<tr><td colspan="4" class="empty-result">❌ لا توجد نتيجة بهذا الاسم ورقم الجلوس!</td></tr>';
-                        violationsBody.innerHTML = '<tr><td colspan="5" class="empty-result">❌ لا توجد نتيجة!</td></tr>';
-                        showToast('❌ الطالب غير موجود! تأكد من رقم الجلوس', 'error');
-                    }
-                } catch (error) {
-                    console.error('خطأ في البحث:', error);
-                    resultBody.innerHTML = '<tr><td colspan="4" class="empty-result">❌ حدث خطأ في البحث!</td></tr>';
-                    violationsBody.innerHTML = '<tr><td colspan="5" class="empty-result">❌ حدث خطأ!</td></tr>';
-                    showToast('❌ حدث خطأ في الاتصال بالسيرفر', 'error');
-                }
-            });
-        }
-        
-        function renderWelcomeMessage() {
-            const welcomeDiv = document.querySelector('.welcome-message');
-            const user = getLoggedInUser();
-            if (!welcomeDiv) return;
-            if (user) {
-                const name = user.fullName || user.username;
-                welcomeDiv.textContent = user.type === 'admin' ? `👋 أهلًا يا قائد العمليات، ${name}! 🛠️` : `🎉 مرحبًا يا نجم، ${name}! نتايجك في انتظارك! 📚`;
-            } else {
-                welcomeDiv.textContent = '👋 مرحبًا بك! سجل الدخول لرؤية نتائجك';
-            }
-        }
-        
-        function renderNavbar() {
-            const user = getLoggedInUser();
-            const navBar = document.getElementById('nav-bar');
-            if (!navBar) return;
-            
-            const links = [
-                { href: 'index.html', icon: 'fa-solid fa-house', title: 'الرئيسية' },
-                { href: 'Home.html', icon: 'fa-solid fa-chart-simple', title: 'النتائج' },
-                { href: 'profile.html', icon: 'fa-solid fa-user', title: 'الملف الشخصي' },
-                { href: 'exams.html', icon: 'fa-solid fa-book-open', title: 'الاختبارات' },
-                { href: 'file-library.html', icon: 'fas fa-folder-open', title: 'المكتبة' }
-            ];
-            
-            if (user?.type === 'admin') {
-                links.push({ href: 'admin.html', icon: 'fas fa-cogs', title: 'لوحة التحكم' });
-            }
-            
-            navBar.innerHTML = links.map(l => `<a href="${l.href}" title="${l.title}"><i class="${l.icon}"></i><span>${l.title}</span></a>`).join('');
-        }
-        
-        async function logout() {
-            try {
-                await fetch(`${BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
-            } catch (err) {}
-            finally {
-                sessionStorage.clear();
-                window.location.href = 'login.html';
-            }
-        }
-        
-        function setupLogoutButton() {
-            const logoutBtn = document.querySelector('.logout-btn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', logout);
-            }
-        }
-        
-        async function init() {
-            renderWelcomeMessage();
-            renderNavbar();
-            setupSearchForm();
-            setupLogoutButton();
-            await loadNotifications();
-        }
-        
-        init();
-    </script>
-</body>
-</html>
+.logo {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 50%;
+    background: var(--white);
+    padding: 3px;
+    border: 2px solid var(--accent);
+    transition: var(--transition);
+}
+
+.logo:hover {
+    transform: scale(1.05);
+}
+
+.main-header h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logout-btn {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 16px;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--white);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.logout-btn:hover {
+    background: var(--accent);
+    color: var(--primary);
+    transform: translateY(-2px);
+}
+
+/* ========== الحاوية الرئيسية ========== */
+.main-container {
+    max-width: 1400px;
+    margin: 20px auto;
+    padding: 0 16px;
+    flex: 1;
+}
+
+.result-form-container {
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    padding: 20px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--gray-200);
+    margin-bottom: 20px;
+}
+
+/* رسالة الترحيب */
+.welcome-message {
+    background: linear-gradient(135deg, var(--primary-light), var(--white));
+    border-radius: var(--radius-xl);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--primary);
+    border-right: 4px solid var(--accent);
+}
+
+/* ========== العناوين ========== */
+.result-form-container h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 3px solid var(--accent);
+    display: inline-block;
+}
+
+.result-form-container h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin: 16px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-right: 3px solid var(--accent);
+    padding-right: 10px;
+}
+
+/* ========== الحقول ========== */
+.input-group {
+    margin-bottom: 15px;
+}
+
+.input-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: var(--gray-700);
+    font-size: 0.8rem;
+}
+
+.input-group label i {
+    color: var(--accent);
+    margin-left: 6px;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    font-family: inherit;
+    font-size: 0.85rem;
+    transition: var(--transition);
+    background: var(--white);
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(196, 163, 90, 0.15);
+}
+
+/* ========== زر البحث ========== */
+.submit-btn {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: var(--primary);
+    border: none;
+    padding: 10px 24px;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    box-shadow: 0 4px 12px rgba(196, 163, 90, 0.3);
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.02);
+    box-shadow: 0 6px 16px rgba(196, 163, 90, 0.4);
+}
+
+/* ========== الجدول - بدون تمرير أفقي ========== */
+.result-table {
+    margin-top: 24px;
+}
+
+.table-wrapper {
+    overflow-x: visible;
+    border-radius: var(--radius-xl);
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    table-layout: auto;
+}
+
+th {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    padding: 10px 8px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.8rem;
+    border-bottom: 2px solid var(--accent);
+}
+
+td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--gray-200);
+    vertical-align: top;
+    background: var(--white);
+    transition: var(--transition);
+    word-break: break-word;
+}
+
+tr:hover td {
+    background: var(--accent-light);
+}
+
+td:first-child {
+    font-weight: 600;
+    background: var(--gray-50);
+}
+
+td:nth-child(3),
+td:nth-child(4) {
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* ========== المواد والدرجات ========== */
+.subjects-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.subject-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.subject-row:last-child {
+    border-bottom: none;
+}
+
+.subject-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: var(--gray-700);
+    font-size: 0.75rem;
+    flex: 1;
+}
+
+.subject-name i {
+    color: var(--accent);
+    width: 18px;
+    font-size: 0.75rem;
+}
+
+.subject-grade {
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    white-space: nowrap;
+}
+
+/* المواد الإضافية */
+.extra-subject {
+    background: var(--accent-light);
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    margin-top: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    border-right: 3px solid var(--accent);
+}
+
+.extra-subject .subject-name {
+    color: var(--warning);
+}
+
+.extra-subject .subject-grade {
+    background: #fef3c7;
+    color: var(--warning);
+}
+
+/* ========== المجموع والنسبة ========== */
+.total-cell {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--white);
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.percentage-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.percentage-badge.excellent {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--accent);
+}
+
+.percentage-badge.passed {
+    background: linear-gradient(135deg, var(--success), #1b4d3b);
+    color: var(--white);
+}
+
+.percentage-badge.failed {
+    background: linear-gradient(135deg, var(--danger), #991b1b);
+    color: var(--white);
+}
+
+/* ========== الإحصائيات ========== */
+.student-dashboard,
+.attendance-stats-section {
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+}
+
+.student-dashboard h2,
+.attendance-stats-section h2 {
+    font-size: 1rem;
+    margin-bottom: 14px;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+    padding-bottom: 5px;
+}
+
+.dashboard-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.stats {
+    flex: 1;
+    min-width: 160px;
+}
+
+.stats p {
+    background: var(--gray-50);
+    padding: 10px 14px;
+    border-radius: var(--radius-lg);
+    border-right: 3px solid var(--accent);
+    margin: 8px 0;
+    font-weight: 500;
+    font-size: 0.8rem;
+}
+
+.chart-container {
+    flex: 2;
+    min-width: 220px;
+}
+
+canvas#gradesChart {
+    max-height: 200px;
+    width: 100% !important;
+}
+
+/* ========== إحصائيات الحضور ========== */
+.attendance-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-lg);
+    background: var(--gray-50);
+    transition: var(--transition);
+}
+
+.stat-card.present { border-right: 4px solid var(--success); }
+.stat-card.absent { border-right: 4px solid var(--danger); }
+.stat-card.late { border-right: 4px solid var(--warning); }
+.stat-card.percentage { border-right: 4px solid var(--accent); }
+
+.stat-icon { font-size: 1.3rem; }
+.stat-number { font-size: 1.2rem; font-weight: 700; color: var(--gray-800); }
+.stat-label { font-size: 0.65rem; color: var(--gray-500); }
+
+.attendance-dates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--gray-200);
+}
+
+.date-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: var(--gray-50);
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+}
+
+/* ========== جدول الإشعارات (تم إصلاحه) ========== */
+.notifications-section {
+    margin: 24px 0;
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    padding: 20px;
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+}
+
+.notifications-section h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 3px solid var(--accent);
+    display: inline-block;
+}
+
+.notifications-table-wrapper {
+    overflow-x: visible;
+    border-radius: var(--radius-xl);
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+}
+
+.notifications-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.notifications-table th {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    padding: 10px 8px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.8rem;
+    border-bottom: 2px solid var(--accent);
+}
+
+.notifications-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--gray-200);
+    text-align: center;
+    font-size: 0.8rem;
+    word-break: break-word;
+}
+
+.notifications-table tr:hover td {
+    background: var(--accent-light);
+}
+
+/* ========== جدول المخالفات ========== */
+.violations-section {
+    margin: 24px 0;
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    padding: 20px;
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+}
+
+.violations-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-right: 3px solid var(--accent);
+    padding-right: 10px;
+}
+
+.violations-table-wrapper {
+    overflow-x: visible;
+    border-radius: var(--radius-xl);
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+}
+
+.violations-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.violations-table th {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    padding: 10px 6px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+.violations-table td {
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--gray-200);
+    text-align: center;
+    font-size: 0.7rem;
+    word-break: break-word;
+}
+
+.violations-table tr:hover td {
+    background: var(--accent-light);
+}
+
+/* ========== الفوتر (فوق الناف بار) ========== */
+footer {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    text-align: center;
+    padding: 14px 16px;
+    font-size: 0.7rem;
+    color: var(--accent-light);
+    border-top: 3px solid var(--accent);
+    position: relative;
+    margin-top: 20px;
+}
+
+.footer-content {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.footer-content p {
+    margin: 3px 0;
+    opacity: 0.9;
+}
+
+.footer-content .heart {
+    color: #ff6b6b;
+    animation: heartbeat 1.5s ease infinite;
+    display: inline-block;
+}
+
+.footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.footer-links a {
+    color: var(--accent-light);
+    text-decoration: none;
+    font-size: 0.65rem;
+    transition: var(--transition);
+}
+
+.footer-links a:hover {
+    color: var(--accent);
+    transform: translateY(-1px);
+}
+
+@keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* ========== الناف بار ========== */
+.nav-bar {
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px);
+    border-radius: 50px;
+    margin: 0 auto 16px auto;
+    padding: 6px 16px;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(196, 163, 90, 0.3);
+    width: fit-content;
+    max-width: 95%;
+    min-width: 280px;
+}
+
+.nav-bar a {
+    text-decoration: none;
+    color: var(--gray-500);
+    font-weight: 500;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    transition: var(--transition);
+    padding: 6px 12px;
+    border-radius: 40px;
+    font-size: 0.65rem;
+}
+
+.nav-bar a i {
+    font-size: 1.1rem;
+}
+
+.nav-bar a:hover {
+    color: var(--accent);
+    background: var(--accent-light);
+    transform: translateY(-2px);
+}
+
+.nav-bar a.active {
+    color: var(--accent);
+    background: var(--accent-light);
+}
+
+/* ========== حالة عدم وجود بيانات ========== */
+.empty-result {
+    text-align: center;
+    padding: 30px 16px;
+    background: var(--gray-50);
+    border-radius: var(--radius-xl);
+}
+
+.empty-result i {
+    font-size: 2rem;
+    color: var(--gray-300);
+    margin-bottom: 10px;
+}
+
+.empty-result h3 {
+    color: var(--primary);
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+}
+
+.empty-result p {
+    color: var(--gray-500);
+    font-size: 0.75rem;
+}
+
+/* ========== شريط التمرير ========== */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--gray-200);
+    border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+/* ========== الرسوم المتحركة ========== */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-table {
+    animation: fadeInUp 0.3s ease-out;
+}
+
+/* ========== التجاوب مع الشاشات ========== */
+
+/* شاشات الهواتف (أقل من 640px) */
+@media (max-width: 640px) {
+    .main-header {
+        padding: 10px 16px;
+    }
+    
+    .main-header h1 {
+        font-size: 0.85rem;
+    }
+    
+    .logo {
+        width: 35px;
+        height: 35px;
+    }
+    
+    .logout-btn {
+        padding: 5px 12px;
+        font-size: 0.65rem;
+    }
+    
+    .main-container {
+        padding: 0 12px;
+        margin: 12px auto;
+    }
+    
+    .result-form-container,
+    .notifications-section,
+    .violations-section {
+        padding: 16px;
+    }
+    
+    /* الجدول يعرض بشكل عمودي على الموبايل */
+    table,
+    .notifications-table,
+    .violations-table,
+    thead,
+    tbody,
+    th,
+    td,
+    tr {
+        display: block;
+    }
+    
+    thead {
+        display: none;
+    }
+    
+    tr {
+        margin-bottom: 16px;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+    
+    td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--gray-200);
+        text-align: right;
+    }
+    
+    td:last-child {
+        border-bottom: none;
+    }
+    
+    td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        color: var(--primary);
+        background: var(--primary-light);
+        padding: 4px 8px;
+        border-radius: var(--radius-sm);
+        font-size: 0.7rem;
+        min-width: 90px;
+    }
+    
+    td:nth-child(3),
+    td:nth-child(4) {
+        text-align: right;
+    }
+    
+    .subjects-container {
+        width: 100%;
+    }
+    
+    /* الناف بار */
+    .nav-bar {
+        border-radius: 40px;
+        padding: 5px 12px;
+        gap: 2px;
+        min-width: 260px;
+    }
+    
+    .nav-bar a {
+        padding: 5px 8px;
+    }
+    
+    .nav-bar a i {
+        font-size: 1rem;
+    }
+    
+    .nav-bar a span {
+        font-size: 0.55rem;
+    }
+    
+    /* الإحصائيات */
+    .attendance-stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    
+    .stat-card {
+        padding: 8px 10px;
+    }
+    
+    .stat-number {
+        font-size: 1rem;
+    }
+    
+    .stat-icon {
+        font-size: 1.1rem;
+    }
+    
+    /* الفوتر */
+    footer {
+        padding: 12px;
+        font-size: 0.65rem;
+    }
+    
+    .footer-links {
+        gap: 10px;
+    }
+}
+
+/* شاشات صغيرة جداً (أقل من 480px) */
+@media (max-width: 480px) {
+    .main-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .attendance-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-content {
+        flex-direction: column;
+    }
+    
+    /* الناف بار بدون نصوص */
+    .nav-bar a span {
+        display: none;
+    }
+    
+    .nav-bar a i {
+        font-size: 1.1rem;
+    }
+    
+    .nav-bar a {
+        padding: 6px 10px;
+    }
+    
+    .nav-bar {
+        padding: 4px 10px;
+        min-width: 220px;
+    }
+    
+    td::before {
+        min-width: 70px;
+        font-size: 0.65rem;
+    }
+    
+    td {
+        font-size: 0.7rem;
+        padding: 8px 10px;
+    }
+}
+
+/* شاشات التابلت */
+@media (min-width: 641px) and (max-width: 1024px) {
+    .main-container {
+        padding: 0 20px;
+    }
+    
+    table {
+        font-size: 0.75rem;
+    }
+    
+    th, td {
+        padding: 10px 6px;
+    }
+    
+    .nav-bar a {
+        padding: 6px 10px;
+    }
+    
+    .nav-bar a i {
+        font-size: 1rem;
+    }
+    
+    .nav-bar a span {
+        font-size: 0.6rem;
+    }
+    
+    .attendance-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* الشاشات الكبيرة */
+@media (min-width: 1440px) {
+    .main-container {
+        max-width: 1600px;
+        padding: 0 32px;
+    }
+    
+    table {
+        font-size: 0.9rem;
+    }
+    
+    .nav-bar {
+        max-width: 700px;
+    }
+}
