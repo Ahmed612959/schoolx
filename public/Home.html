@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>نتايج الطلاب - معهد رعاية الضبعية</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
+        /* ========== جميع الأنماط السابقة ========== */
         * {
             margin: 0;
             padding: 0;
@@ -22,7 +26,6 @@
             padding-bottom: 85px;
         }
 
-        /* ========== الهيدر ========== */
         .main-header {
             background: linear-gradient(135deg, #0f2b3d, #1a4f6e);
             padding: 12px 20px;
@@ -74,7 +77,6 @@
             transform: translateY(-2px);
         }
 
-        /* ========== الحاوية الرئيسية ========== */
         .main-container {
             max-width: 1200px;
             margin: 20px auto;
@@ -101,7 +103,6 @@
             border-right: 4px solid #c4a35a;
         }
 
-        /* ========== العناوين ========== */
         .result-form-container h2 {
             font-size: 1.15rem;
             font-weight: 700;
@@ -124,7 +125,6 @@
             padding-right: 10px;
         }
 
-        /* ========== الحقول ========== */
         .input-group {
             margin-bottom: 16px;
         }
@@ -181,8 +181,8 @@
             filter: brightness(1.02);
         }
 
-        /* ========== الجدول - تصميم متجاوب ========== */
-        .result-table {
+        /* الجداول */
+        .result-table, .violations-section, .notifications-section {
             margin-top: 24px;
         }
 
@@ -206,7 +206,6 @@
             padding: 12px 8px;
             font-weight: 600;
             text-align: center;
-            font-size: 0.8rem;
             border-bottom: 2px solid #c4a35a;
         }
 
@@ -221,18 +220,6 @@
             background: #faf6ed;
         }
 
-        td:first-child {
-            font-weight: 600;
-            background: #f8fafc;
-        }
-
-        td:nth-child(3),
-        td:nth-child(4) {
-            text-align: center;
-            vertical-align: middle;
-        }
-
-        /* المواد والدرجات */
         .subjects-container {
             display: flex;
             flex-direction: column;
@@ -318,62 +305,94 @@
             color: white;
         }
 
-        /* الإشعارات */
-        .notifications-section {
-            margin: 24px 0;
+        /* لوحة التحكم */
+        .student-dashboard, .attendance-stats-section {
             background: white;
             border-radius: 20px;
-            padding: 16px;
+            padding: 20px;
+            margin: 20px 0;
             border: 1px solid #e2e8f0;
         }
 
-        .notifications-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
+        .dashboard-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
         }
 
-        .notifications-table th {
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: white;
-            padding: 10px;
-            font-weight: 600;
+        .stats {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .stats p {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 12px;
+            border-right: 3px solid #c4a35a;
+            margin: 10px 0;
+        }
+
+        .chart-container {
+            flex: 2;
+            min-width: 250px;
+        }
+
+        canvas#gradesChart {
+            max-height: 220px;
+            width: 100% !important;
+        }
+
+        .attendance-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+
+        .stat-card.present { border-right: 4px solid #28a745; }
+        .stat-card.absent { border-right: 4px solid #dc3545; }
+        .stat-card.late { border-right: 4px solid #ffc107; }
+        .stat-card.percentage { border-right: 4px solid #c4a35a; }
+
+        .stat-icon { font-size: 1.5rem; }
+        .stat-number { font-size: 1.3rem; font-weight: 700; }
+        .stat-label { font-size: 0.7rem; color: #64748b; }
+
+        .attendance-dates {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .date-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: #f8fafc;
+            border-radius: 50px;
+            font-size: 0.75rem;
+        }
+
+        .no-attendance-message {
             text-align: center;
-        }
-
-        .notifications-table td {
-            padding: 10px;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: center;
-        }
-
-        /* المخالفات */
-        .violations-section {
-            margin: 24px 0;
-            background: white;
-            border-radius: 20px;
-            padding: 16px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .violations-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
-        }
-
-        .violations-table th {
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: white;
-            padding: 10px;
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .violations-table td {
-            padding: 10px;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: center;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 12px;
+            color: #856404;
         }
 
         /* الناف بار */
@@ -420,23 +439,6 @@
             transform: translateY(-2px);
         }
 
-        /* حالة عدم وجود بيانات */
-        .empty-state {
-            text-align: center;
-            padding: 30px 16px;
-            background: #f8fafc;
-            border-radius: 16px;
-            color: #64748b;
-        }
-
-        .empty-state i {
-            font-size: 2rem;
-            color: #cbd5e1;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        /* الفوتر */
         footer {
             text-align: center;
             padding: 16px;
@@ -456,32 +458,19 @@
             50% { transform: scale(1.1); }
         }
 
-        /* التجاوب */
         @media (max-width: 640px) {
             .main-header {
                 flex-direction: column;
                 text-align: center;
             }
-            
             .nav-bar a span {
                 display: none;
             }
-            
             .nav-bar a i {
                 font-size: 1.2rem;
             }
-            
             .nav-bar a {
                 padding: 8px 14px;
-            }
-            
-            table {
-                min-width: 400px;
-            }
-            
-            th, td {
-                padding: 8px 4px;
-                font-size: 0.7rem;
             }
         }
     </style>
@@ -490,80 +479,91 @@
     <header class="main-header">
         <img src="logo.png" alt="شعار المعهد" class="logo" onerror="this.style.display='none'">
         <h1>نتايج الطلاب - معهد رعاية الضبعية الفني للتمريض</h1>
-        <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
+        <button class="logout-btn">تسجيل الخروج</button>
     </header>
 
     <div class="main-container">
         <div class="result-form-container">
-            <div class="welcome-message" id="welcomeMessage"></div>
-            
+            <div class="welcome-message" id="welcome-message"></div>
             <h2>ابحث عن نتيجتك</h2>
-            <form id="searchForm">
+            <form id="search-form">
                 <div class="input-group">
-                    <label><i class="fas fa-user"></i> اسم الطالب</label>
-                    <input type="text" id="studentName" placeholder="أدخل اسم الطالب" required>
+                    <label for="search-name">اسم الطالب</label>
+                    <input type="text" id="search-name" name="student-name" placeholder="أدخل اسم الطالب" required>
                 </div>
                 <div class="input-group">
-                    <label><i class="fas fa-id-card"></i> رقم الجلوس</label>
-                    <input type="text" id="studentCode" placeholder="أدخل رقم الجلوس" required>
+                    <label for="search-id">رقم الجلوس</label>
+                    <input type="text" id="search-id" name="student-id" placeholder="أدخل رقم الجلوس" required>
                 </div>
-                <button type="submit" class="submit-btn"><i class="fas fa-search"></i> عرض النتيجة</button>
+                <button type="submit" class="submit-btn">عرض النتيجة</button>
             </form>
 
-            <!-- جدول النتيجة -->
-            <div class="result-table">
-                <h3><i class="fas fa-chart-line"></i> النتيجة</h3>
+            <!-- قسم لوحة التحكم التفاعلية (للطلاب فقط) -->
+            <section class="student-dashboard" id="dashboard" style="display: none;">
+                <h2>لوحة تحكمك</h2>
+                <div class="dashboard-content">
+                    <div class="stats">
+                        <p id="student-percentage">نسبة نجاحك: --%</p>
+                        <p id="class-average">متوسط الفصل: --%</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="gradesChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- قسم إحصائيات الحضور والغياب (للطلاب فقط) -->
+            <section class="attendance-stats-section" id="attendanceStatsSection" style="display: none;">
+                <h2>📋 إحصائيات الحضور والغياب</h2>
+                <div class="attendance-stats-grid">
+                    <div class="stat-card present"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div><div class="stat-number" id="presentCount">0</div><div class="stat-label">أيام الحضور</div></div></div>
+                    <div class="stat-card absent"><div class="stat-icon"><i class="fas fa-times-circle"></i></div><div><div class="stat-number" id="absentCount">0</div><div class="stat-label">أيام الغياب</div></div></div>
+                    <div class="stat-card late"><div class="stat-icon"><i class="fas fa-clock"></i></div><div><div class="stat-number" id="lateCount">0</div><div class="stat-label">أيام التأخير</div></div></div>
+                    <div class="stat-card percentage"><div class="stat-icon"><i class="fas fa-chart-line"></i></div><div><div class="stat-number" id="attendancePercentage">0%</div><div class="stat-label">نسبة الحضور</div></div></div>
+                </div>
+                <div class="attendance-dates">
+                    <div class="date-card"><i class="fas fa-calendar-check"></i> آخر يوم حضور: <strong id="lastPresentDate">لم يتم تسجيل بعد</strong></div>
+                    <div class="date-card"><i class="fas fa-calendar-times"></i> آخر يوم غياب: <strong id="lastAbsentDate">لم يتم تسجيل بعد</strong></div>
+                </div>
+                <div id="noAttendanceMessage" class="no-attendance-message" style="display: none;">
+                    📌 لم يتم تسجيل أي حضور أو غياب لك حتى الآن.
+                </div>
+            </section>
+
+            <!-- قسم النتيجة -->
+            <section class="result-table">
+                <h3>النتيجة</h3>
                 <div class="table-wrapper">
-                    <table id="resultsTable">
-                        <thead>
-                            <tr>
-                                <th>البيانات</th>
-                                <th>القيم</th>
-                                <th>المجموع</th>
-                                <th>النسبة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="resultTableBody">
-                            <tr><td colspan="4" class="empty-state"><i class="fas fa-search"></i> قم بالبحث لعرض النتيجة</td></tr>
+                    <table>
+                        <thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead>
+                        <tbody id="result-table-body">
+                            <tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr>
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </section>
 
-            <!-- جدول الإشعارات -->
-            <div class="notifications-section">
-                <h3><i class="fas fa-bell"></i> الإشعارات</h3>
-                <div class="table-wrapper">
-                    <table class="notifications-table">
-                        <thead>
-                            <tr>
-                                <th>نص الإشعار</th>
-                                <th>تاريخ الإضافة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notificationsTableBody">
-                            <tr><td colspan="2" class="empty-state">📭 لا توجد إشعارات حاليًا</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- جدول المخالفات -->
-            <div class="violations-section">
-                <h3><i class="fas fa-exclamation-triangle"></i> الإنذارات والمخالفات</h3>
+            <!-- قسم المخالفات -->
+            <section class="violations-section">
+                <h3>الإنذارات والمخالفات</h3>
                 <div class="table-wrapper">
                     <table class="violations-table">
-                        <thead>
-                            <tr>
-                                <th>النوع</th>
-                                <th>السبب</th>
-                                <th>العقوبة</th>
-                                <th>استدعاء ولي الأمر</th>
-                                <th>تاريخ الإضافة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="violationsTableBody">
-                            <tr><td colspan="5" class="empty-state">✅ لا توجد مخالفات مسجلة</td></tr>
+                        <thead><tr><th>النوع</th><th>السبب</th><th>العقوبة</th><th>استدعاء ولي الأمر</th><th>تاريخ الإضافة</th></tr></thead>
+                        <tbody id="violations-table-body">
+                            <tr><td colspan="5">✅ لا توجد مخالفات مسجلة</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- قسم الإشعارات -->
+            <div class="notifications-section">
+                <h2>الإشعارات</h2>
+                <div class="table-wrapper">
+                    <table class="notifications-table">
+                        <thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead>
+                        <tbody id="notifications-table-body">
+                            <tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -571,233 +571,42 @@
         </div>
     </div>
 
-    <nav class="nav-bar" id="navBar">
-        <a href="index.html"><i class="fas fa-home"></i><span>الرئيسية</span></a>
-        <a href="Home.html"><i class="fas fa-chart-simple"></i><span>النتائج</span></a>
-        <a href="profile.html"><i class="fas fa-user"></i><span>الملف</span></a>
-        <a href="exams.html"><i class="fas fa-book-open"></i><span>الاختبارات</span></a>
-        <a href="file-library.html"><i class="fas fa-folder-open"></i><span>المكتبة</span></a>
-    </nav>
+    <nav class="nav-bar" id="nav-bar"></nav>
 
     <footer>
         <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
     </footer>
 
-    <script>
-        // ====================== إعدادات السيرفر ======================
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-        
-        // ====================== دوال مساعدة ======================
-        function getLoggedInUser() {
-            try {
-                const userStr = sessionStorage.getItem('userData');
-                return userStr ? JSON.parse(userStr) : null;
-            } catch { return null; }
-        }
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        // ====================== جلب البيانات من API ======================
-        async function fetchStudentByCode(code) {
-            try {
-                const res = await fetch(`${BASE_URL}/api/student/by-code/${encodeURIComponent(code)}`, { credentials: 'include' });
-                if (res.ok) return await res.json();
-                return null;
-            } catch { return null; }
-        }
-        
-        async function fetchViolations(studentId) {
-            try {
-                const res = await fetch(`${BASE_URL}/api/violations/student/${encodeURIComponent(studentId)}`, { credentials: 'include' });
-                if (res.ok) return await res.json();
-                return [];
-            } catch { return []; }
-        }
-        
-        async function loadNotifications() {
-            try {
-                const res = await fetch(`${BASE_URL}/api/notifications`);
-                if (res.ok) {
-                    const data = await res.json();
-                    const tbody = document.getElementById('notificationsTableBody');
-                    if (!tbody) return;
-                    
-                    if (!data || data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="2" class="empty-state">📭 لا توجد إشعارات حاليًا</td></tr>';
-                        return;
-                    }
-                    
-                    tbody.innerHTML = data.map(n => `
-                        <tr>
-                            <td>${escapeHtml(n.text)}</td>
-                            <td>${n.date || 'غير محدد'}</td>
-                        </tr>
-                    `).join('');
-                }
-            } catch(e) { console.error(e); }
-        }
-        
-        // ====================== عرض النتيجة ======================
-        function renderResult(student, violations) {
-            const tbody = document.getElementById('resultTableBody');
-            if (!tbody) return;
-            
-            if (!student || !student.subjects || student.subjects.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-search"></i> لا توجد درجات مسجلة لهذا الطالب</td></tr>';
-                return;
-            }
-            
-            const subjectMax = {
-                "اللغة العربية": 20,
-                "اللغة الإنجليزية": 20,
-                "علوم تطبيقية": 40,
-                "طب باطنة": 20,
-                "تمريض باطني جراحي": 24,
-                "حاسب آلي": 20
-            };
-            const ordered = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي"];
-            const extras = ["الدين"];
-            const TOTAL = 144;
-            
-            let total = 0;
-            let subjectsHtml = '<div class="subjects-container">';
-            
-            ordered.forEach(sub => {
-                const subj = student.subjects.find(s => s.name === sub);
-                const grade = subj ? (subj.grade || 0) : 0;
-                total += grade;
-                subjectsHtml += `
-                    <div class="subject-row">
-                        <div class="subject-name"><i class="fas fa-book"></i> ${sub}</div>
-                        <div class="subject-grade">${grade} / ${subjectMax[sub]}</div>
-                    </div>
-                `;
-            });
-            
-            extras.forEach(sub => {
-                const subj = student.subjects.find(s => s.name === sub);
-                const grade = subj ? (subj.grade || 0) : 0;
-                if (grade > 0) {
-                    subjectsHtml += `
-                        <div class="extra-subject">
-                            <div class="subject-name"><i class="fas fa-pray"></i> ${sub}</div>
-                            <div class="subject-grade">${grade} / 32 (خارج المجموع)</div>
-                        </div>
-                    `;
-                }
-            });
-            subjectsHtml += '</div>';
-            
-            const percentage = (total / TOTAL) * 100;
-            let percentClass = percentage >= 85 ? 'excellent' : (percentage >= 60 ? 'passed' : 'failed');
-            
-            let violationsHtml = '';
-            if (violations && violations.length > 0) {
-                const violBody = document.getElementById('violationsTableBody');
-                if (violBody) {
-                    violBody.innerHTML = violations.map(v => `
-                        <tr>
-                            <td>${v.type === 'warning' ? '⚠️ إنذار' : '🚫 مخالفة'}</td>
-                            <td>${escapeHtml(v.reason)}</td>
-                            <td>${escapeHtml(v.penalty)}</td>
-                            <td>${v.parentSummons ? '✅ نعم' : '❌ لا'}</td>
-                            <td>${v.date || '-'}</td>
-                        </tr>
-                    `).join('');
-                }
-            } else {
-                document.getElementById('violationsTableBody').innerHTML = '<tr><td colspan="5" class="empty-state">✅ لا توجد مخالفات مسجلة</td></tr>';
-            }
-            
-            tbody.innerHTML = `
-                <tr>
-                    <td><i class="fas fa-user"></i> الاسم الكامل</td>
-                    <td colspan="3">${escapeHtml(student.fullName)}</td>
-                </tr>
-                <tr>
-                    <td><i class="fas fa-id-card"></i> رقم الجلوس</td>
-                    <td colspan="3">${student.studentCode}</td>
-                </tr>
-                <tr>
-                    <td><i class="fas fa-graduation-cap"></i> الصف الدراسي</td>
-                    <td colspan="3">${student.grade === 'first' ? 'الأول الثانوي' : (student.grade === 'second' ? 'الثاني الثانوي' : 'الثالث الثانوي')}</td>
-                </tr>
-                <tr>
-                    <td><i class="fas fa-phone-alt"></i> رقم الهاتف</td>
-                    <td colspan="3">${student.profile?.phone || 'غير مسجل'}</td>
-                </tr>
-                <tr>
-                    <td><i class="fas fa-user-friends"></i> ولي الأمر</td>
-                    <td colspan="3">${student.profile?.parentName || 'غير مسجل'}</td>
-                </tr>
-                <tr>
-                    <td colspan="4">${subjectsHtml}</td>
-                </tr>
-                <tr>
-                    <td><i class="fas fa-chart-line"></i> المجموع</td>
-                    <td colspan="3"><span class="total-cell">${total} / ${TOTAL}</span></td>
-                </tr>
-                <tr>
-                    <td><i class="fas fa-percent"></i> النسبة</td>
-                    <td colspan="3"><span class="percentage-badge ${percentClass}">${percentage.toFixed(1)}%</span></td>
-                </tr>
-            `;
-        }
-        
-        // ====================== البحث ======================
-        document.getElementById('searchForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('studentName').value.trim();
-            const code = document.getElementById('studentCode').value.trim();
-            
-            if (!name || !code) {
-                alert('⚠️ يرجى إدخال الاسم ورقم الجلوس معًا!');
-                return;
-            }
-            
-            document.getElementById('resultTableBody').innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-spinner fa-pulse"></i> جاري البحث...</td></tr>';
-            
-            try {
-                const student = await fetchStudentByCode(code);
-                if (student && student.fullName.includes(name)) {
-                    const violations = await fetchViolations(student.studentCode);
-                    renderResult(student, violations);
-                } else {
-                    document.getElementById('resultTableBody').innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-user-slash"></i> لا توجد نتيجة بهذا الاسم ورقم الجلوس</td></tr>';
-                    document.getElementById('violationsTableBody').innerHTML = '<tr><td colspan="5" class="empty-state">❌ لا توجد نتيجة!</td></tr>';
-                }
-            } catch(err) {
-                document.getElementById('resultTableBody').innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-wifi"></i> حدث خطأ في الاتصال</td></tr>';
-            }
-        });
-        
-        // ====================== رسالة الترحيب ======================
-        function renderWelcomeMessage() {
-            const user = getLoggedInUser();
-            const el = document.getElementById('welcomeMessage');
-            if (!el) return;
-            if (user) {
-                el.textContent = user.type === 'admin' ? `👋 أهلًا بك في لوحة التحكم، ${user.fullName || user.username}` : `🎉 مرحبًا ${user.fullName || user.username}! يمكنك البحث عن نتيجتك أدناه`;
-            } else {
-                el.textContent = '👋 مرحبًا بك! سجل الدخول لرؤية نتائجك';
-            }
-        }
-        
-        // ====================== تسجيل الخروج ======================
-        async function logout() {
-            try { await fetch(`${BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' }); } catch(e) {}
-            sessionStorage.clear();
-            window.location.href = 'login.html';
-        }
-        
-        // ====================== تشغيل الصفحة ======================
-        renderWelcomeMessage();
-        loadNotifications();
-    </script>
+    <!-- المرشد (تم نسخه من الكود السابق) -->
+    <div id="guidedTour" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div style="background: white; border-radius: 28px; max-width: 400px; width: 90%; padding: 35px; text-align: center; animation: fadeInUp 0.4s ease; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #1e3c4a, #0f2c38); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                <i class="fas fa-folder-open" style="font-size: 2.5rem; color: #d4af5a;"></i>
+            </div>
+            <h3 style="color: #1a2e36; margin-bottom: 10px; font-size: 1.4rem;">📚 مكتبة الملفات التعليمية</h3>
+            <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6;">
+                تم إضافة <strong style="color: #d4af5a;">مكتبة متكاملة</strong> جديدة تحتوي على جميع المذكرات والكتب والملفات التعليمية!
+            </p>
+            <div style="background: #f8fafc; border-radius: 20px; padding: 20px; margin: 20px 0;">
+                <div style="background: #1e3c4a; border-radius: 50px; padding: 12px; margin-bottom: 15px;">
+                    <i class="fas fa-folder-open" style="color: #d4af5a; font-size: 1.2rem;"></i>
+                    <span style="color: white; margin-right: 10px;">أيقونة المكتبة في شريط التنقل</span>
+                </div>
+                <p style="font-size: 0.85rem; color: #1a2e36;">
+                    يمكنك الوصول إليها من خلال أيقونة <strong><i class="fas fa-folder-open"></i> "المكتبة"</strong> في شريط التنقل السفلي
+                </p>
+            </div>
+            <div style="background: #f0fdf4; border-radius: 16px; padding: 12px; margin: 15px 0;">
+                <p style="font-size: 0.85rem; color: #2d6a4f;">📖 تحتوي المكتبة على مذكرات وملفات لكل الصفوف (الأول والثاني والثالث)</p>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 20px;">
+                <button id="closeTourBtn" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #d4af5a, #c29d45); border: none; border-radius: 50px; color: #1a2e36; font-weight: 700; cursor: pointer;">حسناً، فهمت</button>
+                <button id="gotoLibraryBtn" style="flex: 1; padding: 12px; background: #1e3c4a; border: none; border-radius: 50px; color: #d4af5a; font-weight: 700; cursor: pointer;">اذهب إلى المكتبة</button>
+            </div>
+            <button id="dontShowAgain" style="background: transparent; border: none; color: #94a3b8; font-size: 0.75rem; margin-top: 15px; cursor: pointer;">لا تظهر لي مرة أخرى</button>
+        </div>
+    </div>
+
+    <script src="Home.js"></script>
 </body>
 </html>
