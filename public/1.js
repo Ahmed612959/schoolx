@@ -411,7 +411,6 @@ app.post('/api/attendance/bulk', async (req, res) => {
         res.json({ message: `تم تسجيل الحضور: ${saved} جديد، ${updated} تحديث`, saved, updated });
     } catch (error) { res.status(500).json({ error: 'خطأ في تسجيل الحضور' }); }
 });
-
 app.get('/api/attendance/stats/:studentCode', async (req, res) => {
     try {
         const attendance = await Attendance.find({ studentCode: req.params.studentCode });
