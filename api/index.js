@@ -110,18 +110,27 @@ let dbConnected = false;
 
 if (MONGODB_URI && MONGODB_URI !== '') {
     console.log('📡 Connecting to MongoDB...');
-    mongoose.connect(MONGODB_URI, {
-        serverSelectionTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
-        connectTimeoutMS: 10000
-    })
-    .then(() => {
-        console.log('✅ MongoDB connected successfully');
-        dbConnected = true;
-    })
-    .catch(err => console.error('❌ MongoDB connection error:', err.message));
-} else {
-    console.log('⚠️ No MONGODB_URI provided, running without database');
+    console.log('MONGODB_URI starts with:', MONGODB_URI.substring(0, 30) + '...');
+    
+    // التحقق من صحة الرابط
+    if (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://')) {
+        console.error('❌ Invalid MONGODB_URI format. Must start with mongodb:// or mongodb+srv://');
+        console.error('Current value:', MONGODB_URI);
+    } else {
+        mongoose.connect(MONGODB_URI, {
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 60000,
+            connectTimeoutMS: 30000,
+        })
+        .then(() => {
+            console.log('✅ MongoDB connected successfully');
+            dbConnected = true;
+        })
+        .catch(err => {
+            console.error('❌ MongoDB connection error:', err.message);
+            console.error('Please check your MONGODB_URI in Vercel Environment Variables');
+        });
+    }
 }
 
 // ====================== النماذج (Schemas) ======================
