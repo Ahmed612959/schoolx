@@ -487,20 +487,26 @@ function initLibraryTour() {
 
 
 
-// ====================== البوت المساعد الذكي ======================
-class SmartBot {
+// ====================== البوت المساعد المتحرك الذكي ======================
+class MovingAssistantBot {
     constructor() {
-        this.botAvatar = document.getElementById('botAvatar');
-        this.botBubble = document.getElementById('botBubble');
-        this.botPanel = document.getElementById('botPanel');
-        this.botMessages = document.getElementById('botMessages');
-        this.botInput = document.getElementById('botInput');
-        this.sendBtn = document.getElementById('sendBotMessage');
-        this.closeBtn = document.getElementById('closeBotPanel');
+        this.bot = document.getElementById('liveBot');
+        this.bubble = document.getElementById('botSpeechBubble');
+        this.bubbleText = document.getElementById('botSpeechText');
+        this.screenMsg = document.getElementById('botScreenMsg');
         
+        this.position = { x: 20, y: 100 };
+        this.direction = { x: 1, y: 1 };
+        this.isSpeaking = false;
+        this.currentEmotion = 'happy';
         this.userName = this.getUserName();
-        this.isTyping = false;
-        this.moveInterval = null;
+        
+        // حقول الصفحة التي سيشاور عليها
+        this.fields = {
+            name: document.getElementById('search-name'),
+            code: document.getElementById('search-id'),
+            submit: document.querySelector('.submit-btn')
+        };
         
         this.init();
     }
@@ -511,253 +517,316 @@ class SmartBot {
     }
     
     init() {
-        this.attachEvents();
-        this.startMoving();
-        this.showWelcomeMessage();
+        this.setupInitialPosition();
+        this.startWalking();
+        this.attachFieldListeners();
+        this.welcomeUser();
+        this.startRandomTips();
         
-        // إظهار فقاعة ترحيب بعد 2 ثانية
-        setTimeout(() => {
-            this.showBubble(`مرحباً ${this.userName}! 👋 أنا هنا لمساعدتك في أي وقت`);
+        console.log('🤖 Moving Assistant Bot initialized');
+    }
+    
+    setupInitialPosition() {
+        this.bot.style.bottom = '100px';
+        this.bot.style.right = '20px';
+        this.bot.style.left = 'auto';
+        this.bot.style.top = 'auto';
+    }
+    
+    startWalking() {
+        // حركة عشوائية في جميع اتجاهات الصفحة
+        setInterval(() => {
+            if (!this.isSpeaking) {
+                this.moveRandomly();
+            }
         }, 3000);
         
-        // إخفاء الفقاعة بعد 5 ثواني
-        setTimeout(() => {
-            this.hideBubble();
-        }, 8000);
-        
-        console.log('🤖 Smart Bot initialized');
-    }
-    
-    attachEvents() {
-        this.botAvatar.addEventListener('click', () => this.togglePanel());
-        this.sendBtn.addEventListener('click', () => this.sendMessage());
-        this.closeBtn.addEventListener('click', () => this.closePanel());
-        this.botInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.sendMessage();
-        });
-        
-        // إغلاق اللوحة عند النقر خارجها
-        document.addEventListener('click', (e) => {
-            if (this.botPanel.classList.contains('open')) {
-                if (!this.botPanel.contains(e.target) && !this.botAvatar.contains(e.target)) {
-                    this.closePanel();
-                }
-            }
-        });
-    }
-    
-    startMoving() {
-        // حركة البوت في الصفحة
-        let direction = 1;
-        let position = 0;
-        const maxMove = 30;
-        
-        this.moveInterval = setInterval(() => {
-            if (!this.botPanel.classList.contains('open')) {
-                position += direction * 2;
-                if (Math.abs(position) > maxMove) {
-                    direction *= -1;
-                }
-                this.botAvatar.style.transform = `translateY(${position * 0.5}px) rotate(${position * 0.5}deg)`;
-                this.botAvatar.classList.add('bot-moving');
-            }
+        // حركة الأرجل المستمرة
+        setInterval(() => {
+            const legs = document.querySelectorAll('.bot-leg');
+            legs.forEach(leg => {
+                leg.style.animation = 'legWalk 0.5s infinite';
+            });
         }, 100);
+        
+        // حركة الأذرع العشوائية
+        setInterval(() => {
+            if (Math.random() > 0.7) {
+                this.wave();
+            }
+        }, 5000);
     }
     
-    showBubble(message, duration = 4000) {
-        const bubbleText = document.getElementById('bubbleText');
-        if (bubbleText) {
-            bubbleText.innerHTML = message;
+    moveRandomly() {
+        // تغيير الموقع بشكل عشوائي
+        const maxX = window.innerWidth - 120;
+        const maxY = window.innerHeight - 200;
+        const minX = 10;
+        const minY = 50;
+        
+        let newX = this.bot.offsetLeft + (Math.random() - 0.5) * 150;
+        let newY = this.bot.offsetTop + (Math.random() - 0.5) * 100;
+        
+        newX = Math.max(minX, Math.min(maxX, newX));
+        newY = Math.max(minY, Math.min(maxY, newY));
+        
+        // تغيير اتجاه البوت حسب حركته
+        if (newX > this.bot.offsetLeft) {
+            this.bot.style.right = 'auto';
+            this.bot.style.left = newX + 'px';
+        } else {
+            this.bot.style.left = 'auto';
+            this.bot.style.right = (window.innerWidth - newX - 100) + 'px';
         }
-        this.botBubble.classList.add('show');
+        
+        this.bot.style.top = newY + 'px';
+        this.bot.style.bottom = 'auto';
+        
+        // تأثير حركة القفز
+        this.bot.style.transform = 'translateY(-5px)';
+        setTimeout(() => {
+            this.bot.style.transform = 'translateY(0)';
+        }, 300);
+    }
+    
+    wave() {
+        const leftArm = document.querySelector('.bot-arm-left');
+        const rightArm = document.querySelector('.bot-arm-right');
+        
+        if (leftArm) {
+            leftArm.style.animation = 'armWave 0.5s 2';
+        }
+        if (rightArm) {
+            rightArm.style.animation = 'armWave 0.5s 2';
+        }
         
         setTimeout(() => {
-            this.hideBubble();
+            if (leftArm) leftArm.style.animation = '';
+            if (rightArm) rightArm.style.animation = '';
+        }, 1000);
+    }
+    
+    pointTo(element) {
+        if (!element) return;
+        
+        // تحريك الذراع للإشارة
+        const rightArm = document.querySelector('.bot-arm-right');
+        if (rightArm) {
+            rightArm.style.transform = 'rotate(-45deg) scale(1.2)';
+            setTimeout(() => {
+                rightArm.style.transform = '';
+            }, 1000);
+        }
+        
+        // إضاءة الحقل
+        element.classList.add('field-highlight');
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        setTimeout(() => {
+            element.classList.remove('field-highlight');
+        }, 2000);
+    }
+    
+    attachFieldListeners() {
+        // عند التركيز على حقل الاسم
+        if (this.fields.name) {
+            this.fields.name.addEventListener('focus', () => {
+                this.speak('✏️ أدخل اسم الطالب هنا يا ' + this.userName + '!', 3000);
+                this.setEmotion('helpful');
+            });
+            
+            this.fields.name.addEventListener('input', (e) => {
+                if (e.target.value.length > 3) {
+                    this.speak('👍 اسم جميل! الآن أدخل رقم الجلوس', 2500);
+                    this.pointTo(this.fields.code);
+                }
+            });
+        }
+        
+        // عند التركيز على حقل رقم الجلوس
+        if (this.fields.code) {
+            this.fields.code.addEventListener('focus', () => {
+                this.speak('🔢 أدخل رقم الجلوس هنا - مكون من 5-7 أرقام', 3000);
+                this.pointTo(this.fields.code);
+            });
+            
+            this.fields.code.addEventListener('input', (e) => {
+                if (e.target.value.length >= 5) {
+                    this.speak('✓ ممتاز! اضغط على زر "عرض النتيجة" 🔍', 2500);
+                    this.pointTo(this.fields.submit);
+                    this.setEmotion('happy');
+                    this.dance();
+                }
+            });
+        }
+        
+        // عند النقر على زر البحث
+        if (this.fields.submit) {
+            this.fields.submit.addEventListener('click', () => {
+                this.speak('⏳ جاري البحث عن نتيجتك... انتظر قليلاً', 2000);
+                this.setEmotion('excited');
+            });
+        }
+        
+        // مراقبة نجاح البحث
+        this.observeSearchResults();
+    }
+    
+    observeSearchResults() {
+        const observer = new MutationObserver((mutations) => {
+            const resultBody = document.getElementById('result-table-body');
+            if (resultBody && !resultBody.innerHTML.includes('قم بالبحث')) {
+                if (!resultBody.innerHTML.includes('لا توجد')) {
+                    this.speak('🎉 تهانينا! تم العثور على النتيجة بنجاح', 3500);
+                    this.dance();
+                    this.setEmotion('celebrate');
+                } else {
+                    this.speak('😕 عذراً، لم يتم العثور على نتيجة. تأكد من الاسم ورقم الجلوس', 4000);
+                    this.setEmotion('sad');
+                }
+            }
+        });
+        
+        const target = document.getElementById('result-table-body');
+        if (target) {
+            observer.observe(target, { childList: true, subtree: true });
+        }
+    }
+    
+    speak(message, duration = 3500) {
+        this.isSpeaking = true;
+        this.bubbleText.textContent = message;
+        this.screenMsg.textContent = message.substring(0, 15) + (message.length > 15 ? '..' : '');
+        
+        // تحريك الفم أثناء الكلام
+        this.setEmotion('speaking');
+        
+        this.bubble.classList.remove('show');
+        setTimeout(() => {
+            this.bubble.classList.add('show');
+        }, 100);
+        
+        setTimeout(() => {
+            this.bubble.classList.remove('show');
+            this.isSpeaking = false;
+            this.setEmotion('happy');
         }, duration);
     }
     
-    hideBubble() {
-        this.botBubble.classList.remove('show');
-    }
-    
-    togglePanel() {
-        if (this.botPanel.classList.contains('open')) {
-            this.closePanel();
-        } else {
-            this.openPanel();
+    setEmotion(emotion) {
+        this.currentEmotion = emotion;
+        const bot = document.querySelector('.live-bot');
+        const mouth = document.querySelector('.bot-mouth-line');
+        const eyebrows = document.querySelectorAll('.bot-eyebrow');
+        const eyes = document.querySelectorAll('.bot-eye');
+        
+        bot.classList.remove('angry', 'happy', 'sad', 'laughing', 'celebrate');
+        
+        switch(emotion) {
+            case 'happy':
+                bot.classList.add('happy');
+                if (mouth) mouth.style.width = '30px';
+                break;
+            case 'sad':
+                bot.classList.add('sad');
+                if (mouth) mouth.style.width = '20px';
+                break;
+            case 'angry':
+                bot.classList.add('angry');
+                if (mouth) mouth.style.width = '15px';
+                break;
+            case 'excited':
+                eyes.forEach(eye => eye.style.animation = 'eyeBlink 0.3s infinite');
+                break;
+            case 'speaking':
+                if (mouth) mouth.style.animation = 'mouthTalk 0.3s infinite';
+                break;
+            case 'celebrate':
+                this.dance();
+                break;
+            default:
+                bot.classList.add('happy');
+                if (mouth) {
+                    mouth.style.width = '25px';
+                    mouth.style.animation = '';
+                }
         }
     }
     
-    openPanel() {
-        this.botPanel.classList.add('open');
-        this.botInput.focus();
-        this.hideBubble();
-    }
-    
-    closePanel() {
-        this.botPanel.classList.remove('open');
-    }
-    
-    addMessage(sender, message) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `bot-message ${sender}`;
+    dance() {
+        const bot = this.bot;
+        bot.style.animation = 'none';
+        setTimeout(() => {
+            bot.style.animation = 'botWalk 0.1s infinite';
+        }, 10);
         
-        const avatar = sender === 'bot' ? '<i class="fas fa-robot"></i>' : '<i class="fas fa-user"></i>';
-        const avatarBg = sender === 'bot' ? 'background: linear-gradient(135deg, #1a4f6e, #0d3b54)' : 'background: #c4a35a';
-        
-        messageDiv.innerHTML = `
-            <div class="avatar" style="${avatarBg}">${avatar}</div>
-            <div class="content">${message}</div>
-        `;
-        
-        this.botMessages.appendChild(messageDiv);
-        this.scrollToBottom();
-    }
-    
-    async sendMessage() {
-        const message = this.botInput.value.trim();
-        if (!message) return;
-        
-        this.addMessage('user', message);
-        this.botInput.value = '';
-        
-        this.showTyping();
+        this.wave();
         
         setTimeout(() => {
-            this.hideTyping();
-            const response = this.getBotResponse(message);
-            this.addMessage('bot', response);
-            this.showBubble(response, 5000);
-        }, 1000);
+            bot.style.animation = '';
+        }, 1500);
     }
     
-    showTyping() {
-        this.isTyping = true;
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'bot-message bot';
-        typingDiv.id = 'typingIndicator';
-        typingDiv.innerHTML = `
-            <div class="avatar" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54)"><i class="fas fa-robot"></i></div>
-            <div class="content"><div class="typing-indicator"><span></span><span></span><span></span></div></div>
-        `;
-        this.botMessages.appendChild(typingDiv);
-        this.scrollToBottom();
-    }
-    
-    hideTyping() {
-        const typing = document.getElementById('typingIndicator');
-        if (typing) typing.remove();
-        this.isTyping = false;
-    }
-    
-    scrollToBottom() {
-        this.botMessages.scrollTop = this.botMessages.scrollHeight;
-    }
-    
-    getBotResponse(message) {
-        const msg = message.toLowerCase();
-        const userName = this.userName;
+    welcomeUser() {
+        setTimeout(() => {
+            const hour = new Date().getHours();
+            let greeting = '';
+            if (hour < 12) greeting = 'صباح الخير';
+            else if (hour < 16) greeting = 'أهلاً بك';
+            else greeting = 'مساء الخير';
+            
+            this.speak(`${greeting} يا ${this.userName}! 👋 أنا مساعدك الذكي، أساعدك في البحث عن النتيجة. اكتب اسمك ورقم جلوسك وأنا معاك!`, 5000);
+            this.wave();
+        }, 1500);
         
-        // تعريف معرفة البوت بالصفحة
-        const pageInfo = this.getPageInfo();
+        setTimeout(() => {
+            this.pointTo(this.fields.name);
+            this.speak('📝 ابدأ بكتابة اسم الطالب في هذا الحقل', 3500);
+        }, 7000);
+    }
+    
+    startRandomTips() {
+        const tips = [
+            '💡 تذكر: رقم الجلوس مكون من 7 أرقام تجده في بطاقتك',
+            '📚 المواد الأساسية 6 مواد، مجموعها 144 درجة',
+            '🎯 النسبة 85% فأكثر تعني ممتاز!',
+            '⚠️ المخالفات تظهر في جدول منفصل تحت النتيجة',
+            '📢 الإشعارات العامة تظهر في الجدول الأسفل',
+            '⭐ يمكنك البحث عن أي طالب باستخدام اسمه ورقم جلوسه'
+        ];
         
-        // ردود البوت الذكية
-        const responses = {
-            // الترحيب
-            'السلام عليكم': `وعليكم السلام ورحمة الله ${userName} 🤗`,
-            'مرحب': `مرحباً بك ${userName}! كيف أساعدك اليوم؟ 😊`,
-            'شكر': `العفو ${userName}! أنا في خدمتك دائماً 🤍`,
-            
-            // المساعدة العامة
-            'مساعدة': `أنا مساعدك الذكي ${userName}! 🤖\n\nأستطيع مساعدتك في:\n🔍 البحث عن النتيجة\n📊 عرض المواد والدرجات\n⚠️ عرض المخالفات\n📢 عرض الإشعارات\n📈 إحصائيات الحضور\n💡 نصائح دراسية\n\nفقط أخبرني ماذا تريد!`,
-            'تقدر تعمل ايه': this.getBotResponse('مساعدة'),
-            
-            // النتيجة
-            'النتيجة': `للبحث عن نتيجتك ${userName}:\n1️⃣ أدخل اسمك ورقم الجلوس في الحقول أعلاه\n2️⃣ اضغط على "عرض النتيجة"\n3️⃣ ستظهر جميع درجاتك مع المجموع والنسبة`,
-            'كيف اشوف نتيجتي': this.getBotResponse('النتيجة'),
-            'بحث': this.getBotResponse('النتيجة'),
-            
-            // المواد
-            'المواد': `المواد الدراسية الحالية 📚:\n📖 مبادئ وأسس تمريض\n📖 اللغة العربية\n📖 اللغة الإنجليزية\n📖 علوم تطبيقية\n📖 طب باطنة\n📖 تمريض باطني جراحي\n📖 حاسب آلي\n🕌 الدين (خارج المجموع)`,
-            'كم مادة': this.getBotResponse('المواد'),
-            
-            // المجموع
-            'المجموع': `المجموع الكلي للدرجات هو ${TOTAL_POSSIBLE} درجة.\nموزعة على 6 مواد أساسية ومواد إضافية.\nكل مادة لها درجة قصوى معينة حسب أهميتها.`,
-            'مجموع الدرجات': this.getBotResponse('المجموع'),
-            
-            // النسبة
-            'النسبة': `نسبة النجاح تحسب كالتالي:\n🏆 ممتاز: 85% فأكثر\n✅ ناجح: 60% - 84%\n❌ راسب: أقل من 60%\n\nنصيحة: ركز على المواد التي درجتها منخفضة!`,
-            
-            // المخالفات
-            'مخالفات': `عند البحث عن طالب، ستعرض لك المخالفات المسجلة (إن وجدت) في جدول منفصل.\nتتضمن المخالفة: النوع، السبب، العقوبة، وتاريخ الإضافة.`,
-            'إنذارات': this.getBotResponse('مخالفات'),
-            
-            // الإشعارات
-            'إشعارات': `الإشعارات تظهر في الجدول الموجود أسفل الصفحة. جميع الإشعارات العامة يراها كل الطلاب.\nيمكنك رؤية آخر الإشعارات والإعلانات المهمة هناك.`,
-            
-            // الحضور
-            'حضور': `إذا كنت طالباً مسجلاً، ستظهر لك إحصائيات الحضور والغياب في لوحة التحكم الخاصة بك.\nتتضمن: عدد أيام الحضور، الغياب، التأخير، ونسبة الحضور.`,
-            'غياب': this.getBotResponse('حضور'),
-            'الحضور والغياب': this.getBotResponse('حضور'),
-            
-            // نصائح
-            'نصيحة': `💡 نصيحة دراسية ${userName}:\n• راجع المواد التي درجتك فيها منخفضة\n• خصص وقت يومي للمراجعة\n• حل أسئلة السنوات السابقة\n• تواصل مع المعلمين عند الصعوبة\n• لا تتردد في سؤالي عن أي شيء!`,
-            'نصائح': this.getBotResponse('نصيحة'),
-            
-            // ماذا يوجد في الصفحة
-            'الصفحة': `هذه الصفحة تحتوي على:\n📝 نموذج بحث لإدخال الاسم ورقم الجلوس\n📊 جدول يعرض النتيجة الكاملة (المواد والدرجات والمجموع والنسبة)\n⚠️ جدول المخالفات (إن وجدت)\n📢 جدول الإشعارات العامة\n📈 لوحة تحكم خاصة للطلاب (نسبة نجاحك ورسوم بيانية)\n📋 إحصائيات الحضور للطلاب\n\nوأنا هنا لمساعدتك!`,
-            
-            // سؤال عشوائي
-            'كيف حالك': `أنا بحالة جيدة ${userName}! شكراً لسؤالك 😊. كيف يمكنني مساعدتك اليوم؟`,
-            'ايه اخبارك': this.getBotResponse('كيف حالك'),
-            'بتحب ايه': `أحب مساعدة الطلاب ${userName}! 🤖\nأحب أن أرى النجاح والتفوق في أعينكم.`,
-            
-            // وداع
-            'مع السلامة': `مع السلامة ${userName} 👋\nأتمنى لك يوماً موفقاً! عد في أي وقت تحتاج مساعدة`,
-            'باي': this.getBotResponse('مع السلامة'),
-            'سلام': this.getBotResponse('مع السلامة')
-        };
-        
-        // البحث عن رد مناسب
-        for (const [key, value] of Object.entries(responses)) {
-            if (msg.includes(key)) {
-                return value;
+        let tipIndex = 0;
+        setInterval(() => {
+            if (!this.isSpeaking && document.visibilityState === 'visible') {
+                this.speak(tips[tipIndex % tips.length], 4000);
+                tipIndex++;
             }
+        }, 45000);
+    }
+    
+    getAngryAtEmptyField() {
+        if (!this.fields.name.value && !this.fields.code.value) {
+            this.speak('😠 يا ${this.userName}! لم تدخل أي بيانات! اكتب اسم الطالب أولاً', 3500);
+            this.setEmotion('angry');
+            this.pointTo(this.fields.name);
+        } else if (!this.fields.name.value) {
+            this.speak('😠 نسيت تكتب اسم الطالب! أدخله في هذا الحقل', 3000);
+            this.setEmotion('angry');
+            this.pointTo(this.fields.name);
+        } else if (!this.fields.code.value) {
+            this.speak('😠 رقم الجلوس مطلوب! أدخله في هذا الحقل', 3000);
+            this.setEmotion('angry');
+            this.pointTo(this.fields.code);
         }
-        
-        // رد افتراضي ذكي
-        return `شكراً لسؤالك ${userName} 😊\n\nأنا مساعدك الذكي، أستطيع مساعدتك في:\n• البحث عن النتيجة 🔍\n• شرح المواد 📚\n• حساب النسبة 📊\n• عرض المخالفات ⚠️\n• الإشعارات 📢\n• نصائح دراسية 💡\n\nاكتب "مساعدة" لمعرفة كل ما أستطيع فعله!`;
-    }
-    
-    getPageInfo() {
-        // معلومات عن الصفحة يمكن للبوت استخدامها
-        const hasResults = document.getElementById('result-table-body')?.innerHTML?.includes('بحث');
-        const hasViolations = document.getElementById('violations-table-body')?.innerHTML?.length > 0;
-        const hasNotifications = document.getElementById('notifications-table-body')?.innerHTML?.length > 0;
-        
-        return {
-            hasResults: !hasResults,
-            hasViolations,
-            hasNotifications,
-            totalSubjects: orderedSubjects.length,
-            totalMaxGrade: TOTAL_POSSIBLE
-        };
-    }
-    
-    showWelcomeMessage() {
-        setTimeout(() => {
-            this.addMessage('bot', `مرحباً ${this.userName}! 👋\nأنا مساعدك الذكي. أنا أعرف كل شيء عن هذه الصفحة، وأستطيع مساعدتك في البحث عن النتائج، إظهار المخالفات، الإشعارات، وأي شيء تحتاجه. فقط اسألني!`);
-        }, 1000);
     }
 }
 
 // تشغيل البوت بعد تحميل الصفحة
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        window.smartBot = new SmartBot();
-    }, 500);
+        window.movingBot = new MovingAssistantBot();
+    }, 800);
 });
-
 
 
 
