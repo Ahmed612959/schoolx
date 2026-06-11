@@ -52,6 +52,7 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    padding-bottom: 75px;
 }
 
 /* ========== الهيدر ========== */
@@ -120,7 +121,7 @@ body {
 .main-container {
     max-width: 1400px;
     margin: 20px auto;
-    padding: 0 16px 0 16px;
+    padding: 0 16px;
     flex: 1;
 }
 
@@ -130,6 +131,7 @@ body {
     padding: 20px;
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--gray-200);
+    margin-bottom: 20px;
 }
 
 /* رسالة الترحيب */
@@ -282,7 +284,7 @@ td:nth-child(4) {
     vertical-align: middle;
 }
 
-/* ========== المواد والدرجات (مصممة للموبايل) ========== */
+/* ========== المواد والدرجات ========== */
 .subjects-container {
     display: flex;
     flex-direction: column;
@@ -484,37 +486,106 @@ canvas#gradesChart {
     font-size: 0.7rem;
 }
 
-/* ========== جداول المخالفات والإشعارات ========== */
-.violations-section,
+/* ========== جدول الإشعارات (تم إصلاحه) ========== */
 .notifications-section {
-    margin: 20px 0;
+    margin: 24px 0;
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    padding: 20px;
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
 }
 
-.violations-table,
-.notifications-table {
+.notifications-section h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 3px solid var(--accent);
+    display: inline-block;
+}
+
+.notifications-table-wrapper {
     overflow-x: visible;
     border-radius: var(--radius-xl);
     background: var(--white);
     border: 1px solid var(--gray-200);
 }
 
-.violations-table table,
-.notifications-table table {
+.notifications-table {
     width: 100%;
-    table-layout: auto;
+    border-collapse: collapse;
+    font-size: 0.8rem;
 }
 
-.violations-table th,
 .notifications-table th {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    padding: 10px 8px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.8rem;
+    border-bottom: 2px solid var(--accent);
+}
+
+.notifications-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--gray-200);
+    text-align: center;
+    font-size: 0.8rem;
+    word-break: break-word;
+}
+
+.notifications-table tr:hover td {
+    background: var(--accent-light);
+}
+
+/* ========== جدول المخالفات ========== */
+.violations-section {
+    margin: 24px 0;
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    padding: 20px;
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+}
+
+.violations-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-right: 3px solid var(--accent);
+    padding-right: 10px;
+}
+
+.violations-table-wrapper {
+    overflow-x: visible;
+    border-radius: var(--radius-xl);
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+}
+
+.violations-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.violations-table th {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
     color: var(--white);
     padding: 10px 6px;
     font-weight: 600;
+    text-align: center;
     font-size: 0.75rem;
 }
 
-.violations-table td,
-.notifications-table td {
+.violations-table td {
     padding: 8px 6px;
     border-bottom: 1px solid var(--gray-200);
     text-align: center;
@@ -522,16 +593,69 @@ canvas#gradesChart {
     word-break: break-word;
 }
 
-tr:hover td {
+.violations-table tr:hover td {
     background: var(--accent-light);
 }
 
-/* ========== الناف بار - في المنتصف بحواف جميلة ========== */
+/* ========== الفوتر (فوق الناف بار) ========== */
+footer {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    text-align: center;
+    padding: 14px 16px;
+    font-size: 0.7rem;
+    color: var(--accent-light);
+    border-top: 3px solid var(--accent);
+    position: relative;
+    margin-top: 20px;
+}
+
+.footer-content {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.footer-content p {
+    margin: 3px 0;
+    opacity: 0.9;
+}
+
+.footer-content .heart {
+    color: #ff6b6b;
+    animation: heartbeat 1.5s ease infinite;
+    display: inline-block;
+}
+
+.footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.footer-links a {
+    color: var(--accent-light);
+    text-decoration: none;
+    font-size: 0.65rem;
+    transition: var(--transition);
+}
+
+.footer-links a:hover {
+    color: var(--accent);
+    transform: translateY(-1px);
+}
+
+@keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* ========== الناف بار ========== */
 .nav-bar {
     background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(12px);
     border-radius: 50px;
-    margin: 0 auto 12px auto;
+    margin: 0 auto 16px auto;
     padding: 6px 16px;
     display: flex;
     justify-content: center;
@@ -575,38 +699,6 @@ tr:hover td {
 .nav-bar a.active {
     color: var(--accent);
     background: var(--accent-light);
-}
-
-/* ========== الفوتر ========== */
-footer {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    text-align: center;
-    padding: 16px;
-    font-size: 0.7rem;
-    color: var(--accent-light);
-    margin-top: 30px;
-    border-top: 3px solid var(--accent);
-}
-
-.footer-content {
-    max-width: 1400px;
-    margin: 0 auto;
-}
-
-.footer-content p {
-    margin: 4px 0;
-    opacity: 0.9;
-}
-
-.footer-content .heart {
-    color: #ff6b6b;
-    animation: heartbeat 1.5s ease infinite;
-    display: inline-block;
-}
-
-@keyframes heartbeat {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
 }
 
 /* ========== حالة عدم وجود بيانات ========== */
@@ -693,16 +785,20 @@ footer {
     }
     
     .main-container {
-        padding: 0 12px 0 12px;
+        padding: 0 12px;
         margin: 12px auto;
     }
     
-    .result-form-container {
+    .result-form-container,
+    .notifications-section,
+    .violations-section {
         padding: 16px;
     }
     
     /* الجدول يعرض بشكل عمودي على الموبايل */
     table,
+    .notifications-table,
+    .violations-table,
     thead,
     tbody,
     th,
@@ -756,10 +852,6 @@ footer {
         width: 100%;
     }
     
-    .subject-row {
-        flex-wrap: wrap;
-    }
-    
     /* الناف بار */
     .nav-bar {
         border-radius: 40px;
@@ -796,6 +888,16 @@ footer {
     
     .stat-icon {
         font-size: 1.1rem;
+    }
+    
+    /* الفوتر */
+    footer {
+        padding: 12px;
+        font-size: 0.65rem;
+    }
+    
+    .footer-links {
+        gap: 10px;
     }
 }
 
@@ -841,21 +943,12 @@ footer {
         font-size: 0.7rem;
         padding: 8px 10px;
     }
-    
-    .subject-name {
-        font-size: 0.7rem;
-    }
-    
-    .subject-grade {
-        font-size: 0.65rem;
-        padding: 2px 8px;
-    }
 }
 
 /* شاشات التابلت */
 @media (min-width: 641px) and (max-width: 1024px) {
     .main-container {
-        padding: 0 20px 0 20px;
+        padding: 0 20px;
     }
     
     table {
@@ -887,7 +980,7 @@ footer {
 @media (min-width: 1440px) {
     .main-container {
         max-width: 1600px;
-        padding: 0 32px 0 32px;
+        padding: 0 32px;
     }
     
     table {
