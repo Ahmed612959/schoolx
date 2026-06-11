@@ -238,7 +238,11 @@ File = mongoose.models.File || mongoose.model('File', fileSchema);
 // ====================== دوال مساعدة ======================
 function requireDb(req, res, next) {
     if (!dbConnected) {
-        return res.status(503).json({ error: 'قاعدة البيانات غير متصلة حالياً' });
+        console.error(`Database not connected. Request to ${req.path} failed.`);
+        return res.status(503).json({ 
+            error: 'قاعدة البيانات غير متصلة حالياً',
+            details: 'الرجاء التأكد من إعدادات MONGODB_URI في Vercel'
+        });
     }
     next();
 }
