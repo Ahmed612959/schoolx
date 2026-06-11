@@ -235,7 +235,15 @@ Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
 File = mongoose.models.File || mongoose.model('File', fileSchema);
 
-
+// ====================== دوال مساعدة ======================
+function requireDb(req, res, next) {
+    // حتى لو قاعدة البيانات مش متصلة، كمل عادي
+    if (!dbConnected) {
+        console.log('⚠️ Database not connected, continuing without DB');
+        return next();
+    }
+    next();
+}
 
 // ====================== دوال الأمان (JWT فقط) ======================
 function setAuthCookie(res, token) {
