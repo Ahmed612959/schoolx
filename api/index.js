@@ -235,17 +235,7 @@ Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
 File = mongoose.models.File || mongoose.model('File', fileSchema);
 
-// ====================== دوال مساعدة ======================
-function requireDb(req, res, next) {
-    if (!dbConnected) {
-        console.error(`Database not connected. Request to ${req.path} failed.`);
-        return res.status(503).json({ 
-            error: 'قاعدة البيانات غير متصلة حالياً',
-            details: 'الرجاء التأكد من إعدادات MONGODB_URI في Vercel'
-        });
-    }
-    next();
-}
+
 
 // ====================== دوال الأمان (JWT فقط) ======================
 function setAuthCookie(res, token) {
