@@ -938,40 +938,20 @@ app.get('/api/parent/student/:studentCode/violations', verifyToken, async (req, 
 });
 
 // ====================== مكتبة الملفات ======================
+// تم تعطيل إنشاء المجلد في Vercel (بيئة Serverless)
 const uploadDir = path.join(__dirname, '../uploads');
-
-// التحقق مما إذا كنا في بيئة Vercel (Serverless)
-const isVercel = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
-
-if (!isVercel) {
-    // فقط في البيئة المحلية نحاول إنشاء المجلد
+// فقط في البيئة المحلية نحاول إنشاء المجلد
+if (process.env.NODE_ENV !== 'production') {
     if (!fs.existsSync(uploadDir)) {
         try {
             fs.mkdirSync(uploadDir, { recursive: true });
-            console.log('📁 Uploads directory created');
         } catch (err) {
-            console.error('❌ Could not create uploads directory:', err.message);
+            console.log('Could not create uploads directory:', err.message);
         }
     }
 } else {
-    console.log('⚠️ Running on Vercel - uploads will use memory storage');
+    console.log('⚠️ Running on Vercel - file uploads disabled');
 }
-
-// تعديل إعدادات multer لاستخدام memoryStorage في Vercel
-const storage = isVercel ? multer.memoryStorage() : multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + '-' + file.originalname;
-        cb(null, uniqueName);
-    }
-});
-
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
