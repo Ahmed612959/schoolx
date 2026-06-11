@@ -473,6 +473,295 @@
                 padding: 8px 14px;
             }
         }
+        /* ====================== البوت المساعد الذكي ====================== */
+.assistant-bot {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    z-index: 9999;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.bot-avatar {
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(135deg, #1a4f6e, #0d3b54);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    animation: botPulse 2s infinite;
+}
+
+.bot-avatar:hover {
+    transform: scale(1.1);
+}
+
+@keyframes botPulse {
+    0%, 100% { box-shadow: 0 5px 20px rgba(26, 79, 110, 0.3); }
+    50% { box-shadow: 0 5px 30px rgba(26, 79, 110, 0.6); }
+}
+
+.bot-avatar i {
+    font-size: 35px;
+    color: #c4a35a;
+}
+
+.bot-status {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 15px;
+    height: 15px;
+    background: #2d6a4f;
+    border-radius: 50%;
+    border: 2px solid white;
+    animation: statusBlink 1.5s infinite;
+}
+
+@keyframes statusBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* فقاعة البوت */
+.bot-bubble {
+    position: absolute;
+    bottom: 80px;
+    right: 80px;
+    background: white;
+    border-radius: 20px;
+    padding: 15px 20px;
+    min-width: 220px;
+    max-width: 280px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    border: 1px solid #c4a35a;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.3s ease;
+    pointer-events: none;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.bot-bubble.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.bot-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    right: 20px;
+    border-width: 10px 10px 0 10px;
+    border-style: solid;
+    border-color: white transparent transparent transparent;
+}
+
+.bot-bubble::before {
+    content: '';
+    position: absolute;
+    bottom: -12px;
+    right: 19px;
+    border-width: 11px 11px 0 11px;
+    border-style: solid;
+    border-color: #c4a35a transparent transparent transparent;
+    z-index: -1;
+}
+
+/* لوحة البوت */
+.bot-panel {
+    position: fixed;
+    bottom: 180px;
+    right: 20px;
+    width: 350px;
+    height: 450px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: scale(0);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 10000;
+    border: 1px solid #c4a35a;
+}
+
+.bot-panel.open {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.bot-panel-header {
+    background: linear-gradient(135deg, #1a4f6e, #0d3b54);
+    padding: 15px;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.bot-panel-header h4 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.bot-panel-header button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.bot-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background: #f8fafc;
+}
+
+.bot-message {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.bot-message.user {
+    flex-direction: row-reverse;
+}
+
+.bot-message .avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bot-message.bot .avatar {
+    background: linear-gradient(135deg, #1a4f6e, #0d3b54);
+}
+
+.bot-message.user .avatar {
+    background: #c4a35a;
+}
+
+.bot-message .avatar i {
+    color: white;
+    font-size: 16px;
+}
+
+.bot-message .content {
+    max-width: 70%;
+    background: white;
+    padding: 10px 12px;
+    border-radius: 15px;
+    font-size: 13px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.bot-message.bot .content {
+    background: white;
+    border-bottom-right-radius: 4px;
+}
+
+.bot-message.user .content {
+    background: linear-gradient(135deg, #c4a35a, #a07d3a);
+    color: white;
+    border-bottom-left-radius: 4px;
+}
+
+.bot-input-area {
+    padding: 15px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+    background: white;
+}
+
+.bot-input-area input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 25px;
+    font-family: 'Tajawal', sans-serif;
+    outline: none;
+}
+
+.bot-input-area button {
+    background: linear-gradient(135deg, #c4a35a, #a07d3a);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #0f2b3d;
+    transition: all 0.3s;
+}
+
+.bot-input-area button:hover {
+    transform: scale(1.05);
+}
+
+/* مؤشر كتابة البوت */
+.typing-indicator {
+    display: flex;
+    gap: 3px;
+    padding: 8px 12px;
+}
+
+.typing-indicator span {
+    width: 6px;
+    height: 6px;
+    background: #94a3b8;
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* حركة البوت في الصفحة */
+.bot-moving {
+    animation: botMove 3s ease-in-out infinite;
+}
+
+@keyframes botMove {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-5px) rotate(5deg); }
+    75% { transform: translateY(5px) rotate(-5deg); }
+}
+
+@media (max-width: 640px) {
+    .bot-panel {
+        width: 300px;
+        height: 400px;
+        bottom: 150px;
+    }
+    
+    .bot-avatar {
+        width: 55px;
+        height: 55px;
+    }
+    
+    .bot-avatar i {
+        font-size: 28px;
+    }
+}
     </style>
 </head>
 <body>
@@ -606,6 +895,36 @@
             <button id="dontShowAgain" style="background: transparent; border: none; color: #94a3b8; font-size: 0.75rem; margin-top: 15px; cursor: pointer;">لا تظهر لي مرة أخرى</button>
         </div>
     </div>
+
+    <!-- البوت المساعد الذكي -->
+<div class="assistant-bot" id="assistantBot">
+    <div class="bot-avatar" id="botAvatar">
+        <i class="fas fa-robot"></i>
+        <div class="bot-status"></div>
+    </div>
+    <div class="bot-bubble" id="botBubble">
+        <i class="fas fa-comment-dots" style="color: #c4a35a;"></i> 
+        <span id="bubbleText">مرحباً! كيف يمكنني مساعدتك؟</span>
+    </div>
+</div>
+
+<!-- لوحة المحادثة -->
+<div class="bot-panel" id="botPanel">
+    <div class="bot-panel-header">
+        <h4><i class="fas fa-robot"></i> مساعد الضبعية الذكي</h4>
+        <button id="closeBotPanel"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="bot-messages" id="botMessages">
+        <div class="bot-message bot">
+            <div class="avatar"><i class="fas fa-robot"></i></div>
+            <div class="content">مرحباً! أنا مساعدك الذكي 🤖<br>أنا أعرف كل شيء عن هذه الصفحة، وأستطيع مساعدتك في البحث عن النتائج، إظهار المخالفات، الإشعارات، وأي شيء تحتاجه. فقط اسألني!</div>
+        </div>
+    </div>
+    <div class="bot-input-area">
+        <input type="text" id="botInput" placeholder="اكتب سؤالك هنا..." autocomplete="off">
+        <button id="sendBotMessage"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
 
     <script src="Home.js"></script>
 </body>
