@@ -14,6 +14,9 @@ const fs = require('fs');
 
 const app = express();
 
+// ====================== إعدادات trust proxy لـ Vercel ======================
+app.set('trust proxy', 1);
+
 // ====================== MIDDLEWARE ======================
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -35,7 +38,7 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
-    
+
     if (req.method === 'OPTIONS') {
         return res.sendStatus(200);
     }
@@ -57,7 +60,7 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// ====================== Rate Limiting ======================
+// ====================== Rate Limiting (مع trustProxy) ======================
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
@@ -244,16 +247,16 @@ function setAuthCookie(res, token) {
 
 function verifyToken(req, res, next) {
     let token = req.cookies?.authToken;
-    
+
     if (!token) {
         const authHeader = req.headers['authorization'];
         token = authHeader?.split(' ')[1];
     }
-    
+
     if (!token) {
         return res.status(401).json({ error: 'غير مصرح. يرجى تسجيل الدخول' });
     }
-    
+
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;
@@ -286,14 +289,14 @@ app.get('/api/check-username', async (req, res) => {
         if (!username || username.length < 3) {
             return res.json({ available: false });
         }
-        
+
         if (!dbConnected) {
             return res.json({ available: true });
         }
-        
+
         const existingAdmin = await Admin.findOne({ username: username.toLowerCase() });
         const existingStudent = await Student.findOne({ username: username.toLowerCase() });
-        
+
         const available = !existingAdmin && !existingStudent;
         res.json({ available });
     } catch (error) {
@@ -306,27 +309,27 @@ app.get('/api/check-username', async (req, res) => {
 app.post('/api/students/register', async (req, res) => {
     try {
         const { fullName, username, password, grade, studentCode, phone, parentName, parentId } = req.body;
-        
+
         if (!fullName || !username || !password || !grade || !studentCode) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
-        
+
         if (!dbConnected) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة حالياً' });
         }
-        
+
         const existingUser = await Student.findOne({ username: username.toLowerCase() });
         if (existingUser) {
             return res.status(400).json({ error: 'اسم المستخدم موجود مسبقاً' });
         }
-        
+
         const existingCode = await Student.findOne({ studentCode });
         if (existingCode) {
             return res.status(400).json({ error: 'رقم الجلوس موجود مسبقاً' });
         }
-        
+
         const hashedPassword = await hashPassword(password);
-        
+
         const student = new Student({
             fullName,
             username: username.toLowerCase(),
@@ -340,24 +343,24 @@ app.post('/api/students/register', async (req, res) => {
                 parentId: parentId || ''
             }
         });
-        
+
         await student.save();
-        
+
         console.log(`✅ تم إنشاء حساب جديد للطالب: ${fullName} (${username})`);
         res.json({ success: true, message: 'تم إنشاء الحساب بنجاح' });
-        
+
     } catch (error) {
         console.error('❌ خطأ في تسجيل الطالب:', error);
         res.status(500).json({ error: 'خطأ في إنشاء الحساب: ' + error.message });
     }
 });
 
-// ====================== تسجيل الدخول (بدون وضع تجريبي) ======================
+// ====================== تسجيل الدخول ======================
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
         const clientIP = req.ip || req.connection.remoteAddress;
-        
+
         if (!username || !password) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
@@ -384,7 +387,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         }
 
         const isMatch = await verifyPassword(password, user.password);
-        
+
         if (!isMatch) {
             user.failedAttempts = (user.failedAttempts || 0) + 1;
             if (user.failedAttempts >= 5) {
@@ -430,16 +433,16 @@ app.post('/api/refresh-token', async (req, res) => {
     if (!token) {
         return res.status(401).json({ error: 'لا توجد جلسة' });
     }
-    
+
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        
+
         const newToken = jwt.sign(
             { id: decoded.id, username: decoded.username, type: decoded.type, fullName: decoded.fullName, studentCode: decoded.studentCode },
             JWT_SECRET,
             { expiresIn: '24h' }
         );
-        
+
         setAuthCookie(res, newToken);
         res.json({ success: true });
     } catch (error) {
@@ -483,16 +486,16 @@ app.get('/api/student/by-username/:username', verifyToken, requireDb, async (req
 app.post('/api/exams', verifyToken, isAdmin, requireDb, async (req, res) => {
     try {
         const { name, stage, code, duration, questions } = req.body;
-        
+
         if (!name || !code || !duration || !questions || questions.length === 0) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة وسؤال واحد على الأقل' });
         }
-        
+
         const existingExam = await Exam.findOne({ code });
         if (existingExam) {
             return res.status(400).json({ error: 'كود الاختبار موجود مسبقاً' });
         }
-        
+
         const newExam = new Exam({
             name,
             stage,
@@ -500,11 +503,11 @@ app.post('/api/exams', verifyToken, isAdmin, requireDb, async (req, res) => {
             duration,
             questions
         });
-        
+
         await newExam.save();
         console.log(`✅ تم إنشاء اختبار جديد: ${name} (${code})`);
         res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
-        
+
     } catch (error) {
         console.error('❌ خطأ في إنشاء الاختبار:', error);
         res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' + error.message });
@@ -550,7 +553,7 @@ app.post('/api/exams/:code/submit', verifyToken, async (req, res) => {
         const { studentId, answers } = req.body;
         const exam = await Exam.findOne({ code });
         if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
-        
+
         let correctCount = 0;
         exam.questions.forEach((question, index) => {
             const userAnswer = answers[index];
@@ -561,7 +564,7 @@ app.post('/api/exams/:code/submit', verifyToken, async (req, res) => {
                 else if (userAnswer && userAnswer.length > 0) correctCount += 0.3;
             }
         });
-        
+
         const percentage = (correctCount / exam.questions.length) * 100;
         const examResult = new ExamResult({ examCode: code, studentId: studentId || req.user.username, score: percentage });
         await examResult.save();
@@ -634,7 +637,7 @@ app.post('/api/violations', verifyToken, isAdmin, requireDb, async (req, res) =>
         }
         const student = await Student.findOne({ studentCode: studentId });
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
-        
+
         const newViolation = new Violation({
             studentId, type, reason, penalty,
             parentSummons: parentSummons || false,
@@ -719,7 +722,7 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, requireDb, async (re
     try {
         const { studentCode } = req.params;
         const { profile, subjects, fullName, semester, password } = req.body;
-        
+
         const updateData = {};
         if (profile !== undefined) updateData.profile = profile;
         if (subjects !== undefined) updateData.subjects = subjects;
@@ -728,13 +731,13 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, requireDb, async (re
         if (password !== undefined && password !== '') {
             updateData.password = await hashPassword(password);
         }
-        
+
         const updated = await Student.findOneAndUpdate(
             { studentCode: studentCode },
             { $set: updateData },
             { new: true }
         ).select('-password -refreshToken');
-        
+
         if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
         res.json(updated);
     } catch (error) {
@@ -765,7 +768,7 @@ app.get('/api/students/by-grade/:grade', verifyToken, isAdmin, requireDb, async 
         else {
             return res.status(400).json({ error: 'صف غير صحيح' });
         }
-        
+
         const students = await Student.find({ grade: gradeValue }).select('-password -refreshToken');
         res.json(students);
     } catch (error) {
@@ -779,21 +782,21 @@ app.post('/api/create-initial-admin', async (req, res) => {
         if (!dbConnected) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
         }
-        
+
         const adminCount = await Admin.countDocuments();
         if (adminCount > 0) {
             return res.json({ message: 'يوجد أدمن بالفعل في النظام', adminExists: true });
         }
-        
+
         const { fullName, username, password } = req.body;
         if (!fullName || !username || !password) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
-        
+
         const hashedPassword = await hashPassword(password);
         const admin = new Admin({ fullName, username, password: hashedPassword });
         await admin.save();
-        
+
         res.json({ success: true, message: 'تم إنشاء المدير الأول بنجاح' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -804,35 +807,35 @@ app.post('/api/create-initial-admin', async (req, res) => {
 app.post('/api/parent/login', async (req, res) => {
     try {
         const { parentId, password } = req.body;
-        
+
         if (!parentId || !password) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
-        
+
         if (!dbConnected) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
         }
-        
+
         const student = await Student.findOne({ 'profile.parentId': parentId });
-        
+
         if (!student) {
             return res.status(401).json({ error: 'رقم بطاقة ولي الأمر غير صحيح' });
         }
-        
+
         const expectedPassword = student.studentCode.slice(-7);
-        
+
         if (password !== expectedPassword) {
             return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
         }
-        
+
         const token = jwt.sign(
             { id: student._id, type: 'parent', studentCode: student.studentCode, fullName: student.fullName },
             JWT_SECRET,
             { expiresIn: '24h' }
         );
-        
+
         setAuthCookie(res, token);
-        
+
         res.json({
             success: true,
             studentId: student._id,
@@ -840,7 +843,7 @@ app.post('/api/parent/login', async (req, res) => {
             studentCode: student.studentCode,
             parentName: student.profile?.parentName || 'ولي الأمر'
         });
-        
+
     } catch (error) {
         console.error('Parent login error:', error);
         res.status(500).json({ error: 'خطأ في السيرفر' });
@@ -853,16 +856,16 @@ app.get('/api/parent/student/:studentCode', verifyToken, async (req, res) => {
         if (!dbConnected) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
         }
-        
+
         const { studentCode } = req.params;
         const student = await Student.findOne({ studentCode }).select('-password -refreshToken');
-        
+
         if (!student) {
             return res.status(404).json({ error: 'الطالب غير موجود' });
         }
-        
+
         res.json(student);
-        
+
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب بيانات الطالب' });
     }
@@ -874,20 +877,20 @@ app.get('/api/parent/student/:studentCode/results', verifyToken, async (req, res
         if (!dbConnected) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
         }
-        
+
         const { studentCode } = req.params;
         const student = await Student.findOne({ studentCode }).select('subjects fullName studentCode');
-        
+
         if (!student) {
             return res.status(404).json({ error: 'الطالب غير موجود' });
         }
-        
+
         res.json({
             fullName: student.fullName,
             studentCode: student.studentCode,
             subjects: student.subjects || []
         });
-        
+
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب النتائج' });
     }
@@ -899,22 +902,22 @@ app.get('/api/parent/student/:studentCode/attendance', verifyToken, async (req, 
         if (!dbConnected) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
         }
-        
+
         const { studentCode } = req.params;
         const attendance = await Attendance.find({ studentCode }).sort({ date: -1 });
-        
+
         const present = attendance.filter(a => a.status === 'present').length;
         const absent = attendance.filter(a => a.status === 'absent').length;
         const late = attendance.filter(a => a.status === 'late').length;
         const total = attendance.length;
         const percentage = total > 0 ? (present / total) * 100 : 0;
-        
+
         res.json({
             present, absent, late, total,
             percentage: percentage.toFixed(1),
             records: attendance
         });
-        
+
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب الحضور' });
     }
@@ -926,221 +929,22 @@ app.get('/api/parent/student/:studentCode/violations', verifyToken, async (req, 
         if (!dbConnected) {
             return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
         }
-        
+
         const { studentCode } = req.params;
         const violations = await Violation.find({ studentId: studentCode }).sort({ date: -1 });
-        
+
         res.json(violations);
-        
+
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب المخالفات' });
     }
 });
 
-// ====================== مكتبة الملفات ======================
-// تم تعطيل إنشاء المجلد في Vercel (بيئة Serverless)
-const uploadDir = path.join(__dirname, '../uploads');
-// فقط في البيئة المحلية نحاول إنشاء المجلد
-if (process.env.NODE_ENV !== 'production') {
-    if (!fs.existsSync(uploadDir)) {
-        try {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        } catch (err) {
-            console.log('Could not create uploads directory:', err.message);
-        }
-    }
-} else {
-    console.log('⚠️ Running on Vercel - file uploads disabled');
-}
+// ====================== مكتبة الملفات (تم تعطيلها مؤقتاً لـ Vercel) ======================
+console.log('⚠️ File uploads are disabled on Vercel');
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + '-' + file.originalname;
-        cb(null, uniqueName);
-    }
-});
-
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 200 * 1024 * 1024 }
-});
-
-// جلب جميع الملفات
-app.get('/api/files', verifyToken, async (req, res) => {
-    try {
-        if (!dbConnected) {
-            return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
-        }
-        const files = await File.find().sort({ createdAt: -1 });
-        res.json(files);
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب الملفات' });
-    }
-});
-
-// رفع ملف
-app.post('/api/files/upload', verifyToken, isAdmin, upload.single('file'), async (req, res) => {
-    try {
-        const { name, description, grade, subject } = req.body;
-        const file = req.file;
-        
-        if (!name || !file || !grade || !subject) {
-            if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
-            return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
-        }
-        
-        const newFile = new File({
-            name: decodeFileName(name),
-            description: description || '',
-            filename: file.filename,
-            originalName: file.originalname,
-            type: file.mimetype.split('/')[1],
-            size: file.size,
-            grade: grade,
-            subject: subject,
-            uploadedBy: req.user.id
-        });
-        
-        await newFile.save();
-        res.json({ success: true, message: 'تم رفع الملف بنجاح', file: newFile });
-        
-    } catch (error) {
-        console.error('Upload error:', error);
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        res.status(500).json({ error: 'خطأ في رفع الملف' });
-    }
-});
-
-// رفع عدة ملفات
-app.post('/api/files/upload-multiple', verifyToken, isAdmin, (req, res) => {
-    upload.any()(req, res, async (err) => {
-        if (err) {
-            console.error('Upload error:', err);
-            if (err.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({ error: 'حجم الملف كبير جداً. الحد الأقصى 200 ميجابايت' });
-            }
-            return res.status(400).json({ error: 'خطأ في رفع الملفات: ' + err.message });
-        }
-        
-        try {
-            const { grade } = req.body;
-            const files = req.files;
-            
-            if (!files || files.length === 0) {
-                return res.status(400).json({ error: 'لم يتم اختيار أي ملفات' });
-            }
-            
-            if (!grade) {
-                return res.status(400).json({ error: 'يرجى اختيار الصف الدراسي' });
-            }
-            
-            const uploadedFiles = [];
-            const failedFiles = [];
-            
-            for (const file of files) {
-                try {
-                    const fileName = file.originalname.replace(/\.[^/.]+$/, '');
-                    const decodedName = decodeFileName(fileName).substring(0, 100);
-                    
-                    const newFile = new File({
-                        name: decodedName,
-                        description: `ملف تعليمي`,
-                        filename: file.filename,
-                        originalName: file.originalname,
-                        type: file.mimetype.split('/')[1],
-                        size: file.size,
-                        grade: grade,
-                        subject: 'مواد عامة',
-                        uploadedBy: req.user.id
-                    });
-                    
-                    await newFile.save();
-                    uploadedFiles.push({ name: decodedName });
-                    console.log(`✅ رفع: ${decodedName} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-                    
-                } catch (fileErr) {
-                    console.error(`❌ فشل: ${file.originalname}`, fileErr);
-                    failedFiles.push(file.originalname);
-                    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-                }
-            }
-            
-            const gradeNames = { first: 'الصف الأول', second: 'الصف الثاني', third: 'الصف الثالث' };
-            
-            res.json({
-                success: true,
-                message: `✅ تم رفع ${uploadedFiles.length} ملف بنجاح إلى ${gradeNames[grade]}${failedFiles.length > 0 ? `، وفشل ${failedFiles.length} ملف` : ''}`,
-                uploaded: uploadedFiles,
-                failed: failedFiles
-            });
-            
-        } catch (error) {
-            console.error('Process error:', error);
-            res.status(500).json({ error: 'خطأ في معالجة الملفات: ' + error.message });
-        }
-    });
-});
-
-// تحميل ملف
-app.get('/api/files/download/:id', verifyToken, async (req, res) => {
-    try {
-        if (!dbConnected) {
-            return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
-        }
-        
-        const file = await File.findById(req.params.id);
-        if (!file) return res.status(404).json({ error: 'الملف غير موجود' });
-        
-        file.downloads += 1;
-        await file.save();
-        
-        const filePath = path.join(uploadDir, file.filename);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'الملف غير موجود على الخادم' });
-        }
-        
-        res.download(filePath, decodeFileName(file.originalName));
-        
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في تحميل الملف' });
-    }
-});
-
-// حذف ملف
-app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
-    try {
-        if (!dbConnected) {
-            return res.status(503).json({ error: 'قاعدة البيانات غير متصلة' });
-        }
-        
-        const file = await File.findById(req.params.id);
-        if (!file) return res.status(404).json({ error: 'الملف غير موجود' });
-        
-        const filePath = path.join(uploadDir, file.filename);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        
-        await File.findByIdAndDelete(req.params.id);
-        res.json({ success: true, message: 'تم حذف الملف بنجاح' });
-        
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في حذف الملف' });
-    }
-});
-
-// فك ترميز اسم الملف
-function decodeFileName(fileName) {
-    if (!fileName) return '';
-    try {
-        let decoded = decodeURIComponent(escape(fileName));
-        decoded = decoded.replace(/[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFFa-zA-Z0-9\s\-_\.]/g, '');
-        return decoded || fileName;
-    } catch(e) {
-        return fileName;
-    }
-}
+// نموذج الملف (معطل)
+let upload = null;
 
 // ====================== DeepSeek AI ======================
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
@@ -1181,7 +985,7 @@ function getConversationContext(userId) {
 
 function getFallbackResponse(prompt) {
     const p = prompt.toLowerCase();
-    
+
     if (p.includes('مرحب') || p.includes('السلام') || p.includes('هلا')) {
         return `👋 **وعليكم السلام ورحمة الله!**
 
@@ -1195,7 +999,7 @@ function getFallbackResponse(prompt) {
 
 🎯 **إيه اللي محتاج مساعدة فيه النهاردة؟**`;
     }
-    
+
     if (p.includes('palliative') || p.includes('رعاية تلطيفية')) {
         return `🏥 **الرعاية التلطيفية (Palliative Care)**
 
@@ -1209,7 +1013,7 @@ function getFallbackResponse(prompt) {
 
 هل تريد تفاصيل أكثر عن أي نقطة؟`;
     }
-    
+
     if (p.includes('brain death') || p.includes('موت دماغي')) {
         return `🧠 **الموت الدماغي (Brain Death)**
 
@@ -1224,7 +1028,7 @@ function getFallbackResponse(prompt) {
 
 هل تريد شرح أكثر تفصيلاً؟`;
     }
-    
+
     if (p.includes('تمريض') || p.includes('nursing')) {
         return `🩺 **التمريض - مهنة إنسانية نبيلة**
 
@@ -1237,7 +1041,7 @@ function getFallbackResponse(prompt) {
 
 هل تريد معلومات عن مجال معين؟`;
     }
-    
+
     if (p.includes('نتيجة') || p.includes('درجة') || p.includes('امتحان')) {
         return `📊 **النتائج والدرجات**
 
@@ -1249,7 +1053,7 @@ function getFallbackResponse(prompt) {
 
 إذا نسيت الكود، تواصل مع إدارة المعهد.`;
     }
-    
+
     if (p.includes('شكر')) {
         return `🙏 **العفو! أنا سعيد بخدمتك**
 
@@ -1257,7 +1061,7 @@ function getFallbackResponse(prompt) {
 
 في خدمتك دايماً 🤗`;
     }
-    
+
     return `📚 **أنا هنا لمساعدتك!**
 
 🎯 **يمكنك سؤالي عن:**
@@ -1273,13 +1077,13 @@ function getFallbackResponse(prompt) {
 app.post('/api/gemini', async (req, res) => {
     try {
         const { prompt, userId = req.user?.id || req.ip || 'anonymous' } = req.body;
-        
+
         if (!prompt || prompt.trim() === '') {
             return res.status(400).json({ error: 'الرسالة مطلوبة' });
         }
-        
+
         const conversationContext = getConversationContext(userId);
-        
+
         const systemPrompt = `أنت مساعد تعليمي ذكي لمعهد رعاية الضبعية للتمريض.
 
 📌 تعليمات مهمة:
@@ -1297,7 +1101,7 @@ ${conversationContext ? `\n📚 **سياق المحادثة السابقة مع 
 قدم رداً مفيداً وطبيعياً وودوداً باللغة العربية:`;
 
         let reply = null;
-        
+
         if (DEEPSEEK_API_KEY && DEEPSEEK_API_KEY !== '') {
             try {
                 const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -1316,7 +1120,7 @@ ${conversationContext ? `\n📚 **سياق المحادثة السابقة مع 
                         max_tokens: 1000
                     })
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     reply = data.choices?.[0]?.message?.content;
@@ -1325,14 +1129,14 @@ ${conversationContext ? `\n📚 **سياق المحادثة السابقة مع 
                 console.log('⚠️ DeepSeek API error:', error.message);
             }
         }
-        
+
         if (!reply) {
             reply = getFallbackResponse(prompt);
         }
-        
+
         saveConversationContext(userId, prompt, reply);
         res.json({ reply: reply });
-        
+
     } catch (error) {
         console.error('❌ Chat error:', error.message);
         res.json({ reply: getFallbackResponse(req.body.prompt) });
@@ -1360,7 +1164,7 @@ app.get('/api/gemini/tips', verifyToken, async (req, res) => {
     const userId = req.user?.id || req.ip;
     const progress = userProgress.get(userId) || {};
     let tip = '';
-    
+
     if (progress.understandingLevel === 'مبتدئ') {
         tip = '📚 **نصيحة مخصصة لك:**\n\nأنصحك بمراجعة الأساسيات أولاً، ثم الانتقال تدريجياً للموضوعات الأعمق. خصص 30 دقيقة يومياً للمراجعة.\n\n💪 أنت قادر على التقدم بسرعة!';
     } else if (progress.understandingLevel === 'متوسط') {
@@ -1403,22 +1207,22 @@ function generateCaptcha(sessionId) {
         { symbol: '-', func: (a, b) => a - b },
         { symbol: '×', func: (a, b) => a * b }
     ];
-    
+
     const num1 = Math.floor(Math.random() * 20) + 1;
     const num2 = Math.floor(Math.random() * 20) + 1;
     const operation = operations[Math.floor(Math.random() * operations.length)];
-    
+
     let result = operation.func(num1, num2);
     if (result < 0) result = Math.abs(result);
-    
+
     const captchaText = `${num1} ${operation.symbol} ${num2} = ?`;
-    
+
     captchaStore.set(sessionId, {
         answer: result.toString(),
         timestamp: Date.now(),
         attempts: 0
     });
-    
+
     return { text: captchaText, sessionId: sessionId };
 }
 
@@ -1444,13 +1248,13 @@ function verifyCaptcha(sessionId, userAnswer) {
 app.get('/api/captcha', (req, res) => {
     let sessionId = req.cookies?.captchaSession || crypto.randomBytes(32).toString('hex');
     const captcha = generateCaptcha(sessionId);
-    
+
     res.cookie('captchaSession', sessionId, {
         httpOnly: true,
         maxAge: 5 * 60 * 1000,
         sameSite: 'lax'
     });
-    
+
     res.json({
         success: true,
         captchaText: captcha.text,
@@ -1485,10 +1289,12 @@ app.use((err, req, res, next) => {
 
 // ====================== تشغيل السيرفر ======================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📁 Serving static files from "public" folder`);
-    console.log(`📊 MongoDB URI: ${MONGODB_URI ? '✅ Set' : '❌ Not set'}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📁 Serving static files from "public" folder`);
+        console.log(`📊 MongoDB URI: ${MONGODB_URI ? '✅ Set' : '❌ Not set'}`);
+    });
+}
 
 module.exports = app;
