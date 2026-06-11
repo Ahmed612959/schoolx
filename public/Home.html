@@ -473,13 +473,15 @@
                 padding: 8px 14px;
             }
         }
-/* ====================== البوت المساعد المتحرك ====================== */
+/* ====================== البوت المساعد الذكي ====================== */
 .live-bot {
     position: fixed;
+    bottom: 20px;
+    right: 20px;
     z-index: 10000;
     cursor: pointer;
     filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
-    transition: all 0.3s ease;
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 /* جسم البوت */
@@ -503,8 +505,8 @@
 
 @keyframes headBob {
     0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(5deg); }
-    75% { transform: rotate(-5deg); }
+    25% { transform: rotate(3deg); }
+    75% { transform: rotate(-3deg); }
 }
 
 /* وجه البوت */
@@ -531,12 +533,7 @@
     background: white;
     border-radius: 50%;
     position: relative;
-    animation: eyeBlink 4s infinite;
-}
-
-@keyframes eyeBlink {
-    0%, 90%, 100% { transform: scaleY(1); }
-    95% { transform: scaleY(0.1); }
+    transition: all 0.1s;
 }
 
 .bot-eye::after {
@@ -546,12 +543,12 @@
     height: 8px;
     background: #1a1a2e;
     border-radius: 50%;
-    top: 3px;
+    top: 4px;
     left: 4px;
-    transition: all 0.1s ease;
+    transition: all 0.1s;
 }
 
-/* الحاجبين للتعبير */
+/* الحاجبين */
 .bot-eyebrows {
     display: flex;
     gap: 28px;
@@ -566,11 +563,7 @@
     transition: all 0.3s ease;
 }
 
-.bot.angry .bot-eyebrow { transform: rotate(-15deg); }
-.bot.happy .bot-eyebrow { transform: rotate(0deg); }
-.bot.sad .bot-eyebrow { transform: rotate(10deg); }
-
-/* فم البوت */
+/* فم البوت - يتحرك فقط أثناء الكلام */
 .bot-mouth {
     margin-top: 5px;
 }
@@ -583,21 +576,21 @@
     transition: all 0.2s ease;
 }
 
-.bot.happy .bot-mouth-line {
-    width: 30px;
-    height: 5px;
-    background: #ff6b6b;
-    border-radius: 0 0 10px 10px;
-}
-
+/* أثناء الكلام */
 .bot.speaking .bot-mouth-line {
-    animation: mouthTalk 0.3s infinite;
+    animation: mouthTalk 0.2s infinite;
 }
 
 @keyframes mouthTalk {
     0%, 100% { height: 3px; width: 22px; }
     50% { height: 8px; width: 30px; border-radius: 0 0 12px 12px; }
 }
+
+/* تعبيرات الوجه */
+.bot.angry .bot-eyebrow { transform: rotate(-15deg); }
+.bot.happy .bot-eyebrow { transform: rotate(0deg); }
+.bot.angry .bot-eye::after { background: #ff4757; }
+.bot.angry .bot-mouth-line { width: 18px; background: #ff4757; }
 
 /* جسم البوت */
 .bot-torso {
@@ -608,15 +601,12 @@
     border-radius: 20px;
     margin: -8px auto 0;
     padding: 8px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
-/* شاشة البوت */
 .bot-screen {
     background: #0a0a2e;
     border-radius: 10px;
     padding: 5px;
-    margin: 3px 0;
     min-height: 35px;
     border: 1px solid #00ff88;
 }
@@ -628,10 +618,8 @@
     font-family: monospace;
     white-space: nowrap;
     overflow: hidden;
-    text-shadow: 0 0 5px #00ff88;
 }
 
-/* أزرار البوت */
 .bot-buttons {
     display: flex;
     justify-content: center;
@@ -646,7 +634,6 @@
     border-radius: 50%;
     animation: buttonPulse 1.5s infinite;
 }
-
 .bot-btn:nth-child(2) { background: #4ecdc4; animation-delay: 0.3s; }
 .bot-btn:nth-child(3) { background: #ffe66d; animation-delay: 0.6s; }
 
@@ -670,7 +657,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
+    transition: all 0.3s;
 }
 
 .bot-arm-left {
@@ -739,62 +726,34 @@
     border-color: white transparent transparent transparent;
 }
 
-/* إضاءة الحقل */
-.field-highlight {
-    animation: fieldPulse 0.6s ease-in-out 3;
-    border-color: #c4a35a !important;
-    box-shadow: 0 0 0 3px rgba(196, 163, 90, 0.3) !important;
+/* إضاءة الحقل عند الخطأ */
+.field-error {
+    border-color: #ff4757 !important;
+    animation: shake 0.5s ease-in-out;
+    box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.2) !important;
 }
 
-@keyframes fieldPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.02); }
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
 }
 
-/* حركة البوت */
-@keyframes botWalk {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-3px); }
+/* حركة الإشارة */
+.pointing {
+    animation: point 0.5s ease;
 }
 
-@keyframes armWave {
-    0%, 100% { transform: rotate(0deg); }
-    50% { transform: rotate(30deg); }
-}
-
-@keyframes legWalk {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-4px); }
-}
-
-/* حالة الغضب */
-.bot.angry .bot-eye::after {
-    background: #ff4757;
-}
-
-.bot.angry .bot-mouth-line {
-    width: 20px;
-    height: 3px;
-    background: #ff4757;
-}
-
-/* حالة الضحك */
-.bot.laughing .bot-mouth-line {
-    width: 35px;
-    height: 8px;
-    background: #ff6b6b;
-    border-radius: 0 0 20px 20px;
-}
-
-/* تأكيد الإجراء */
-.bot.confirm .bot-arm-right {
-    animation: armWave 0.5s 2;
+@keyframes point {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(-40deg); }
+    100% { transform: rotate(0deg); }
 }
 
 @media (max-width: 768px) {
     .live-bot { transform: scale(0.8); }
     .bot-speech-bubble { min-width: 140px; font-size: 10px; top: -60px; right: -40px; }
-    }
+}
     </style>
 </head>
 <body>
