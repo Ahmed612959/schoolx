@@ -487,21 +487,19 @@ function initLibraryTour() {
 
 
 
-// ====================== البوت المساعد المتحرك الذكي ======================
-class MovingAssistantBot {
+// ====================== البوت المساعد الذكي (نسخة ثابتة) ======================
+class SmartAssistantBot {
     constructor() {
         this.bot = document.getElementById('liveBot');
         this.bubble = document.getElementById('botSpeechBubble');
         this.bubbleText = document.getElementById('botSpeechText');
         this.screenMsg = document.getElementById('botScreenMsg');
         
-        this.position = { x: 20, y: 100 };
-        this.direction = { x: 1, y: 1 };
         this.isSpeaking = false;
-        this.currentEmotion = 'happy';
+        this.originalPosition = { right: 20, bottom: 20 };
         this.userName = this.getUserName();
         
-        // حقول الصفحة التي سيشاور عليها
+        // حقول الصفحة
         this.fields = {
             name: document.getElementById('search-name'),
             code: document.getElementById('search-id'),
@@ -517,93 +515,48 @@ class MovingAssistantBot {
     }
     
     init() {
-        this.setupInitialPosition();
-        this.startWalking();
+        this.resetPosition();
         this.attachFieldListeners();
         this.welcomeUser();
-        this.startRandomTips();
         
-        console.log('🤖 Moving Assistant Bot initialized');
+        // مراقبة أخطاء البحث
+        this.observeSearchErrors();
+        
+        console.log('🤖 Smart Assistant Bot initialized');
     }
     
-    setupInitialPosition() {
-        this.bot.style.bottom = '100px';
-        this.bot.style.right = '20px';
+    resetPosition() {
+        this.bot.style.bottom = this.originalPosition.bottom + 'px';
+        this.bot.style.right = this.originalPosition.right + 'px';
         this.bot.style.left = 'auto';
         this.bot.style.top = 'auto';
     }
     
-    startWalking() {
-        // حركة عشوائية في جميع اتجاهات الصفحة
-        setInterval(() => {
-            if (!this.isSpeaking) {
-                this.moveRandomly();
-            }
-        }, 3000);
+    // الانتقال إلى حقل معين
+    moveToField(fieldElement) {
+        if (!fieldElement) return;
         
-        // حركة الأرجل المستمرة
-        setInterval(() => {
-            const legs = document.querySelectorAll('.bot-leg');
-            legs.forEach(leg => {
-                leg.style.animation = 'legWalk 0.5s infinite';
-            });
-        }, 100);
+        const fieldRect = fieldElement.getBoundingClientRect();
+        const botRect = this.bot.getBoundingClientRect();
         
-        // حركة الأذرع العشوائية
-        setInterval(() => {
-            if (Math.random() > 0.7) {
-                this.wave();
-            }
-        }, 5000);
-    }
-    
-    moveRandomly() {
-        // تغيير الموقع بشكل عشوائي
-        const maxX = window.innerWidth - 120;
-        const maxY = window.innerHeight - 200;
-        const minX = 10;
-        const minY = 50;
+        // حساب الموقع الجديد للبوت بجانب الحقل
+        let targetRight = window.innerWidth - fieldRect.right + 10;
+        let targetBottom = window.innerHeight - fieldRect.top + 10;
         
-        let newX = this.bot.offsetLeft + (Math.random() - 0.5) * 150;
-        let newY = this.bot.offsetTop + (Math.random() - 0.5) * 100;
+        // التأكد من عدم خروج البوت عن الشاشة
+        targetRight = Math.max(10, Math.min(window.innerWidth - 100, targetRight));
+        targetBottom = Math.max(10, Math.min(window.innerHeight - 150, targetBottom));
         
-        newX = Math.max(minX, Math.min(maxX, newX));
-        newY = Math.max(minY, Math.min(maxY, newY));
+        this.bot.style.transition = 'all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        this.bot.style.right = targetRight + 'px';
+        this.bot.style.bottom = targetBottom + 'px';
+        this.bot.style.left = 'auto';
+        this.bot.style.top = 'auto';
         
-        // تغيير اتجاه البوت حسب حركته
-        if (newX > this.bot.offsetLeft) {
-            this.bot.style.right = 'auto';
-            this.bot.style.left = newX + 'px';
-        } else {
-            this.bot.style.left = 'auto';
-            this.bot.style.right = (window.innerWidth - newX - 100) + 'px';
-        }
-        
-        this.bot.style.top = newY + 'px';
-        this.bot.style.bottom = 'auto';
-        
-        // تأثير حركة القفز
-        this.bot.style.transform = 'translateY(-5px)';
+        // العودة إلى المكان الأصلي بعد 3 ثواني
         setTimeout(() => {
-            this.bot.style.transform = 'translateY(0)';
-        }, 300);
-    }
-    
-    wave() {
-        const leftArm = document.querySelector('.bot-arm-left');
-        const rightArm = document.querySelector('.bot-arm-right');
-        
-        if (leftArm) {
-            leftArm.style.animation = 'armWave 0.5s 2';
-        }
-        if (rightArm) {
-            rightArm.style.animation = 'armWave 0.5s 2';
-        }
-        
-        setTimeout(() => {
-            if (leftArm) leftArm.style.animation = '';
-            if (rightArm) rightArm.style.animation = '';
-        }, 1000);
+            this.resetPosition();
+        }, 4000);
     }
     
     pointTo(element) {
@@ -612,78 +565,102 @@ class MovingAssistantBot {
         // تحريك الذراع للإشارة
         const rightArm = document.querySelector('.bot-arm-right');
         if (rightArm) {
-            rightArm.style.transform = 'rotate(-45deg) scale(1.2)';
+            rightArm.classList.add('pointing');
             setTimeout(() => {
-                rightArm.style.transform = '';
-            }, 1000);
+                rightArm.classList.remove('pointing');
+            }, 800);
         }
         
         // إضاءة الحقل
-        element.classList.add('field-highlight');
+        element.classList.add('field-error');
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
         setTimeout(() => {
-            element.classList.remove('field-highlight');
+            element.classList.remove('field-error');
         }, 2000);
     }
     
     attachFieldListeners() {
-        // عند التركيز على حقل الاسم
+        // عند ترك حقل الاسم بدون كتابة
         if (this.fields.name) {
-            this.fields.name.addEventListener('focus', () => {
-                this.speak('✏️ أدخل اسم الطالب هنا يا ' + this.userName + '!', 3000);
-                this.setEmotion('helpful');
-            });
-            
-            this.fields.name.addEventListener('input', (e) => {
-                if (e.target.value.length > 3) {
-                    this.speak('👍 اسم جميل! الآن أدخل رقم الجلوس', 2500);
-                    this.pointTo(this.fields.code);
-                }
-            });
-        }
-        
-        // عند التركيز على حقل رقم الجلوس
-        if (this.fields.code) {
-            this.fields.code.addEventListener('focus', () => {
-                this.speak('🔢 أدخل رقم الجلوس هنا - مكون من 5-7 أرقام', 3000);
-                this.pointTo(this.fields.code);
-            });
-            
-            this.fields.code.addEventListener('input', (e) => {
-                if (e.target.value.length >= 5) {
-                    this.speak('✓ ممتاز! اضغط على زر "عرض النتيجة" 🔍', 2500);
-                    this.pointTo(this.fields.submit);
+            this.fields.name.addEventListener('blur', () => {
+                if (!this.fields.name.value.trim()) {
+                    this.moveToField(this.fields.name);
+                    this.pointTo(this.fields.name);
+                    this.speak('📝 من فضلك اكتب اسم الطالب في هذا الحقل', 3500);
+                    this.setEmotion('angry');
+                } else {
                     this.setEmotion('happy');
-                    this.dance();
                 }
             });
         }
         
-        // عند النقر على زر البحث
-        if (this.fields.submit) {
-            this.fields.submit.addEventListener('click', () => {
-                this.speak('⏳ جاري البحث عن نتيجتك... انتظر قليلاً', 2000);
-                this.setEmotion('excited');
+        // عند ترك حقل رقم الجلوس بدون كتابة
+        if (this.fields.code) {
+            this.fields.code.addEventListener('blur', () => {
+                if (!this.fields.code.value.trim()) {
+                    this.moveToField(this.fields.code);
+                    this.pointTo(this.fields.code);
+                    this.speak('🔢 من فضلك أدخل رقم الجلوس هنا', 3500);
+                    this.setEmotion('angry');
+                } else if (this.fields.code.value.length < 5 || this.fields.code.value.length > 7) {
+                    this.moveToField(this.fields.code);
+                    this.pointTo(this.fields.code);
+                    this.speak('⚠️ رقم الجلوس غير صحيح! يجب أن يكون 5-7 أرقام', 4000);
+                    this.setEmotion('angry');
+                } else {
+                    this.setEmotion('happy');
+                }
             });
         }
         
-        // مراقبة نجاح البحث
-        this.observeSearchResults();
+        // عند الضغط على زر البحث بدون بيانات
+        if (this.fields.submit) {
+            this.fields.submit.addEventListener('click', (e) => {
+                if (!this.fields.name.value.trim() || !this.fields.code.value.trim()) {
+                    e.preventDefault();
+                    if (!this.fields.name.value.trim()) {
+                        this.moveToField(this.fields.name);
+                        this.pointTo(this.fields.name);
+                        this.speak(`✏️ يا ${this.userName}، اكتب اسم الطالب أولاً`, 3500);
+                    } else if (!this.fields.code.value.trim()) {
+                        this.moveToField(this.fields.code);
+                        this.pointTo(this.fields.code);
+                        this.speak(`🔢 يا ${this.userName}، أدخل رقم الجلوس`, 3500);
+                    }
+                    this.setEmotion('angry');
+                } else {
+                    this.speak('🔍 جاري البحث... انتظر قليلاً', 2000);
+                    this.setEmotion('excited');
+                }
+            });
+        }
     }
     
-    observeSearchResults() {
+    observeSearchErrors() {
+        // مراقبة ظهور رسالة خطأ بعد البحث
         const observer = new MutationObserver((mutations) => {
             const resultBody = document.getElementById('result-table-body');
-            if (resultBody && !resultBody.innerHTML.includes('قم بالبحث')) {
-                if (!resultBody.innerHTML.includes('لا توجد')) {
-                    this.speak('🎉 تهانينا! تم العثور على النتيجة بنجاح', 3500);
-                    this.dance();
-                    this.setEmotion('celebrate');
+            if (resultBody && resultBody.innerHTML.includes('لا توجد نتيجة')) {
+                // تحديد الحقل الذي به مشكلة
+                if (!this.fields.name.value.trim()) {
+                    this.moveToField(this.fields.name);
+                    this.pointTo(this.fields.name);
+                    this.speak('⚠️ لم يتم العثور على الطالب! تأكد من كتابة الاسم بشكل صحيح', 4500);
+                } else if (!this.fields.code.value.trim()) {
+                    this.moveToField(this.fields.code);
+                    this.pointTo(this.fields.code);
+                    this.speak('⚠️ لم يتم العثور على الطالب! رقم الجلوس غير صحيح', 4500);
                 } else {
-                    this.speak('😕 عذراً، لم يتم العثور على نتيجة. تأكد من الاسم ورقم الجلوس', 4000);
-                    this.setEmotion('sad');
+                    this.moveToField(this.fields.code);
+                    this.pointTo(this.fields.code);
+                    this.speak('😕 لم يتم العثور على طالب بهذا الاسم ورقم الجلوس. تأكد من البيانات', 5000);
                 }
+                this.setEmotion('sad');
+            } else if (resultBody && !resultBody.innerHTML.includes('قم بالبحث') && !resultBody.innerHTML.includes('لا توجد')) {
+                this.speak('🎉 تهانينا! تم العثور على النتيجة بنجاح', 3500);
+                this.dance();
+                this.setEmotion('happy');
             }
         });
         
@@ -694,11 +671,13 @@ class MovingAssistantBot {
     }
     
     speak(message, duration = 3500) {
+        if (this.isSpeaking) return;
+        
         this.isSpeaking = true;
         this.bubbleText.textContent = message;
         this.screenMsg.textContent = message.substring(0, 15) + (message.length > 15 ? '..' : '');
         
-        // تحريك الفم أثناء الكلام
+        // تحريك الشفاه أثناء الكلام
         this.setEmotion('speaking');
         
         this.bubble.classList.remove('show');
@@ -714,42 +693,30 @@ class MovingAssistantBot {
     }
     
     setEmotion(emotion) {
-        this.currentEmotion = emotion;
         const bot = document.querySelector('.live-bot');
         const mouth = document.querySelector('.bot-mouth-line');
         const eyebrows = document.querySelectorAll('.bot-eyebrow');
-        const eyes = document.querySelectorAll('.bot-eye');
         
-        bot.classList.remove('angry', 'happy', 'sad', 'laughing', 'celebrate');
+        bot.classList.remove('angry', 'happy', 'sad', 'speaking');
         
         switch(emotion) {
             case 'happy':
                 bot.classList.add('happy');
-                if (mouth) mouth.style.width = '30px';
+                if (mouth) mouth.style.animation = '';
                 break;
             case 'sad':
                 bot.classList.add('sad');
-                if (mouth) mouth.style.width = '20px';
+                if (mouth) mouth.style.animation = '';
                 break;
             case 'angry':
                 bot.classList.add('angry');
-                if (mouth) mouth.style.width = '15px';
-                break;
-            case 'excited':
-                eyes.forEach(eye => eye.style.animation = 'eyeBlink 0.3s infinite');
+                if (mouth) mouth.style.animation = '';
                 break;
             case 'speaking':
-                if (mouth) mouth.style.animation = 'mouthTalk 0.3s infinite';
-                break;
-            case 'celebrate':
-                this.dance();
+                bot.classList.add('speaking');
                 break;
             default:
                 bot.classList.add('happy');
-                if (mouth) {
-                    mouth.style.width = '25px';
-                    mouth.style.animation = '';
-                }
         }
     }
     
@@ -757,13 +724,17 @@ class MovingAssistantBot {
         const bot = this.bot;
         bot.style.animation = 'none';
         setTimeout(() => {
-            bot.style.animation = 'botWalk 0.1s infinite';
+            bot.style.animation = 'headBob 0.1s infinite';
         }, 10);
         
-        this.wave();
+        const rightArm = document.querySelector('.bot-arm-right');
+        if (rightArm) {
+            rightArm.style.animation = 'point 0.3s 3';
+        }
         
         setTimeout(() => {
-            bot.style.animation = '';
+            bot.style.animation = 'headBob 2s ease-in-out infinite';
+            if (rightArm) rightArm.style.animation = '';
         }, 1500);
     }
     
@@ -775,59 +746,18 @@ class MovingAssistantBot {
             else if (hour < 16) greeting = 'أهلاً بك';
             else greeting = 'مساء الخير';
             
-            this.speak(`${greeting} يا ${this.userName}! 👋 أنا مساعدك الذكي، أساعدك في البحث عن النتيجة. اكتب اسمك ورقم جلوسك وأنا معاك!`, 5000);
-            this.wave();
+            this.speak(`${greeting} يا ${this.userName}! 👋 أنا مساعدك. اكتب اسم الطالب ورقم الجلوس واضغط عرض النتيجة`, 5000);
+            this.pointTo(this.fields.name);
         }, 1500);
-        
-        setTimeout(() => {
-            this.pointTo(this.fields.name);
-            this.speak('📝 ابدأ بكتابة اسم الطالب في هذا الحقل', 3500);
-        }, 7000);
-    }
-    
-    startRandomTips() {
-        const tips = [
-            '💡 تذكر: رقم الجلوس مكون من 7 أرقام تجده في بطاقتك',
-            '📚 المواد الأساسية 6 مواد، مجموعها 144 درجة',
-            '🎯 النسبة 85% فأكثر تعني ممتاز!',
-            '⚠️ المخالفات تظهر في جدول منفصل تحت النتيجة',
-            '📢 الإشعارات العامة تظهر في الجدول الأسفل',
-            '⭐ يمكنك البحث عن أي طالب باستخدام اسمه ورقم جلوسه'
-        ];
-        
-        let tipIndex = 0;
-        setInterval(() => {
-            if (!this.isSpeaking && document.visibilityState === 'visible') {
-                this.speak(tips[tipIndex % tips.length], 4000);
-                tipIndex++;
-            }
-        }, 45000);
-    }
-    
-    getAngryAtEmptyField() {
-        if (!this.fields.name.value && !this.fields.code.value) {
-            this.speak('😠 يا ${this.userName}! لم تدخل أي بيانات! اكتب اسم الطالب أولاً', 3500);
-            this.setEmotion('angry');
-            this.pointTo(this.fields.name);
-        } else if (!this.fields.name.value) {
-            this.speak('😠 نسيت تكتب اسم الطالب! أدخله في هذا الحقل', 3000);
-            this.setEmotion('angry');
-            this.pointTo(this.fields.name);
-        } else if (!this.fields.code.value) {
-            this.speak('😠 رقم الجلوس مطلوب! أدخله في هذا الحقل', 3000);
-            this.setEmotion('angry');
-            this.pointTo(this.fields.code);
-        }
     }
 }
 
 // تشغيل البوت بعد تحميل الصفحة
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        window.movingBot = new MovingAssistantBot();
+        window.smartBot = new SmartAssistantBot();
     }, 800);
 });
-
 
 
 
