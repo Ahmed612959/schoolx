@@ -43,7 +43,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// ====================== Helmet (مخفف) ======================
+// ====================== Helmet ======================
 app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
@@ -51,7 +51,7 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// ====================== Rate Limiting مع trustProxy ======================
+// ====================== Rate Limiting ======================
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
@@ -282,7 +282,7 @@ app.post('/api/students/register', async (req, res) => {
     }
 });
 
-// ====================== تسجيل الدخول (أدمن / طالب) ======================
+// ====================== تسجيل الدخول ======================
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         await connectToDatabase();
@@ -505,9 +505,7 @@ app.delete('/api/violations/:id', verifyToken, isAdmin, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في حذف المخالفة' }); }
 });
 
-// ====================== APIs الحضور (Attendance) – جديدة وكاملة ======================
-
-// تسجيل حضور/غياب/تأخر لطالب (للأدمن فقط)
+// ====================== APIs الحضور (Attendance) كاملة ======================
 app.post('/api/attendance', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -518,16 +516,12 @@ app.post('/api/attendance', verifyToken, isAdmin, async (req, res) => {
         if (!['present', 'absent', 'late'].includes(status)) {
             return res.status(400).json({ error: 'الحالة غير صحيحة' });
         }
-        // التأكد من وجود الطالب
         const student = await Student.findOne({ studentCode });
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
-
-        // منع تكرار نفس التاريخ لنفس الطالب (اختياري)
         const existing = await Attendance.findOne({ studentCode, date });
         if (existing) {
             return res.status(400).json({ error: 'هذا الطالب مسجل حضوره في هذا التاريخ بالفعل. يمكنك تعديل السجل بدلاً من ذلك.' });
         }
-
         const newAttendance = new Attendance({
             studentCode,
             studentName,
@@ -543,7 +537,6 @@ app.post('/api/attendance', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// جلب سجل الحضور كامل (للأدمن فقط) مع إمكانية فلترة حسب الطالب أو التاريخ
 app.get('/api/attendance', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -563,17 +556,14 @@ app.get('/api/attendance', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// جلب حضور طالب معين (للأدمن أو ولي الأمر المصرح)
 app.get('/api/attendance/student/:studentCode', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const { studentCode } = req.params;
-        // التأكد من الصلاحية: إذا كان ولي أمر، يجب أن يكون مرتبطاً بالطالب
         if (req.user.type === 'parent' && req.user.studentCode !== studentCode) {
             return res.status(403).json({ error: 'غير مصرح بجلب بيانات طالب آخر' });
         }
         const records = await Attendance.find({ studentCode }).sort({ date: -1 });
-        // إحصائيات مفيدة
         const present = records.filter(r => r.status === 'present').length;
         const absent = records.filter(r => r.status === 'absent').length;
         const late = records.filter(r => r.status === 'late').length;
@@ -585,7 +575,6 @@ app.get('/api/attendance/student/:studentCode', verifyToken, async (req, res) =>
     }
 });
 
-// تعديل سجل حضور محدد (للأدمن فقط)
 app.put('/api/attendance/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -608,7 +597,6 @@ app.put('/api/attendance/:id', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// حذف سجل حضور (للأدمن فقط)
 app.delete('/api/attendance/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -621,7 +609,6 @@ app.delete('/api/attendance/:id', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// جلب الحضور بتاريخ معين (للأدمن فقط)
 app.get('/api/attendance/date/:date', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -633,12 +620,6 @@ app.get('/api/attendance/date/:date', verifyToken, isAdmin, async (req, res) => 
     }
 });
 
-// ====================== باقي APIs (جلب الطلاب، الأدمن، ولي الأمر إلخ) ======================
-// (هنا تبقى جميع endpoints الأصلية مثل جلب الطلاب، تحديث الطلاب، الأدمن، ولي الأمر، AI، الكابتشا...)
-
-// نظراً لطول الكود، سأعطي باقي الـ endpoints التي تخص الطلاب والأدمن وولي الأمر مختصرة، لكن يمكنك نقلها كما هي من الكود السابق.
-// ولأن الرسالة قد تصبح طويلة جداً، سأكتفي بإضافة الـ attendance ثم سأرسل لك الكود كاملاً في ملف منفصل إذا أردت. ولكن للالتزام، سأكمل هنا أهمها:
-
 // ====================== جلب الطلاب (للأدمن) ======================
 app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
     try {
@@ -648,7 +629,6 @@ app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
 });
 
-// ====================== جلب الأدمن ======================
 app.get('/api/admins', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -775,33 +755,180 @@ app.get('/api/parent/student/:studentCode/results', verifyToken, async (req, res
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب النتائج' }); }
 });
 
-// ====================== DeepSeek AI (نفس الكود الأصلي) ======================
+app.get('/api/parent/student/:studentCode/attendance', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'parent' && req.user.studentCode !== req.params.studentCode) return res.status(403).json({ error: 'غير مصرح' });
+        const attendance = await Attendance.find({ studentCode: req.params.studentCode }).sort({ date: -1 });
+        const present = attendance.filter(a => a.status === 'present').length;
+        const absent = attendance.filter(a => a.status === 'absent').length;
+        const late = attendance.filter(a => a.status === 'late').length;
+        const total = attendance.length;
+        const percentage = total > 0 ? (present / total) * 100 : 0;
+        res.json({ present, absent, late, total, percentage: percentage.toFixed(1), records: attendance });
+    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الحضور' }); }
+});
+
+app.get('/api/parent/student/:studentCode/violations', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'parent' && req.user.studentCode !== req.params.studentCode) return res.status(403).json({ error: 'غير مصرح' });
+        const violations = await Violation.find({ studentId: req.params.studentCode }).sort({ date: -1 });
+        res.json(violations);
+    } catch (error) { res.status(500).json({ error: 'خطأ في جلب المخالفات' }); }
+});
+
+// ====================== DeepSeek AI (كامل) ======================
 let conversationHistory = new Map();
 let userPreferences = new Map();
 let userProgress = new Map();
 let importantFacts = new Map();
 
-function saveConversationContext(userId, userMessage, botResponse) { /* كما هو */ }
-function getConversationContext(userId) { /* كما هو */ }
-function getFallbackResponse(prompt) { /* كما هو */ }
+function saveConversationContext(userId, userMessage, botResponse) {
+    if (!conversationHistory.has(userId)) conversationHistory.set(userId, []);
+    const history = conversationHistory.get(userId);
+    history.push({ role: 'user', content: userMessage, timestamp: new Date().toISOString() });
+    history.push({ role: 'assistant', content: botResponse, timestamp: new Date().toISOString() });
+    if (history.length > 20) conversationHistory.set(userId, history.slice(-20));
+}
 
-app.post('/api/gemini', async (req, res) => { /* كما هو */ });
-app.post('/api/gemini/clear-memory', verifyToken, (req, res) => { /* كما هو */ });
-app.get('/api/gemini/stats', verifyToken, (req, res) => { /* كما هو */ });
-app.get('/api/gemini/tips', verifyToken, (req, res) => { /* كما هو */ });
-app.post('/api/gemini/vision', async (req, res) => { /* كما هو */ });
-app.post('/api/gemini/file', async (req, res) => { /* كما هو */ });
-app.post('/api/gemini/questions', async (req, res) => { /* كما هو */ });
+function getConversationContext(userId) {
+    const history = conversationHistory.get(userId) || [];
+    const facts = importantFacts.get(userId) || [];
+    const preferences = userPreferences.get(userId) || {};
+    let context = '';
+    if (history.length > 0) {
+        context += '\n【آخر المحادثات】\n';
+        history.slice(-6).forEach(msg => {
+            context += `${msg.role === 'user' ? '👤 الطالب' : '🤖 المساعد'}: ${msg.content.substring(0, 100)}\n`;
+        });
+    }
+    if (facts.length > 0) {
+        context += '\n【معلومات مهمة】\n';
+        facts.slice(-2).forEach(fact => context += `📌 ${fact.fact.substring(0, 80)}\n`);
+    }
+    if (preferences.level) context += `\n🎓 مستوى الطالب: ${preferences.level}\n`;
+    return context;
+}
+
+function getFallbackResponse(prompt) {
+    const p = prompt.toLowerCase();
+    if (p.includes('مرحب') || p.includes('السلام') || p.includes('هلا')) return `👋 **وعليكم السلام ورحمة الله!**\n\nأنا 🤖 **مساعدك الذكي في معهد رعاية الضبعية**\n\n📚 **أقدر أساعدك في:**\n• شرح الرعاية التلطيفية (Palliative Care)\n• شرح الموت الدماغي (Brain Death)\n• معلومات عن التمريض\n• الاستعلام عن النتائج والدرجات\n\n🎯 **إيه اللي محتاج مساعدة فيه النهاردة؟**`;
+    if (p.includes('palliative') || p.includes('رعاية تلطيفية')) return `🏥 **الرعاية التلطيفية (Palliative Care)**\n\n📌 **تعريفها:** نهج طبي متخصص لتحسين جودة حياة مرضى الأمراض الخطيرة.\n\n📌 **المبادئ الأساسية:**\n• تخفيف الألم والأعراض\n• الدعم النفسي والاجتماعي للمريض والأسرة\n• تحسين التواصل مع الفريق الطبي\n\nهل تريد تفاصيل أكثر عن أي نقطة؟`;
+    if (p.includes('brain death') || p.includes('موت دماغي')) return `🧠 **الموت الدماغي (Brain Death)**\n\n📌 **التعريف:** التوقف الكامل والنهائي لوظائف الدماغ بأكمله، بما في ذلك جذع الدماغ.\n\n📌 **المعايير التشخيصية:**\n• غيبوبة عميقة بدون استجابة\n• انعدام التنفس التلقائي تماماً\n• اختفاء ردود أفعال جذع الدماغ\n• ثبوت النتائج بعد 6-24 ساعة\n\nهل تريد شرح أكثر تفصيلاً؟`;
+    if (p.includes('تمريض') || p.includes('nursing')) return `🩺 **التمريض - مهنة إنسانية نبيلة**\n\n📌 **المهام الأساسية للممرض:**\n• تقديم الرعاية المباشرة للمرضى\n• مراقبة العلامات الحيوية\n• إعطاء الأدوية حسب الوصفات الطبية\n• التثقيف الصحي للمرضى وأسرهم\n• التعاون مع الفريق الطبي\n\nهل تريد معلومات عن مجال معين؟`;
+    if (p.includes('نتيجة') || p.includes('درجة') || p.includes('امتحان')) return `📊 **النتائج والدرجات**\n\nللاستعلام عن نتيجتك:\n\n1️⃣ **اذهب إلى صفحة "النتائج"** من القائمة السفلية\n2️⃣ **أدخل كود الطالب الخاص بك** (رقم الجلوس)\n3️⃣ **ستظهر جميع درجاتك**\n\nإذا نسيت الكود، تواصل مع إدارة المعهد.`;
+    if (p.includes('شكر')) return `🙏 **العفو! أنا سعيد بخدمتك**\n\nاتمنى لك التوفيق في دراستك 🌟\n\nفي خدمتك دايماً 🤗`;
+    return `📚 **أنا هنا لمساعدتك!**\n\n🎯 **يمكنك سؤالي عن:**\n• الرعاية التلطيفية (Palliative Care)\n• الموت الدماغي (Brain Death)\n• التمريض الجراحي والباطني\n• النتائج والدرجات\n\nكيف أقدر أساعدك أكثر اليوم؟`;
+}
+
+app.post('/api/gemini', async (req, res) => {
+    try {
+        const { prompt, userId = req.user?.id || req.ip || 'anonymous' } = req.body;
+        if (!prompt || prompt.trim() === '') return res.status(400).json({ error: 'الرسالة مطلوبة' });
+        const conversationContext = getConversationContext(userId);
+        const systemPrompt = `أنت مساعد تعليمي ذكي لمعهد رعاية الضبعية للتمريض.\n\n📌 تعليمات مهمة:\n- رد باللغة العربية (مصري أو فصحى)\n- تخصصك: التمريض، الرعاية التلطيفية، Palliative care, Brain death, Hospice care\n- كن ودوداً ومفيداً ومحترفاً\n- قدم إجابات دقيقة ومبسطة مع أمثلة عملية\n- إذا سأل عن النتيجة: "روح على صفحة النتائج وادخل الكود بتاعك"\n- استخدم السياق المقدم من المحادثات السابقة\n\n${conversationContext ? `\n📚 **سياق المحادثة السابقة مع هذا الطالب:**\n${conversationContext}\n` : ''}\n\n💬 **سؤال الطالب الحالي:** ${prompt}\n\nقدم رداً مفيداً وطبيعياً وودوداً باللغة العربية:`;
+        let reply = null;
+        if (DEEPSEEK_API_KEY && DEEPSEEK_API_KEY !== '') {
+            try {
+                const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }], temperature: 0.7, max_tokens: 1000 })
+                });
+                if (response.ok) { const data = await response.json(); reply = data.choices?.[0]?.message?.content; }
+            } catch (error) { console.log('⚠️ DeepSeek API error:', error.message); }
+        }
+        if (!reply) reply = getFallbackResponse(prompt);
+        saveConversationContext(userId, prompt, reply);
+        res.json({ reply: reply });
+    } catch (error) { res.json({ reply: getFallbackResponse(req.body.prompt) }); }
+});
+
+app.post('/api/gemini/clear-memory', verifyToken, (req, res) => {
+    const userId = req.user?.id || req.ip;
+    conversationHistory.delete(userId);
+    importantFacts.delete(userId);
+    res.json({ success: true, message: '✅ تم مسح ذاكرة المحادثة بنجاح' });
+});
+
+app.get('/api/gemini/stats', verifyToken, (req, res) => {
+    const userId = req.user?.id || req.ip;
+    res.json({ conversationLength: (conversationHistory.get(userId) || []).length / 2, factsShared: (importantFacts.get(userId) || []).length, preferences: userPreferences.get(userId) || {}, progress: userProgress.get(userId) || {} });
+});
+
+app.get('/api/gemini/tips', verifyToken, (req, res) => {
+    const userId = req.user?.id || req.ip;
+    const progress = userProgress.get(userId) || {};
+    let tip = '';
+    if (progress.understandingLevel === 'مبتدئ') tip = '📚 **نصيحة مخصصة لك:**\n\nأنصحك بمراجعة الأساسيات أولاً، ثم الانتقال تدريجياً للموضوعات الأعمق. خصص 30 دقيقة يومياً للمراجعة.\n\n💪 أنت قادر على التقدم بسرعة!';
+    else if (progress.understandingLevel === 'متوسط') tip = '🎯 **نصيحة مخصصة لك:**\n\nأنت في الطريق الصحيح! ركز على حل التمارين والتطبيقات العملية لتعزيز فهمك.\n\n🌟 استمر بهذا المستوى الرائع!';
+    else tip = '⭐ **نصيحة مخصصة لك:**\n\nمستواك ممتاز! أنصحك الآن بتدريس ما تعلمته لزملائك - هذا سيعزز فهمك أكثر.\n\n🏆 أنت قدوة لزملائك!';
+    res.json({ tip });
+});
+
+app.post('/api/gemini/vision', async (req, res) => {
+    res.json({ reply: '🖼️ **خدمة تحليل الصور**\n\nهذه الخدمة قيد التطوير. قريباً سأتمكن من تحليل صورك وشرح محتواها!\n\n📌 في الوقت الحالي، يمكنك وصف الصورة وسأحاول مساعدتك.' });
+});
+
+app.post('/api/gemini/file', async (req, res) => {
+    const { filename } = req.body;
+    res.json({ reply: `📄 **تم استلام ملف: ${filename || 'الملف'}**\n\nخدمة تحليل الملفات قيد التطوير.\n\n📌 قريباً سأتمكن من:\n• قراءة ملفات PDF\n• تلخيص المستندات\n• استخراج المعلومات المهمة\n• إنشاء أسئلة من المحتوى` });
+});
+
+app.post('/api/gemini/questions', async (req, res) => {
+    const { questionCount = 5, filename } = req.body;
+    res.json({ reply: `📝 **طلب إنشاء ${questionCount} سؤال**\n\nمن ملف: ${filename || 'الملف'}\n\nهذه الخدمة قيد التطوير.\n\n📌 قريباً سأتمكن من إنشاء:\n• أسئلة اختيار من متعدد\n• أسئلة صح/خطأ\n• أسئلة مقالية\n\nعلى حسب المحتوى الذي ترفعه!` });
+});
 
 // ====================== الكابتشا ======================
 const captchaStore = new Map();
-// ... دوال الكابتشا كما هي
-app.get('/api/captcha', (req, res) => { /* كما هو */ });
-app.post('/api/captcha/verify', (req, res) => { /* كما هو */ });
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of captchaStore.entries()) {
+        if (now - value.timestamp > 5 * 60 * 1000) captchaStore.delete(key);
+    }
+}, 60 * 60 * 1000);
+
+function generateCaptcha(sessionId) {
+    const operations = [{ symbol: '+', func: (a, b) => a + b }, { symbol: '-', func: (a, b) => a - b }, { symbol: '×', func: (a, b) => a * b }];
+    const num1 = Math.floor(Math.random() * 20) + 1;
+    const num2 = Math.floor(Math.random() * 20) + 1;
+    const operation = operations[Math.floor(Math.random() * operations.length)];
+    let result = operation.func(num1, num2);
+    if (result < 0) result = Math.abs(result);
+    const captchaText = `${num1} ${operation.symbol} ${num2} = ?`;
+    captchaStore.set(sessionId, { answer: result.toString(), timestamp: Date.now(), attempts: 0 });
+    return { text: captchaText, sessionId };
+}
+
+function verifyCaptcha(sessionId, userAnswer) {
+    const captchaData = captchaStore.get(sessionId);
+    if (!captchaData) return { valid: false, error: 'انتهت صلاحية الكابتشا، يرجى تحديث الصفحة' };
+    if (captchaData.attempts >= 3) { captchaStore.delete(sessionId); return { valid: false, error: '太多 المحاولات الخاطئة، يرجى تحديث الكابتشا' }; }
+    const isValid = captchaData.answer.toString() === userAnswer.toString().trim();
+    if (!isValid) { captchaData.attempts++; captchaStore.set(sessionId, captchaData); return { valid: false, error: 'رمز التحقق غير صحيح' }; }
+    captchaStore.delete(sessionId);
+    return { valid: true, error: null };
+}
+
+app.get('/api/captcha', (req, res) => {
+    let sessionId = req.cookies?.captchaSession || crypto.randomBytes(32).toString('hex');
+    const captcha = generateCaptcha(sessionId);
+    res.cookie('captchaSession', sessionId, { httpOnly: true, maxAge: 5 * 60 * 1000, sameSite: 'lax' });
+    res.json({ success: true, captchaText: captcha.text, sessionId: captcha.sessionId });
+});
+
+app.post('/api/captcha/verify', (req, res) => {
+    const { sessionId, answer } = req.body;
+    const result = verifyCaptcha(sessionId, answer);
+    res.json(result);
+});
 
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
-    res.json({ message: 'معهد رعاية الضبعية - API', status: 'running', version: '2.1.0', endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations'] });
+    res.json({ message: 'معهد رعاية الضبعية - API', status: 'running', version: '3.0.0', endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha'] });
 });
 
 // ====================== Error Handling ======================
