@@ -16,8 +16,7 @@
 
 <style>
     /* ============================================
-       التصميم الطبي المتكامل - Nursing Care Design
-       معهد رعاية الضبعية الفني للتمريض
+       التصميم الطبي المتكامل - مع تحسينات الهواتف
        ============================================ */
 
     :root {
@@ -74,12 +73,14 @@
     /* ========== الهيدر ========== */
     .main-header {
         background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-        padding: 0 48px;
-        height: 80px;
+        padding: 0 16px;
+        height: auto;
+        min-height: 70px;
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
         align-items: center;
-        gap: 24px;
+        gap: 12px;
         position: sticky;
         top: 0;
         z-index: 100;
@@ -87,21 +88,35 @@
         border-bottom: 3px solid var(--secondary);
     }
 
+    @media (min-width: 768px) {
+        .main-header {
+            padding: 0 48px;
+            height: 80px;
+            flex-wrap: nowrap;
+        }
+    }
+
     .logo {
-        width: 52px;
-        height: 52px;
+        width: 45px;
+        height: 45px;
         object-fit: cover;
         border-radius: var(--radius-lg);
         background: var(--white);
-        padding: 6px;
+        padding: 5px;
         transition: var(--transition);
         border: 2px solid var(--secondary);
     }
 
-    .logo:hover { transform: scale(1.05) rotate(3deg); }
+    @media (min-width: 768px) {
+        .logo {
+            width: 52px;
+            height: 52px;
+            padding: 6px;
+        }
+    }
 
     .main-header h1 {
-        font-size: 1.35rem;
+        font-size: 0.9rem;
         font-weight: 700;
         background: linear-gradient(135deg, var(--white) 0%, var(--secondary) 100%);
         background-clip: text;
@@ -109,26 +124,42 @@
         color: transparent;
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 8px;
+        margin: 8px 0;
+        text-align: center;
     }
 
-    .main-header h1::before { content: '🏥'; font-size: 1.5rem; color: var(--secondary); }
+    @media (min-width: 768px) {
+        .main-header h1 {
+            font-size: 1.35rem;
+            margin: 0;
+        }
+    }
 
-    .header-buttons { display: flex; gap: 12px; }
+    .main-header h1::before { content: '🏥'; font-size: 1.2rem; color: var(--secondary); }
+
+    .header-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
     .home-btn, .logout-btn {
         background: rgba(255,255,255,0.1);
         border: 1px solid rgba(255,255,255,0.2);
-        padding: 8px 24px;
+        padding: 6px 16px;
         border-radius: var(--radius-full);
         font-weight: 600;
-        font-size: 0.85rem;
+        font-size: 0.75rem;
         color: var(--white);
         cursor: pointer;
         transition: var(--transition);
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+    }
+
+    @media (min-width: 768px) {
+        .home-btn, .logout-btn {
+            padding: 8px 24px;
+            font-size: 0.85rem;
+        }
     }
 
     .home-btn:hover, .logout-btn:hover {
@@ -140,53 +171,100 @@
     /* ========== الحاوية الرئيسية ========== */
     .container {
         max-width: 1440px;
-        margin: 32px auto;
-        padding: 0 32px 80px 32px;
+        margin: 16px auto;
+        padding: 0 16px 80px 16px;
+    }
+
+    @media (min-width: 768px) {
+        .container {
+            margin: 32px auto;
+            padding: 0 32px 80px 32px;
+        }
     }
 
     /* ========== بطاقة الترحيب ========== */
     .welcome-card {
         background: linear-gradient(135deg, var(--white) 0%, var(--primary-light) 100%);
         border-radius: var(--radius-2xl);
-        padding: 28px 36px;
-        margin-bottom: 36px;
-        border-right: 5px solid var(--secondary);
+        padding: 16px 20px;
+        margin-bottom: 24px;
+        border-right: 4px solid var(--secondary);
         box-shadow: var(--shadow-md);
     }
 
+    @media (min-width: 768px) {
+        .welcome-card {
+            padding: 28px 36px;
+            margin-bottom: 36px;
+        }
+    }
+
     .welcome-card h2 {
-        font-size: 1.5rem;
+        font-size: 1.2rem;
         font-weight: 800;
         color: var(--gray-800);
         margin-bottom: 8px;
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    @media (min-width: 768px) {
+        .welcome-card h2 {
+            font-size: 1.5rem;
+        }
     }
 
     .welcome-card h2 i { color: var(--secondary); }
 
     .welcome-card p {
         color: var(--gray-500);
-        font-size: 0.9rem;
+        font-size: 0.8rem;
+    }
+
+    @media (min-width: 768px) {
+        .welcome-card p {
+            font-size: 0.9rem;
+        }
     }
 
     /* ========== الإحصائيات ========== */
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 24px;
-        margin: 28px 0;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin: 20px 0;
+    }
+
+    @media (min-width: 480px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (min-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 24px;
+            margin: 28px 0;
+        }
     }
 
     .stat-card {
         background: var(--white);
         border: 1px solid var(--gray-200);
         border-radius: var(--radius-xl);
-        padding: 24px 20px;
+        padding: 16px;
         text-align: center;
         transition: var(--transition);
         position: relative;
+    }
+
+    @media (min-width: 768px) {
+        .stat-card {
+            padding: 24px 20px;
+        }
     }
 
     .stat-card::before {
@@ -194,7 +272,7 @@
         position: absolute;
         top: 0;
         right: 0;
-        width: 5px;
+        width: 4px;
         height: 100%;
         background: linear-gradient(180deg, var(--secondary), #2d9c7c);
         border-radius: var(--radius-xl) 0 0 var(--radius-xl);
@@ -203,42 +281,75 @@
     .stat-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
 
     .stat-card i {
-        font-size: 2.3rem;
+        font-size: 1.8rem;
         color: var(--secondary);
-        margin-bottom: 14px;
+        margin-bottom: 8px;
+    }
+
+    @media (min-width: 768px) {
+        .stat-card i {
+            font-size: 2.3rem;
+            margin-bottom: 14px;
+        }
     }
 
     .stat-card h3 {
-        font-size: 1.8rem;
+        font-size: 1.3rem;
         font-weight: 800;
         color: var(--primary);
         margin: 5px 0;
     }
 
+    @media (min-width: 768px) {
+        .stat-card h3 {
+            font-size: 1.8rem;
+        }
+    }
+
     .stat-card p {
         color: var(--gray-500);
-        font-size: 0.85rem;
+        font-size: 0.75rem;
+    }
+
+    @media (min-width: 768px) {
+        .stat-card p {
+            font-size: 0.85rem;
+        }
     }
 
     /* ========== البحث ========== */
     .search-section {
-        margin: 24px 0;
+        margin: 16px 0;
         display: flex;
         flex-wrap: wrap;
-        gap: 15px;
+        gap: 12px;
         align-items: center;
+    }
+
+    @media (min-width: 768px) {
+        .search-section {
+            margin: 24px 0;
+            gap: 15px;
+        }
     }
 
     .search-input {
         flex: 1;
-        max-width: 380px;
-        padding: 12px 24px;
+        width: 100%;
+        padding: 10px 18px;
         border: 2px solid var(--gray-200);
         border-radius: var(--radius-full);
         font-size: 0.85rem;
         font-family: 'Tajawal', sans-serif;
         transition: var(--transition);
         background: var(--white);
+    }
+
+    @media (min-width: 768px) {
+        .search-input {
+            max-width: 380px;
+            padding: 12px 24px;
+        }
     }
 
     .search-input:focus {
@@ -250,12 +361,19 @@
     /* ========== الجداول ========== */
     .table-wrapper {
         overflow-x: auto;
-        margin: 28px 0;
+        margin: 16px 0;
         border-radius: var(--radius-xl);
         background: var(--white);
         border: 1px solid var(--gray-200);
         box-shadow: var(--shadow-sm);
         transition: var(--transition);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    @media (min-width: 768px) {
+        .table-wrapper {
+            margin: 28px 0;
+        }
     }
 
     .table-wrapper:hover { box-shadow: var(--shadow-lg); }
@@ -263,17 +381,31 @@
     table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.85rem;
-        min-width: 900px;
+        font-size: 0.7rem;
+        min-width: 800px;
+    }
+
+    @media (min-width: 768px) {
+        table {
+            font-size: 0.85rem;
+            min-width: 900px;
+        }
     }
 
     th {
         background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
         color: var(--white);
-        padding: 16px 14px;
+        padding: 12px 8px;
         font-weight: 700;
         text-align: center;
         border-bottom: 2px solid var(--secondary);
+        white-space: nowrap;
+    }
+
+    @media (min-width: 768px) {
+        th {
+            padding: 16px 14px;
+        }
     }
 
     th i {
@@ -282,23 +414,67 @@
     }
 
     td {
-        padding: 14px 12px;
+        padding: 10px 6px;
         border-bottom: 1px solid var(--gray-200);
         text-align: center;
         vertical-align: middle;
     }
 
+    @media (min-width: 768px) {
+        td {
+            padding: 14px 12px;
+        }
+    }
+
     tr:hover td { background: var(--primary-light); }
+
+    /* حقل كلمة المرور مع زر العين */
+    .password-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: center;
+    }
+
+    .password-wrapper input {
+        flex: 1;
+        min-width: 100px;
+    }
+
+    .toggle-password {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--secondary);
+        font-size: 1rem;
+        padding: 5px;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .toggle-password:hover {
+        color: var(--primary);
+        transform: scale(1.1);
+    }
 
     td input, td select {
         width: 100%;
-        padding: 8px 12px;
+        padding: 6px 10px;
         border: 2px solid var(--gray-200);
         border-radius: var(--radius-md);
-        font-size: 0.8rem;
+        font-size: 0.7rem;
         font-family: 'Tajawal', sans-serif;
         transition: var(--transition);
         background: var(--white);
+    }
+
+    @media (min-width: 768px) {
+        td input, td select {
+            padding: 8px 12px;
+            font-size: 0.8rem;
+        }
     }
 
     td input:focus, td select:focus {
@@ -309,22 +485,30 @@
 
     .password-field {
         font-family: monospace;
-        letter-spacing: 0px;
+        letter-spacing: 1px;
     }
 
     /* ========== الأزرار ========== */
     .btn-edit, .btn-save, .btn-delete, .btn-cancel {
         border: none;
-        padding: 7px 18px;
+        padding: 5px 10px;
         border-radius: var(--radius-md);
-        font-size: 0.75rem;
+        font-size: 0.65rem;
         font-weight: 600;
         cursor: pointer;
         transition: var(--transition);
         margin: 2px;
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
+    }
+
+    @media (min-width: 768px) {
+        .btn-edit, .btn-save, .btn-delete, .btn-cancel {
+            padding: 7px 18px;
+            font-size: 0.75rem;
+            gap: 6px;
+        }
     }
 
     .btn-edit {
@@ -377,13 +561,20 @@
 
     .no-data {
         text-align: center;
-        padding: 40px;
+        padding: 30px;
         color: var(--gray-500);
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+    }
+
+    @media (min-width: 768px) {
+        .no-data {
+            padding: 40px;
+            font-size: 0.9rem;
+        }
     }
 
     .no-data i {
-        font-size: 2rem;
+        font-size: 1.8rem;
         color: var(--secondary);
         margin-bottom: 10px;
         display: block;
@@ -394,10 +585,10 @@
         background: rgba(255,255,255,0.96);
         backdrop-filter: blur(12px);
         border-top: 2px solid var(--secondary);
-        padding: 12px 0;
+        padding: 8px 0;
         display: flex;
-        justify-content: center;
-        gap: 40px;
+        justify-content: space-around;
+        gap: 8px;
         position: fixed;
         bottom: 0;
         left: 0;
@@ -405,16 +596,45 @@
         z-index: 100;
     }
 
+    @media (min-width: 480px) {
+        .nav-bar {
+            justify-content: center;
+            gap: 40px;
+            padding: 12px 0;
+        }
+    }
+
     .nav-bar a {
         text-decoration: none;
         color: var(--gray-500);
         font-weight: 600;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 10px;
+        gap: 4px;
         transition: var(--transition);
-        padding: 8px 20px;
+        padding: 6px 12px;
         border-radius: var(--radius-full);
+        font-size: 0.7rem;
+    }
+
+    @media (min-width: 480px) {
+        .nav-bar a {
+            flex-direction: row;
+            gap: 10px;
+            font-size: 0.85rem;
+            padding: 8px 20px;
+        }
+    }
+
+    .nav-bar a i {
+        font-size: 1.2rem;
+    }
+
+    @media (min-width: 480px) {
+        .nav-bar a i {
+            font-size: 1rem;
+        }
     }
 
     .nav-bar a:hover {
@@ -426,17 +646,25 @@
     /* ========== أزرار التمرير ========== */
     .scroll-buttons {
         position: fixed;
-        bottom: 100px;
-        right: 30px;
+        bottom: 80px;
+        right: 15px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 8px;
         z-index: 1000;
     }
 
+    @media (min-width: 768px) {
+        .scroll-buttons {
+            bottom: 100px;
+            right: 30px;
+            gap: 12px;
+        }
+    }
+
     .scroll-btn {
-        width: 48px;
-        height: 48px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
         background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
         border: none;
@@ -446,8 +674,16 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.2rem;
+        font-size: 1rem;
         box-shadow: var(--shadow-md);
+    }
+
+    @media (min-width: 768px) {
+        .scroll-btn {
+            width: 48px;
+            height: 48px;
+            font-size: 1.2rem;
+        }
     }
 
     .scroll-btn:hover {
@@ -459,10 +695,17 @@
     /* ========== الفوتر ========== */
     footer {
         text-align: center;
-        padding: 28px;
-        font-size: 0.75rem;
+        padding: 20px;
+        font-size: 0.65rem;
         color: var(--gray-400);
         margin-top: 20px;
+    }
+
+    @media (min-width: 768px) {
+        footer {
+            padding: 28px;
+            font-size: 0.75rem;
+        }
     }
 
     .heart {
@@ -478,8 +721,15 @@
 
     /* ========== شريط التمرير ========== */
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
+    }
+
+    @media (min-width: 768px) {
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
     }
 
     ::-webkit-scrollbar-track {
@@ -494,60 +744,6 @@
 
     ::-webkit-scrollbar-thumb:hover {
         background: var(--primary);
-    }
-
-    /* ========== التجاوب ========== */
-    @media (max-width: 1024px) {
-        .container { padding: 0 24px 80px 24px; }
-    }
-
-    @media (max-width: 768px) {
-        .main-header {
-            padding: 0 20px;
-            height: auto;
-            flex-direction: column;
-            padding: 16px 20px;
-        }
-        .welcome-card h2 { font-size: 1.2rem; }
-        .stats-grid {
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-        }
-        .stat-card h3 { font-size: 1.3rem; }
-        .nav-bar { gap: 16px; }
-        .nav-bar a span { display: none; }
-        .nav-bar a i { font-size: 1.2rem; }
-        .scroll-btn {
-            width: 42px;
-            height: 42px;
-            font-size: 1rem;
-        }
-        .scroll-buttons {
-            bottom: 85px;
-            right: 20px;
-            gap: 10px;
-        }
-        .search-section { flex-direction: column; }
-        .search-input { max-width: 100%; }
-        th, td {
-            font-size: 0.7rem;
-            padding: 10px 6px;
-        }
-        .btn-edit, .btn-save, .btn-delete, .btn-cancel {
-            padding: 4px 10px;
-            font-size: 0.65rem;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .stats-grid { grid-template-columns: 1fr; }
-        .container { padding: 0 16px 80px 16px; }
-        .scroll-btn {
-            width: 38px;
-            height: 38px;
-            font-size: 0.9rem;
-        }
-        .welcome-card { padding: 20px; }
     }
 
     /* حماية إضافية */
@@ -624,7 +820,7 @@
     </div>
 
     <div class="table-wrapper">
-        </table>
+        <table>
             <thead>
                 <tr>
                     <th><i class="fas fa-hashtag"></i> #</th>
@@ -792,6 +988,25 @@ window.scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight,
 let allStudents = [];
 let editingStudentCode = null;
 
+// ====================== دالة لتبديل عرض كلمة المرور ======================
+window.togglePasswordVisibility = function(button, inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+    input.setAttribute('type', type);
+    // تغيير أيقونة العين
+    const icon = button.querySelector('i');
+    if (icon) {
+        if (type === 'text') {
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+};
+
 async function loadStudents() {
     try {
         const tbody = document.getElementById('studentsTableBody');
@@ -833,9 +1048,24 @@ function renderStudents(students) {
     students.forEach((student, index) => {
         const studentCode = student.studentCode;
         const isEditing = (editingStudentCode === studentCode);
+
+        // إنشاء معرف فريد لحقل كلمة المرور (في حالة التعديل)
+        const passwordInputId = `password-${studentCode}`;
         
-        // عرض كلمة المرور كنص عادي (بدلاً من النجوم)
-        const passwordDisplay = student.password ? escapeHtml(student.password) : 'لا توجد';
+        // بناء خلية كلمة المرور
+        let passwordCellContent = '';
+        if (isEditing) {
+            passwordCellContent = `
+                <div class="password-wrapper">
+                    <input type="password" id="${passwordInputId}" class="password-field" placeholder="اتركه فارغاً لعدم التغيير" autocomplete="new-password">
+                    <button type="button" class="toggle-password" onclick="togglePasswordVisibility(this, '${passwordInputId}')" title="إظهار/إخفاء كلمة المرور">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            `;
+        } else {
+            passwordCellContent = `<span class="password-field">••••••••</span>`;
+        }
 
         const row = document.createElement('tr');
         row.setAttribute('data-student-code', studentCode);
@@ -845,9 +1075,7 @@ function renderStudents(students) {
             <td style="font-weight: 700; color: var(--primary); background: var(--primary-light);">${index + 1}</td>
             <td>${isEditing ? `<input type="text" id="fullName-${studentCode}" value="${escapeHtml(student.fullName)}">` : `<span style="font-weight: 600;">${escapeHtml(student.fullName)}</span>`}</td>
             <td>${isEditing ? `<input type="text" id="username-${studentCode}" value="${escapeHtml(student.username)}">` : `<span>${escapeHtml(student.username)}</span>`}</td>
-            <td>${isEditing ? 
-                `<input type="text" id="password-${studentCode}" class="password-field" value="${escapeHtml(student.password || '')}" placeholder="اتركه فارغاً لعدم التغيير">` : 
-                `<span class="password-field">${passwordDisplay}</span>`}</td>
+            <td>${passwordCellContent}</td>
             <td>${isEditing ? `<input type="text" id="studentCodeInput-${studentCode}" value="${escapeHtml(student.studentCode || '')}" maxlength="7">` : `<span style="font-weight: 700; color: var(--primary);">${escapeHtml(student.studentCode || '-')}</span>`}</td>
             <td>${isEditing ? `<input type="tel" id="phone-${studentCode}" value="${escapeHtml(student.profile?.phone || '')}">` : `<span>${escapeHtml(student.profile?.phone || '-')}</span>`}</td>
             <td>${isEditing ? `<input type="text" id="parentName-${studentCode}" value="${escapeHtml(student.profile?.parentName || '')}">` : `<span>${escapeHtml(student.profile?.parentName || '-')}</span>`}</td>
@@ -1003,7 +1231,7 @@ async function saveEdit(studentCode) {
     }
 }
 
-// دالة حذف الطالب (محسنة)
+// ====================== دالة حذف الطالب المحسنة ======================
 async function deleteStudent(studentCode) {
     console.log('🔍 محاولة حذف الطالب برقم الجلوس:', studentCode);
 
@@ -1077,6 +1305,7 @@ async function deleteStudent(studentCode) {
         }
 
         if (response.status === 403) {
+            // محاولة الحذف مرة أخرى بدون CSRF Token
             console.log('⚠️ خطأ 403، محاولة الحذف بدون CSRF Token');
 
             const retryResponse = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
