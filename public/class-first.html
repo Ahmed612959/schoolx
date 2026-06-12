@@ -309,7 +309,7 @@
 
     .password-field {
         font-family: monospace;
-        letter-spacing: 2px;
+        letter-spacing: 0px;
     }
 
     /* ========== الأزرار ========== */
@@ -508,40 +508,31 @@
             flex-direction: column;
             padding: 16px 20px;
         }
-        
         .welcome-card h2 { font-size: 1.2rem; }
-        
         .stats-grid {
             grid-template-columns: 1fr 1fr;
             gap: 16px;
         }
-        
         .stat-card h3 { font-size: 1.3rem; }
-        
         .nav-bar { gap: 16px; }
         .nav-bar a span { display: none; }
         .nav-bar a i { font-size: 1.2rem; }
-        
         .scroll-btn {
             width: 42px;
             height: 42px;
             font-size: 1rem;
         }
-        
         .scroll-buttons {
             bottom: 85px;
             right: 20px;
             gap: 10px;
         }
-        
         .search-section { flex-direction: column; }
         .search-input { max-width: 100%; }
-        
         th, td {
             font-size: 0.7rem;
             padding: 10px 6px;
         }
-        
         .btn-edit, .btn-save, .btn-delete, .btn-cancel {
             padding: 4px 10px;
             font-size: 0.65rem;
@@ -564,7 +555,7 @@
         user-select: none;
         -webkit-user-select: none;
     }
-    
+
     input, textarea, select {
         user-select: text !important;
         -webkit-user-select: text !important;
@@ -582,7 +573,7 @@
                 return false;
             }
         });
-        
+
         if (typeof console !== 'undefined') {
             const noop = function() {};
             console.log = noop;
@@ -633,7 +624,7 @@
     </div>
 
     <div class="table-wrapper">
-        <table>
+        </table>
             <thead>
                 <tr>
                     <th><i class="fas fa-hashtag"></i> #</th>
@@ -731,28 +722,28 @@ async function apiRequest(endpoint, options = {}) {
         'Content-Type': 'application/json',
         ...options.headers
     };
-    
+
     if (csrfToken && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method)) {
         headers['X-CSRF-Token'] = csrfToken;
     }
-    
+
     const response = await fetch(`${BASE_URL}${endpoint}`, {
         ...options,
         headers,
         credentials: 'include'
     });
-    
+
     if (response.status === 401) {
         sessionStorage.clear();
         window.location.href = '/login.html';
         throw new Error('انتهت الجلسة');
     }
-    
+
     if (response.status === 403) {
         showToast('طلب غير مصرح به، يرجى تحديث الصفحة', 'error');
         throw new Error('CSRF token mismatch');
     }
-    
+
     return response;
 }
 
@@ -765,7 +756,7 @@ async function verifyAdminAccess() {
         }, 1500);
         return false;
     }
-    
+
     try {
         const response = await apiRequest('/api/verify-session');
         if (!response.ok) {
@@ -805,20 +796,20 @@ async function loadStudents() {
     try {
         const tbody = document.getElementById('studentsTableBody');
         if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="no-data"><i class="fas fa-spinner fa-pulse"></i><br>⏳ جاري تحميل البيانات...<\/td><\/tr>';
-        
+
         const response = await apiRequest('/api/admin/students');
         if (!response.ok) {
             throw new Error('فشل في جلب البيانات');
         }
         allStudents = await response.json();
-        
+
         document.getElementById('totalStudents').textContent = allStudents.length;
         document.getElementById('activeStudents').textContent = allStudents.filter(s => s.subjects && s.subjects.length > 0).length;
-        
+
         renderStudents(allStudents);
-        
+
         console.log(`✅ تم تحميل ${allStudents.length} طالب بنجاح`);
-        
+
     } catch (error) {
         console.error('Error loading students:', error);
         const tbody = document.getElementById('studentsTableBody');
@@ -843,17 +834,20 @@ function renderStudents(students) {
         const studentCode = student.studentCode;
         const isEditing = (editingStudentCode === studentCode);
         
+        // عرض كلمة المرور كنص عادي (بدلاً من النجوم)
+        const passwordDisplay = student.password ? escapeHtml(student.password) : 'لا توجد';
+
         const row = document.createElement('tr');
         row.setAttribute('data-student-code', studentCode);
         row.setAttribute('data-student-name', student.fullName);
-        
+
         row.innerHTML = `
             <td style="font-weight: 700; color: var(--primary); background: var(--primary-light);">${index + 1}</td>
             <td>${isEditing ? `<input type="text" id="fullName-${studentCode}" value="${escapeHtml(student.fullName)}">` : `<span style="font-weight: 600;">${escapeHtml(student.fullName)}</span>`}</td>
             <td>${isEditing ? `<input type="text" id="username-${studentCode}" value="${escapeHtml(student.username)}">` : `<span>${escapeHtml(student.username)}</span>`}</td>
             <td>${isEditing ? 
-                `<input type="password" id="password-${studentCode}" class="password-field" placeholder="اتركه فارغاً لعدم التغيير">` : 
-                `<span class="password-field">••••••••</span>`}</td>
+                `<input type="text" id="password-${studentCode}" class="password-field" value="${escapeHtml(student.password || '')}" placeholder="اتركه فارغاً لعدم التغيير">` : 
+                `<span class="password-field">${passwordDisplay}</span>`}</td>
             <td>${isEditing ? `<input type="text" id="studentCodeInput-${studentCode}" value="${escapeHtml(student.studentCode || '')}" maxlength="7">` : `<span style="font-weight: 700; color: var(--primary);">${escapeHtml(student.studentCode || '-')}</span>`}</td>
             <td>${isEditing ? `<input type="tel" id="phone-${studentCode}" value="${escapeHtml(student.profile?.phone || '')}">` : `<span>${escapeHtml(student.profile?.phone || '-')}</span>`}</td>
             <td>${isEditing ? `<input type="text" id="parentName-${studentCode}" value="${escapeHtml(student.profile?.parentName || '')}">` : `<span>${escapeHtml(student.profile?.parentName || '-')}</span>`}</td>
@@ -890,7 +884,7 @@ function cancelEdit() {
 
 async function saveEdit(studentCode) {
     console.log('🔍 saveEdit called with studentCode:', studentCode);
-    
+
     const student = allStudents.find(s => s.studentCode === studentCode);
     if (!student) {
         showToast('لم يتم العثور على الطالب', 'error');
@@ -898,7 +892,7 @@ async function saveEdit(studentCode) {
     }
 
     const newStudentCode = document.getElementById(`studentCodeInput-${studentCode}`).value.trim();
-    
+
     const updatedData = {
         fullName: document.getElementById(`fullName-${studentCode}`).value.trim(),
         username: document.getElementById(`username-${studentCode}`).value.trim(),
@@ -908,11 +902,11 @@ async function saveEdit(studentCode) {
             parentId: document.getElementById(`parentId-${studentCode}`).value.trim()
         }
     };
-    
+
     if (newStudentCode !== studentCode) {
         updatedData.studentCode = newStudentCode;
     }
-    
+
     const newPassword = document.getElementById(`password-${studentCode}`).value.trim();
     if (newPassword !== '') {
         if (newPassword.length < 6) {
@@ -962,7 +956,7 @@ async function saveEdit(studentCode) {
             window.location.reload();
             return;
         }
-        
+
         const response = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
             method: 'PUT',
             headers: { 
@@ -982,7 +976,7 @@ async function saveEdit(studentCode) {
                 const errorText = await response.text();
                 errorMessage = errorText || errorMessage;
             }
-            
+
             if (response.status === 401) {
                 showToast('انتهت الجلسة، جاري إعادة التوجيه...', 'error');
                 setTimeout(() => { window.location.href = '/login.html'; }, 1500);
@@ -997,10 +991,10 @@ async function saveEdit(studentCode) {
 
         const result = await response.json();
         console.log('✅ Save success:', result);
-        
+
         await loadStudents();
         editingStudentCode = null;
-        
+
         showToast(newPassword !== '' ? 'تم حفظ التغييرات بنجاح! (تم تغيير كلمة المرور)' : 'تم حفظ التغييرات بنجاح!', 'success');
 
     } catch (error) {
@@ -1009,28 +1003,28 @@ async function saveEdit(studentCode) {
     }
 }
 
-// ====================== دالة حذف الطالب المحسنة ======================
+// دالة حذف الطالب (محسنة)
 async function deleteStudent(studentCode) {
     console.log('🔍 محاولة حذف الطالب برقم الجلوس:', studentCode);
-    
+
     if (!studentCode) {
         showToast('❌ خطأ: رقم الجلوس غير موجود!', 'error');
         return;
     }
-    
+
     const studentToDelete = allStudents.find(s => s.studentCode === studentCode);
     if (!studentToDelete) {
         showToast('❌ الطالب غير موجود في قاعدة البيانات', 'error');
         return;
     }
-    
+
     const confirmMessage = `⚠️ هل أنت متأكد من حذف الطالب التالي؟\n\n📝 الاسم: ${studentToDelete.fullName}\n🆔 رقم الجلوس: ${studentToDelete.studentCode}\n👤 اسم المستخدم: ${studentToDelete.username}\n\n❗ لا يمكن التراجع عن هذا الإجراء!`;
-    
+
     if (!confirm(confirmMessage)) {
         showToast('❌ تم إلغاء عملية الحذف', 'info');
         return;
     }
-    
+
     const deleteBtns = document.querySelectorAll('.btn-delete');
     const originalTexts = [];
     deleteBtns.forEach((btn, idx) => {
@@ -1041,9 +1035,9 @@ async function deleteStudent(studentCode) {
 
     try {
         const csrfToken = getCsrfToken();
-        
+
         console.log(`📤 إرسال طلب حذف للطالب: ${studentCode}`);
-        
+
         const response = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
             method: 'DELETE',
             headers: { 
@@ -1058,21 +1052,21 @@ async function deleteStudent(studentCode) {
         if (response.ok) {
             const result = await response.json();
             console.log('✅ تم الحذف بنجاح:', result);
-            
+
             allStudents = allStudents.filter(s => s.studentCode !== studentCode);
             renderStudents(allStudents);
-            
+
             document.getElementById('totalStudents').textContent = allStudents.length;
             document.getElementById('activeStudents').textContent = allStudents.filter(s => s.subjects && s.subjects.length > 0).length;
-            
+
             if (editingStudentCode === studentCode) {
                 editingStudentCode = null;
             }
-            
+
             showToast(`✅ تم حذف الطالب "${studentToDelete.fullName}" بنجاح!`, 'success');
             return;
         }
-        
+
         if (response.status === 401) {
             showToast('⚠️ انتهت صلاحية الجلسة، جاري إعادة التوجيه...', 'error');
             sessionStorage.clear();
@@ -1081,16 +1075,15 @@ async function deleteStudent(studentCode) {
             }, 1500);
             return;
         }
-        
+
         if (response.status === 403) {
-            // محاولة الحذف مرة أخرى بدون CSRF Token
             console.log('⚠️ خطأ 403، محاولة الحذف بدون CSRF Token');
-            
+
             const retryResponse = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
                 method: 'DELETE',
                 credentials: 'include'
             });
-            
+
             if (retryResponse.ok) {
                 allStudents = allStudents.filter(s => s.studentCode !== studentCode);
                 renderStudents(allStudents);
@@ -1103,14 +1096,14 @@ async function deleteStudent(studentCode) {
             }
             return;
         }
-        
+
         if (response.status === 404) {
             showToast('❌ الطالب غير موجود في قاعدة البيانات', 'error');
             allStudents = allStudents.filter(s => s.studentCode !== studentCode);
             renderStudents(allStudents);
             return;
         }
-        
+
         let errorMessage = 'فشل حذف الطالب';
         try {
             const errorData = await response.json();
@@ -1120,16 +1113,16 @@ async function deleteStudent(studentCode) {
             if (errorText) errorMessage = errorText;
         }
         showToast(`❌ ${errorMessage}`, 'error');
-        
+
     } catch (error) {
         console.error('❌ خطأ في الحذف:', error);
-        
+
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
             showToast('🌐 خطأ في الاتصال بالسيرفر. تأكد من أن السيرفر يعمل.', 'error');
         } else {
             showToast(`❌ حدث خطأ أثناء الحذف: ${error.message}`, 'error');
         }
-        
+
     } finally {
         deleteBtns.forEach((btn, idx) => {
             btn.disabled = false;
@@ -1167,13 +1160,13 @@ function renderWelcomeMessage() {
 (async function init() {
     const isAdmin = await verifyAdminAccess();
     if (!isAdmin) return;
-    
+
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
     if (csrfMeta) {
         const token = csrfMeta.getAttribute('content');
         if (token) saveCsrfToken(token);
     }
-    
+
     renderWelcomeMessage();
     await loadStudents();
 })();
