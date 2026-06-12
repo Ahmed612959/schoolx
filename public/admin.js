@@ -56,8 +56,8 @@ async function loadNotifications() {
 }
 function renderNotifications() {
     const tb = document.getElementById('notifications-table-body'); if (!tb) return;
-    if (!notifications?.length) { tb.innerHTML = '<tr><td colspan="3" style="text-align:center;">📭 لا توجد إشعارات</td></tr>'; return; }
-    tb.innerHTML = notifications.map(n => `<tr><td>${escapeHtml(n.text)}</td><td style="text-align:center;">${n.date || '-'}</td><td style="text-align:center;"><button class="delete-btn" onclick="deleteNotification('${n._id}')"><i class="fas fa-trash"></i> حذف</button></td></tr>`).join('');
+    if (!notifications?.length) { tb.innerHTML = '<td><td colspan="3" style="text-align:center;">📭 لا توجد إشعارات</td></tr>'; return; }
+    tb.innerHTML = notifications.map(n => `<tr><td style="text-align:right;">${escapeHtml(n.text)}</td><td style="text-align:center;">${n.date || '-'}</td><td style="text-align:center;"><button class="delete-btn" onclick="deleteNotification('${n._id}')"><i class="fas fa-trash"></i> حذف</button></td></tr>`).join('');
 }
 window.addNotification = async function() {
     const text = document.getElementById('notification-text')?.value.trim(); if (!text) return showToast('يرجى إدخال نص الإشعار!', 'error');
@@ -139,16 +139,16 @@ async function sendWhatsApp(phone, studentName, type, reason, penalty) { let ph 
 document.getElementById('add-violation-form')?.addEventListener('submit', async (e) => { e.preventDefault(); const sid = document.getElementById('violation-student-id').value.trim(), typ = document.getElementById('violation-type').value, rsn = document.getElementById('violation-reason').value.trim(), pnl = document.getElementById('violation-penalty').value.trim(), ps = document.getElementById('parent-summons').checked, pPhone = document.getElementById('parent-phone')?.value.trim(); if (!sid || !rsn || !pnl) return showToast('املأ الحقول المطلوبة', 'error'); const student = allStudents.find(s => s.studentCode === sid); if (!student) return showToast('رقم الجلوس غير موجود', 'error'); const data = { studentId: sid, type: typ, reason: rsn, penalty: pnl, parentSummons: ps, date: new Date().toLocaleString('ar-EG') }; if (editingViolationId) { await saveToServer(`/api/violations/${editingViolationId}`, {}, 'DELETE'); await saveToServer('/api/violations', data); editingViolationId = null; cancelEditViolation(); } else { await saveToServer('/api/violations', data); } violations = await getFromServer('/api/admin/violations'); renderViolations(); e.target.reset(); showToast('✅ تمت العملية', 'success'); if (pPhone && pPhone.length >= 10) { await sendWhatsApp(pPhone, student.fullName, typ, rsn, pnl); showToast('📱 تم فتح واتساب', 'info'); } });
 window.deleteViolation = async (id) => { if (confirm('⚠️ حذف المخالفة؟')) { await saveToServer(`/api/violations/${id}`, {}, 'DELETE'); violations = await getFromServer('/api/admin/violations'); renderViolations(); showToast('🗑️ تم الحذف', 'success'); if (editingViolationId === id) cancelEditViolation(); } };
 
-// ====================== الاختبارات (مختصرة للحفاظ على الطول) ======================
+// ====================== الاختبارات ======================
 let questionsList = [];
-function renderQuestionInputs() { const type = document.getElementById('question-type')?.value, cont = document.getElementById('question-inputs'); if (!cont) return; /* نفس الكود الأصلي */ }
-window.addQuestion = function() { /* نفس الكود الأصلي */ };
-window.removeQuestion = function(idx) { questionsList.splice(idx,1); const qc = document.getElementById('questions-list'); if(qc) qc.innerHTML = questionsList.map((qq,i)=>`<div>سؤال ${i+1}: ${escapeHtml(qq.text)}<button onclick="removeQuestion(${i})">حذف</button></div>`).join(''); showToast('✅ تم حذف السؤال','success'); };
-window.saveExam = async function() { /* نفس الكود الأصلي */ };
-async function loadExamsList() { /* نفس الكود الأصلي */ }
-window.viewExam = async function(code) { /* نفس الكود الأصلي */ };
-window.deleteExam = async function(code) { /* نفس الكود الأصلي */ };
-document.getElementById('fetch-results')?.addEventListener('click', async () => { /* نفس الكود الأصلي */ });
+function renderQuestionInputs() { const type = document.getElementById('question-type')?.value, cont = document.getElementById('question-inputs'); if (!cont) return; if (type === 'multiple') { cont.innerHTML = `<div class="input-group"><label>نص السؤال</label><input type="text" id="qText" class="form-control"></div><div class="input-group"><label>الخيارات</label><div id="optionsArea"><input type="text" class="opt" placeholder="خيار 1"><input type="text" class="opt" placeholder="خيار 2"><br><input type="text" class="opt" placeholder="خيار 3"><input type="text" class="opt" placeholder="خيار 4"></div></div><div class="input-group"><label>الإجابة الصحيحة</label><select id="correctOpt" class="form-control"></select></div>`; const update = () => { const opts = [...document.querySelectorAll('.opt')].map(i => i.value.trim()).filter(v => v); const sel = document.getElementById('correctOpt'); sel.innerHTML = '<option value="">اختر الإجابة</option>' + opts.map(o => `<option value="${o}">${o}</option>`).join(''); }; document.querySelectorAll('.opt').forEach(i => i.addEventListener('input', update)); setTimeout(update, 100); } else if (type === 'essay') { cont.innerHTML = `<div class="input-group"><label>نص السؤال</label><input type="text" id="qText"></div><div class="input-group"><label>الإجابة النموذجية</label><textarea id="essayAnswer" rows="3"></textarea></div>`; } else if (type === 'truefalse') { cont.innerHTML = `<div class="input-group"><label>نص السؤال</label><input type="text" id="qText"></div><div class="input-group"><label>الإجابة الصحيحة</label><select id="tfAnswer"><option value="true">✔️ صح</option><option value="false">❌ خطأ</option></select></div>`; } }
+window.addQuestion = function() { const type = document.getElementById('question-type').value, text = document.getElementById('qText')?.value.trim(); if (!text) { showToast('أدخل نص السؤال أولاً!', 'error'); return; } let q = { type, text }; if (type === 'multiple') { let opts = [...document.querySelectorAll('.opt')].map(i => i.value.trim()).filter(v => v); let cor = document.getElementById('correctOpt').value; if (opts.length < 2) return showToast('أضف خيارين على الأقل!', 'error'); if (!cor) return showToast('اختر الإجابة الصحيحة!', 'error'); q.options = opts; q.correctAnswer = cor; } else if (type === 'essay') { let ans = document.getElementById('essayAnswer')?.value.trim(); if (!ans) return showToast('أدخل الإجابة النموذجية!', 'error'); q.correctAnswer = ans; } else if (type === 'truefalse') { q.correctAnswer = document.getElementById('tfAnswer').value; } questionsList.push(q); const qc = document.getElementById('questions-list'); if (qc) qc.innerHTML = questionsList.map((qq, idx) => `<div style="background:#f8f9fa; border-radius:12px; padding:15px; margin-bottom:12px; border-right:3px solid #C7A252;"><strong>سؤال ${idx+1}:</strong> ${escapeHtml(qq.text)}<br>${qq.options ? `<span style="color:#2D9C7C;">📌 الخيارات: ${qq.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${qq.correctAnswer}</span>` : ''}${qq.correctAnswer && !qq.options ? `<span style="color:#C7A252;">✅ الإجابة: ${qq.correctAnswer}</span>` : ''}<button onclick="removeQuestion(${idx})" style="background:#E74C3C; color:white; border:none; padding:5px 12px; border-radius:20px; margin-top:10px; cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></div>`).join(''); document.getElementById('question-inputs').innerHTML = ''; document.getElementById('qText').value = ''; showToast('✅ تم إضافة السؤال', 'success'); };
+window.removeQuestion = function(idx) { questionsList.splice(idx,1); const qc = document.getElementById('questions-list'); if(qc) qc.innerHTML = questionsList.map((qq,i)=>`<div><strong>سؤال ${i+1}:</strong> ${escapeHtml(qq.text)}<button onclick="removeQuestion(${i})">حذف</button></div>`).join(''); showToast('✅ تم حذف السؤال','success'); };
+window.saveExam = async function() { const name = document.getElementById('exam-name')?.value.trim(), code = document.getElementById('exam-code')?.value.trim(), stage = document.getElementById('exam-stage')?.value, duration = parseInt(document.getElementById('exam-duration')?.value); if (!name || !code || !duration || duration<1 || questionsList.length===0) { showToast('املأ جميع الحقول وأضف سؤالاً واحداً على الأقل', 'error'); return; } try { const res = await apiRequest('/api/exams', { method: 'POST', body: JSON.stringify({ name, code, stage, duration, questions: questionsList }) }); if (res.ok) { showToast('✅ تم حفظ الاختبار', 'success'); questionsList = []; document.getElementById('questions-list').innerHTML = ''; document.getElementById('exam-name').value = ''; document.getElementById('exam-code').value = ''; document.getElementById('exam-duration').value = ''; document.getElementById('exam-stage').value = 'first'; document.getElementById('question-inputs').innerHTML = ''; await loadExamsList(); } else showToast('فشل الحفظ', 'error'); } catch(e){ showToast('خطأ', 'error'); } };
+async function loadExamsList() { try { const res = await apiRequest('/api/exams'); if(!res.ok) throw new Error(); const exams = await res.json(); const tb = document.getElementById('exams-list-body'); if(!tb) return; if(!exams?.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;">📭 لا توجد اختبارات</td></tr>'; return; } tb.innerHTML = exams.map(ex => `<tr><td>${escapeHtml(ex.name)}</td><td><strong>${ex.code}</strong></td><td>${ex.stage==='first'?'الأولى ثانوي':'الثانية ثانوي'}</td><td>${ex.duration} دقيقة</td><td>${ex.questions?.length||0}</td><td>${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td><td><button class="edit-btn" onclick="viewExam('${ex.code}')"><i class="fas fa-eye"></i> عرض</button> <button class="delete-btn" onclick="deleteExam('${ex.code}')"><i class="fas fa-trash"></i> حذف</button></td></tr>`).join(''); } catch(e){ console.error(e); } }
+window.viewExam = async function(code) { try { const res = await apiRequest(`/api/exams/${encodeURIComponent(code)}`); const exam = await res.json(); let qHtml = '<div style="max-height:400px; overflow-y:auto;">'; exam.questions.forEach((q,i)=>{ qHtml+=`<div><strong>سؤال ${i+1}:</strong> ${escapeHtml(q.text)}<br>${q.options?`📌 ${q.options.join(', ')}<br>✅ ${q.correctAnswer}`:''}${q.correctAnswer&&!q.options?`✅ ${q.correctAnswer}`:''}</div><hr>`; }); qHtml+='</div>'; Swal.fire({ title: exam.name, html: `<p><strong>كود:</strong> ${exam.code}</p><p><strong>المدة:</strong> ${exam.duration} دقيقة</p><p><strong>عدد الأسئلة:</strong> ${exam.questions.length}</p>${qHtml}`, icon: 'info', confirmButtonText: 'إغلاق', width:'700px' }); } catch(e){ showToast('خطأ في عرض الاختبار','error'); } };
+window.deleteExam = async function(code) { const { isConfirmed } = await Swal.fire({ title: 'تأكيد الحذف', text: `حذف الاختبار ${code}؟`, icon: 'warning', showCancelButton: true, confirmButtonText: 'نعم', cancelButtonText: 'إلغاء', confirmButtonColor: '#E74C3C' }); if(isConfirmed){ try { const res = await apiRequest(`/api/exams/${encodeURIComponent(code)}`, { method: 'DELETE' }); if(res.ok) { showToast('✅ تم الحذف','success'); await loadExamsList(); } else showToast('فشل الحذف','error'); } catch(e){ showToast('خطأ','error'); } } };
+document.getElementById('fetch-results')?.addEventListener('click', async () => { const code = document.getElementById('results-exam-code')?.value.trim(); if(!code) return showToast('أدخل كود الاختبار','error'); try { const res = await apiRequest(`/api/exams/${encodeURIComponent(code)}/results`); const results = await res.json(); const container = document.getElementById('exam-results-list'); if(!results?.length) { container.innerHTML = '<p style="text-align:center;">📭 لا توجد نتائج</p>'; return; } container.innerHTML = `<div class="table-wrapper"><table><thead><tr><th>الطالب</th><th>النتيجة</th><th>التاريخ</th></tr></thead><tbody>${results.map(r=>`<tr><td>${escapeHtml(r.studentId)}</td><td><strong>${r.score.toFixed(1)}%</strong></td><td>${new Date(r.completionTime).toLocaleString('ar-EG')}</td></tr>`).join('')}</tbody></table></div>`; } catch(e){ showToast('خطأ في جلب النتائج','error'); } });
 document.getElementById('question-type')?.addEventListener('change', renderQuestionInputs);
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
@@ -158,10 +158,8 @@ window.analyzeExcel = async () => {
     const fileInput = document.getElementById('excel-upload');
     const file = fileInput.files[0];
     if (!file) return showToast('اختر ملف Excel أولاً', 'error');
-    
     const progressDiv = document.getElementById('upload-progress');
     progressDiv.innerHTML = '⏳ جاري قراءة الملف...';
-    
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
@@ -170,16 +168,11 @@ window.analyzeExcel = async () => {
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
             if (!rows || rows.length < 2) throw new Error('الملف فارغ أو لا يحتوي على بيانات');
-            
-            const headerRow = rows[0];
-            // نتوقع الأعمدة: 0: رقم الجلوس, 1: الاسم, 2: عربي, 3: إنجليزي, 4: علوم, 5: طب باطنة, 6: تمريض, 7: حاسب
             let successCount = 0, errorCount = 0;
             progressDiv.innerHTML = `📊 جاري معالجة ${rows.length-1} طالب...`;
-            
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
-                if (!row[0] || !row[1]) continue; // تخطي الصفوف الفارغة
-                
+                if (!row[0] || !row[1]) continue;
                 const studentCode = String(row[0]).trim();
                 const fullName = String(row[1]).trim();
                 const subjects = [];
@@ -189,10 +182,8 @@ window.analyzeExcel = async () => {
                 if (row[5] && !isNaN(parseFloat(row[5]))) subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) });
                 if (row[6] && !isNaN(parseFloat(row[6]))) subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) });
                 if (row[7] && !isNaN(parseFloat(row[7]))) subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) });
-                
                 const existingStudent = allStudents.find(s => s.studentCode === studentCode);
-                const payload = { fullName, subjects, semester: 'first' }; // يمكنك تعديل الترم حسب الحاجة
-                
+                const payload = { fullName, subjects, semester: 'first' };
                 try {
                     if (existingStudent) {
                         await apiRequest(`/api/students/${encodeURIComponent(studentCode)}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -204,11 +195,9 @@ window.analyzeExcel = async () => {
                     progressDiv.innerHTML = `✅ تمت معالجة ${successCount} طالب...`;
                 } catch (err) {
                     errorCount++;
-                    console.error(`فشل معالجة الطالب ${studentCode}:`, err);
+                    console.error(err);
                 }
             }
-            
-            // إعادة تحميل البيانات بعد الانتهاء
             allStudents = await getFromServer('/api/admin/students');
             studentsWithGrades = getStudentsWithGrades(allStudents);
             renderResults();
@@ -216,7 +205,7 @@ window.analyzeExcel = async () => {
             renderTopStudents();
             showToast(`✅ تم رفع ${successCount} طالب بنجاح، ${errorCount} فشل`, successCount > 0 ? 'success' : 'error');
             progressDiv.innerHTML = `✨ انتهى الرفع: ${successCount} ناجح، ${errorCount} فشل`;
-            fileInput.value = ''; // مسح اختيار الملف
+            fileInput.value = '';
         } catch (err) {
             console.error(err);
             showToast('خطأ في قراءة الملف: ' + err.message, 'error');
@@ -226,15 +215,12 @@ window.analyzeExcel = async () => {
     reader.onerror = () => { showToast('خطأ في قراءة الملف', 'error'); progressDiv.innerHTML = '❌ خطأ في القراءة'; };
     reader.readAsArrayBuffer(file);
 };
-
 document.getElementById('analyze-excel')?.addEventListener('click', window.analyzeExcel);
 document.getElementById('export-excel')?.addEventListener('click', () => { 
     const wsData = [["اسم الطالب", "رقم الجلوس", "المواد والدرجات", "المجموع", "النسبة"]]; 
     studentsWithGrades.forEach(s => { 
-        const total = calculateStudentTotal(s), pct = calculateStudentPercentage(s); 
-        const grades = getStudentFormattedGrades(s); 
-        let gtxt = ''; 
-        for (let [n, info] of Object.entries(grades)) gtxt += `${n}: ${info.grade}/${info.max} | `; 
+        const total = calculateStudentTotal(s), pct = calculateStudentPercentage(s), grades = getStudentFormattedGrades(s); 
+        let gtxt = ''; for (let [n, info] of Object.entries(grades)) gtxt += `${n}: ${info.grade}/${info.max} | `; 
         wsData.push([s.fullName, s.studentCode, gtxt, `${total}/${TOTAL_POSSIBLE}`, `${pct.toFixed(1)}%`]); 
     }); 
     const ws = XLSX.utils.aoa_to_sheet(wsData), wb = XLSX.utils.book_new(); 
@@ -261,7 +247,7 @@ document.getElementById('filter-select')?.addEventListener('change', e => {
 // ====================== دوال مساعدة ======================
 function renderAdminWelcomeMessage() { const u = getLoggedInUser(), d = document.querySelector('.admin-welcome-message'); if (d && u) d.textContent = `أهلًا بك يا ${u.fullName || u.username} في لوحة التحكم`; }
 function renderNavbar() { const n = document.getElementById('nav-bar'); if (n) n.innerHTML = `<a href="Home.html"><i class="fas fa-home"></i> الرئيسية</a><a href="admin.html"><i class="fas fa-cogs"></i> لوحة التحكم</a><a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>`; }
-window.toggleSubjects = function() { const sem = document.getElementById('semester')?.value; const hg = document.getElementById('history-group'), gg = document.getElementById('geography-group'); if (hg && gg) { hg.style.display = sem === 'first' ? 'block' : 'none'; gg.style.display = sem === 'first' ? 'none' : 'block'; } };
+window.toggleSubjects = function() { const sem = document.getElementById('semester')?.value, hg = document.getElementById('history-group'), gg = document.getElementById('geography-group'); if (hg && gg) { hg.style.display = sem === 'first' ? 'block' : 'none'; gg.style.display = sem === 'first' ? 'none' : 'block'; } };
 
 // ====================== نظام العشرة الأوائل ======================
 let topStudentsList = [], currentCertificateStudent = null;
