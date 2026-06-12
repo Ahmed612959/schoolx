@@ -938,5 +938,13 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'حدث خطأ داخلي في السيرفر' });
 });
 
+// ====================== نقطة نهاية لإرجاع CSRF Token ======================
+app.get('/api/csrf-token', (req, res) => {
+    // إنشاء توكن عشوائي وتخزينه في الجلسة (أو cookie)
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+    res.cookie('csrfToken', csrfToken, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+    res.json({ csrfToken });
+});
+
 // ====================== تصدير لـ Vercel ======================
 module.exports = app;
