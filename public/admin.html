@@ -78,6 +78,20 @@
         <i class="fas fa-calendar-check"></i> 📖 الصف الثالث
     </a>
 </div>
+    <!-- ====================== رفع Excel ====================== -->
+<div class="excel-upload-section">
+    <input type="file" id="excel-upload" accept=".xlsx, .xls">
+    <div class="input-group" style="min-width: 150px;">
+        <label for="upload-grade"><i class="fas fa-graduation-cap"></i> الصف الدراسي</label>
+        <select id="upload-grade" required>
+            <option value="first">🎓 الصف الأول</option>
+            <option value="second">📚 الصف الثاني</option>
+            <option value="third">📖 الصف الثالث</option>
+        </select>
+    </div>
+    <button id="analyze-excel" class="submit-btn"><i class="fas fa-file-excel"></i> تحليل ورفع Excel</button>
+    <div id="upload-progress" style="margin-top:10px; font-size:0.8rem; color:#1a4f6e;"></div>
+</div>
     <!-- ====================== إضافة نتيجة طالب ====================== -->
     <h2><i class="fas fa-edit"></i> إضافة / تعديل نتيجة طالب</h2>
     <div class="add-result-section">
