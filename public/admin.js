@@ -940,48 +940,75 @@ document.getElementById('save-exam')?.addEventListener('click', saveExam);
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
+    
+    // الحصول على الصف المختار
+    let gradeSelect = document.getElementById('upload-grade');
+    let selectedGrade = gradeSelect ? gradeSelect.value : 'first';
+    if (!selectedGrade) selectedGrade = 'first';
+    
     let reader = new FileReader(); 
     reader.onload = async (e) => { 
-        let data = new Uint8Array(e.target.result), wb = XLSX.read(data, { type: 'array' }), rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }); 
-        for (let i = 1; i < rows.length; i++) { 
-            let row = rows[i]; 
-            if (row[0] && row[1]) { 
-                let subjects = []; 
-                if (row[2]) subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) });
-                if (row[3]) subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) });
-                if (row[4]) subjects.push({ name: "علوم تطبيقية", grade: parseFloat(row[4]) });
-                if (row[5]) subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) });
-                if (row[6]) subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) });
-                if (row[7]) subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) });
-                let existing = allStudents.find(s => s.studentCode == row[0]); 
-                if (existing) await saveToServer(`/api/students/${row[0]}`, { fullName: row[1], subjects }, 'PUT'); 
-                else await saveToServer('/api/students', { fullName: row[1], id: row[0], subjects }); 
-            } 
-        } 
-        allStudents = await getFromServer('/api/admin/students'); 
-        studentsWithGrades = getStudentsWithGrades(allStudents); 
-        renderResults(); 
-        renderStats(); 
-        showToast('تم تحليل Excel', 'success'); 
+        try {
+            let data = new Uint8Array(e.target.result), 
+                wb = XLSX.read(data, { type: 'array' }), 
+                rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }); 
+            
+            // تجميع بيانات الطلاب لإرسالها دفعة واحدة
+            let studentsData = [];
+            for (let i = 1; i < rows.length; i++) { 
+                let row = rows[i]; 
+                if (row[0] && row[1]) { 
+                    let subjects = []; 
+                    if (row[2]) subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) });
+                    if (row[3]) subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) });
+                    if (row[4]) subjects.push({ name: "علوم تطبيقية", grade: parseFloat(row[4]) });
+                    if (row[5]) subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) });
+                    if (row[6]) subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) });
+                    if (row[7]) subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) });
+                    
+                    studentsData.push({
+                        studentCode: row[0].toString(),
+                        fullName: row[1],
+                        subjects: subjects,
+                        grade: selectedGrade,
+                        semester: 'first'
+                    });
+                } 
+            }
+            
+            if (studentsData.length === 0) {
+                showToast('لا توجد بيانات صالحة في الملف', 'error');
+                return;
+            }
+            
+            // إرسال البيانات إلى الخادم
+            const csrfToken = getCsrfToken();
+            const response = await fetch(`${BASE_URL}/api/upload-grades`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                credentials: 'include',
+                body: JSON.stringify({ students: studentsData })
+            });
+            
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'فشل الرفع');
+            
+            // إعادة تحميل البيانات
+            allStudents = await getFromServer('/api/admin/students'); 
+            studentsWithGrades = getStudentsWithGrades(allStudents); 
+            renderResults(); 
+            renderStats(); 
+            showToast(result.message || 'تم رفع البيانات بنجاح', 'success'); 
+        } catch (err) {
+            console.error(err);
+            showToast(err.message || 'حدث خطأ أثناء رفع الملف', 'error');
+        }
     }; 
     reader.readAsArrayBuffer(file); 
 };
-
-document.getElementById('analyze-excel')?.addEventListener('click', window.analyzeExcel);
-
-document.getElementById('export-excel')?.addEventListener('click', () => { 
-    let wsData = [["اسم الطالب", "رقم الجلوس", "المواد والدرجات", "المجموع", "النسبة"]]; 
-    studentsWithGrades.forEach(s => { 
-        let total = calculateStudentTotal(s), pct = calculateStudentPercentage(s), grades = getStudentFormattedGrades(s), gtxt = ''; 
-        for (let [n, info] of Object.entries(grades)) gtxt += `${n}: ${info.grade}/${info.max} | `; 
-        wsData.push([s.fullName, s.studentCode, gtxt, `${total}/${TOTAL_POSSIBLE}`, `${pct.toFixed(1)}%`]); 
-    }); 
-    let ws = XLSX.utils.aoa_to_sheet(wsData), wb = XLSX.utils.book_new(); 
-    XLSX.utils.book_append_sheet(wb, ws, 'النتائج'); 
-    XLSX.writeFile(wb, `نتائج_الطلاب_${new Date().toLocaleDateString()}.xlsx`); 
-    showToast('تم التصدير', 'success'); 
-});
-
 // ====================== بحث وتصفية ======================
 document.getElementById('search-input')?.addEventListener('input', e => renderResults(e.target.value));
 document.getElementById('filter-select')?.addEventListener('change', e => { 
