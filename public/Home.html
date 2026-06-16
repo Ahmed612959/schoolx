@@ -94,7 +94,7 @@
             justify-content: center;
             align-items: flex-start;
             padding: 15px;
-            padding-bottom: 120px;
+            padding-bottom: 140px;
         }
 
         .result-form-container {
@@ -335,7 +335,7 @@
             background: #1a2526;
             color: #d4af37;
             text-align: center;
-            padding: 10px 15px;
+            padding: 8px 15px;
             position: fixed;
             bottom: 75px;
             left: 50%;
@@ -344,14 +344,14 @@
             max-width: 600px;
             z-index: 998;
             border-radius: 30px;
-            border: 1px solid rgba(212, 175, 55, 0.3);
+            border: 1px solid rgba(212, 175, 55, 0.25);
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
-            background: rgba(26, 37, 38, 0.95);
-            backdrop-filter: blur(10px);
+            background: rgba(26, 37, 38, 0.92);
+            backdrop-filter: blur(8px);
         }
 
         footer p {
-            font-size: 0.8em;
+            font-size: 0.75em;
             font-weight: normal;
             margin: 0;
             display: flex;
@@ -607,31 +607,31 @@
             display: block !important;
         }
 
-        /* ===== استايل البوت - الحل الجذري ===== */
+        /* ===== استايل البوت - مصغر ومرفوع ===== */
         .live-bot {
             position: fixed;
-            bottom: 140px;
-            right: 20px;
+            bottom: 130px;
+            right: 15px;
             z-index: 10000;
             cursor: pointer;
-            filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
+            filter: drop-shadow(0 8px 15px rgba(0, 0, 0, 0.2));
             transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
         .bot-body {
             position: relative;
-            width: 100px;
+            width: 70px;
             transition: all 0.3s ease;
         }
 
         .bot-head {
             position: relative;
-            width: 80px;
-            height: 75px;
+            width: 60px;
+            height: 55px;
             background: linear-gradient(145deg, #4a90e2, #2c5f8a);
             border-radius: 50% 50% 45% 45%;
             margin: 0 auto;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             animation: headBob 2s ease-in-out infinite;
         }
 
@@ -653,13 +653,13 @@
 
         .bot-eyes {
             display: flex;
-            gap: 20px;
-            margin-top: 18px;
+            gap: 14px;
+            margin-top: 12px;
         }
 
         .bot-eye {
-            width: 16px;
-            height: 16px;
+            width: 12px;
+            height: 12px;
             background: white;
             border-radius: 50%;
             position: relative;
@@ -669,36 +669,36 @@
         .bot-eye::after {
             content: '';
             position: absolute;
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             background: #1a1a2e;
             border-radius: 50%;
-            top: 4px;
-            left: 4px;
+            top: 3px;
+            left: 3px;
             transition: all 0.1s;
         }
 
         .bot-eyebrows {
             display: flex;
-            gap: 28px;
-            margin-bottom: 5px;
+            gap: 20px;
+            margin-bottom: 3px;
         }
 
         .bot-eyebrow {
-            width: 15px;
-            height: 3px;
+            width: 12px;
+            height: 2px;
             background: #1a1a2e;
             border-radius: 2px;
             transition: all 0.3s ease;
         }
 
         .bot-mouth {
-            margin-top: 5px;
+            margin-top: 3px;
         }
 
         .bot-mouth-line {
-            width: 25px;
-            height: 3px;
+            width: 18px;
+            height: 2px;
             background: #1a1a2e;
             border-radius: 2px;
             transition: all 0.2s ease;
@@ -709,36 +709,36 @@
         }
 
         @keyframes mouthTalk {
-            0%, 100% { height: 3px; width: 22px; }
-            50% { height: 8px; width: 30px; border-radius: 0 0 12px 12px; }
+            0%, 100% { height: 2px; width: 16px; }
+            50% { height: 6px; width: 22px; border-radius: 0 0 10px 10px; }
         }
 
         .bot.angry .bot-eyebrow { transform: rotate(-15deg); }
         .bot.happy .bot-eyebrow { transform: rotate(0deg); }
         .bot.angry .bot-eye::after { background: #ff4757; }
-        .bot.angry .bot-mouth-line { width: 18px; background: #ff4757; }
+        .bot.angry .bot-mouth-line { width: 14px; background: #ff4757; }
 
         .bot-torso {
             position: relative;
-            width: 65px;
-            height: 55px;
+            width: 48px;
+            height: 40px;
             background: linear-gradient(145deg, #5a9ee7, #3a7bbd);
-            border-radius: 20px;
-            margin: -8px auto 0;
-            padding: 8px;
+            border-radius: 16px;
+            margin: -6px auto 0;
+            padding: 6px;
         }
 
         .bot-screen {
             background: #0a0a2e;
-            border-radius: 10px;
-            padding: 5px;
-            min-height: 35px;
+            border-radius: 8px;
+            padding: 4px;
+            min-height: 26px;
             border: 1px solid #00ff88;
         }
 
         .bot-screen-text {
             color: #00ff88;
-            font-size: 7px;
+            font-size: 5px;
             text-align: center;
             font-family: monospace;
             white-space: nowrap;
@@ -748,13 +748,13 @@
         .bot-buttons {
             display: flex;
             justify-content: center;
-            gap: 8px;
-            margin-top: 5px;
+            gap: 5px;
+            margin-top: 4px;
         }
 
         .bot-btn {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             background: #ff6b6b;
             border-radius: 50%;
             animation: buttonPulse 1.5s infinite;
@@ -769,15 +769,15 @@
 
         .bot-arms {
             position: relative;
-            margin-top: -45px;
+            margin-top: -33px;
         }
 
         .bot-arm {
             position: absolute;
-            width: 28px;
-            height: 40px;
+            width: 20px;
+            height: 30px;
             background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-            border-radius: 15px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -785,49 +785,49 @@
         }
 
         .bot-arm-left {
-            left: -28px;
+            left: -20px;
             transform-origin: top right;
         }
 
         .bot-arm-right {
-            right: -28px;
+            right: -20px;
             transform-origin: top left;
         }
 
         .bot-hand {
-            font-size: 16px;
+            font-size: 12px;
         }
 
         .bot-legs {
             display: flex;
             justify-content: center;
-            gap: 15px;
-            margin-top: -5px;
+            gap: 10px;
+            margin-top: -4px;
         }
 
         .bot-leg {
-            width: 15px;
-            height: 22px;
+            width: 10px;
+            height: 16px;
             background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-            border-radius: 0 0 10px 10px;
+            border-radius: 0 0 8px 8px;
         }
 
         .bot-speech-bubble {
             position: absolute;
-            top: -70px;
-            right: -30px;
+            top: -60px;
+            right: -20px;
             background: white;
-            border-radius: 20px;
-            padding: 10px 15px;
-            min-width: 180px;
-            max-width: 250px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            border-radius: 16px;
+            padding: 8px 12px;
+            min-width: 130px;
+            max-width: 180px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
             opacity: 0;
             transform: scale(0.8) translateY(10px);
             transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             pointer-events: none;
             border: 2px solid #d4af37;
-            font-size: 12px;
+            font-size: 10px;
             color: #1e293b;
             font-weight: 600;
             text-align: center;
@@ -841,9 +841,9 @@
         .bot-speech-bubble::after {
             content: '';
             position: absolute;
-            bottom: -10px;
-            right: 30px;
-            border-width: 10px 10px 0 10px;
+            bottom: -8px;
+            right: 25px;
+            border-width: 8px 8px 0 8px;
             border-style: solid;
             border-color: white transparent transparent transparent;
         }
@@ -1103,6 +1103,10 @@
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
 
+            .main-container {
+                padding-bottom: 160px;
+            }
+
             .nav-bar {
                 width: 95%;
                 padding: 10px 12px;
@@ -1126,13 +1130,13 @@
 
             footer {
                 width: 95%;
-                bottom: 70px;
-                padding: 8px 12px;
+                bottom: 68px;
+                padding: 6px 12px;
                 border-radius: 25px;
             }
 
             footer p {
-                font-size: 0.7em;
+                font-size: 0.65em;
             }
 
             .violations-section h3 {
@@ -1155,16 +1159,16 @@
             }
 
             .live-bot {
-                transform: scale(0.7);
-                bottom: 125px;
-                right: 8px;
+                transform: scale(0.85);
+                bottom: 120px;
+                right: 10px;
             }
             .bot-speech-bubble {
                 min-width: 120px;
                 font-size: 9px;
                 top: -55px;
-                right: -30px;
-                padding: 8px 12px;
+                right: -25px;
+                padding: 6px 10px;
             }
 
             .guide-card {
@@ -1206,6 +1210,10 @@
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 40px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 40px; }
 
+            .main-container {
+                padding-bottom: 180px;
+            }
+
             .nav-bar {
                 width: 98%;
                 padding: 8px 6px;
@@ -1229,13 +1237,13 @@
 
             footer {
                 width: 98%;
-                bottom: 60px;
-                padding: 6px 10px;
+                bottom: 58px;
+                padding: 5px 8px;
                 border-radius: 20px;
             }
 
             footer p {
-                font-size: 0.6em;
+                font-size: 0.55em;
             }
 
             .violations-section h3 {
@@ -1255,16 +1263,16 @@
             }
 
             .live-bot {
-                transform: scale(0.6);
-                bottom: 105px;
-                right: 4px;
+                transform: scale(0.75);
+                bottom: 100px;
+                right: 6px;
             }
             .bot-speech-bubble {
                 min-width: 100px;
                 font-size: 8px;
                 top: -50px;
-                right: -25px;
-                padding: 6px 10px;
+                right: -20px;
+                padding: 5px 8px;
             }
 
             .guide-card {
@@ -1410,7 +1418,7 @@
         </div>
     </div>
 
-    <!-- الفوتر فوق الناف بار -->
+    <!-- الفوتر -->
     <footer>
         <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
     </footer>
@@ -1509,7 +1517,7 @@
         </div>
     </div>
 
-    <!-- البوت المساعد -->
+    <!-- البوت المساعد - مصغر ومرفوع -->
     <div class="live-bot" id="liveBot">
         <div class="bot-body">
             <div class="bot-head">
@@ -1586,7 +1594,6 @@
                 clearTimeout(guideTimeout);
                 guideOverlay.classList.remove('show');
                 guideOverlay.style.display = 'none';
-                // التوجيه إلى صفحة السنة الأولى
                 window.location.href = 'First-Gards.html';
             });
 
