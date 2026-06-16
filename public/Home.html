@@ -94,7 +94,7 @@
             justify-content: center;
             align-items: flex-start;
             padding: 15px;
-            padding-bottom: 100px;
+            padding-bottom: 120px;
         }
 
         .result-form-container {
@@ -330,17 +330,45 @@
             border-radius: 0 0 3px 3px;
         }
 
+        /* ===== الفوتر ===== */
         footer {
             background: #1a2526;
             color: #d4af37;
             text-align: center;
-            padding: 8px;
-            margin-top: 20px;
+            padding: 10px 15px;
+            position: fixed;
+            bottom: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 92%;
+            max-width: 600px;
+            z-index: 998;
+            border-radius: 30px;
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+            background: rgba(26, 37, 38, 0.95);
+            backdrop-filter: blur(10px);
         }
 
         footer p {
-            font-size: 0.95em;
+            font-size: 0.8em;
             font-weight: normal;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .heart {
+            color: #dc3545;
+            animation: heartbeat 1.5s infinite;
+            display: inline-block;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
         }
 
         @keyframes fadeIn {
@@ -579,10 +607,10 @@
             display: block !important;
         }
 
-        /* ===== استايل البوت ===== */
+        /* ===== استايل البوت - الحل الجذري ===== */
         .live-bot {
             position: fixed;
-            bottom: 90px;
+            bottom: 140px;
             right: 20px;
             z-index: 10000;
             cursor: pointer;
@@ -1096,6 +1124,17 @@
                 font-size: 0.5em;
             }
 
+            footer {
+                width: 95%;
+                bottom: 70px;
+                padding: 8px 12px;
+                border-radius: 25px;
+            }
+
+            footer p {
+                font-size: 0.7em;
+            }
+
             .violations-section h3 {
                 font-size: 0.8em;
             }
@@ -1116,15 +1155,16 @@
             }
 
             .live-bot {
-                transform: scale(0.8);
-                bottom: 80px;
-                right: 10px;
+                transform: scale(0.7);
+                bottom: 125px;
+                right: 8px;
             }
             .bot-speech-bubble {
-                min-width: 140px;
-                font-size: 10px;
-                top: -60px;
-                right: -40px;
+                min-width: 120px;
+                font-size: 9px;
+                top: -55px;
+                right: -30px;
+                padding: 8px 12px;
             }
 
             .guide-card {
@@ -1187,6 +1227,17 @@
                 display: none;
             }
 
+            footer {
+                width: 98%;
+                bottom: 60px;
+                padding: 6px 10px;
+                border-radius: 20px;
+            }
+
+            footer p {
+                font-size: 0.6em;
+            }
+
             .violations-section h3 {
                 font-size: 0.75em;
             }
@@ -1204,9 +1255,16 @@
             }
 
             .live-bot {
-                transform: scale(0.7);
-                bottom: 65px;
-                right: 5px;
+                transform: scale(0.6);
+                bottom: 105px;
+                right: 4px;
+            }
+            .bot-speech-bubble {
+                min-width: 100px;
+                font-size: 8px;
+                top: -50px;
+                right: -25px;
+                padding: 6px 10px;
             }
 
             .guide-card {
@@ -1253,17 +1311,6 @@
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
-        }
-
-        .heart {
-            color: #dc3545;
-            animation: heartbeat 1.5s infinite;
-            display: inline-block;
-        }
-
-        @keyframes heartbeat {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
         }
     </style>
 </head>
@@ -1363,6 +1410,11 @@
         </div>
     </div>
 
+    <!-- الفوتر فوق الناف بار -->
+    <footer>
+        <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
+    </footer>
+
     <!-- الناف بار المحسن -->
     <nav class="nav-bar" id="nav-bar">
         <a href="#" class="active" data-page="home">
@@ -1387,10 +1439,6 @@
         </a>
     </nav>
 
-    <footer>
-        <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
-    </footer>
-
     <!-- ===== المرشد الجديد ===== -->
     <div class="guide-overlay show" id="guideOverlay">
         <div class="guide-card">
@@ -1407,7 +1455,7 @@
                     <span class="arrow-icon"><i class="fas fa-arrow-left"></i></span>
                     <span class="year-badge">السنة الأولى</span>
                     <span class="arrow-icon"><i class="fas fa-arrow-left"></i></span>
-                    <span style="color: #d4af37; font-weight: bold;">اضغط هنا</span>
+                    <span style="color: #d4af37; font-weight: bold; cursor: pointer;" id="guideClickHere">اضغط هنا</span>
                 </div>
                 <p style="margin-top: 10px; font-size: 0.9rem; color: #334155;">
                     <i class="fas fa-hand-point-left" style="color: #d4af37;"></i>
@@ -1513,6 +1561,7 @@
             const guideOverlay = document.getElementById('guideOverlay');
             const guideGotIt = document.getElementById('guideGotIt');
             const guideFirstYear = document.getElementById('guideFirstYear');
+            const guideClickHere = document.getElementById('guideClickHere');
             const guideProgressBar = document.getElementById('guideProgressBar');
             let guideTimeout = null;
 
@@ -1537,26 +1586,19 @@
                 clearTimeout(guideTimeout);
                 guideOverlay.classList.remove('show');
                 guideOverlay.style.display = 'none';
-                // محاكاة التوجيه لصفحة السنة الأولى
-                Toastify({
-                    text: "📘 جارٍ التوجيه إلى صفحة نتائج السنة الأولى...",
-                    duration: 3000,
-                    gravity: "top",
-                    position: "center",
-                    style: {
-                        background: "linear-gradient(135deg, #1a2526, #2f3b3c)",
-                        color: "#d4af37",
-                        borderRadius: "12px",
-                        padding: "16px 24px",
-                        fontSize: "1rem",
-                        border: "2px solid #d4af37"
-                    }
-                }).showToast();
-                // يمكن إضافة redirect هنا
-                // window.location.href = 'first-year-results.html';
+                // التوجيه إلى صفحة السنة الأولى
+                window.location.href = 'First-Gards.html';
             });
 
-            // إيقاف المؤقت إذا تم الضغط على أي مكان
+            // النص "اضغط هنا"
+            guideClickHere.addEventListener('click', function() {
+                clearTimeout(guideTimeout);
+                guideOverlay.classList.remove('show');
+                guideOverlay.style.display = 'none';
+                window.location.href = 'First-Gards.html';
+            });
+
+            // إيقاف المؤقت إذا تم الضغط على أي مكان خارج البطاقة
             guideOverlay.addEventListener('click', function(e) {
                 if (e.target === guideOverlay) {
                     clearTimeout(guideTimeout);
@@ -1565,18 +1607,6 @@
                 }
             });
         });
-
-        // دالة Toastify (إذا لم تكن موجودة)
-        if (typeof Toastify === 'undefined') {
-            window.Toastify = function(options) {
-                return {
-                    showToast: function() {
-                        console.log('Toast:', options.text);
-                        alert(options.text);
-                    }
-                };
-            };
-        }
     </script>
     <script src="Home.js"></script>
 </body>
