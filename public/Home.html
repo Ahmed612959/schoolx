@@ -117,16 +117,6 @@
             font-weight: bold;
             margin-bottom: 15px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            transition: all 0.5s ease;
-            min-height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .welcome-message i {
-            font-size: 1.3em;
         }
 
         .result-form-container h2 {
@@ -182,88 +172,11 @@
             cursor: pointer;
             transition: background 0.3s ease;
             width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
         }
 
         .submit-btn:hover {
             background: #1a2526;
             color: #d4af37;
-        }
-
-        .submit-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        /* ===== مؤشر التحميل ===== */
-        .loading-spinner {
-            display: none;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #1a2526;
-            border-top: 3px solid #d4af37;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        .loading-spinner.active {
-            display: inline-block;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* ===== أزرار الإجراءات ===== */
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            margin: 15px 0;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.85em;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex: 1;
-            justify-content: center;
-            min-width: 120px;
-        }
-
-        .action-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
-        .action-btn.print-btn {
-            background: #1a2526;
-            color: #d4af37;
-        }
-
-        .action-btn.print-btn:hover {
-            background: #d4af37;
-            color: #1a2526;
-        }
-
-        .action-btn.pdf-btn {
-            background: #dc3545;
-            color: white;
-        }
-
-        .action-btn.pdf-btn:hover {
-            background: #c82333;
         }
 
         .result-table {
@@ -274,110 +187,55 @@
         .table-wrapper {
             width: 100%;
             overflow-x: auto;
-            border-radius: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            border-radius: 12px;
+            background: linear-gradient(180deg, #f9f9f9, #ffffff);
+            border-radius: 8px;
             overflow: hidden;
             table-layout: fixed;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         th, td {
-            padding: 12px 14px;
+            padding: 12px;
             text-align: center;
-            border-bottom: 1px solid #e8e8e8;
+            border-bottom: 1px solid #d4af37;
             white-space: normal;
             word-wrap: break-word;
             font-size: 13px;
             vertical-align: middle;
-            transition: all 0.2s ease;
         }
 
         th {
-            background: linear-gradient(135deg, #1a2526, #2f3b3c);
+            background: linear-gradient(90deg, #1a2526, #2f3b3c);
             color: #d4af37;
             font-weight: bold;
             position: sticky;
             top: 0;
             z-index: 1;
-            font-size: 14px;
         }
 
         td {
             color: #1a2526;
             background: #fff;
-        }
-
-        tr {
-            transition: all 0.2s ease;
+            transition: background 0.3s ease;
         }
 
         tr:hover td {
-            background: #f8f4e8;
-            transform: scale(1.01);
-        }
-
-        tr:nth-child(even) td {
-            background: #faf8f5;
-        }
-
-        tr:nth-child(even):hover td {
-            background: #f5f0e0;
-        }
-
-        /* ===== تلوين الصفوف حسب التقدير ===== */
-        tr.excellent td {
-            border-right: 4px solid #2d6a4f;
-        }
-
-        tr.excellent td:first-child {
-            background: linear-gradient(90deg, #2d6a4f15, transparent);
-        }
-
-        tr.very-good td {
-            border-right: 4px solid #2196F3;
-        }
-
-        tr.very-good td:first-child {
-            background: linear-gradient(90deg, #2196F315, transparent);
-        }
-
-        tr.good td {
-            border-right: 4px solid #4CAF50;
-        }
-
-        tr.good td:first-child {
-            background: linear-gradient(90deg, #4CAF5015, transparent);
-        }
-
-        tr.pass td {
-            border-right: 4px solid #FFC107;
-        }
-
-        tr.pass td:first-child {
-            background: linear-gradient(90deg, #FFC10715, transparent);
-        }
-
-        tr.fail td {
-            border-right: 4px solid #dc3545;
-        }
-
-        tr.fail td:first-child {
-            background: linear-gradient(90deg, #dc354515, transparent);
+            background: #f0f0f0;
         }
 
         th:nth-child(1), td:nth-child(1) {
-            width: 35%;
-            min-width: 150px;
+            width: 40%;
+            min-width: 160px;
         }
 
         th:nth-child(2), td:nth-child(2) {
-            width: 25%;
-            min-width: 110px;
+            width: 30%;
+            min-width: 120px;
         }
 
         th:nth-child(3), td:nth-child(3) {
@@ -388,47 +246,6 @@
         th:nth-child(4), td:nth-child(4) {
             width: 15%;
             min-width: 60px;
-        }
-
-        th:nth-child(5), td:nth-child(5) {
-            width: 10%;
-            min-width: 70px;
-        }
-
-        /* ===== شارة التقدير ===== */
-        .grade-badge {
-            display: inline-block;
-            padding: 4px 14px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.75rem;
-            letter-spacing: 0.3px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .grade-badge.excellent {
-            background: linear-gradient(135deg, #2d6a4f, #1b4d3b);
-            color: white;
-        }
-
-        .grade-badge.very-good {
-            background: linear-gradient(135deg, #2196F3, #0b7dda);
-            color: white;
-        }
-
-        .grade-badge.good {
-            background: linear-gradient(135deg, #4CAF50, #388E3C);
-            color: white;
-        }
-
-        .grade-badge.pass {
-            background: linear-gradient(135deg, #FFC107, #F9A825);
-            color: #1a2526;
-        }
-
-        .grade-badge.fail {
-            background: linear-gradient(135deg, #dc3545, #b02a37);
-            color: white;
         }
 
         .table-separator {
@@ -555,8 +372,8 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         /* ===== جداول المخالفات والإشعارات ===== */
@@ -995,110 +812,6 @@
             to { width: 0%; }
         }
 
-        /* ===== نافذة المكتبة ===== */
-        #guidedTour {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.85);
-            z-index: 100000;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(5px);
-        }
-
-        #guidedTour > div {
-            background: white;
-            border-radius: 28px;
-            max-width: 400px;
-            width: 90%;
-            padding: 35px;
-            text-align: center;
-            animation: fadeInUp 0.4s ease;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ===== تنسيق الطباعة ===== */
-        @media print {
-            body {
-                background: white !important;
-                padding: 20px !important;
-            }
-
-            .main-header {
-                background: #1a2526 !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .main-header h1 {
-                color: #d4af37 !important;
-            }
-
-            .nav-bar, footer, .logout-btn, .action-buttons, .submit-btn, .input-group {
-                display: none !important;
-            }
-
-            .result-form-container {
-                box-shadow: none !important;
-                border: 1px solid #d4af37 !important;
-                padding: 15px !important;
-            }
-
-            table {
-                border: 1px solid #1a2526 !important;
-            }
-
-            th {
-                background: #1a2526 !important;
-                color: #d4af37 !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            td {
-                border: 1px solid #ddd !important;
-            }
-
-            .grade-badge {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .welcome-message {
-                background: #1a2526 !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .main-container {
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-
-            tr.excellent td,
-            tr.very-good td,
-            tr.good td,
-            tr.pass td,
-            tr.fail td {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .student-dashboard, .attendance-stats-section {
-                break-inside: avoid;
-                page-break-inside: avoid;
-            }
-        }
-
         /* ===== التوافق مع الشاشات الصغيرة ===== */
         @media (max-width: 1200px) {
             .result-form-container {
@@ -1112,7 +825,6 @@
             th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 110px; }
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
-            th:nth-child(5), td:nth-child(5) { width: 10%; min-width: 60px; }
 
             .violations-table th,
             .violations-table td {
@@ -1149,7 +861,6 @@
             th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 100px; }
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
-            th:nth-child(5), td:nth-child(5) { width: 10%; min-width: 50px; }
 
             .main-container {
                 padding-bottom: 100px;
@@ -1215,14 +926,6 @@
             .guide-card p {
                 font-size: 0.9rem;
             }
-
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .action-btn {
-                min-width: unset;
-            }
         }
 
         @media (max-width: 480px) {
@@ -1252,7 +955,6 @@
             th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 80px; }
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 40px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 40px; }
-            th:nth-child(5), td:nth-child(5) { width: 10%; min-width: 40px; }
 
             .main-container {
                 padding-bottom: 100px;
@@ -1319,16 +1021,37 @@
                 padding: 8px 18px;
                 font-size: 0.8rem;
             }
+        }
 
-            .action-buttons {
-                flex-direction: column;
-            }
+        /* ===== نافذة المكتبة ===== */
+        #guidedTour {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 100000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
 
-            .action-btn {
-                min-width: unset;
-                font-size: 0.75em;
-                padding: 6px 12px;
-            }
+        #guidedTour > div {
+            background: white;
+            border-radius: 28px;
+            max-width: 400px;
+            width: 90%;
+            padding: 35px;
+            text-align: center;
+            animation: fadeInUp 0.4s ease;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
@@ -1341,10 +1064,7 @@
 
     <div class="main-container">
         <div class="result-form-container">
-            <div class="welcome-message" id="welcome-message">
-                <i class="fas fa-graduation-cap"></i>
-                <span id="welcomeText">مرحباً بك في نظام النتائج</span>
-            </div>
+            <div class="welcome-message" id="welcome-message"></div>
             <h2>ابحث عن نتيجتك</h2>
             <form id="search-form">
                 <div class="input-group">
@@ -1355,22 +1075,8 @@
                     <label for="search-id">رقم الجلوس</label>
                     <input type="text" id="search-id" name="student-id" placeholder="رقم الجلوس فقط" required>
                 </div>
-                <button type="submit" class="submit-btn" id="searchBtn">
-                    <span class="loading-spinner" id="loadingSpinner"></span>
-                    <span id="btnText">عرض النتيجة</span>
-                    <i class="fas fa-search" id="btnIcon"></i>
-                </button>
+                <button type="submit" class="submit-btn">عرض النتيجة</button>
             </form>
-
-            <!-- أزرار الإجراءات -->
-            <div class="action-buttons" id="actionButtons" style="display: none;">
-                <button class="action-btn print-btn" onclick="printResult()">
-                    <i class="fas fa-print"></i> طباعة النتيجة
-                </button>
-                <button class="action-btn pdf-btn" onclick="exportPDF()">
-                    <i class="fas fa-file-pdf"></i> تصدير PDF
-                </button>
-            </div>
 
             <!-- لوحة التحكم -->
             <section class="student-dashboard" id="dashboard" style="display: none;">
@@ -1379,7 +1085,6 @@
                     <div class="stats">
                         <p id="student-percentage">نسبة نجاحك: --%</p>
                         <p id="class-average">متوسط الفصل: --%</p>
-                        <p id="student-grade">التقدير: --</p>
                     </div>
                     <div class="chart-container">
                         <canvas id="gradesChart"></canvas>
@@ -1406,21 +1111,13 @@
             </section>
 
             <!-- جدول النتيجة -->
-            <section class="result-table" id="resultTable">
+            <section class="result-table">
                 <h3>النتيجة</h3>
                 <div class="table-wrapper">
                     <table>
-                        <thead>
-                            <tr>
-                                <th>البيانات</th>
-                                <th>القيم</th>
-                                <th>المجموع</th>
-                                <th>النسبة</th>
-                                <th>التقدير</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead>
                         <tbody id="result-table-body">
-                            <tr><td colspan="5">🔍 قم بالبحث لعرض النتيجة</td></tr>
+                            <tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1554,260 +1251,13 @@
     </div>
 
     <script>
-        // ===== رسائل ترحيبية متغيرة =====
-        const welcomeMessages = [
-            { icon: 'fa-graduation-cap', text: '🎓 مرحباً بك في نظام النتائج' },
-            { icon: 'fa-star', text: '⭐ اجتهد وتفوق، النجاح ينتظرك!' },
-            { icon: 'fa-book', text: '📚 المعرفة هي المفتاح الحقيقي للنجاح' },
-            { icon: 'fa-trophy', text: '🏆 التفوق ليس حظاً، بل هو نتاج اجتهاد' },
-            { icon: 'fa-rocket', text: '🚀 انطلق نحو مستقبل مشرق' },
-            { icon: 'fa-heart', text: '💪 أنت قادر على تحقيق المستحيل' },
-            { icon: 'fa-lightbulb', text: '💡 العلم نور والاجتهاد سبيل النجاح' }
-        ];
-
-        let welcomeIndex = 0;
-        const welcomeText = document.getElementById('welcomeText');
-        const welcomeIcon = document.querySelector('.welcome-message i');
-
-        function changeWelcomeMessage() {
-            const msg = welcomeMessages[welcomeIndex];
-            welcomeText.textContent = msg.text;
-            welcomeIcon.className = `fas ${msg.icon}`;
-            welcomeIndex = (welcomeIndex + 1) % welcomeMessages.length;
-        }
-
-        // تغيير الرسالة كل 5 ثواني
-        setInterval(changeWelcomeMessage, 5000);
-
-        // ===== مؤشر التحميل =====
-        const searchForm = document.getElementById('search-form');
-        const searchBtn = document.getElementById('searchBtn');
-        const loadingSpinner = document.getElementById('loadingSpinner');
-        const btnText = document.getElementById('btnText');
-        const btnIcon = document.getElementById('btnIcon');
-        const actionButtons = document.getElementById('actionButtons');
-        const resultBody = document.getElementById('result-table-body');
-
-        searchForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            // تفعيل مؤشر التحميل
-            searchBtn.disabled = true;
-            loadingSpinner.classList.add('active');
-            btnText.textContent = 'جاري البحث...';
-            btnIcon.style.display = 'none';
-
-            // محاكاة البحث (استبدل هذا بمنطق البحث الفعلي)
-            setTimeout(function() {
-                // إيقاف مؤشر التحميل
-                searchBtn.disabled = false;
-                loadingSpinner.classList.remove('active');
-                btnText.textContent = 'عرض النتيجة';
-                btnIcon.style.display = 'inline-block';
-
-                // عرض أزرار الإجراءات
-                actionButtons.style.display = 'flex';
-
-                // إظهار النتيجة (محاكاة)
-                showResult();
-            }, 1500);
-        });
-
-        // ===== دالة عرض النتيجة (محاكاة) =====
-        function showResult() {
-            const percentage = Math.floor(Math.random() * 100);
-            let grade, gradeClass, badgeClass;
-
-            if (percentage >= 90) {
-                grade = 'ممتاز';
-                gradeClass = 'excellent';
-                badgeClass = 'excellent';
-            } else if (percentage >= 80) {
-                grade = 'جيد جداً';
-                gradeClass = 'very-good';
-                badgeClass = 'very-good';
-            } else if (percentage >= 65) {
-                grade = 'جيد';
-                gradeClass = 'good';
-                badgeClass = 'good';
-            } else if (percentage >= 50) {
-                grade = 'مقبول';
-                gradeClass = 'pass';
-                badgeClass = 'pass';
-            } else {
-                grade = 'راسب';
-                gradeClass = 'fail';
-                badgeClass = 'fail';
-            }
-
-            const subjects = [
-                { name: 'اللغة العربية', degree: Math.floor(Math.random() * 100) },
-                { name: 'اللغة الإنجليزية', degree: Math.floor(Math.random() * 100) },
-                { name: 'الرياضيات', degree: Math.floor(Math.random() * 100) },
-                { name: 'الفيزياء', degree: Math.floor(Math.random() * 100) },
-                { name: 'الكيمياء', degree: Math.floor(Math.random() * 100) }
-            ];
-
-            const total = subjects.reduce((sum, s) => sum + s.degree, 0);
-            const avg = (total / subjects.length).toFixed(2);
-
-            let html = `<tr class="${gradeClass}">
-                <td><strong>المواد</strong></td>
-                <td>
-                    <div style="display:flex;flex-direction:column;gap:4px;text-align:right;padding-right:10px;">
-                        ${subjects.map(s => `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px dashed #eee;">
-                            <span>${s.name}</span>
-                            <span style="font-weight:600;color:#1a2526;">${s.degree}%</span>
-                        </div>`).join('')}
-                    </div>
-                </td>
-                <td><span class="total-cell" style="background:linear-gradient(135deg,#1a2526,#2f3b3c);color:#d4af37;padding:4px 12px;border-radius:50px;font-weight:700;font-size:0.75rem;">${total}</span></td>
-                <td><span style="font-weight:700;font-size:1.1rem;color:#1a2526;">${avg}%</span></td>
-                <td><span class="grade-badge ${badgeClass}">${grade}</span></td>
-            </tr>`;
-
-            // إضافة المجموع الكلي
-            html += `<tr style="background:#f8f4e8;font-weight:bold;">
-                <td colspan="4" style="text-align:left;padding-right:20px;">
-                    <i class="fas fa-chart-line" style="color:#d4af37;"></i> 
-                    المجموع الكلي: <span style="color:#1a2526;">${total}</span> من ${subjects.length * 100}
-                </td>
-                <td>
-                    <span style="display:inline-block;background:linear-gradient(135deg,#1a2526,#2f3b3c);color:#d4af37;padding:4px 16px;border-radius:50px;font-weight:700;font-size:0.85rem;">
-                        ${avg}%
-                    </span>
-                </td>
-            </tr>`;
-
-            resultBody.innerHTML = html;
-
-            // تحديث لوحة التحكم
-            document.getElementById('dashboard').style.display = 'block';
-            document.getElementById('student-percentage').textContent = `نسبة نجاحك: ${avg}%`;
-            document.getElementById('class-average').textContent = `متوسط الفصل: ${(Math.random() * 30 + 60).toFixed(2)}%`;
-            document.getElementById('student-grade').textContent = `التقدير: ${grade}`;
-
-            // إظهار إحصائيات الحضور
-            document.getElementById('attendanceStatsSection').style.display = 'block';
-
-            // تشغيل صوت النتيجة
-            playResultSound(grade);
-
-            // عرض إشعار
-            Toastify({
-                text: `🎉 تم العثور على النتيجة! التقدير: ${grade}`,
-                duration: 3000,
-                gravity: "top",
-                position: "center",
-                style: {
-                    background: "linear-gradient(135deg, #1a2526, #2f3b3c)",
-                    color: "#d4af37",
-                    borderRadius: "12px",
-                    padding: "16px 24px",
-                    fontSize: "1rem",
-                    border: "2px solid #d4af37"
-                }
-            }).showToast();
-        }
-
-        // ===== تشغيل صوت النتيجة =====
-        function playResultSound(grade) {
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-
-                let frequency = 440;
-                let duration = 0.3;
-
-                if (grade === 'ممتاز' || grade === 'جيد جداً') {
-                    frequency = 523.25; // C5
-                    duration = 0.5;
-                    // نغمة سعيدة
-                    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
-                    oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.15);
-                    oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.3);
-                } else if (grade === 'جيد' || grade === 'مقبول') {
-                    frequency = 440; // A4
-                    duration = 0.4;
-                } else {
-                    frequency = 330; // E4
-                    duration = 0.6;
-                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-                }
-
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + duration);
-            } catch (e) {
-                console.log('Audio not supported');
-            }
-        }
-
-        // ===== طباعة النتيجة =====
-        function printResult() {
-            window.print();
-        }
-
-        // ===== تصدير PDF =====
-        function exportPDF() {
-            Toastify({
-                text: "📄 جاري تحضير ملف PDF...",
-                duration: 2000,
-                gravity: "top",
-                position: "center",
-                style: {
-                    background: "linear-gradient(135deg, #dc3545, #b02a37)",
-                    color: "white",
-                    borderRadius: "12px",
-                    padding: "16px 24px",
-                    fontSize: "1rem"
-                }
-            }).showToast();
-
-            setTimeout(() => {
-                Toastify({
-                    text: "✅ تم تصدير PDF بنجاح!",
-                    duration: 3000,
-                    gravity: "top",
-                    position: "center",
-                    style: {
-                        background: "linear-gradient(135deg, #28a745, #1e7e34)",
-                        color: "white",
-                        borderRadius: "12px",
-                        padding: "16px 24px",
-                        fontSize: "1rem"
-                    }
-                }).showToast();
-            }, 1500);
-        }
-
-        // ===== دالة Toastify (إذا لم تكن موجودة) =====
-        if (typeof Toastify === 'undefined') {
-            window.Toastify = function(options) {
-                return {
-                    showToast: function() {
-                        console.log('Toast:', options.text);
-                        alert(options.text);
-                    }
-                };
-            };
-        }
-
         // ===== المرشد =====
         document.addEventListener('DOMContentLoaded', function() {
             const guideOverlay = document.getElementById('guideOverlay');
             const guideGotIt = document.getElementById('guideGotIt');
             const guideFirstYear = document.getElementById('guideFirstYear');
             const guideClickHere = document.getElementById('guideClickHere');
+            const guideProgressBar = document.getElementById('guideProgressBar');
             let guideTimeout = null;
 
             // إظهار المرشد
