@@ -11,313 +11,405 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
-        /* ========== جميع الأنماط السابقة ========== */
-        * {
+        /* ========== الاستايل الجديد ========== */
+        @font-face {
+            font-family: 'Cairo';
+            src: url('Cairo-Regular.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Cairo';
+            src: url('Cairo-Bold.ttf') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        html, body {
             margin: 0;
             padding: 0;
+            width: 100%;
+            min-height: 100vh;
+            font-family: 'Cairo', 'Tajawal', sans-serif;
+            background: linear-gradient(135deg, #1a2526, #2f3b3c);
+            display: flex;
+            flex-direction: column;
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'Tajawal', sans-serif;
-            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
-            color: #1e293b;
-            min-height: 100vh;
-            padding-bottom: 85px;
+        *, *:before, *:after {
+            box-sizing: inherit;
         }
 
         .main-header {
-            background: linear-gradient(135deg, #0f2b3d, #1a4f6e);
-            padding: 12px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            border-bottom: 3px solid #c4a35a;
-        }
-
-        .logo {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            border: 2px solid #c4a35a;
-            padding: 3px;
-            background: white;
-        }
-
-        .main-header h1 {
-            font-size: 0.95rem;
-            color: #c4a35a;
-            font-weight: 700;
+            background: #1a2526;
+            color: #d4af37;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+            position: relative;
         }
 
         .logout-btn {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 6px 16px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 0.7rem;
-            color: white;
+            background: #dc3545;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            transition: background 0.3s ease;
+            position: absolute;
+            top: 15px;
+            right: 15px;
         }
 
         .logout-btn:hover {
-            background: #c4a35a;
-            color: #0f2b3d;
-            transform: translateY(-2px);
+            background: #c82333;
+        }
+
+        .logo {
+            width: 12%;
+            max-width: 90px;
+            min-width: 50px;
+            margin-bottom: 8px;
+            border: 2px solid #d4af37;
+            border-radius: 50%;
+            padding: 4px;
+            object-fit: contain;
+        }
+
+        .main-header h1 {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin: 0;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
         }
 
         .main-container {
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 0 16px;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 15px;
         }
 
         .result-form-container {
-            background: white;
-            border-radius: 24px;
-            padding: 20px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
-            border: 1px solid #e2e8f0;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 1400px;
+            border: 1px solid #d4af37;
         }
 
         .welcome-message {
-            background: #e8f0f6;
-            border-radius: 16px;
-            padding: 12px 16px;
-            margin-bottom: 20px;
+            color: #d4af37;
+            background: #1a2526;
+            padding: 10px;
+            border-radius: 8px;
             text-align: center;
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #1a4f6e;
-            border-right: 4px solid #c4a35a;
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
         .result-form-container h2 {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #0f2b3d;
-            margin-bottom: 16px;
-            padding-bottom: 8px;
-            border-bottom: 3px solid #c4a35a;
-            display: inline-block;
+            color: #1a2526;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            font-weight: bold;
+            text-align: center;
         }
 
         .result-form-container h3 {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #1a4f6e;
-            margin: 20px 0 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-right: 3px solid #c4a35a;
-            padding-right: 10px;
+            color: #1a2526;
+            font-size: 0.95em;
+            margin-bottom: 12px;
+            font-weight: bold;
+            text-align: center;
         }
 
         .input-group {
-            margin-bottom: 16px;
+            margin-bottom: 15px;
         }
 
         .input-group label {
             display: block;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: #334155;
-            font-size: 0.8rem;
-        }
-
-        .input-group label i {
-            color: #c4a35a;
-            margin-left: 6px;
+            font-size: 0.95em;
+            color: #1a2526;
+            margin-bottom: 4px;
         }
 
         .input-group input {
             width: 100%;
-            padding: 10px 14px;
-            border: 2px solid #e2e8f0;
-            border-radius: 14px;
-            font-family: inherit;
-            font-size: 0.85rem;
-            transition: all 0.3s;
+            padding: 8px;
+            border: 1px solid #d4af37;
+            border-radius: 5px;
+            font-size: 0.95em;
+            transition: border-color 0.3s ease;
         }
 
         .input-group input:focus {
             outline: none;
-            border-color: #c4a35a;
-            box-shadow: 0 0 0 3px rgba(196,163,90,0.15);
+            border-color: #1a2526;
+            box-shadow: 0 0 5px rgba(26, 37, 38, 0.3);
         }
 
         .submit-btn {
-            background: linear-gradient(135deg, #c4a35a, #a07d3a);
-            color: #0f2b3d;
+            background: #d4af37;
+            color: #1a2526;
             border: none;
-            padding: 10px 20px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.85rem;
+            padding: 10px 18px;
+            border-radius: 5px;
+            font-size: 0.95em;
+            font-weight: bold;
             cursor: pointer;
+            transition: background 0.3s ease;
             width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.3s;
-            margin-top: 5px;
         }
 
         .submit-btn:hover {
-            transform: translateY(-2px);
-            filter: brightness(1.02);
+            background: #1a2526;
+            color: #d4af37;
         }
 
-        /* الجداول */
-        .result-table, .violations-section, .notifications-section {
-            margin-top: 24px;
+        .result-table {
+            margin-top: 15px;
+            animation: fadeIn 0.5s ease-in;
         }
 
         .table-wrapper {
+            width: 100%;
             overflow-x: auto;
-            border-radius: 16px;
-            background: white;
-            border: 1px solid #e2e8f0;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.8rem;
-            min-width: 500px;
+            background: linear-gradient(180deg, #f9f9f9, #ffffff);
+            border-radius: 8px;
+            overflow: hidden;
+            table-layout: fixed;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #d4af37;
+            white-space: normal;
+            word-wrap: break-word;
+            font-size: 13px;
+            vertical-align: middle;
         }
 
         th {
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: white;
-            padding: 12px 8px;
-            font-weight: 600;
-            text-align: center;
-            border-bottom: 2px solid #c4a35a;
+            background: linear-gradient(90deg, #1a2526, #2f3b3c);
+            color: #d4af37;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
 
         td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            vertical-align: top;
-            background: white;
+            color: #1a2526;
+            background: #fff;
+            transition: background 0.3s ease;
         }
 
         tr:hover td {
-            background: #faf6ed;
+            background: #f0f0f0;
         }
 
-        .subjects-container {
+        th:nth-child(1), td:nth-child(1) {
+            width: 40%;
+            min-width: 160px;
+        }
+
+        th:nth-child(2), td:nth-child(2) {
+            width: 30%;
+            min-width: 120px;
+        }
+
+        th:nth-child(3), td:nth-child(3) {
+            width: 15%;
+            min-width: 60px;
+        }
+
+        th:nth-child(4), td:nth-child(4) {
+            width: 15%;
+            min-width: 60px;
+        }
+
+        .table-separator {
+            border: none;
+            border-top: 1px solid #d4af37;
+            margin: 8px 0;
+            width: 80%;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .nav-bar {
+            background: #1a2526;
             display: flex;
-            flex-direction: column;
-            gap: 6px;
+            justify-content: space-around;
+            padding: 12px 0;
+            box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.4);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 999;
         }
 
-        .subject-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 6px;
-            padding: 5px 0;
-            border-bottom: 1px solid #f1f5f9;
+        .nav-bar a {
+            color: #d4af37;
+            text-decoration: none;
+            font-size: 1.1em;
+            transition: color 0.3s ease;
         }
 
-        .subject-name {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-            color: #334155;
-            font-size: 0.75rem;
+        .nav-bar a:hover {
+            color: #fff;
         }
 
-        .subject-name i {
-            color: #c4a35a;
-            width: 18px;
+        footer {
+            background: #1a2526;
+            color: #d4af37;
+            text-align: center;
+            padding: 8px;
+            margin-top: 20px;
         }
 
-        .subject-grade {
-            font-weight: 700;
-            color: #1a4f6e;
-            background: #e8f0f6;
-            padding: 2px 10px;
-            border-radius: 50px;
-            font-size: 0.7rem;
+        footer p {
+            font-size: 0.95em;
+            font-weight: normal;
         }
 
-        .extra-subject {
-            background: #faf6ed;
-            padding: 6px 10px;
-            border-radius: 12px;
-            margin-top: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 6px;
-            border-right: 3px solid #c4a35a;
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
-        .total-cell {
-            display: inline-block;
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.75rem;
+        /* ===== جداول المخالفات والإشعارات ===== */
+        .violations-section, .notifications-section {
+            margin-bottom: 15px;
+            text-align: center;
         }
 
-        .percentage-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.75rem;
+        .violations-section h3 {
+            font-size: 0.85em;
+            margin-bottom: 8px;
+            color: #1a2526;
+            font-weight: bold;
         }
 
-        .percentage-badge.excellent {
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            color: #c4a35a;
+        .violations-table, .notifications-table {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            display: block;
         }
 
-        .percentage-badge.passed {
-            background: linear-gradient(135deg, #2d6a4f, #1b4d3b);
-            color: white;
+        .violations-table table, .notifications-table table {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            background: #f9f9f9;
+            border-radius: 6px;
+            overflow: hidden;
+            table-layout: fixed;
         }
 
-        .percentage-badge.failed {
-            background: linear-gradient(135deg, #b91c1c, #991b1b);
-            color: white;
+        .violations-table th,
+        .violations-table td,
+        .notifications-table th,
+        .notifications-table td {
+            padding: 5px;
+            text-align: center;
+            border-bottom: 1px solid #d4af37;
+            font-size: 0.7em;
+            vertical-align: middle;
         }
 
-        /* لوحة التحكم */
-        .student-dashboard, .attendance-stats-section {
-            background: white;
-            border-radius: 20px;
+        .violations-table th,
+        .notifications-table th {
+            background: linear-gradient(90deg, #1a2526, #2f3b3c);
+            color: #d4af37;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .violations-table td,
+        .notifications-table td {
+            color: #1a2526;
+            background: #fff;
+        }
+
+        .violations-table th:nth-child(1), .violations-table td:nth-child(1) {
+            width: 15%;
+            min-width: 40px;
+        }
+
+        .violations-table th:nth-child(2), .violations-table td:nth-child(2) {
+            width: 35%;
+            min-width: 80px;
+            white-space: normal;
+            max-width: 150px;
+            word-wrap: break-word;
+        }
+
+        .violations-table th:nth-child(3), .violations-table td:nth-child(3) {
+            width: 30%;
+            min-width: 70px;
+            white-space: normal;
+            max-width: 150px;
+            word-wrap: break-word;
+        }
+
+        .violations-table th:nth-child(4), .violations-table td:nth-child(4) {
+            width: 10%;
+            min-width: 30px;
+        }
+
+        .violations-table th:nth-child(5), .violations-table td:nth-child(5) {
+            width: 20%;
+            min-width: 50px;
+        }
+
+        /* ===== لوحة التحكم ===== */
+        .student-dashboard {
+            background: #fff;
             padding: 20px;
-            margin: 20px 0;
-            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+            border: 1px solid #d4af37;
+            max-width: 800px;
+        }
+
+        .student-dashboard h2 {
+            font-size: 1.5em;
+            color: #1a2526;
+            margin-bottom: 15px;
+            text-align: center;
         }
 
         .dashboard-content {
             display: flex;
             flex-wrap: wrap;
             gap: 20px;
+            justify-content: space-between;
         }
 
         .stats {
@@ -326,26 +418,43 @@
         }
 
         .stats p {
-            background: #f8fafc;
-            padding: 12px;
-            border-radius: 12px;
-            border-right: 3px solid #c4a35a;
+            font-size: 1em;
+            color: #1a2526;
             margin: 10px 0;
         }
 
         .chart-container {
             flex: 2;
-            min-width: 250px;
+            min-width: 300px;
+            max-width: 600px;
+            margin: 0 auto;
         }
 
         canvas#gradesChart {
-            max-height: 220px;
-            width: 100% !important;
+            max-height: 350px;
+        }
+
+        /* ===== إحصائيات الحضور ===== */
+        .attendance-stats-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid #d4af37;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: block !important;
+        }
+
+        .attendance-stats-section h2 {
+            color: #1a2526;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            text-align: center;
         }
 
         .attendance-stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
         }
@@ -353,102 +462,509 @@
         .stat-card {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px;
+            gap: 15px;
+            padding: 15px;
             border-radius: 12px;
-            background: #f8fafc;
+            background: #f8f9fa;
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
         }
 
         .stat-card.present { border-right: 4px solid #28a745; }
         .stat-card.absent { border-right: 4px solid #dc3545; }
         .stat-card.late { border-right: 4px solid #ffc107; }
-        .stat-card.percentage { border-right: 4px solid #c4a35a; }
+        .stat-card.percentage { border-right: 4px solid #d4af37; }
 
-        .stat-icon { font-size: 1.5rem; }
-        .stat-number { font-size: 1.3rem; font-weight: 700; }
-        .stat-label { font-size: 0.7rem; color: #64748b; }
+        .stat-icon {
+            font-size: 2rem;
+        }
+
+        .stat-card.present .stat-icon { color: #28a745; }
+        .stat-card.absent .stat-icon { color: #dc3545; }
+        .stat-card.late .stat-icon { color: #ffc107; }
+        .stat-card.percentage .stat-icon { color: #d4af37; }
+
+        .stat-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #1a2526;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #666;
+        }
 
         .attendance-dates {
             display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
+            gap: 20px;
             justify-content: center;
-            padding-top: 16px;
-            border-top: 1px solid #e2e8f0;
+            flex-wrap: wrap;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
         }
 
         .date-card {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 8px;
-            padding: 6px 14px;
-            background: #f8fafc;
-            border-radius: 50px;
-            font-size: 0.75rem;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 0.9rem;
         }
+
+        .date-card i.fa-calendar-check { color: #28a745; }
+        .date-card i.fa-calendar-times { color: #dc3545; }
 
         .no-attendance-message {
             text-align: center;
             padding: 20px;
             background: #fff3cd;
-            border-radius: 12px;
+            border-radius: 10px;
             color: #856404;
+            margin-top: 15px;
+            display: block !important;
         }
 
-        /* الناف بار */
-        .nav-bar {
-            background: rgba(255,255,255,0.98);
-            backdrop-filter: blur(12px);
-            border-radius: 50px;
-            margin: 0 auto 12px auto;
-            padding: 8px 16px;
-            display: flex;
-            justify-content: center;
-            gap: 8px;
+        /* ===== استايل البوت (نفسه مع تغيير المكان) ===== */
+        .live-bot {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-            border: 1px solid rgba(196,163,90,0.3);
-            width: fit-content;
-            max-width: 95%;
+            bottom: 90px;
+            right: 20px;
+            z-index: 10000;
+            cursor: pointer;
+            filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
-        .nav-bar a {
-            text-decoration: none;
-            color: #64748b;
+        .bot-body {
+            position: relative;
+            width: 100px;
+            transition: all 0.3s ease;
+        }
+
+        .bot-head {
+            position: relative;
+            width: 80px;
+            height: 75px;
+            background: linear-gradient(145deg, #4a90e2, #2c5f8a);
+            border-radius: 50% 50% 45% 45%;
+            margin: 0 auto;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            animation: headBob 2s ease-in-out infinite;
+        }
+
+        @keyframes headBob {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(3deg); }
+            75% { transform: rotate(-3deg); }
+        }
+
+        .bot-face {
+            position: relative;
+            width: 100%;
+            height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 3px;
-            padding: 6px 12px;
-            border-radius: 40px;
-            font-size: 0.6rem;
+            justify-content: center;
+        }
+
+        .bot-eyes {
+            display: flex;
+            gap: 20px;
+            margin-top: 18px;
+        }
+
+        .bot-eye {
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            position: relative;
+            transition: all 0.1s;
+        }
+
+        .bot-eye::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #1a1a2e;
+            border-radius: 50%;
+            top: 4px;
+            left: 4px;
+            transition: all 0.1s;
+        }
+
+        .bot-eyebrows {
+            display: flex;
+            gap: 28px;
+            margin-bottom: 5px;
+        }
+
+        .bot-eyebrow {
+            width: 15px;
+            height: 3px;
+            background: #1a1a2e;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .bot-mouth {
+            margin-top: 5px;
+        }
+
+        .bot-mouth-line {
+            width: 25px;
+            height: 3px;
+            background: #1a1a2e;
+            border-radius: 2px;
+            transition: all 0.2s ease;
+        }
+
+        .bot.speaking .bot-mouth-line {
+            animation: mouthTalk 0.2s infinite;
+        }
+
+        @keyframes mouthTalk {
+            0%, 100% { height: 3px; width: 22px; }
+            50% { height: 8px; width: 30px; border-radius: 0 0 12px 12px; }
+        }
+
+        .bot.angry .bot-eyebrow { transform: rotate(-15deg); }
+        .bot.happy .bot-eyebrow { transform: rotate(0deg); }
+        .bot.angry .bot-eye::after { background: #ff4757; }
+        .bot.angry .bot-mouth-line { width: 18px; background: #ff4757; }
+
+        .bot-torso {
+            position: relative;
+            width: 65px;
+            height: 55px;
+            background: linear-gradient(145deg, #5a9ee7, #3a7bbd);
+            border-radius: 20px;
+            margin: -8px auto 0;
+            padding: 8px;
+        }
+
+        .bot-screen {
+            background: #0a0a2e;
+            border-radius: 10px;
+            padding: 5px;
+            min-height: 35px;
+            border: 1px solid #00ff88;
+        }
+
+        .bot-screen-text {
+            color: #00ff88;
+            font-size: 7px;
+            text-align: center;
+            font-family: monospace;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .bot-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .bot-btn {
+            width: 8px;
+            height: 8px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            animation: buttonPulse 1.5s infinite;
+        }
+        .bot-btn:nth-child(2) { background: #4ecdc4; animation-delay: 0.3s; }
+        .bot-btn:nth-child(3) { background: #ffe66d; animation-delay: 0.6s; }
+
+        @keyframes buttonPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .bot-arms {
+            position: relative;
+            margin-top: -45px;
+        }
+
+        .bot-arm {
+            position: absolute;
+            width: 28px;
+            height: 40px;
+            background: linear-gradient(145deg, #4a90e2, #2c5f8a);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: all 0.3s;
         }
 
-        .nav-bar a i {
-            font-size: 1rem;
+        .bot-arm-left {
+            left: -28px;
+            transform-origin: top right;
         }
 
-        .nav-bar a:hover {
-            color: #c4a35a;
-            background: #faf6ed;
-            transform: translateY(-2px);
+        .bot-arm-right {
+            right: -28px;
+            transform-origin: top left;
         }
 
-        footer {
+        .bot-hand {
+            font-size: 16px;
+        }
+
+        .bot-legs {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: -5px;
+        }
+
+        .bot-leg {
+            width: 15px;
+            height: 22px;
+            background: linear-gradient(145deg, #4a90e2, #2c5f8a);
+            border-radius: 0 0 10px 10px;
+        }
+
+        .bot-speech-bubble {
+            position: absolute;
+            top: -70px;
+            right: -30px;
+            background: white;
+            border-radius: 20px;
+            padding: 10px 15px;
+            min-width: 180px;
+            max-width: 250px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            opacity: 0;
+            transform: scale(0.8) translateY(10px);
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            pointer-events: none;
+            border: 2px solid #d4af37;
+            font-size: 12px;
+            color: #1e293b;
+            font-weight: 600;
             text-align: center;
-            padding: 16px;
-            font-size: 0.7rem;
-            color: #64748b;
-            margin-top: 20px;
+        }
+
+        .bot-speech-bubble.show {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+
+        .bot-speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            right: 30px;
+            border-width: 10px 10px 0 10px;
+            border-style: solid;
+            border-color: white transparent transparent transparent;
+        }
+
+        .field-error {
+            border-color: #ff4757 !important;
+            animation: shake 0.5s ease-in-out;
+            box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.2) !important;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .pointing {
+            animation: point 0.5s ease;
+        }
+
+        @keyframes point {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(-40deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        /* ===== التوافق مع الشاشات الصغيرة ===== */
+        @media (max-width: 1200px) {
+            .result-form-container {
+                max-width: 1100px;
+            }
+            th, td {
+                font-size: 12px;
+                padding: 10px;
+            }
+            th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 140px; }
+            th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 110px; }
+            th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
+            th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
+
+            .violations-table th,
+            .violations-table td {
+                font-size: 0.65em;
+                padding: 4px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                width: 18%;
+                max-width: 70px;
+                min-width: 45px;
+            }
+            .main-header h1 {
+                font-size: 1.1em;
+            }
+            .result-form-container {
+                padding: 12px;
+                max-width: 100%;
+            }
+            .input-group input {
+                font-size: 0.9em;
+            }
+            .submit-btn {
+                font-size: 0.9em;
+                padding: 8px 12px;
+            }
+            th, td {
+                font-size: 10px;
+                padding: 8px;
+            }
+            th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 120px; }
+            th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 100px; }
+            th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
+            th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
+            .nav-bar a {
+                font-size: 0.95em;
+            }
+
+            .violations-section h3 {
+                font-size: 0.8em;
+            }
+            .violations-table th,
+            .violations-table td {
+                font-size: 0.6em;
+                padding: 3px;
+            }
+
+            .attendance-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .stat-number {
+                font-size: 1.4rem;
+            }
+            .attendance-dates {
+                flex-direction: column;
+            }
+
+            .live-bot {
+                transform: scale(0.8);
+                bottom: 80px;
+                right: 10px;
+            }
+            .bot-speech-bubble {
+                min-width: 140px;
+                font-size: 10px;
+                top: -60px;
+                right: -40px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo {
+                width: 22%;
+                max-width: 60px;
+                min-width: 40px;
+            }
+            .main-header h1 {
+                font-size: 0.95em;
+            }
+            .result-form-container {
+                padding: 10px;
+            }
+            .input-group input {
+                font-size: 0.85em;
+            }
+            .submit-btn {
+                font-size: 0.85em;
+                padding: 7px 10px;
+            }
+            th, td {
+                font-size: 9px;
+                padding: 6px;
+            }
+            th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 100px; }
+            th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 80px; }
+            th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 40px; }
+            th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 40px; }
+            .nav-bar a {
+                font-size: 0.9em;
+            }
+
+            .violations-section h3 {
+                font-size: 0.75em;
+            }
+            .violations-table {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            .violations-table table {
+                min-width: 300px;
+            }
+            .violations-table th,
+            .violations-table td {
+                font-size: 0.55em;
+                padding: 2px;
+            }
+
+            .live-bot {
+                transform: scale(0.7);
+                bottom: 75px;
+                right: 5px;
+            }
+        }
+
+        /* ===== نافذة المكتبة ===== */
+        #guidedTour {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 100000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        #guidedTour > div {
+            background: white;
+            border-radius: 28px;
+            max-width: 400px;
+            width: 90%;
+            padding: 35px;
+            text-align: center;
+            animation: fadeInUp 0.4s ease;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .heart {
-            color: #b91c1c;
+            color: #dc3545;
             animation: heartbeat 1.5s infinite;
             display: inline-block;
         }
@@ -457,303 +973,6 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.1); }
         }
-
-        @media (max-width: 640px) {
-            .main-header {
-                flex-direction: column;
-                text-align: center;
-            }
-            .nav-bar a span {
-                display: none;
-            }
-            .nav-bar a i {
-                font-size: 1.2rem;
-            }
-            .nav-bar a {
-                padding: 8px 14px;
-            }
-        }
-/* ====================== البوت المساعد الذكي ====================== */
-.live-bot {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 10000;
-    cursor: pointer;
-    filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
-    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-/* جسم البوت */
-.bot-body {
-    position: relative;
-    width: 100px;
-    transition: all 0.3s ease;
-}
-
-/* رأس البوت */
-.bot-head {
-    position: relative;
-    width: 80px;
-    height: 75px;
-    background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-    border-radius: 50% 50% 45% 45%;
-    margin: 0 auto;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    animation: headBob 2s ease-in-out infinite;
-}
-
-@keyframes headBob {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(3deg); }
-    75% { transform: rotate(-3deg); }
-}
-
-/* وجه البوت */
-.bot-face {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-/* عيون البوت */
-.bot-eyes {
-    display: flex;
-    gap: 20px;
-    margin-top: 18px;
-}
-
-.bot-eye {
-    width: 16px;
-    height: 16px;
-    background: white;
-    border-radius: 50%;
-    position: relative;
-    transition: all 0.1s;
-}
-
-.bot-eye::after {
-    content: '';
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: #1a1a2e;
-    border-radius: 50%;
-    top: 4px;
-    left: 4px;
-    transition: all 0.1s;
-}
-
-/* الحاجبين */
-.bot-eyebrows {
-    display: flex;
-    gap: 28px;
-    margin-bottom: 5px;
-}
-
-.bot-eyebrow {
-    width: 15px;
-    height: 3px;
-    background: #1a1a2e;
-    border-radius: 2px;
-    transition: all 0.3s ease;
-}
-
-/* فم البوت - يتحرك فقط أثناء الكلام */
-.bot-mouth {
-    margin-top: 5px;
-}
-
-.bot-mouth-line {
-    width: 25px;
-    height: 3px;
-    background: #1a1a2e;
-    border-radius: 2px;
-    transition: all 0.2s ease;
-}
-
-/* أثناء الكلام */
-.bot.speaking .bot-mouth-line {
-    animation: mouthTalk 0.2s infinite;
-}
-
-@keyframes mouthTalk {
-    0%, 100% { height: 3px; width: 22px; }
-    50% { height: 8px; width: 30px; border-radius: 0 0 12px 12px; }
-}
-
-/* تعبيرات الوجه */
-.bot.angry .bot-eyebrow { transform: rotate(-15deg); }
-.bot.happy .bot-eyebrow { transform: rotate(0deg); }
-.bot.angry .bot-eye::after { background: #ff4757; }
-.bot.angry .bot-mouth-line { width: 18px; background: #ff4757; }
-
-/* جسم البوت */
-.bot-torso {
-    position: relative;
-    width: 65px;
-    height: 55px;
-    background: linear-gradient(145deg, #5a9ee7, #3a7bbd);
-    border-radius: 20px;
-    margin: -8px auto 0;
-    padding: 8px;
-}
-
-.bot-screen {
-    background: #0a0a2e;
-    border-radius: 10px;
-    padding: 5px;
-    min-height: 35px;
-    border: 1px solid #00ff88;
-}
-
-.bot-screen-text {
-    color: #00ff88;
-    font-size: 7px;
-    text-align: center;
-    font-family: monospace;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.bot-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 5px;
-}
-
-.bot-btn {
-    width: 8px;
-    height: 8px;
-    background: #ff6b6b;
-    border-radius: 50%;
-    animation: buttonPulse 1.5s infinite;
-}
-.bot-btn:nth-child(2) { background: #4ecdc4; animation-delay: 0.3s; }
-.bot-btn:nth-child(3) { background: #ffe66d; animation-delay: 0.6s; }
-
-@keyframes buttonPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
-}
-
-/* أذرع البوت */
-.bot-arms {
-    position: relative;
-    margin-top: -45px;
-}
-
-.bot-arm {
-    position: absolute;
-    width: 28px;
-    height: 40px;
-    background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-    border-radius: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s;
-}
-
-.bot-arm-left {
-    left: -28px;
-    transform-origin: top right;
-}
-
-.bot-arm-right {
-    right: -28px;
-    transform-origin: top left;
-}
-
-.bot-hand {
-    font-size: 16px;
-}
-
-/* أرجل البوت */
-.bot-legs {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: -5px;
-}
-
-.bot-leg {
-    width: 15px;
-    height: 22px;
-    background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-    border-radius: 0 0 10px 10px;
-}
-
-/* فقاعة الكلام */
-.bot-speech-bubble {
-    position: absolute;
-    top: -70px;
-    right: -30px;
-    background: white;
-    border-radius: 20px;
-    padding: 10px 15px;
-    min-width: 180px;
-    max-width: 250px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-    opacity: 0;
-    transform: scale(0.8) translateY(10px);
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    pointer-events: none;
-    border: 2px solid #c4a35a;
-    font-size: 12px;
-    color: #1e293b;
-    font-weight: 600;
-    text-align: center;
-}
-
-.bot-speech-bubble.show {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-}
-
-.bot-speech-bubble::after {
-    content: '';
-    position: absolute;
-    bottom: -10px;
-    right: 30px;
-    border-width: 10px 10px 0 10px;
-    border-style: solid;
-    border-color: white transparent transparent transparent;
-}
-
-/* إضاءة الحقل عند الخطأ */
-.field-error {
-    border-color: #ff4757 !important;
-    animation: shake 0.5s ease-in-out;
-    box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.2) !important;
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
-}
-
-/* حركة الإشارة */
-.pointing {
-    animation: point 0.5s ease;
-}
-
-@keyframes point {
-    0% { transform: rotate(0deg); }
-    50% { transform: rotate(-40deg); }
-    100% { transform: rotate(0deg); }
-}
-
-@media (max-width: 768px) {
-    .live-bot { transform: scale(0.8); }
-    .bot-speech-bubble { min-width: 140px; font-size: 10px; top: -60px; right: -40px; }
-}
     </style>
 </head>
 <body>
@@ -779,7 +998,7 @@
                 <button type="submit" class="submit-btn">عرض النتيجة</button>
             </form>
 
-            <!-- قسم لوحة التحكم التفاعلية (للطلاب فقط) -->
+            <!-- لوحة التحكم -->
             <section class="student-dashboard" id="dashboard" style="display: none;">
                 <h2>لوحة تحكمك</h2>
                 <div class="dashboard-content">
@@ -793,7 +1012,7 @@
                 </div>
             </section>
 
-            <!-- قسم إحصائيات الحضور والغياب (للطلاب فقط) -->
+            <!-- إحصائيات الحضور -->
             <section class="attendance-stats-section" id="attendanceStatsSection" style="display: none;">
                 <h2>📋 إحصائيات الحضور والغياب</h2>
                 <div class="attendance-stats-grid">
@@ -811,7 +1030,7 @@
                 </div>
             </section>
 
-            <!-- قسم النتيجة -->
+            <!-- جدول النتيجة -->
             <section class="result-table">
                 <h3>النتيجة</h3>
                 <div class="table-wrapper">
@@ -824,11 +1043,11 @@
                 </div>
             </section>
 
-            <!-- قسم المخالفات -->
+            <!-- المخالفات -->
             <section class="violations-section">
                 <h3>الإنذارات والمخالفات</h3>
-                <div class="table-wrapper">
-                    <table class="violations-table">
+                <div class="table-wrapper violations-table">
+                    <table>
                         <thead><tr><th>النوع</th><th>السبب</th><th>العقوبة</th><th>استدعاء ولي الأمر</th><th>تاريخ الإضافة</th></tr></thead>
                         <tbody id="violations-table-body">
                             <tr><td colspan="5">✅ لا توجد مخالفات مسجلة</td></tr>
@@ -837,11 +1056,11 @@
                 </div>
             </section>
 
-            <!-- قسم الإشعارات -->
+            <!-- الإشعارات -->
             <div class="notifications-section">
-                <h2>الإشعارات</h2>
-                <div class="table-wrapper">
-                    <table class="notifications-table">
+                <h3>الإشعارات</h3>
+                <div class="table-wrapper notifications-table">
+                    <table>
                         <thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead>
                         <tbody id="notifications-table-body">
                             <tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr>
@@ -858,19 +1077,19 @@
         <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
     </footer>
 
-    <!-- المرشد (تم نسخه من الكود السابق) -->
+    <!-- نافذة المكتبة -->
     <div id="guidedTour" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
         <div style="background: white; border-radius: 28px; max-width: 400px; width: 90%; padding: 35px; text-align: center; animation: fadeInUp 0.4s ease; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
             <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #1e3c4a, #0f2c38); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                <i class="fas fa-folder-open" style="font-size: 2.5rem; color: #d4af5a;"></i>
+                <i class="fas fa-folder-open" style="font-size: 2.5rem; color: #d4af37;"></i>
             </div>
             <h3 style="color: #1a2e36; margin-bottom: 10px; font-size: 1.4rem;">📚 مكتبة الملفات التعليمية</h3>
             <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6;">
-                تم إضافة <strong style="color: #d4af5a;">مكتبة متكاملة</strong> جديدة تحتوي على جميع المذكرات والكتب والملفات التعليمية!
+                تم إضافة <strong style="color: #d4af37;">مكتبة متكاملة</strong> جديدة تحتوي على جميع المذكرات والكتب والملفات التعليمية!
             </p>
             <div style="background: #f8fafc; border-radius: 20px; padding: 20px; margin: 20px 0;">
                 <div style="background: #1e3c4a; border-radius: 50px; padding: 12px; margin-bottom: 15px;">
-                    <i class="fas fa-folder-open" style="color: #d4af5a; font-size: 1.2rem;"></i>
+                    <i class="fas fa-folder-open" style="color: #d4af37; font-size: 1.2rem;"></i>
                     <span style="color: white; margin-right: 10px;">أيقونة المكتبة في شريط التنقل</span>
                 </div>
                 <p style="font-size: 0.85rem; color: #1a2e36;">
@@ -881,59 +1100,58 @@
                 <p style="font-size: 0.85rem; color: #2d6a4f;">📖 تحتوي المكتبة على مذكرات وملفات لكل الصفوف (الأول والثاني والثالث)</p>
             </div>
             <div style="display: flex; gap: 12px; margin-top: 20px;">
-                <button id="closeTourBtn" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #d4af5a, #c29d45); border: none; border-radius: 50px; color: #1a2e36; font-weight: 700; cursor: pointer;">حسناً، فهمت</button>
-                <button id="gotoLibraryBtn" style="flex: 1; padding: 12px; background: #1e3c4a; border: none; border-radius: 50px; color: #d4af5a; font-weight: 700; cursor: pointer;">اذهب إلى المكتبة</button>
+                <button id="closeTourBtn" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #d4af37, #c29d45); border: none; border-radius: 50px; color: #1a2e36; font-weight: 700; cursor: pointer;">حسناً، فهمت</button>
+                <button id="gotoLibraryBtn" style="flex: 1; padding: 12px; background: #1e3c4a; border: none; border-radius: 50px; color: #d4af37; font-weight: 700; cursor: pointer;">اذهب إلى المكتبة</button>
             </div>
             <button id="dontShowAgain" style="background: transparent; border: none; color: #94a3b8; font-size: 0.75rem; margin-top: 15px; cursor: pointer;">لا تظهر لي مرة أخرى</button>
         </div>
     </div>
 
-<!-- البوت المساعد المتحرك -->
-<div class="live-bot" id="liveBot">
-    <div class="bot-body">
-        <div class="bot-head">
-            <div class="bot-face">
-                <div class="bot-eyebrows">
-                    <div class="bot-eyebrow"></div>
-                    <div class="bot-eyebrow"></div>
+    <!-- البوت المساعد (تم نقله إلى أسفل الصفحة بجوار الناف بار) -->
+    <div class="live-bot" id="liveBot">
+        <div class="bot-body">
+            <div class="bot-head">
+                <div class="bot-face">
+                    <div class="bot-eyebrows">
+                        <div class="bot-eyebrow"></div>
+                        <div class="bot-eyebrow"></div>
+                    </div>
+                    <div class="bot-eyes">
+                        <div class="bot-eye left-eye"></div>
+                        <div class="bot-eye right-eye"></div>
+                    </div>
+                    <div class="bot-mouth">
+                        <div class="bot-mouth-line"></div>
+                    </div>
                 </div>
-                <div class="bot-eyes">
-                    <div class="bot-eye left-eye"></div>
-                    <div class="bot-eye right-eye"></div>
+            </div>
+            <div class="bot-torso">
+                <div class="bot-screen">
+                    <div class="bot-screen-text" id="botScreenMsg">مرحباً! 👋</div>
                 </div>
-                <div class="bot-mouth">
-                    <div class="bot-mouth-line"></div>
+                <div class="bot-buttons">
+                    <div class="bot-btn"></div>
+                    <div class="bot-btn"></div>
+                    <div class="bot-btn"></div>
                 </div>
+            </div>
+            <div class="bot-arms">
+                <div class="bot-arm bot-arm-left">
+                    <div class="bot-hand">✋</div>
+                </div>
+                <div class="bot-arm bot-arm-right">
+                    <div class="bot-hand">✋</div>
+                </div>
+            </div>
+            <div class="bot-legs">
+                <div class="bot-leg"></div>
+                <div class="bot-leg"></div>
             </div>
         </div>
-        <div class="bot-torso">
-            <div class="bot-screen">
-                <div class="bot-screen-text" id="botScreenMsg">مرحباً! 👋</div>
-            </div>
-            <div class="bot-buttons">
-                <div class="bot-btn"></div>
-                <div class="bot-btn"></div>
-                <div class="bot-btn"></div>
-            </div>
-        </div>
-        <div class="bot-arms">
-            <div class="bot-arm bot-arm-left">
-                <div class="bot-hand">✋</div>
-            </div>
-            <div class="bot-arm bot-arm-right">
-                <div class="bot-hand">✋</div>
-            </div>
-        </div>
-        <div class="bot-legs">
-            <div class="bot-leg"></div>
-            <div class="bot-leg"></div>
+        <div class="bot-speech-bubble" id="botSpeechBubble">
+            <span id="botSpeechText">أنا هنا لمساعدتك! 🤗</span>
         </div>
     </div>
-    <div class="bot-speech-bubble" id="botSpeechBubble">
-        <span id="botSpeechText">أنا هنا لمساعدتك! 🤗</span>
-    </div>
-</div>
-    
 
     <script src="Home.js"></script>
 </body>
