@@ -117,6 +117,16 @@
             font-weight: bold;
             margin-bottom: 15px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.5s ease;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .welcome-message i {
+            font-size: 1.3em;
         }
 
         .result-form-container h2 {
@@ -172,11 +182,88 @@
             cursor: pointer;
             transition: background 0.3s ease;
             width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
 
         .submit-btn:hover {
             background: #1a2526;
             color: #d4af37;
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* ===== مؤشر التحميل ===== */
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #1a2526;
+            border-top: 3px solid #d4af37;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-spinner.active {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ===== أزرار الإجراءات ===== */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            justify-content: center;
+            min-width: 120px;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .action-btn.print-btn {
+            background: #1a2526;
+            color: #d4af37;
+        }
+
+        .action-btn.print-btn:hover {
+            background: #d4af37;
+            color: #1a2526;
+        }
+
+        .action-btn.pdf-btn {
+            background: #dc3545;
+            color: white;
+        }
+
+        .action-btn.pdf-btn:hover {
+            background: #c82333;
         }
 
         .result-table {
@@ -187,55 +274,110 @@
         .table-wrapper {
             width: 100%;
             overflow-x: auto;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            background: linear-gradient(180deg, #f9f9f9, #ffffff);
-            border-radius: 8px;
+            border-radius: 12px;
             overflow: hidden;
             table-layout: fixed;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         th, td {
-            padding: 12px;
+            padding: 12px 14px;
             text-align: center;
-            border-bottom: 1px solid #d4af37;
+            border-bottom: 1px solid #e8e8e8;
             white-space: normal;
             word-wrap: break-word;
             font-size: 13px;
             vertical-align: middle;
+            transition: all 0.2s ease;
         }
 
         th {
-            background: linear-gradient(90deg, #1a2526, #2f3b3c);
+            background: linear-gradient(135deg, #1a2526, #2f3b3c);
             color: #d4af37;
             font-weight: bold;
             position: sticky;
             top: 0;
             z-index: 1;
+            font-size: 14px;
         }
 
         td {
             color: #1a2526;
             background: #fff;
-            transition: background 0.3s ease;
+        }
+
+        tr {
+            transition: all 0.2s ease;
         }
 
         tr:hover td {
-            background: #f0f0f0;
+            background: #f8f4e8;
+            transform: scale(1.01);
+        }
+
+        tr:nth-child(even) td {
+            background: #faf8f5;
+        }
+
+        tr:nth-child(even):hover td {
+            background: #f5f0e0;
+        }
+
+        /* ===== تلوين الصفوف حسب التقدير ===== */
+        tr.excellent td {
+            border-right: 4px solid #2d6a4f;
+        }
+
+        tr.excellent td:first-child {
+            background: linear-gradient(90deg, #2d6a4f15, transparent);
+        }
+
+        tr.very-good td {
+            border-right: 4px solid #2196F3;
+        }
+
+        tr.very-good td:first-child {
+            background: linear-gradient(90deg, #2196F315, transparent);
+        }
+
+        tr.good td {
+            border-right: 4px solid #4CAF50;
+        }
+
+        tr.good td:first-child {
+            background: linear-gradient(90deg, #4CAF5015, transparent);
+        }
+
+        tr.pass td {
+            border-right: 4px solid #FFC107;
+        }
+
+        tr.pass td:first-child {
+            background: linear-gradient(90deg, #FFC10715, transparent);
+        }
+
+        tr.fail td {
+            border-right: 4px solid #dc3545;
+        }
+
+        tr.fail td:first-child {
+            background: linear-gradient(90deg, #dc354515, transparent);
         }
 
         th:nth-child(1), td:nth-child(1) {
-            width: 40%;
-            min-width: 160px;
+            width: 35%;
+            min-width: 150px;
         }
 
         th:nth-child(2), td:nth-child(2) {
-            width: 30%;
-            min-width: 120px;
+            width: 25%;
+            min-width: 110px;
         }
 
         th:nth-child(3), td:nth-child(3) {
@@ -246,6 +388,47 @@
         th:nth-child(4), td:nth-child(4) {
             width: 15%;
             min-width: 60px;
+        }
+
+        th:nth-child(5), td:nth-child(5) {
+            width: 10%;
+            min-width: 70px;
+        }
+
+        /* ===== شارة التقدير ===== */
+        .grade-badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            letter-spacing: 0.3px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .grade-badge.excellent {
+            background: linear-gradient(135deg, #2d6a4f, #1b4d3b);
+            color: white;
+        }
+
+        .grade-badge.very-good {
+            background: linear-gradient(135deg, #2196F3, #0b7dda);
+            color: white;
+        }
+
+        .grade-badge.good {
+            background: linear-gradient(135deg, #4CAF50, #388E3C);
+            color: white;
+        }
+
+        .grade-badge.pass {
+            background: linear-gradient(135deg, #FFC107, #F9A825);
+            color: #1a2526;
+        }
+
+        .grade-badge.fail {
+            background: linear-gradient(135deg, #dc3545, #b02a37);
+            color: white;
         }
 
         .table-separator {
@@ -372,8 +555,8 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* ===== جداول المخالفات والإشعارات ===== */
@@ -607,258 +790,6 @@
             display: block !important;
         }
 
-        /* ===== استايل البوت - في أعلى الصفحة ===== */
-        .live-bot {
-            position: fixed;
-            top: 80px;
-            right: 15px;
-            z-index: 10000;
-            cursor: pointer;
-            filter: drop-shadow(0 8px 15px rgba(0, 0, 0, 0.2));
-            transition: all 0.3s ease;
-            transform: scale(0.6);
-            transform-origin: top right;
-        }
-
-        .bot-body {
-            position: relative;
-            width: 70px;
-            transition: all 0.3s ease;
-        }
-
-        .bot-head {
-            position: relative;
-            width: 60px;
-            height: 55px;
-            background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-            border-radius: 50% 50% 45% 45%;
-            margin: 0 auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            animation: headBob 2s ease-in-out infinite;
-        }
-
-        @keyframes headBob {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(3deg); }
-            75% { transform: rotate(-3deg); }
-        }
-
-        .bot-face {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .bot-eyes {
-            display: flex;
-            gap: 14px;
-            margin-top: 12px;
-        }
-
-        .bot-eye {
-            width: 12px;
-            height: 12px;
-            background: white;
-            border-radius: 50%;
-            position: relative;
-            transition: all 0.1s;
-        }
-
-        .bot-eye::after {
-            content: '';
-            position: absolute;
-            width: 6px;
-            height: 6px;
-            background: #1a1a2e;
-            border-radius: 50%;
-            top: 3px;
-            left: 3px;
-            transition: all 0.1s;
-        }
-
-        .bot-eyebrows {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 3px;
-        }
-
-        .bot-eyebrow {
-            width: 12px;
-            height: 2px;
-            background: #1a1a2e;
-            border-radius: 2px;
-            transition: all 0.3s ease;
-        }
-
-        .bot-mouth {
-            margin-top: 3px;
-        }
-
-        .bot-mouth-line {
-            width: 18px;
-            height: 2px;
-            background: #1a1a2e;
-            border-radius: 2px;
-            transition: all 0.2s ease;
-        }
-
-        .bot.speaking .bot-mouth-line {
-            animation: mouthTalk 0.2s infinite;
-        }
-
-        @keyframes mouthTalk {
-            0%, 100% { height: 2px; width: 16px; }
-            50% { height: 6px; width: 22px; border-radius: 0 0 10px 10px; }
-        }
-
-        .bot.angry .bot-eyebrow { transform: rotate(-15deg); }
-        .bot.happy .bot-eyebrow { transform: rotate(0deg); }
-        .bot.angry .bot-eye::after { background: #ff4757; }
-        .bot.angry .bot-mouth-line { width: 14px; background: #ff4757; }
-
-        .bot-torso {
-            position: relative;
-            width: 48px;
-            height: 40px;
-            background: linear-gradient(145deg, #5a9ee7, #3a7bbd);
-            border-radius: 16px;
-            margin: -6px auto 0;
-            padding: 6px;
-        }
-
-        .bot-screen {
-            background: #0a0a2e;
-            border-radius: 8px;
-            padding: 4px;
-            min-height: 26px;
-            border: 1px solid #00ff88;
-        }
-
-        .bot-screen-text {
-            color: #00ff88;
-            font-size: 5px;
-            text-align: center;
-            font-family: monospace;
-            white-space: nowrap;
-            overflow: hidden;
-        }
-
-        .bot-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 5px;
-            margin-top: 4px;
-        }
-
-        .bot-btn {
-            width: 6px;
-            height: 6px;
-            background: #ff6b6b;
-            border-radius: 50%;
-            animation: buttonPulse 1.5s infinite;
-        }
-        .bot-btn:nth-child(2) { background: #4ecdc4; animation-delay: 0.3s; }
-        .bot-btn:nth-child(3) { background: #ffe66d; animation-delay: 0.6s; }
-
-        @keyframes buttonPulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
-        }
-
-        .bot-arms {
-            position: relative;
-            margin-top: -33px;
-        }
-
-        .bot-arm {
-            position: absolute;
-            width: 20px;
-            height: 30px;
-            background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-
-        .bot-arm-left {
-            left: -20px;
-            transform-origin: top right;
-        }
-
-        .bot-arm-right {
-            right: -20px;
-            transform-origin: top left;
-        }
-
-        .bot-hand {
-            font-size: 12px;
-        }
-
-        .bot-legs {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: -4px;
-        }
-
-        .bot-leg {
-            width: 10px;
-            height: 16px;
-            background: linear-gradient(145deg, #4a90e2, #2c5f8a);
-            border-radius: 0 0 8px 8px;
-        }
-
-        .bot-speech-bubble {
-            position: absolute;
-            top: -60px;
-            right: -10px;
-            background: white;
-            border-radius: 16px;
-            padding: 8px 12px;
-            min-width: 130px;
-            max-width: 180px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            opacity: 0;
-            transform: scale(0.8) translateY(10px);
-            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            pointer-events: none;
-            border: 2px solid #d4af37;
-            font-size: 10px;
-            color: #1e293b;
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .bot-speech-bubble.show {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-        }
-
-        .bot-speech-bubble::after {
-            content: '';
-            position: absolute;
-            bottom: -8px;
-            right: 25px;
-            border-width: 8px 8px 0 8px;
-            border-style: solid;
-            border-color: white transparent transparent transparent;
-        }
-
-        /* منع تكبير البوت */
-        .live-bot:hover {
-            transform: scale(0.6) !important;
-        }
-
-        .live-bot:active {
-            transform: scale(0.6) !important;
-        }
-
         .field-error {
             border-color: #ff4757 !important;
             animation: shake 0.5s ease-in-out;
@@ -1064,6 +995,110 @@
             to { width: 0%; }
         }
 
+        /* ===== نافذة المكتبة ===== */
+        #guidedTour {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 100000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        #guidedTour > div {
+            background: white;
+            border-radius: 28px;
+            max-width: 400px;
+            width: 90%;
+            padding: 35px;
+            text-align: center;
+            animation: fadeInUp 0.4s ease;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== تنسيق الطباعة ===== */
+        @media print {
+            body {
+                background: white !important;
+                padding: 20px !important;
+            }
+
+            .main-header {
+                background: #1a2526 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .main-header h1 {
+                color: #d4af37 !important;
+            }
+
+            .nav-bar, footer, .logout-btn, .action-buttons, .submit-btn, .input-group {
+                display: none !important;
+            }
+
+            .result-form-container {
+                box-shadow: none !important;
+                border: 1px solid #d4af37 !important;
+                padding: 15px !important;
+            }
+
+            table {
+                border: 1px solid #1a2526 !important;
+            }
+
+            th {
+                background: #1a2526 !important;
+                color: #d4af37 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            td {
+                border: 1px solid #ddd !important;
+            }
+
+            .grade-badge {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .welcome-message {
+                background: #1a2526 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .main-container {
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            tr.excellent td,
+            tr.very-good td,
+            tr.good td,
+            tr.pass td,
+            tr.fail td {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .student-dashboard, .attendance-stats-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+        }
+
         /* ===== التوافق مع الشاشات الصغيرة ===== */
         @media (max-width: 1200px) {
             .result-form-container {
@@ -1077,6 +1112,7 @@
             th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 110px; }
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
+            th:nth-child(5), td:nth-child(5) { width: 10%; min-width: 60px; }
 
             .violations-table th,
             .violations-table td {
@@ -1113,6 +1149,7 @@
             th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 100px; }
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
+            th:nth-child(5), td:nth-child(5) { width: 10%; min-width: 50px; }
 
             .main-container {
                 padding-bottom: 100px;
@@ -1169,29 +1206,6 @@
                 flex-direction: column;
             }
 
-            .live-bot {
-                top: 75px;
-                right: 8px;
-                transform: scale(0.5);
-                transform-origin: top right;
-            }
-
-            .live-bot:hover {
-                transform: scale(0.5) !important;
-            }
-
-            .live-bot:active {
-                transform: scale(0.5) !important;
-            }
-
-            .bot-speech-bubble {
-                min-width: 100px;
-                font-size: 8px;
-                top: -50px;
-                right: -5px;
-                padding: 5px 8px;
-            }
-
             .guide-card {
                 padding: 25px 20px;
             }
@@ -1200,6 +1214,14 @@
             }
             .guide-card p {
                 font-size: 0.9rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .action-btn {
+                min-width: unset;
             }
         }
 
@@ -1230,6 +1252,7 @@
             th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 80px; }
             th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 40px; }
             th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 40px; }
+            th:nth-child(5), td:nth-child(5) { width: 10%; min-width: 40px; }
 
             .main-container {
                 padding-bottom: 100px;
@@ -1283,30 +1306,6 @@
                 padding: 2px;
             }
 
-            .live-bot {
-                top: 70px;
-                right: 4px;
-                transform: scale(0.4);
-                transform-origin: top right;
-            }
-
-            .live-bot:hover {
-                transform: scale(0.4) !important;
-            }
-
-            .live-bot:active {
-                transform: scale(0.4) !important;
-            }
-
-            .bot-speech-bubble {
-                min-width: 80px;
-                font-size: 7px;
-                top: -45px;
-                right: -2px;
-                padding: 4px 6px;
-                border-width: 1.5px;
-            }
-
             .guide-card {
                 padding: 20px 15px;
             }
@@ -1320,37 +1319,16 @@
                 padding: 8px 18px;
                 font-size: 0.8rem;
             }
-        }
 
-        /* ===== نافذة المكتبة ===== */
-        #guidedTour {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.85);
-            z-index: 100000;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(5px);
-        }
+            .action-buttons {
+                flex-direction: column;
+            }
 
-        #guidedTour > div {
-            background: white;
-            border-radius: 28px;
-            max-width: 400px;
-            width: 90%;
-            padding: 35px;
-            text-align: center;
-            animation: fadeInUp 0.4s ease;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            .action-btn {
+                min-width: unset;
+                font-size: 0.75em;
+                padding: 6px 12px;
+            }
         }
     </style>
 </head>
@@ -1363,7 +1341,10 @@
 
     <div class="main-container">
         <div class="result-form-container">
-            <div class="welcome-message" id="welcome-message"></div>
+            <div class="welcome-message" id="welcome-message">
+                <i class="fas fa-graduation-cap"></i>
+                <span id="welcomeText">مرحباً بك في نظام النتائج</span>
+            </div>
             <h2>ابحث عن نتيجتك</h2>
             <form id="search-form">
                 <div class="input-group">
@@ -1374,8 +1355,22 @@
                     <label for="search-id">رقم الجلوس</label>
                     <input type="text" id="search-id" name="student-id" placeholder="رقم الجلوس فقط" required>
                 </div>
-                <button type="submit" class="submit-btn">عرض النتيجة</button>
+                <button type="submit" class="submit-btn" id="searchBtn">
+                    <span class="loading-spinner" id="loadingSpinner"></span>
+                    <span id="btnText">عرض النتيجة</span>
+                    <i class="fas fa-search" id="btnIcon"></i>
+                </button>
             </form>
+
+            <!-- أزرار الإجراءات -->
+            <div class="action-buttons" id="actionButtons" style="display: none;">
+                <button class="action-btn print-btn" onclick="printResult()">
+                    <i class="fas fa-print"></i> طباعة النتيجة
+                </button>
+                <button class="action-btn pdf-btn" onclick="exportPDF()">
+                    <i class="fas fa-file-pdf"></i> تصدير PDF
+                </button>
+            </div>
 
             <!-- لوحة التحكم -->
             <section class="student-dashboard" id="dashboard" style="display: none;">
@@ -1384,6 +1379,7 @@
                     <div class="stats">
                         <p id="student-percentage">نسبة نجاحك: --%</p>
                         <p id="class-average">متوسط الفصل: --%</p>
+                        <p id="student-grade">التقدير: --</p>
                     </div>
                     <div class="chart-container">
                         <canvas id="gradesChart"></canvas>
@@ -1410,13 +1406,21 @@
             </section>
 
             <!-- جدول النتيجة -->
-            <section class="result-table">
+            <section class="result-table" id="resultTable">
                 <h3>النتيجة</h3>
                 <div class="table-wrapper">
                     <table>
-                        <thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th>البيانات</th>
+                                <th>القيم</th>
+                                <th>المجموع</th>
+                                <th>النسبة</th>
+                                <th>التقدير</th>
+                            </tr>
+                        </thead>
                         <tbody id="result-table-body">
-                            <tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr>
+                            <tr><td colspan="5">🔍 قم بالبحث لعرض النتيجة</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1549,60 +1553,261 @@
         </div>
     </div>
 
-    <!-- البوت المساعد - في أعلى الصفحة -->
-    <div class="live-bot" id="liveBot">
-        <div class="bot-body">
-            <div class="bot-head">
-                <div class="bot-face">
-                    <div class="bot-eyebrows">
-                        <div class="bot-eyebrow"></div>
-                        <div class="bot-eyebrow"></div>
-                    </div>
-                    <div class="bot-eyes">
-                        <div class="bot-eye left-eye"></div>
-                        <div class="bot-eye right-eye"></div>
-                    </div>
-                    <div class="bot-mouth">
-                        <div class="bot-mouth-line"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="bot-torso">
-                <div class="bot-screen">
-                    <div class="bot-screen-text" id="botScreenMsg">مرحباً! 👋</div>
-                </div>
-                <div class="bot-buttons">
-                    <div class="bot-btn"></div>
-                    <div class="bot-btn"></div>
-                    <div class="bot-btn"></div>
-                </div>
-            </div>
-            <div class="bot-arms">
-                <div class="bot-arm bot-arm-left">
-                    <div class="bot-hand">✋</div>
-                </div>
-                <div class="bot-arm bot-arm-right">
-                    <div class="bot-hand">✋</div>
-                </div>
-            </div>
-            <div class="bot-legs">
-                <div class="bot-leg"></div>
-                <div class="bot-leg"></div>
-            </div>
-        </div>
-        <div class="bot-speech-bubble" id="botSpeechBubble">
-            <span id="botSpeechText">أنا هنا لمساعدتك! 🤗</span>
-        </div>
-    </div>
-
     <script>
+        // ===== رسائل ترحيبية متغيرة =====
+        const welcomeMessages = [
+            { icon: 'fa-graduation-cap', text: '🎓 مرحباً بك في نظام النتائج' },
+            { icon: 'fa-star', text: '⭐ اجتهد وتفوق، النجاح ينتظرك!' },
+            { icon: 'fa-book', text: '📚 المعرفة هي المفتاح الحقيقي للنجاح' },
+            { icon: 'fa-trophy', text: '🏆 التفوق ليس حظاً، بل هو نتاج اجتهاد' },
+            { icon: 'fa-rocket', text: '🚀 انطلق نحو مستقبل مشرق' },
+            { icon: 'fa-heart', text: '💪 أنت قادر على تحقيق المستحيل' },
+            { icon: 'fa-lightbulb', text: '💡 العلم نور والاجتهاد سبيل النجاح' }
+        ];
+
+        let welcomeIndex = 0;
+        const welcomeText = document.getElementById('welcomeText');
+        const welcomeIcon = document.querySelector('.welcome-message i');
+
+        function changeWelcomeMessage() {
+            const msg = welcomeMessages[welcomeIndex];
+            welcomeText.textContent = msg.text;
+            welcomeIcon.className = `fas ${msg.icon}`;
+            welcomeIndex = (welcomeIndex + 1) % welcomeMessages.length;
+        }
+
+        // تغيير الرسالة كل 5 ثواني
+        setInterval(changeWelcomeMessage, 5000);
+
+        // ===== مؤشر التحميل =====
+        const searchForm = document.getElementById('search-form');
+        const searchBtn = document.getElementById('searchBtn');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const btnText = document.getElementById('btnText');
+        const btnIcon = document.getElementById('btnIcon');
+        const actionButtons = document.getElementById('actionButtons');
+        const resultBody = document.getElementById('result-table-body');
+
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // تفعيل مؤشر التحميل
+            searchBtn.disabled = true;
+            loadingSpinner.classList.add('active');
+            btnText.textContent = 'جاري البحث...';
+            btnIcon.style.display = 'none';
+
+            // محاكاة البحث (استبدل هذا بمنطق البحث الفعلي)
+            setTimeout(function() {
+                // إيقاف مؤشر التحميل
+                searchBtn.disabled = false;
+                loadingSpinner.classList.remove('active');
+                btnText.textContent = 'عرض النتيجة';
+                btnIcon.style.display = 'inline-block';
+
+                // عرض أزرار الإجراءات
+                actionButtons.style.display = 'flex';
+
+                // إظهار النتيجة (محاكاة)
+                showResult();
+            }, 1500);
+        });
+
+        // ===== دالة عرض النتيجة (محاكاة) =====
+        function showResult() {
+            const percentage = Math.floor(Math.random() * 100);
+            let grade, gradeClass, badgeClass;
+
+            if (percentage >= 90) {
+                grade = 'ممتاز';
+                gradeClass = 'excellent';
+                badgeClass = 'excellent';
+            } else if (percentage >= 80) {
+                grade = 'جيد جداً';
+                gradeClass = 'very-good';
+                badgeClass = 'very-good';
+            } else if (percentage >= 65) {
+                grade = 'جيد';
+                gradeClass = 'good';
+                badgeClass = 'good';
+            } else if (percentage >= 50) {
+                grade = 'مقبول';
+                gradeClass = 'pass';
+                badgeClass = 'pass';
+            } else {
+                grade = 'راسب';
+                gradeClass = 'fail';
+                badgeClass = 'fail';
+            }
+
+            const subjects = [
+                { name: 'اللغة العربية', degree: Math.floor(Math.random() * 100) },
+                { name: 'اللغة الإنجليزية', degree: Math.floor(Math.random() * 100) },
+                { name: 'الرياضيات', degree: Math.floor(Math.random() * 100) },
+                { name: 'الفيزياء', degree: Math.floor(Math.random() * 100) },
+                { name: 'الكيمياء', degree: Math.floor(Math.random() * 100) }
+            ];
+
+            const total = subjects.reduce((sum, s) => sum + s.degree, 0);
+            const avg = (total / subjects.length).toFixed(2);
+
+            let html = `<tr class="${gradeClass}">
+                <td><strong>المواد</strong></td>
+                <td>
+                    <div style="display:flex;flex-direction:column;gap:4px;text-align:right;padding-right:10px;">
+                        ${subjects.map(s => `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px dashed #eee;">
+                            <span>${s.name}</span>
+                            <span style="font-weight:600;color:#1a2526;">${s.degree}%</span>
+                        </div>`).join('')}
+                    </div>
+                </td>
+                <td><span class="total-cell" style="background:linear-gradient(135deg,#1a2526,#2f3b3c);color:#d4af37;padding:4px 12px;border-radius:50px;font-weight:700;font-size:0.75rem;">${total}</span></td>
+                <td><span style="font-weight:700;font-size:1.1rem;color:#1a2526;">${avg}%</span></td>
+                <td><span class="grade-badge ${badgeClass}">${grade}</span></td>
+            </tr>`;
+
+            // إضافة المجموع الكلي
+            html += `<tr style="background:#f8f4e8;font-weight:bold;">
+                <td colspan="4" style="text-align:left;padding-right:20px;">
+                    <i class="fas fa-chart-line" style="color:#d4af37;"></i> 
+                    المجموع الكلي: <span style="color:#1a2526;">${total}</span> من ${subjects.length * 100}
+                </td>
+                <td>
+                    <span style="display:inline-block;background:linear-gradient(135deg,#1a2526,#2f3b3c);color:#d4af37;padding:4px 16px;border-radius:50px;font-weight:700;font-size:0.85rem;">
+                        ${avg}%
+                    </span>
+                </td>
+            </tr>`;
+
+            resultBody.innerHTML = html;
+
+            // تحديث لوحة التحكم
+            document.getElementById('dashboard').style.display = 'block';
+            document.getElementById('student-percentage').textContent = `نسبة نجاحك: ${avg}%`;
+            document.getElementById('class-average').textContent = `متوسط الفصل: ${(Math.random() * 30 + 60).toFixed(2)}%`;
+            document.getElementById('student-grade').textContent = `التقدير: ${grade}`;
+
+            // إظهار إحصائيات الحضور
+            document.getElementById('attendanceStatsSection').style.display = 'block';
+
+            // تشغيل صوت النتيجة
+            playResultSound(grade);
+
+            // عرض إشعار
+            Toastify({
+                text: `🎉 تم العثور على النتيجة! التقدير: ${grade}`,
+                duration: 3000,
+                gravity: "top",
+                position: "center",
+                style: {
+                    background: "linear-gradient(135deg, #1a2526, #2f3b3c)",
+                    color: "#d4af37",
+                    borderRadius: "12px",
+                    padding: "16px 24px",
+                    fontSize: "1rem",
+                    border: "2px solid #d4af37"
+                }
+            }).showToast();
+        }
+
+        // ===== تشغيل صوت النتيجة =====
+        function playResultSound(grade) {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                let frequency = 440;
+                let duration = 0.3;
+
+                if (grade === 'ممتاز' || grade === 'جيد جداً') {
+                    frequency = 523.25; // C5
+                    duration = 0.5;
+                    // نغمة سعيدة
+                    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
+                    oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.15);
+                    oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.3);
+                } else if (grade === 'جيد' || grade === 'مقبول') {
+                    frequency = 440; // A4
+                    duration = 0.4;
+                } else {
+                    frequency = 330; // E4
+                    duration = 0.6;
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+                }
+
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + duration);
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+
+        // ===== طباعة النتيجة =====
+        function printResult() {
+            window.print();
+        }
+
+        // ===== تصدير PDF =====
+        function exportPDF() {
+            Toastify({
+                text: "📄 جاري تحضير ملف PDF...",
+                duration: 2000,
+                gravity: "top",
+                position: "center",
+                style: {
+                    background: "linear-gradient(135deg, #dc3545, #b02a37)",
+                    color: "white",
+                    borderRadius: "12px",
+                    padding: "16px 24px",
+                    fontSize: "1rem"
+                }
+            }).showToast();
+
+            setTimeout(() => {
+                Toastify({
+                    text: "✅ تم تصدير PDF بنجاح!",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "center",
+                    style: {
+                        background: "linear-gradient(135deg, #28a745, #1e7e34)",
+                        color: "white",
+                        borderRadius: "12px",
+                        padding: "16px 24px",
+                        fontSize: "1rem"
+                    }
+                }).showToast();
+            }, 1500);
+        }
+
+        // ===== دالة Toastify (إذا لم تكن موجودة) =====
+        if (typeof Toastify === 'undefined') {
+            window.Toastify = function(options) {
+                return {
+                    showToast: function() {
+                        console.log('Toast:', options.text);
+                        alert(options.text);
+                    }
+                };
+            };
+        }
+
         // ===== المرشد =====
         document.addEventListener('DOMContentLoaded', function() {
             const guideOverlay = document.getElementById('guideOverlay');
             const guideGotIt = document.getElementById('guideGotIt');
             const guideFirstYear = document.getElementById('guideFirstYear');
             const guideClickHere = document.getElementById('guideClickHere');
-            const guideProgressBar = document.getElementById('guideProgressBar');
             let guideTimeout = null;
 
             // إظهار المرشد
