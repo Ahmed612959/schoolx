@@ -607,17 +607,17 @@
             display: block !important;
         }
 
-        /* ===== استايل البوت - وضع جديد في الزاوية اليسرى السفلية ===== */
+        /* ===== استايل البوت - في أعلى الصفحة ===== */
         .live-bot {
             position: fixed;
-            bottom: 140px;
-            left: 15px;
+            top: 80px;
+            right: 15px;
             z-index: 10000;
             cursor: pointer;
             filter: drop-shadow(0 8px 15px rgba(0, 0, 0, 0.2));
             transition: all 0.3s ease;
-            transform: scale(0.65);
-            transform-origin: bottom left;
+            transform: scale(0.6);
+            transform-origin: top right;
         }
 
         .bot-body {
@@ -817,8 +817,7 @@
         .bot-speech-bubble {
             position: absolute;
             top: -60px;
-            left: -10px;
-            right: auto;
+            right: -10px;
             background: white;
             border-radius: 16px;
             padding: 8px 12px;
@@ -845,8 +844,7 @@
             content: '';
             position: absolute;
             bottom: -8px;
-            left: 25px;
-            right: auto;
+            right: 25px;
             border-width: 8px 8px 0 8px;
             border-style: solid;
             border-color: white transparent transparent transparent;
@@ -854,11 +852,11 @@
 
         /* منع تكبير البوت */
         .live-bot:hover {
-            transform: scale(0.65) !important;
+            transform: scale(0.6) !important;
         }
 
         .live-bot:active {
-            transform: scale(0.65) !important;
+            transform: scale(0.6) !important;
         }
 
         .field-error {
@@ -1172,25 +1170,25 @@
             }
 
             .live-bot {
-                bottom: 120px;
-                left: 8px;
-                transform: scale(0.55);
-                transform-origin: bottom left;
+                top: 75px;
+                right: 8px;
+                transform: scale(0.5);
+                transform-origin: top right;
             }
 
             .live-bot:hover {
-                transform: scale(0.55) !important;
+                transform: scale(0.5) !important;
             }
 
             .live-bot:active {
-                transform: scale(0.55) !important;
+                transform: scale(0.5) !important;
             }
 
             .bot-speech-bubble {
                 min-width: 100px;
                 font-size: 8px;
                 top: -50px;
-                left: -5px;
+                right: -5px;
                 padding: 5px 8px;
             }
 
@@ -1286,25 +1284,25 @@
             }
 
             .live-bot {
-                bottom: 100px;
-                left: 4px;
-                transform: scale(0.45);
-                transform-origin: bottom left;
+                top: 70px;
+                right: 4px;
+                transform: scale(0.4);
+                transform-origin: top right;
             }
 
             .live-bot:hover {
-                transform: scale(0.45) !important;
+                transform: scale(0.4) !important;
             }
 
             .live-bot:active {
-                transform: scale(0.45) !important;
+                transform: scale(0.4) !important;
             }
 
             .bot-speech-bubble {
                 min-width: 80px;
                 font-size: 7px;
                 top: -45px;
-                left: -2px;
+                right: -2px;
                 padding: 4px 6px;
                 border-width: 1.5px;
             }
@@ -1551,7 +1549,7 @@
         </div>
     </div>
 
-    <!-- البوت المساعد - مكان جديد في الزاوية اليسرى السفلية -->
+    <!-- البوت المساعد - في أعلى الصفحة -->
     <div class="live-bot" id="liveBot">
         <div class="bot-body">
             <div class="bot-head">
