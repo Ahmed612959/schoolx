@@ -1132,6 +1132,21 @@ app.get('*', (req, res) => {
         endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
     });
 });
+// تحديث عدد المشاهدات
+app.post('/api/files/view/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ error: 'الملف غير موجود' });
+        }
+        file.views = (file.views || 0) + 1;
+        await file.save();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
+    }
+});
 // ====================== Error Handling ======================
 app.use((err, req, res, next) => {
     console.error('❌ Unhandled Error:', err);
