@@ -75,6 +75,9 @@
         .logout-btn:hover { background: #dc3545; transform: translateY(-2px); }
         .upload-btn { background: var(--gold); color: #1a2a3a; border: none; padding: 8px 20px; border-radius: 30px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease; }
         .upload-btn:hover { background: var(--gold-dark); transform: translateY(-2px); }
+        .delete-all-btn { background: #dc3545; color: white; border: none; padding: 8px 20px; border-radius: 30px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: none; align-items: center; gap: 8px; transition: all 0.3s ease; }
+        .delete-all-btn:hover { background: #b02a37; transform: translateY(-2px); }
+        .delete-all-btn.show { display: flex; }
 
         .container { max-width: 1400px; margin: 30px auto; padding: 0 25px; }
 
@@ -180,6 +183,8 @@
         .modal-btn.cancel { background: #f1f5f9; color: #6c757d; }
         .modal-btn.cancel:hover { transform: translateY(-2px); }
         .modal-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .modal-btn.danger { background: #dc3545; color: white; }
+        .modal-btn.danger:hover { background: #b02a37; transform: translateY(-2px); }
 
         .preview-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.9); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
         .preview-modal.active { display: flex; }
@@ -245,6 +250,7 @@
     </div>
     <div class="header-actions">
         <button class="upload-btn" id="openUploadModal" style="display:none;"><i class="fas fa-cloud-upload-alt"></i> رفع ملفات</button>
+        <button class="delete-all-btn" id="deleteAllBtn" style="display:none;"><i class="fas fa-trash-alt"></i> حذف الكل</button>
         <button class="dark-mode-btn" onclick="toggleDarkMode()"><i class="fas fa-moon"></i></button>
         <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i><span>خروج</span></button>
     </div>
@@ -302,6 +308,21 @@
                 <button type="button" class="modal-btn cancel" onclick="closeModal()"><i class="fas fa-times"></i> إلغاء</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Delete All Confirmation Modal -->
+<div id="deleteAllModal" class="modal">
+    <div class="modal-content">
+        <h3><i class="fas fa-exclamation-triangle" style="color:#dc3545;"></i> حذف جميع الملفات</h3>
+        <p style="color:var(--text-primary);margin-bottom:20px;font-size:1rem;">
+            ⚠️ هل أنت متأكد من حذف <strong id="deleteAllCount">0</strong> ملف(ات)؟<br>
+            <span style="color:var(--text-secondary);font-size:0.85rem;">لا يمكن التراجع عن هذا الإجراء!</span>
+        </p>
+        <div class="modal-buttons">
+            <button class="modal-btn danger" id="confirmDeleteAll"><i class="fas fa-trash-alt"></i> حذف الكل</button>
+            <button class="modal-btn cancel" onclick="closeDeleteAllModal()"><i class="fas fa-times"></i> إلغاء</button>
+        </div>
     </div>
 </div>
 
@@ -445,6 +466,7 @@ async function loadFiles() {
             renderFiles();
             updateSubjectFilter();
             updateStats();
+            updateDeleteAllButton();
         } else {
             console.error('❌ فشل جلب الملفات:', response.status);
             allFiles = [];
@@ -549,6 +571,18 @@ function updateStats() {
     document.getElementById('totalGrades').textContent = grades.size;
 }
 
+function updateDeleteAllButton() {
+    const btn = document.getElementById('deleteAllBtn');
+    const isAdmin = canUploadFiles();
+    if (isAdmin && allFiles.length > 0) {
+        btn.style.display = 'flex';
+        btn.classList.add('show');
+    } else {
+        btn.style.display = 'none';
+        btn.classList.remove('show');
+    }
+}
+
 function filterFiles() { renderFiles(); }
 
 // ====================== معاينة الملف ======================
@@ -571,11 +605,22 @@ async function previewFile(fileId) {
     modal.classList.add('active');
 
     try {
-        const response = await fetch(`${BASE_URL}/api/files/download/${fileId}`, { credentials: 'include' });
+        // محاولة فتح الملف في نافذة جديدة باستخدام رابط Cloudinary
+        const downloadUrl = `${BASE_URL}/api/files/download/${fileId}`;
+        
+        // فتح الملف في نافذة جديدة إذا كان PDF أو صورة
+        const type = file.type?.toLowerCase() || '';
+        if (['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(type)) {
+            window.open(downloadUrl, '_blank');
+            closePreview();
+            return;
+        }
+
+        // للملفات الأخرى، نحاول تحميلها وعرضها
+        const response = await fetch(downloadUrl, { credentials: 'include' });
         if (response.ok) {
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
-            const type = file.type?.toLowerCase() || '';
 
             if (type === 'pdf') {
                 previewBody.innerHTML = `<iframe src="${url}" class="pdf-preview" frameborder="0"></iframe>`;
@@ -600,6 +645,7 @@ async function previewFile(fileId) {
             previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>فشل تحميل الملف للمعاينة</h4></div>';
         }
     } catch (error) {
+        console.error('Preview error:', error);
         previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>حدث خطأ أثناء المعاينة</h4></div>';
     }
 }
@@ -629,6 +675,7 @@ async function downloadFile(fileId, fileName) {
             showToast('فشل تحميل الملف', 'error');
         }
     } catch (error) {
+        console.error('Download error:', error);
         showToast('خطأ في تحميل الملف', 'error');
     }
 }
@@ -650,7 +697,7 @@ async function shareFile(fileId, fileName) {
     }
 }
 
-// ====================== حذف الملف ======================
+// ====================== حذف ملف ======================
 async function deleteFile(fileId) {
     if (!confirm('⚠️ هل أنت متأكد من حذف هذا الملف؟ لا يمكن التراجع!')) return;
     try {
@@ -665,6 +712,52 @@ async function deleteFile(fileId) {
         showToast('خطأ في حذف الملف', 'error');
     }
 }
+
+// ====================== حذف جميع الملفات ======================
+function openDeleteAllModal() {
+    if (allFiles.length === 0) {
+        showToast('📭 لا توجد ملفات للحذف', 'warning');
+        return;
+    }
+    document.getElementById('deleteAllCount').textContent = allFiles.length;
+    document.getElementById('deleteAllModal').classList.add('active');
+}
+
+function closeDeleteAllModal() {
+    document.getElementById('deleteAllModal').classList.remove('active');
+}
+
+async function deleteAllFiles() {
+    const btn = document.getElementById('confirmDeleteAll');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحذف...';
+
+    try {
+        let deletedCount = 0;
+        for (const file of allFiles) {
+            try {
+                const response = await apiRequest(`/api/files/${file._id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    deletedCount++;
+                }
+            } catch (e) {
+                console.error('Error deleting file:', file._id, e);
+            }
+        }
+
+        closeDeleteAllModal();
+        showToast(`✅ تم حذف ${deletedCount} ملف(ات) بنجاح`, 'success');
+        await loadFiles();
+    } catch (error) {
+        showToast('❌ خطأ في حذف الملفات', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash-alt"></i> حذف الكل';
+    }
+}
+
+document.getElementById('confirmDeleteAll')?.addEventListener('click', deleteAllFiles);
+document.getElementById('deleteAllBtn')?.addEventListener('click', openDeleteAllModal);
 
 // ====================== رفع الملفات ======================
 document.getElementById('fileInput')?.addEventListener('change', function(e) {
@@ -725,7 +818,6 @@ async function uploadMultipleFiles(event) {
             document.getElementById('uploadForm')?.reset();
             document.querySelectorAll('.grade-option').forEach(o => o.classList.remove('selected'));
             document.getElementById('fileCountInfo').style.display = 'none';
-            // ===== الحل النهائي: إعادة تحميل الملفات بعد الرفع =====
             await loadFiles();
         } else {
             showToast(result.error || 'فشل رفع الملفات', 'error');
@@ -808,6 +900,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('previewModal')?.addEventListener('click', (e) => {
         if (e.target === e.currentTarget) closePreview();
+    });
+    document.getElementById('deleteAllModal')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeDeleteAllModal();
     });
 });
 </script>
