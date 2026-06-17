@@ -605,60 +605,78 @@ async function previewFile(fileId) {
     modal.classList.add('active');
 
     try {
-        // محاولة فتح الملف في نافذة جديدة باستخدام رابط Cloudinary
-        const downloadUrl = `${BASE_URL}/api/files/download/${fileId}`;
-        
-        // فتح الملف في نافذة جديدة إذا كان PDF أو صورة
         const type = file.type?.toLowerCase() || '';
-        if (['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(type)) {
-            window.open(downloadUrl, '_blank');
+        
+        // لملفات PDF والصور: فتح في نافذة جديدة مباشرة من Cloudinary
+        if (['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'].includes(type)) {
+            // إضافة ?raw=true لتجنب مشاكل CORS
+            const cloudinaryUrl = file.url.includes('?') ? file.url + '&raw=true' : file.url + '?raw=true';
+            window.open(cloudinaryUrl, '_blank');
             closePreview();
+            
+            // تحديث عدد المشاهدات في الخلفية
+            try {
+                await fetch(`${BASE_URL}/api/files/view/${fileId}`, { 
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } catch(e) {}
             return;
         }
 
-        // للملفات الأخرى، نحاول تحميلها وعرضها
-        const response = await fetch(downloadUrl, { credentials: 'include' });
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-
-            if (type === 'pdf') {
-                previewBody.innerHTML = `<iframe src="${url}" class="pdf-preview" frameborder="0"></iframe>`;
-            } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(type)) {
-                previewBody.innerHTML = `<img src="${url}" class="image-preview" alt="معاينة الصورة">`;
-            } else if (type === 'txt') {
-                const text = await blob.text();
+        // للملفات النصية: عرض مباشر
+        if (type === 'txt') {
+            const response = await fetch(file.url, { mode: 'cors' });
+            if (response.ok) {
+                const text = await response.text();
                 previewBody.innerHTML = `<pre class="text-preview">${escapeHtml(text)}</pre>`;
             } else {
-                previewBody.innerHTML = `
-                    <div class="unsupported-preview">
-                        <i class="fas fa-file-alt"></i>
-                        <h4>لا يمكن معاينة هذا النوع من الملفات</h4>
-                        <p style="color:var(--text-secondary);margin-top:10px;">نوع الملف: ${file.type?.toUpperCase() || 'غير معروف'}</p>
-                        <button onclick="downloadFile('${fileId}', '${escapeHtml(file.name)}')" style="margin-top:15px;padding:10px 25px;background:var(--gold);color:#1a2a3a;border:none;border-radius:25px;cursor:pointer;font-weight:600;">
-                            <i class="fas fa-download"></i> تحميل الملف
-                        </button>
-                    </div>
-                `;
+                previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>فشل تحميل الملف</h4></div>';
             }
-        } else {
-            previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>فشل تحميل الملف للمعاينة</h4></div>';
+            return;
         }
+
+        // للملفات الأخرى: عرض زر تحميل فقط
+        previewBody.innerHTML = `
+            <div class="unsupported-preview">
+                <i class="fas fa-file-alt"></i>
+                <h4>لا يمكن معاينة هذا النوع من الملفات</h4>
+                <p style="color:var(--text-secondary);margin-top:10px;">نوع الملف: ${file.type?.toUpperCase() || 'غير معروف'}</p>
+                <button onclick="downloadFile('${fileId}', '${escapeHtml(file.name)}')" style="margin-top:15px;padding:10px 25px;background:var(--gold);color:#1a2a3a;border:none;border-radius:25px;cursor:pointer;font-weight:600;">
+                    <i class="fas fa-download"></i> تحميل الملف
+                </button>
+            </div>
+        `;
     } catch (error) {
         console.error('Preview error:', error);
         previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>حدث خطأ أثناء المعاينة</h4></div>';
     }
 }
 
-function closePreview() {
-    const modal = document.getElementById('previewModal');
-    if (modal) modal.classList.remove('active');
-}
-
 // ====================== تحميل الملف ======================
 async function downloadFile(fileId, fileName) {
     try {
-        const response = await fetch(`${BASE_URL}/api/files/download/${fileId}`, { credentials: 'include' });
+        // فتح الملف في نافذة جديدة مباشرة من Cloudinary
+        const file = allFiles.find(f => f._id === fileId);
+        if (file && file.url) {
+            // فتح رابط Cloudinary مباشرة بدون credentials
+            window.open(file.url, '_blank');
+            showToast('✅ جاري فتح الملف...', 'success');
+            
+            // تحديث عدد التحميلات في الخلفية
+            try {
+                await fetch(`${BASE_URL}/api/files/download/${fileId}`, { 
+                    method: 'GET',
+                    credentials: 'include'
+                });
+            } catch(e) {}
+            return;
+        }
+
+        // الطريقة القديمة (للاحتياط)
+        const response = await fetch(`${BASE_URL}/api/files/download/${fileId}`, { 
+            credentials: 'include' 
+        });
         if (response.ok) {
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
