@@ -86,14 +86,16 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET || 'HkoDVSfeDHmRQJjd4Q_B1uEQlpA'
 });
 
-// دالة رفع ملف إلى Cloudinary من Buffer
+// ====================== دالة رفع ملف إلى Cloudinary من Buffer (للاستخدام عبر السيرفر) ======================
 const uploadToCloudinary = (buffer, folder, fileName) => {
     return new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
             {
                 folder: folder || 'school-files',
                 resource_type: 'auto',
-                public_id: fileName ? `${Date.now()}-${fileName.split('.')[0]}` : undefined
+                public_id: fileName ? `${Date.now()}-${fileName.split('.')[0].replace(/\s+/g, '_')}` : undefined,
+                unique_filename: true,
+                overwrite: false
             },
             (error, result) => {
                 if (error) reject(error);
@@ -108,27 +110,41 @@ const uploadToCloudinary = (buffer, folder, fileName) => {
     });
 };
 
-// ====================== إعداد Multer ======================
-// أضف هذا قبل تعريف upload
-const storage = multer.memoryStorage(); // ✅ للتخزين في الذاكرة (مناسب لـ Vercel)
-
-const upload = multer({
-    storage: storage,  // ✅ الآن storage معرف
-    limits: { 
-        fileSize: 4 * 1024 * 1024, // 4MB (حد Vercel الأقصى للـ Serverless)
-        files: 10 // الحد الأقصى لعدد الملفات
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'txt'];
-        const ext = file.originalname.split('.').pop().toLowerCase();
-        if (allowedTypes.includes(ext)) {
-            cb(null, true);
-        } else {
-            cb(new Error('نوع الملف غير مدعوم'), false);
+// ====================== دالة حفظ معلومات الملف في قاعدة البيانات ======================
+const saveFileInfo = async (fileData, user) => {
+    try {
+        const { name, url, publicId, size, type, grade, subject } = fileData;
+        
+        if (!name || !url || !grade || !subject) {
+            throw new Error('جميع الحقول مطلوبة');
         }
-    }
-});
 
+        const File = mongoose.models.File || mongoose.model('File', fileSchema);
+        
+        const newFile = new File({
+            name: name,
+            url: url,
+            publicId: publicId,
+            size: size || 0,
+            type: type || name.split('.').pop().toLowerCase(),
+            grade: grade,
+            subject: subject,
+            uploadedBy: user?.username || 'admin'
+        });
+
+        await newFile.save();
+        return newFile;
+    } catch (error) {
+        throw new Error('خطأ في حفظ معلومات الملف: ' + error.message);
+    }
+};
+
+// ====================== تصدير الدوال ======================
+module.exports = {
+    cloudinary,
+    uploadToCloudinary,
+    saveFileInfo
+};
 // ====================== اتصال MongoDB مُعاد استخدامه ======================
 let cachedDb = null;
 async function connectToDatabase() {
