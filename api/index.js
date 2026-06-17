@@ -109,11 +109,14 @@ const uploadToCloudinary = (buffer, folder, fileName) => {
 };
 
 // ====================== إعداد Multer ======================
+// أضف هذا قبل تعريف upload
+const storage = multer.memoryStorage(); // ✅ للتخزين في الذاكرة (مناسب لـ Vercel)
+
 const upload = multer({
-    storage: storage,
+    storage: storage,  // ✅ الآن storage معرف
     limits: { 
-        fileSize: 100 * 1024 * 1024, // 100MB (بدلاً من 50MB)
-        files: 20 // الحد الأقصى لعدد الملفات في الطلب الواحد
+        fileSize: 4 * 1024 * 1024, // 4MB (حد Vercel الأقصى للـ Serverless)
+        files: 10 // الحد الأقصى لعدد الملفات
     },
     fileFilter: (req, file, cb) => {
         const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'txt'];
@@ -1124,17 +1127,8 @@ app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// ====================== مسار افتراضي ======================
-// ⬇⬇⬇⬇⬇ يجب أن يكون بعد مسارات الملفات ⬇⬇⬇⬇⬇
-app.get('*', (req, res) => {
-    res.json({ 
-        message: 'معهد رعاية الضبعية - API', 
-        status: 'running', 
-        version: '3.0.0', 
-        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
-    });
-});
-// تحديث عدد المشاهدات
+// ====================== تحديث عدد المشاهدات ======================
+// ⬇⬇⬇⬇⬇ ضع هذا قبل app.get('*') ⬇⬇⬇⬇⬇
 app.post('/api/files/view/:id', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1146,8 +1140,48 @@ app.post('/api/files/view/:id', verifyToken, async (req, res) => {
         await file.save();
         res.json({ success: true });
     } catch (error) {
+        console.error('❌ خطأ في تحديث المشاهدات:', error);
         res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
     }
+});
+
+// ====================== حفظ معلومات الملف من Cloudinary ======================
+app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { name, url, publicId, size, type, grade, subject } = req.body;
+        
+        if (!name || !url || !grade || !subject) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+        }
+
+        const fileData = new File({
+            name: name,
+            url: url,
+            publicId: publicId,
+            size: size || 0,
+            type: type || name.split('.').pop().toLowerCase(),
+            grade: grade,
+            subject: subject,
+            uploadedBy: req.user?.username || 'admin'
+        });
+
+        await fileData.save();
+        res.json({ success: true, file: fileData });
+    } catch (error) {
+        console.error('Save file error:', error);
+        res.status(500).json({ error: 'خطأ في حفظ معلومات الملف' });
+    }
+});
+
+// ====================== مسار افتراضي ======================
+app.get('*', (req, res) => {
+    res.json({ 
+        message: 'معهد رعاية الضبعية - API', 
+        status: 'running', 
+        version: '3.0.0', 
+        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
+    });
 });
 // ====================== Error Handling ======================
 app.use((err, req, res, next) => {
