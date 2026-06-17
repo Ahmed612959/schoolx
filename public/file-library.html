@@ -331,7 +331,7 @@
     <div class="preview-content">
         <div class="preview-header">
             <h3 id="previewTitle">📄 معاينة الملف</h3>
-            <button class="close-preview" onclick="closePreview()"><i class="fas fa-times"></i></button>
+            <button class="close-preview" onclick="closePreviewModal()"><i class="fas fa-times"></i></button>
         </div>
         <div class="preview-body" id="previewBody">
             <div class="unsupported-preview"><i class="fas fa-spinner fa-spin"></i><h4>جاري التحميل...</h4></div>
@@ -408,8 +408,8 @@ function showToast(message, type = 'success') {
             duration: 3000,
             gravity: 'top',
             position: 'center',
-            backgroundColor: colors[type] || colors.success,
             style: {
+                background: colors[type] || colors.success,
                 fontFamily: 'Tajawal, sans-serif',
                 borderRadius: '50px',
                 padding: '12px 24px',
@@ -462,7 +462,6 @@ async function loadFiles() {
         if (response.ok) {
             allFiles = await response.json();
             console.log('📁 عدد الملفات المستلمة:', allFiles.length);
-            console.log('📄 الملفات:', allFiles);
             renderFiles();
             updateSubjectFilter();
             updateStats();
@@ -485,8 +484,6 @@ function renderFiles() {
         console.error('❌ container غير موجود');
         return;
     }
-
-    console.log('🎨 جاري عرض الملفات، العدد:', allFiles.length);
 
     const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
     const gradeFilter = document.getElementById('gradeFilter')?.value || 'all';
@@ -543,8 +540,6 @@ function renderFiles() {
             </div>
         </div>
     `}).join('');
-
-    console.log('✅ تم عرض', filtered.length, 'ملف');
 }
 
 function updateSubjectFilter() {
@@ -586,115 +581,74 @@ function updateDeleteAllButton() {
 function filterFiles() { renderFiles(); }
 
 // ====================== معاينة الملف ======================
-async function previewFile(fileId) {
-    const modal = document.getElementById('previewModal');
-    const previewBody = document.getElementById('previewBody');
-    const previewTitle = document.getElementById('previewTitle');
-    if (!modal || !previewBody || !previewTitle) return;
-
+function previewFile(fileId) {
     const file = allFiles.find(f => f._id === fileId);
     if (!file) {
-        previewTitle.textContent = '📄 الملف غير موجود';
-        previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>الملف غير موجود</h4></div>';
-        modal.classList.add('active');
+        showToast('❌ الملف غير موجود', 'error');
         return;
     }
 
-    previewTitle.textContent = `📄 ${decodeFileName(file.name)}`;
-    previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-spinner fa-spin"></i><h4>جاري تحميل الملف...</h4></div>';
-    modal.classList.add('active');
-
-    try {
-        const type = file.type?.toLowerCase() || '';
+    const type = file.type?.toLowerCase() || '';
+    
+    // فتح الملف مباشرة من Cloudinary في نافذة جديدة
+    if (file.url) {
+        window.open(file.url, '_blank');
+        showToast('📄 جاري فتح الملف...', 'success');
         
-        // لملفات PDF والصور: فتح في نافذة جديدة مباشرة من Cloudinary
-        if (['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'].includes(type)) {
-            // إضافة ?raw=true لتجنب مشاكل CORS
-            const cloudinaryUrl = file.url.includes('?') ? file.url + '&raw=true' : file.url + '?raw=true';
-            window.open(cloudinaryUrl, '_blank');
-            closePreview();
-            
-            // تحديث عدد المشاهدات في الخلفية
-            try {
-                await fetch(`${BASE_URL}/api/files/view/${fileId}`, { 
-                    method: 'POST',
-                    credentials: 'include'
-                });
-            } catch(e) {}
-            return;
-        }
-
-        // للملفات النصية: عرض مباشر
-        if (type === 'txt') {
-            const response = await fetch(file.url, { mode: 'cors' });
-            if (response.ok) {
-                const text = await response.text();
-                previewBody.innerHTML = `<pre class="text-preview">${escapeHtml(text)}</pre>`;
-            } else {
-                previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>فشل تحميل الملف</h4></div>';
-            }
-            return;
-        }
-
-        // للملفات الأخرى: عرض زر تحميل فقط
-        previewBody.innerHTML = `
-            <div class="unsupported-preview">
-                <i class="fas fa-file-alt"></i>
-                <h4>لا يمكن معاينة هذا النوع من الملفات</h4>
-                <p style="color:var(--text-secondary);margin-top:10px;">نوع الملف: ${file.type?.toUpperCase() || 'غير معروف'}</p>
-                <button onclick="downloadFile('${fileId}', '${escapeHtml(file.name)}')" style="margin-top:15px;padding:10px 25px;background:var(--gold);color:#1a2a3a;border:none;border-radius:25px;cursor:pointer;font-weight:600;">
-                    <i class="fas fa-download"></i> تحميل الملف
-                </button>
-            </div>
-        `;
-    } catch (error) {
-        console.error('Preview error:', error);
-        previewBody.innerHTML = '<div class="unsupported-preview"><i class="fas fa-exclamation-triangle"></i><h4>حدث خطأ أثناء المعاينة</h4></div>';
+        // تحديث عدد المشاهدات في الخلفية
+        updateViewCount(fileId);
+        return;
     }
+
+    showToast('❌ لا يمكن معاينة هذا الملف', 'error');
 }
 
 // ====================== تحميل الملف ======================
-async function downloadFile(fileId, fileName) {
-    try {
-        // فتح الملف في نافذة جديدة مباشرة من Cloudinary
-        const file = allFiles.find(f => f._id === fileId);
-        if (file && file.url) {
-            // فتح رابط Cloudinary مباشرة بدون credentials
-            window.open(file.url, '_blank');
-            showToast('✅ جاري فتح الملف...', 'success');
-            
-            // تحديث عدد التحميلات في الخلفية
-            try {
-                await fetch(`${BASE_URL}/api/files/download/${fileId}`, { 
-                    method: 'GET',
-                    credentials: 'include'
-                });
-            } catch(e) {}
-            return;
-        }
+function downloadFile(fileId, fileName) {
+    const file = allFiles.find(f => f._id === fileId);
+    if (!file) {
+        showToast('❌ الملف غير موجود', 'error');
+        return;
+    }
 
-        // الطريقة القديمة (للاحتياط)
-        const response = await fetch(`${BASE_URL}/api/files/download/${fileId}`, { 
-            credentials: 'include' 
+    if (file.url) {
+        // فتح رابط Cloudinary مباشرة للتحميل
+        window.open(file.url, '_blank');
+        showToast('✅ جاري فتح الملف للتحميل...', 'success');
+        
+        // تحديث عدد التحميلات في الخلفية
+        updateDownloadCount(fileId);
+        return;
+    }
+
+    showToast('❌ لا يمكن تحميل هذا الملف', 'error');
+}
+
+// ====================== تحديث المشاهدات ======================
+async function updateViewCount(fileId) {
+    try {
+        await fetch(`${BASE_URL}/api/files/view/${fileId}`, { 
+            method: 'POST',
+            credentials: 'include'
         });
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast('✅ بدء التحميل...', 'success');
-            await loadFiles();
-        } else {
-            showToast('فشل تحميل الملف', 'error');
-        }
-    } catch (error) {
-        console.error('Download error:', error);
-        showToast('خطأ في تحميل الملف', 'error');
+        // تحديث القائمة بعد فترة قصيرة
+        setTimeout(loadFiles, 2000);
+    } catch(e) {
+        console.log('View update error:', e);
+    }
+}
+
+// ====================== تحديث التحميلات ======================
+async function updateDownloadCount(fileId) {
+    try {
+        await fetch(`${BASE_URL}/api/files/download/${fileId}`, { 
+            method: 'GET',
+            credentials: 'include'
+        });
+        // تحديث القائمة بعد فترة قصيرة
+        setTimeout(loadFiles, 2000);
+    } catch(e) {
+        console.log('Download update error:', e);
     }
 }
 
@@ -865,6 +819,11 @@ function closeModal() {
     if (modal) modal.classList.remove('active');
 }
 
+function closePreviewModal() {
+    const modal = document.getElementById('previewModal');
+    if (modal) modal.classList.remove('active');
+}
+
 // ====================== Bottom Navigation ======================
 function buildBottomNav() {
     const navBar = document.getElementById('bottomNav');
@@ -917,7 +876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.target === e.currentTarget) closeModal();
     });
     document.getElementById('previewModal')?.addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) closePreview();
+        if (e.target === e.currentTarget) closePreviewModal();
     });
     document.getElementById('deleteAllModal')?.addEventListener('click', (e) => {
         if (e.target === e.currentTarget) closeDeleteAllModal();
