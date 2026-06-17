@@ -1143,24 +1143,6 @@ app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// ====================== تحديث عدد المشاهدات ======================
-// ⬇⬇⬇⬇⬇ ضع هذا قبل app.get('*') ⬇⬇⬇⬇⬇
-app.post('/api/files/view/:id', verifyToken, async (req, res) => {
-    try {
-        await connectToDatabase();
-        const file = await File.findById(req.params.id);
-        if (!file) {
-            return res.status(404).json({ error: 'الملف غير موجود' });
-        }
-        file.views = (file.views || 0) + 1;
-        await file.save();
-        res.json({ success: true });
-    } catch (error) {
-        console.error('❌ خطأ في تحديث المشاهدات:', error);
-        res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
-    }
-});
-
 // ====================== حفظ معلومات الملف من Cloudinary ======================
 app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
     try {
@@ -1186,7 +1168,24 @@ app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
         res.json({ success: true, file: fileData });
     } catch (error) {
         console.error('Save file error:', error);
-        res.status(500).json({ error: 'خطأ في حفظ معلومات الملف' });
+        res.status(500).json({ error: 'خطأ في حفظ معلومات الملف: ' + error.message });
+    }
+});
+
+// ====================== تحديث عدد المشاهدات ======================
+app.post('/api/files/view/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ error: 'الملف غير موجود' });
+        }
+        file.views = (file.views || 0) + 1;
+        await file.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث المشاهدات:', error);
+        res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
     }
 });
 
