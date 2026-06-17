@@ -74,6 +74,56 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 
+// ====================== Cloudinary و Multer ======================
+const multer = require('multer');
+const { Readable } = require('stream');
+const cloudinary = require('cloudinary').v2;
+
+// تكوين Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'di47of300',
+    api_key: process.env.CLOUDINARY_API_KEY || '344972868721826',
+    api_secret: process.env.CLOUDINARY_API_SECRET || 'HkoDVSfeDHmRQJjd4Q_B1uEQlpA'
+});
+
+// دالة رفع ملف إلى Cloudinary من Buffer
+const uploadToCloudinary = (buffer, folder, fileName) => {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: folder || 'school-files',
+                resource_type: 'auto',
+                public_id: fileName ? `${Date.now()}-${fileName.split('.')[0]}` : undefined
+            },
+            (error, result) => {
+                if (error) reject(error);
+                else resolve(result);
+            }
+        );
+        
+        const readableStream = new Readable();
+        readableStream.push(buffer);
+        readableStream.push(null);
+        readableStream.pipe(uploadStream);
+    });
+};
+
+// إعداد Multer مع MemoryStorage (لـ Vercel)
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'txt'];
+        const ext = file.originalname.split('.').pop().toLowerCase();
+        if (allowedTypes.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('نوع الملف غير مدعوم'), false);
+        }
+    }
+});
+
 // ====================== اتصال MongoDB مُعاد استخدامه ======================
 let cachedDb = null;
 async function connectToDatabase() {
@@ -186,6 +236,23 @@ const examResultSchema = new mongoose.Schema({
     score: { type: Number, required: true },
     completionTime: { type: Date, default: Date.now }
 });
+
+// ====================== نموذج الملفات (File Schema) ======================
+const fileSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
+    size: { type: Number },
+    type: { type: String },
+    grade: { type: String, enum: ['first', 'second', 'third'], required: true },
+    subject: { type: String, required: true },
+    downloads: { type: Number, default: 0 },
+    views: { type: Number, default: 0 },
+    uploadedBy: { type: String },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const File = mongoose.models.File || mongoose.model('File', fileSchema);
 
 const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
@@ -931,6 +998,136 @@ app.get('*', (req, res) => {
     res.json({ message: 'معهد رعاية الضبعية - API', status: 'running', version: '3.0.0', endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha'] });
 });
 
+
+// ====================== مسارات الملفات ======================
+
+// رفع ملفات متعددة
+app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files', 20), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { grade, subject } = req.body;
+        
+        if (!grade || !subject) {
+            return res.status(400).json({ error: 'الصف والمادة مطلوبان' });
+        }
+        
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: 'يرجى اختيار ملفات للرفع' });
+        }
+
+        const uploadedFiles = [];
+
+        for (const file of req.files) {
+            // رفع الملف إلى Cloudinary
+            const folder = `school/${grade}/${subject}`;
+            const result = await uploadToCloudinary(file.buffer, folder, file.originalname);
+
+            const fileData = new File({
+                name: file.originalname,
+                url: result.secure_url,
+                publicId: result.public_id,
+                size: file.size,
+                type: file.mimetype || file.originalname.split('.').pop().toLowerCase(),
+                grade: grade,
+                subject: subject,
+                uploadedBy: req.user?.username || 'admin'
+            });
+
+            await fileData.save();
+            uploadedFiles.push(fileData);
+        }
+
+        res.json({
+            success: true,
+            message: `تم رفع ${uploadedFiles.length} ملف(ات) بنجاح`,
+            files: uploadedFiles
+        });
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'خطأ في رفع الملفات: ' + error.message });
+    }
+});
+
+// جلب جميع الملفات
+app.get('/api/files', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const files = await File.find().sort({ createdAt: -1 });
+        res.json(files);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب الملفات' });
+    }
+});
+
+// تحميل ملف (إعادة توجيه إلى Cloudinary)
+app.get('/api/files/download/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ error: 'الملف غير موجود' });
+        }
+
+        // زيادة عدد التحميلات
+        file.downloads = (file.downloads || 0) + 1;
+        await file.save();
+
+        // إعادة توجيه إلى رابط Cloudinary
+        return res.redirect(file.url);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحميل الملف' });
+    }
+});
+
+// حذف ملف
+app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ error: 'الملف غير موجود' });
+        }
+
+        // حذف من Cloudinary
+        try {
+            await cloudinary.uploader.destroy(file.publicId, {
+                resource_type: 'auto'
+            });
+        } catch (e) {
+            console.log('⚠️ Cloudinary delete error:', e.message);
+        }
+
+        await File.findByIdAndDelete(req.params.id);
+        res.json({ success: true, message: 'تم حذف الملف بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف الملف' });
+    }
+});
+
+// الحصول على إحصائيات الملفات
+app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const totalFiles = await File.countDocuments();
+        const totalDownloads = await File.aggregate([
+            { $group: { _id: null, total: { $sum: '$downloads' } } }
+        ]);
+        const subjects = await File.distinct('subject');
+        const grades = await File.aggregate([
+            { $group: { _id: '$grade', count: { $sum: 1 } } }
+        ]);
+
+        res.json({
+            totalFiles,
+            totalDownloads: totalDownloads[0]?.total || 0,
+            subjects: subjects.length,
+            grades: grades
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب الإحصائيات' });
+    }
+});
 // ====================== Error Handling ======================
 app.use((err, req, res, next) => {
     console.error('❌ Unhandled Error:', err);
