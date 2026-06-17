@@ -108,11 +108,13 @@ const uploadToCloudinary = (buffer, folder, fileName) => {
     });
 };
 
-// إعداد Multer مع MemoryStorage (لـ Vercel)
-const storage = multer.memoryStorage();
+// ====================== إعداد Multer ======================
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    limits: { 
+        fileSize: 100 * 1024 * 1024, // 100MB (بدلاً من 50MB)
+        files: 20 // الحد الأقصى لعدد الملفات في الطلب الواحد
+    },
     fileFilter: (req, file, cb) => {
         const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'txt'];
         const ext = file.originalname.split('.').pop().toLowerCase();
