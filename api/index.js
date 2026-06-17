@@ -993,13 +993,8 @@ app.post('/api/captcha/verify', (req, res) => {
     res.json(result);
 });
 
-// ====================== مسار افتراضي ======================
-app.get('*', (req, res) => {
-    res.json({ message: 'معهد رعاية الضبعية - API', status: 'running', version: '3.0.0', endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha'] });
-});
-
-
 // ====================== مسارات الملفات ======================
+// ⬇⬇⬇⬇⬇ يجب أن تكون قبل app.get('*') ⬇⬇⬇⬇⬇
 
 // رفع ملفات متعددة
 app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files', 20), async (req, res) => {
@@ -1018,7 +1013,6 @@ app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files
         const uploadedFiles = [];
 
         for (const file of req.files) {
-            // رفع الملف إلى Cloudinary
             const folder = `school/${grade}/${subject}`;
             const result = await uploadToCloudinary(file.buffer, folder, file.originalname);
 
@@ -1054,13 +1048,15 @@ app.get('/api/files', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const files = await File.find().sort({ createdAt: -1 });
+        console.log('📁 عدد الملفات في DB:', files.length);
         res.json(files);
     } catch (error) {
+        console.error('❌ خطأ في جلب الملفات:', error);
         res.status(500).json({ error: 'خطأ في جلب الملفات' });
     }
 });
 
-// تحميل ملف (إعادة توجيه إلى Cloudinary)
+// تحميل ملف
 app.get('/api/files/download/:id', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1069,11 +1065,9 @@ app.get('/api/files/download/:id', verifyToken, async (req, res) => {
             return res.status(404).json({ error: 'الملف غير موجود' });
         }
 
-        // زيادة عدد التحميلات
         file.downloads = (file.downloads || 0) + 1;
         await file.save();
 
-        // إعادة توجيه إلى رابط Cloudinary
         return res.redirect(file.url);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في تحميل الملف' });
@@ -1089,7 +1083,6 @@ app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
             return res.status(404).json({ error: 'الملف غير موجود' });
         }
 
-        // حذف من Cloudinary
         try {
             await cloudinary.uploader.destroy(file.publicId, {
                 resource_type: 'auto'
@@ -1105,7 +1098,7 @@ app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// الحصول على إحصائيات الملفات
+// إحصائيات الملفات
 app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1127,6 +1120,17 @@ app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب الإحصائيات' });
     }
+});
+
+// ====================== مسار افتراضي ======================
+// ⬇⬇⬇⬇⬇ يجب أن يكون بعد مسارات الملفات ⬇⬇⬇⬇⬇
+app.get('*', (req, res) => {
+    res.json({ 
+        message: 'معهد رعاية الضبعية - API', 
+        status: 'running', 
+        version: '3.0.0', 
+        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
+    });
 });
 // ====================== Error Handling ======================
 app.use((err, req, res, next) => {
