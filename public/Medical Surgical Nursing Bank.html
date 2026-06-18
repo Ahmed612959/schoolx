@@ -197,135 +197,161 @@
 <script src="chapter1.js"></script><script src="chapter2.js"></script><script src="chapter3.js"></script><script src="chapter4.js"></script><script src="chapter5.js"></script><script src="chapter6.js"></script><script src="chapter7.js"></script><script src="chapter8.js"></script><script src="chapter9.js"></script><script src="chapter10.js"></script><script src="chapter11.js"></script>
 <script>
 
-// ====================== حماية الصفحة ======================
+// ====================== حماية الصفحة (الحل الجذري) ======================
 (function protectPage() {
-    // 1. منع اختصارات لوحة المفاتيح
+    // ====== 1. منع اختصارات لوحة المفاتيح ======
     document.addEventListener('keydown', function(e) {
-        const blockedKeys = {
-            'F12': true,
-            'I': e.ctrlKey && e.shiftKey,
-            'J': e.ctrlKey && e.shiftKey,
-            'U': e.ctrlKey,
-            'S': e.ctrlKey,
-            'C': e.ctrlKey && e.shiftKey,
-            'E': e.ctrlKey && e.shiftKey
-        };
+        const key = e.key;
+        const ctrl = e.ctrlKey;
+        const shift = e.shiftKey;
         
-        if (e.key === 'F12' || 
-            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C' || e.key === 'E')) ||
-            (e.ctrlKey && (e.key === 'U' || e.key === 'S'))) {
+        // منع F12
+        if (key === 'F12') {
             e.preventDefault();
+            e.stopPropagation();
             return false;
         }
-    });
-    
-    // 2. منع النقر بزر الماوس الأيمن (مع السماح في الحقول)
+        
+        // منع Ctrl+Shift+I (Inspect), Ctrl+Shift+J (Console), Ctrl+Shift+C (Elements)
+        if (ctrl && shift && (key === 'I' || key === 'J' || key === 'C' || key === 'E')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+        
+        // منع Ctrl+U (View Source), Ctrl+S (Save)
+        if (ctrl && (key === 'U' || key === 'S')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+        
+        // منع Ctrl+Shift+Delete (Clear cache) 
+        if (ctrl && shift && key === 'Delete') {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+    }, true); // استخدام capture phase
+
+    // ====== 2. منع النقر بزر الماوس الأيمن ======
     document.addEventListener('contextmenu', function(e) {
-        if (!e.target.closest('input') && !e.target.closest('textarea') && !e.target.closest('select')) {
-            e.preventDefault();
-            return false;
+        const target = e.target;
+        // السماح في الحقول فقط
+        if (target.closest('input') || target.closest('textarea') || target.closest('select')) {
+            return true;
         }
-    });
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+    }, true);
+
+    // ====== 3. منع السحب والنسخ ======
+    document.addEventListener('dragstart', function(e) {
+        e.preventDefault();
+        return false;
+    }, true);
     
-    // 3. منع الضغط المطول على الهواتف
-    let longPressTimer;
+    document.addEventListener('copy', function(e) {
+        // السماح بالنسخ من الحقول
+        if (e.target.closest('input') || e.target.closest('textarea')) {
+            return true;
+        }
+        e.preventDefault();
+        return false;
+    }, true);
+    
+    document.addEventListener('cut', function(e) {
+        if (e.target.closest('input') || e.target.closest('textarea')) {
+            return true;
+        }
+        e.preventDefault();
+        return false;
+    }, true);
+
+    // ====== 4. منع الضغط المطول على الهواتف ======
+    let longPressTimer = null;
+    let longPressTriggered = false;
+    
     document.addEventListener('touchstart', function(e) {
-        if (e.target.closest('input') || e.target.closest('textarea') || e.target.closest('select')) return;
+        const target = e.target;
+        if (target.closest('input') || target.closest('textarea') || target.closest('select') || target.closest('button')) {
+            return;
+        }
+        
+        longPressTriggered = false;
         longPressTimer = setTimeout(function() {
+            longPressTriggered = true;
             e.preventDefault();
         }, 500);
     }, { passive: false });
     
-    document.addEventListener('touchend', function() {
+    document.addEventListener('touchmove', function() {
         clearTimeout(longPressTimer);
     }, { passive: false });
     
-    // 4. كشف فتح Console (نسخة محسنة لا تظهر خطأ)
+    document.addEventListener('touchend', function(e) {
+        clearTimeout(longPressTimer);
+        if (longPressTriggered) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    // ====== 5. كشف فتح Console (الطريقة الآمنة) ======
     let devToolsOpen = false;
     let warningShown = false;
-    
-    // طريقة أكثر دقة للكشف عن أدوات المطور
-    function detectDevTools() {
-        // لا نعيد التحقق إذا كانت الرسالة ظاهرة بالفعل
-        if (document.getElementById('devtools-warning')) return;
-        if (warningShown) return;
-        
-        // 1. كشف عبر console.log مع تتبع الزمن (الأكثر دقة)
-        const startTime = performance.now();
-        console.log('%c', '');
-        const endTime = performance.now();
-        
-        // الفرق الطبيعي أقل من 50ms، إذا كان أكثر فهذا يشير إلى Console مفتوح
-        if (endTime - startTime > 80) {
-            showDevToolsWarning();
-            return;
-        }
-        
-        // 2. كشف عبر تغيير حجم العنصر (طريقة آمنة)
-        try {
-            const element = new Image();
-            let detected = false;
-            Object.defineProperty(element, 'id', {
-                get: function() {
-                    if (!detected) {
-                        detected = true;
-                        showDevToolsWarning();
-                    }
-                    return '';
-                }
-            });
-            // قراءة الخاصية لتشغيل الـ getter
-            console.log(element.id);
-        } catch(e) {
-            // تجاهل الأخطاء
-        }
-        
-        // 3. كشف عبر حجم النافذة (قد يكون غير دقيق في بعض المتصفحات)
-        try {
-            const threshold = 160;
-            const widthThreshold = window.outerWidth - window.innerWidth > threshold;
-            const heightThreshold = window.outerHeight - window.innerHeight > threshold;
-            
-            if ((widthThreshold || heightThreshold)) {
-                showDevToolsWarning();
-            }
-        } catch(e) {
-            // تجاهل الأخطاء
-        }
-    }
-    
-    // عرض رسالة التحذير
+    let checkCount = 0;
+    let isPageLoaded = false;
+
+    // دالة عرض رسالة التحذير
     function showDevToolsWarning() {
-        if (document.getElementById('devtools-warning')) return;
         if (warningShown) return;
+        if (document.getElementById('devtools-warning')) return;
+        
         warningShown = true;
+        devToolsOpen = true;
         
         const overlay = document.createElement('div');
         overlay.id = 'devtools-warning';
         overlay.style.cssText = `
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.95);
-            z-index: 99999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 20px;
-            color: white;
-            font-family: 'Tajawal', sans-serif;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background: rgba(15, 23, 42, 0.95) !important;
+            backdrop-filter: blur(10px) !important;
+            z-index: 999999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+            padding: 20px !important;
+            color: white !important;
+            font-family: 'Tajawal', sans-serif !important;
+            pointer-events: all !important;
         `;
         overlay.innerHTML = `
-            <div>
+            <div style="max-width:400px;width:100%;">
                 <div style="font-size:4rem;margin-bottom:20px;">🚫</div>
-                <h2 style="font-size:1.5rem;margin-bottom:10px;">أدوات المطور غير مسموح بها</h2>
-                <p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p>
-                <button onclick="closeDevToolsWarning()" style="margin-top:10px;padding:10px 35px;background:linear-gradient(135deg,var(--gold, #d4af5a),var(--gold-dark, #b8943a));color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;font-size:1rem;font-family:'Tajawal',sans-serif;transition:all 0.3s ease;">
+                <h2 style="font-size:1.5rem;margin-bottom:10px;color:white;">أدوات المطور غير مسموح بها</h2>
+                <p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;line-height:1.8;">
+                    يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح
+                </p>
+                <button onclick="window.closeDevToolsWarning()" 
+                    style="padding:12px 40px;background:linear-gradient(135deg,#d4af5a,#b8943a);
+                    color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;
+                    font-size:1rem;font-family:'Tajawal',sans-serif;transition:all 0.3s ease;
+                    box-shadow:0 4px 15px rgba(212,175,90,0.3);"
+                    onmouseover="this.style.transform='scale(1.05)'"
+                    onmouseout="this.style.transform='scale(1)'">
                     ✅ تم الإغلاق
                 </button>
             </div>
         `;
         document.body.appendChild(overlay);
         document.body.style.pointerEvents = 'none';
+        document.body.style.overflow = 'hidden';
         
         // محاولة إغلاق Console
         try {
@@ -335,45 +361,148 @@
             console.warn = function() {};
             console.info = function() {};
             console.debug = function() {};
+            console.table = function() {};
+            console.dir = function() {};
         } catch(e) {}
     }
-    
-    // إغلاق رسالة التحذير
+
+    // دالة إغلاق رسالة التحذير
     window.closeDevToolsWarning = function() {
         const overlay = document.getElementById('devtools-warning');
         if (overlay) {
             overlay.remove();
             document.body.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'auto';
             devToolsOpen = false;
             warningShown = false;
         }
     };
+
+    // دالة الكشف الآمنة
+    function detectDevTools() {
+        // لا نكتشف إذا كانت الصفحة لم تكتمل تحميلها بعد
+        if (!isPageLoaded) return;
+        if (warningShown) return;
+        
+        checkCount++;
+        
+        try {
+            // الطريقة 1: استخدام console.log مع قياس الوقت
+            const start = performance.now();
+            console.log('%c', '');
+            const end = performance.now();
+            const timeDiff = end - start;
+            
+            // إذا كان الفرق أكبر من 80ms، هذا يشير إلى Console مفتوح
+            if (timeDiff > 80 && checkCount > 3) {
+                showDevToolsWarning();
+                return;
+            }
+            
+            // الطريقة 2: استخدام Error.stack
+            try {
+                const error = new Error();
+                const stack = error.stack || '';
+                if (stack.includes('console.log') || stack.includes('console.error')) {
+                    // هذا يعني أن Console مفتوح
+                    if (checkCount > 3) {
+                        showDevToolsWarning();
+                        return;
+                    }
+                }
+            } catch(e) {}
+            
+            // الطريقة 3: كشف حجم النافذة (دقيق في معظم المتصفحات)
+            const threshold = 120;
+            const widthDiff = Math.abs(window.outerWidth - window.innerWidth);
+            const heightDiff = Math.abs(window.outerHeight - window.innerHeight);
+            
+            if ((widthDiff > threshold || heightDiff > threshold) && checkCount > 5) {
+                showDevToolsWarning();
+                return;
+            }
+            
+        } catch(e) {
+            // تجاهل الأخطاء في الكشف
+        }
+    }
+
+    // ====== 6. حماية إضافية: منع console.log من العمل ======
+    const originalConsole = {
+        log: console.log,
+        error: console.error,
+        warn: console.warn,
+        info: console.info,
+        debug: console.debug,
+        table: console.table,
+        dir: console.dir
+    };
     
-    // تشغيل الكشف بشكل دوري (كل 3 ثواني)
-    let detectInterval = setInterval(detectDevTools, 3000);
-    
-    // تشغيل الكشف عند تحميل الصفحة
-    setTimeout(detectDevTools, 1000);
-    
-    // عند تغيير حجم النافذة
-    window.addEventListener('resize', function() {
-        clearTimeout(window._resizeTimer);
-        window._resizeTimer = setTimeout(detectDevTools, 500);
+    // تعطيل Console (مع الحفاظ على الوظائف الأساسية)
+    console.log = function() {};
+    console.error = function() {};
+    console.warn = function() {};
+    console.info = function() {};
+    console.debug = function() {};
+    console.table = function() {};
+    console.dir = function() {};
+
+    // ====== 7. تهيئة الكشف ======
+    // علامة تحميل الصفحة
+    document.addEventListener('DOMContentLoaded', function() {
+        isPageLoaded = true;
     });
     
-    // 5. منع فتح المصدر عبر URL
+    // بدء الكشف بعد 2 ثانية من تحميل الصفحة
+    setTimeout(function() {
+        isPageLoaded = true;
+    }, 2000);
+
+    // الكشف كل 2 ثانية (أقل من السابق لتقليل الإيجابيات الخاطئة)
+    let detectInterval = setInterval(detectDevTools, 2000);
+
+    // الكشف عند تغيير حجم النافذة
+    let resizeTimer = null;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(detectDevTools, 400);
+    });
+
+    // ====== 8. منع فتح المصدر عبر URL ======
     if (window.location.href.includes('view-source:')) {
         window.location.href = window.location.origin + '/';
     }
     
-    // 6. منع فتح Console عبر about:blank
     if (window.location.href.includes('about:blank')) {
         window.location.href = window.location.origin + '/';
     }
-    
-    console.log('%c تم تفعيل الحماية 🔒', 'color: #d4af5a; font-size: 16px; font-weight: bold;');
-})();
 
+    // ====== 9. منع سحب الصور والنصوص ======
+    document.querySelectorAll('img, a, p, div').forEach(el => {
+        el.addEventListener('dragstart', function(e) {
+            e.preventDefault();
+            return false;
+        });
+    });
+
+    // ====== 10. منع فتح نافذة جديدة عبر Ctrl+N ======
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'n') {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // ====== 11. منع فتح Console عبر زر F12 في IE ======
+    document.addEventListener('keyup', function(e) {
+        if (e.key === 'F12') {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    console.log('%c تم تفعيل الحماية المتقدمة 🔒', 'color: #d4af5a; font-size: 16px; font-weight: bold;');
+})();
 
     
 
