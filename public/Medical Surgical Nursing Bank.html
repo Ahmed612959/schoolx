@@ -17,6 +17,20 @@
             --radius-sm: 16px; --radius-md: 22px; --radius-lg: 30px; --radius-xl: 60px;
             --transition: all 0.3s ease;
         }
+        .profile-avatar {
+            width: 50px; height: 50px; border-radius: 50%; 
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            display: flex; align-items: center; justify-content: center;
+            color: #0e2a35; font-weight: 900; font-size: 1.5rem;
+            border: 2px solid var(--gold); box-shadow: 0 0 20px rgba(212,175,90,0.2);
+            cursor: pointer; transition: var(--transition);
+        }
+        .profile-avatar:hover { transform: scale(1.05); }
+        .profile-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .user-info { display: flex; align-items: center; gap: 10px; }
+        .user-name { color: var(--gold); font-weight: 700; font-size: 0.85rem; }
+        .user-name small { display: block; font-size: 0.65rem; opacity: 0.7; font-weight: 400; }
+
         body.dark-mode {
             --light-bg: #0f172a; --card-bg: #1e293b; --text-primary: #e2e8f0;
             --text-secondary: #94a3b8; --border-color: #334155; --dark: #f1f5f9; --darker: #e2e8f0;
@@ -205,68 +219,42 @@
         const ctrl = e.ctrlKey;
         const shift = e.shiftKey;
         
-        // منع F12
         if (key === 'F12') {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
+            e.preventDefault(); e.stopPropagation(); return false;
         }
-        
-        // منع Ctrl+Shift+I (Inspect), Ctrl+Shift+J (Console), Ctrl+Shift+C (Elements)
         if (ctrl && shift && (key === 'I' || key === 'J' || key === 'C' || key === 'E')) {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
+            e.preventDefault(); e.stopPropagation(); return false;
         }
-        
-        // منع Ctrl+U (View Source), Ctrl+S (Save)
         if (ctrl && (key === 'U' || key === 'S')) {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
+            e.preventDefault(); e.stopPropagation(); return false;
         }
-        
-        // منع Ctrl+Shift+Delete (Clear cache) 
         if (ctrl && shift && key === 'Delete') {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
+            e.preventDefault(); e.stopPropagation(); return false;
         }
-    }, true); // استخدام capture phase
+    }, true);
 
     // ====== 2. منع النقر بزر الماوس الأيمن ======
     document.addEventListener('contextmenu', function(e) {
         const target = e.target;
-        // السماح في الحقول فقط
         if (target.closest('input') || target.closest('textarea') || target.closest('select')) {
             return true;
         }
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
+        e.preventDefault(); e.stopPropagation(); return false;
     }, true);
 
     // ====== 3. منع السحب والنسخ ======
     document.addEventListener('dragstart', function(e) {
-        e.preventDefault();
-        return false;
+        e.preventDefault(); return false;
     }, true);
     
     document.addEventListener('copy', function(e) {
-        // السماح بالنسخ من الحقول
-        if (e.target.closest('input') || e.target.closest('textarea')) {
-            return true;
-        }
-        e.preventDefault();
-        return false;
+        if (e.target.closest('input') || e.target.closest('textarea')) return true;
+        e.preventDefault(); return false;
     }, true);
     
     document.addEventListener('cut', function(e) {
-        if (e.target.closest('input') || e.target.closest('textarea')) {
-            return true;
-        }
-        e.preventDefault();
-        return false;
+        if (e.target.closest('input') || e.target.closest('textarea')) return true;
+        e.preventDefault(); return false;
     }, true);
 
     // ====== 4. منع الضغط المطول على الهواتف ======
@@ -278,7 +266,6 @@
         if (target.closest('input') || target.closest('textarea') || target.closest('select') || target.closest('button')) {
             return;
         }
-        
         longPressTriggered = false;
         longPressTimer = setTimeout(function() {
             longPressTriggered = true;
@@ -297,39 +284,24 @@
         }
     }, { passive: false });
 
-    // ====== 5. كشف فتح Console (الطريقة الآمنة) ======
-    let devToolsOpen = false;
+    // ====== 5. كشف فتح Console (نسخة محسنة) ======
     let warningShown = false;
     let checkCount = 0;
     let isPageLoaded = false;
 
-    // دالة عرض رسالة التحذير
     function showDevToolsWarning() {
         if (warningShown) return;
         if (document.getElementById('devtools-warning')) return;
-        
         warningShown = true;
-        devToolsOpen = true;
         
         const overlay = document.createElement('div');
         overlay.id = 'devtools-warning';
         overlay.style.cssText = `
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            background: rgba(15, 23, 42, 0.95) !important;
-            backdrop-filter: blur(10px) !important;
-            z-index: 999999 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            text-align: center !important;
-            padding: 20px !important;
-            color: white !important;
-            font-family: 'Tajawal', sans-serif !important;
-            pointer-events: all !important;
+            position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+            background: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(10px) !important;
+            z-index: 999999 !important; display: flex !important; align-items: center !important; justify-content: center !important;
+            text-align: center !important; padding: 20px !important; color: white !important;
+            font-family: 'Tajawal', sans-serif !important; pointer-events: all !important;
         `;
         overlay.innerHTML = `
             <div style="max-width:400px;width:100%;">
@@ -353,7 +325,6 @@
         document.body.style.pointerEvents = 'none';
         document.body.style.overflow = 'hidden';
         
-        // محاولة إغلاق Console
         try {
             console.clear();
             console.log = function() {};
@@ -366,53 +337,31 @@
         } catch(e) {}
     }
 
-    // دالة إغلاق رسالة التحذير
     window.closeDevToolsWarning = function() {
         const overlay = document.getElementById('devtools-warning');
         if (overlay) {
             overlay.remove();
             document.body.style.pointerEvents = 'auto';
             document.body.style.overflow = 'auto';
-            devToolsOpen = false;
             warningShown = false;
         }
     };
 
-    // دالة الكشف الآمنة
     function detectDevTools() {
-        // لا نكتشف إذا كانت الصفحة لم تكتمل تحميلها بعد
         if (!isPageLoaded) return;
         if (warningShown) return;
-        
         checkCount++;
+        if (checkCount < 3) return;
         
         try {
-            // الطريقة 1: استخدام console.log مع قياس الوقت
             const start = performance.now();
             console.log('%c', '');
             const end = performance.now();
-            const timeDiff = end - start;
-            
-            // إذا كان الفرق أكبر من 80ms، هذا يشير إلى Console مفتوح
-            if (timeDiff > 80 && checkCount > 3) {
+            if (end - start > 80) {
                 showDevToolsWarning();
                 return;
             }
             
-            // الطريقة 2: استخدام Error.stack
-            try {
-                const error = new Error();
-                const stack = error.stack || '';
-                if (stack.includes('console.log') || stack.includes('console.error')) {
-                    // هذا يعني أن Console مفتوح
-                    if (checkCount > 3) {
-                        showDevToolsWarning();
-                        return;
-                    }
-                }
-            } catch(e) {}
-            
-            // الطريقة 3: كشف حجم النافذة (دقيق في معظم المتصفحات)
             const threshold = 120;
             const widthDiff = Math.abs(window.outerWidth - window.innerWidth);
             const heightDiff = Math.abs(window.outerHeight - window.innerHeight);
@@ -421,24 +370,9 @@
                 showDevToolsWarning();
                 return;
             }
-            
-        } catch(e) {
-            // تجاهل الأخطاء في الكشف
-        }
+        } catch(e) {}
     }
 
-    // ====== 6. حماية إضافية: منع console.log من العمل ======
-    const originalConsole = {
-        log: console.log,
-        error: console.error,
-        warn: console.warn,
-        info: console.info,
-        debug: console.debug,
-        table: console.table,
-        dir: console.dir
-    };
-    
-    // تعطيل Console (مع الحفاظ على الوظائف الأساسية)
     console.log = function() {};
     console.error = function() {};
     console.warn = function() {};
@@ -447,68 +381,47 @@
     console.table = function() {};
     console.dir = function() {};
 
-    // ====== 7. تهيئة الكشف ======
-    // علامة تحميل الصفحة
     document.addEventListener('DOMContentLoaded', function() {
         isPageLoaded = true;
     });
     
-    // بدء الكشف بعد 2 ثانية من تحميل الصفحة
     setTimeout(function() {
         isPageLoaded = true;
     }, 2000);
 
-    // الكشف كل 2 ثانية (أقل من السابق لتقليل الإيجابيات الخاطئة)
-    let detectInterval = setInterval(detectDevTools, 2000);
+    setInterval(detectDevTools, 3000);
 
-    // الكشف عند تغيير حجم النافذة
     let resizeTimer = null;
     window.addEventListener('resize', function() {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(detectDevTools, 400);
     });
 
-    // ====== 8. منع فتح المصدر عبر URL ======
-    if (window.location.href.includes('view-source:')) {
-        window.location.href = window.location.origin + '/';
-    }
-    
-    if (window.location.href.includes('about:blank')) {
+    if (window.location.href.includes('view-source:') || window.location.href.includes('about:blank')) {
         window.location.href = window.location.origin + '/';
     }
 
-    // ====== 9. منع سحب الصور والنصوص ======
     document.querySelectorAll('img, a, p, div').forEach(el => {
         el.addEventListener('dragstart', function(e) {
-            e.preventDefault();
-            return false;
+            e.preventDefault(); return false;
         });
     });
 
-    // ====== 10. منع فتح نافذة جديدة عبر Ctrl+N ======
     document.addEventListener('keydown', function(e) {
         if (e.ctrlKey && e.key === 'n') {
-            e.preventDefault();
-            return false;
+            e.preventDefault(); return false;
         }
     });
 
-    // ====== 11. منع فتح Console عبر زر F12 في IE ======
     document.addEventListener('keyup', function(e) {
         if (e.key === 'F12') {
-            e.preventDefault();
-            return false;
+            e.preventDefault(); return false;
         }
     });
 
     console.log('%c تم تفعيل الحماية المتقدمة 🔒', 'color: #d4af5a; font-size: 16px; font-weight: bold;');
 })();
 
-    
-
-
-
-    
 // ==================== المتغيرات ====================
 const chaptersData={chapter1,chapter2,chapter3,chapter4,chapter5,chapter6,chapter7,chapter8,chapter9,chapter10,chapter11};
 let currentChapterId='all',currentCategory='all',hideAnswers=!1;
@@ -516,7 +429,7 @@ let bookmarks=new Set(JSON.parse(localStorage.getItem('nb_bookmarks')||'[]')),ha
 const categoryMeta=[{id:'definitions',icon:'fas fa-bookmark',label:'تعريفات',badge:'badge-def'},{id:'mcq',icon:'fas fa-tasks',label:'اختيار متعدد',badge:'badge-mcq'},{id:'truefalse',icon:'fas fa-check-double',label:'صح وخطأ',badge:'badge-tf'},{id:'complete',icon:'fas fa-pen',label:'أكمل',badge:'badge-complete'},{id:'explain',icon:'fas fa-comment-dots',label:'اشرح',badge:'badge-explain'},{id:'list',icon:'fas fa-list-ul',label:'قوائم',badge:'badge-list'},{id:'situations',icon:'fas fa-stethoscope',label:'مواقف',badge:'badge-situation'}];
 const testCategories=['mcq','truefalse','complete','explain','list','situations'];
 
-    // ====================== التحقق من تسجيل الدخول ======================
+// ====================== التحقق من تسجيل الدخول ======================
 async function checkAuth() {
     try {
         const response = await fetch(`${API_BASE}/api/verify-session`, {
@@ -526,13 +439,13 @@ async function checkAuth() {
             const data = await response.json();
             if (data.valid) {
                 console.log('✅ مستخدم مسجل:', data.user);
-                return true;
+                return data.user;
             }
         }
-        return false;
+        return null;
     } catch (error) {
         console.error('❌ خطأ في التحقق من الجلسة:', error);
-        return false;
+        return null;
     }
 }
 
@@ -554,12 +467,12 @@ async function logoutUser() {
 }
 
 // ====================== تهيئة الصفحة ======================
+let currentUser = null;
+
 document.addEventListener('DOMContentLoaded', async function() {
-    // التحقق من تسجيل الدخول
-    const isLoggedIn = await checkAuth();
+    const userData = await checkAuth();
     
-    if (!isLoggedIn) {
-        // عرض رسالة للمستخدم غير مسجل
+    if (!userData) {
         document.body.innerHTML = `
             <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;text-align:center;background:var(--light-bg);">
                 <div style="background:var(--card-bg);border-radius:30px;padding:40px;max-width:450px;width:100%;box-shadow:var(--shadow-lg);border:2px solid var(--gold);">
@@ -576,12 +489,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
 
-    // إذا كان المستخدم مسجلاً، أكمل تحميل الصفحة
+    currentUser = userData;
     initializePage();
 });
 
 function initializePage() {
-    // تحديث الإحصائيات
     updateStats();
     updateXPDisplay();
     renderChapterButtons();
@@ -591,8 +503,6 @@ function initializePage() {
     updateFavCount();
     updateHardCount();
     document.getElementById('retryWrongBtn').style.display = wrongQuestions.length > 0 ? 'inline-flex' : 'none';
-    
-    // محاولة تحميل البيانات من السيرفر
     fetchProgress();
 }
 
@@ -708,13 +618,13 @@ function isAnswerCorrect(chosen,correct){if(!chosen||!correct)return!1;const c=S
 function renderQuestionHTML(q,i,prefix,total){const catLabel=getCategoryLabel(q.cat);let h=`<div class="quiz-q"><strong>${i+1}. ${q.text}</strong> <span class="q-type-badge">${catLabel}</span>`;if(q.translation){h+=`<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ${q.translation}</div>`}if(q.cat==='mcq'&&q.options){q.options.forEach(opt=>{h+=`<button class="quiz-opt" onclick="check${prefix}Answer(this,'${opt.replace(/'/g,"\\'")}','${q.correct.replace(/'/g,"\\'")}',${i}${total?','+total:''})">${opt}</button>`})}else if(q.cat==='truefalse'){h+=`<button class="quiz-opt" onclick="check${prefix}Answer(this,'true','${q.correct}',${i}${total?','+total:''})">✅ صواب</button><button class="quiz-opt" onclick="check${prefix}Answer(this,'false','${q.correct}',${i}${total?','+total:''})">❌ خطأ</button>`}else{h+=`<textarea class="def-input" id="${prefix}-other-${i}" placeholder="اكتب إجابتك هنا..." style="min-height:60px;"></textarea><button class="modal-btn btn-primary" onclick="check${prefix}Other(${i},'${(q.completion||q.answer||'').replace(/'/g,"\\'")}'${total?','+total:''})">تحقق</button>`}h+=`<div class="quiz-fb" id="${prefix}-fb-${i}"></div></div>`;return h}
 function addWrong(type,correct){wrongQuestions.push({text:type,correct,date:new Date().toISOString()});wrongQuestions=wrongQuestions.slice(-200);localStorage.setItem('nb_wrong',JSON.stringify(wrongQuestions));document.getElementById('retryWrongBtn').style.display='inline-flex'}
 
-// ==================== وضع الدراسة ====================
+// ==================== وضع الدراسة (مع ظهور النتيجة بعد آخر سؤال) ====================
 function openStudyMode(){let h=`<h2>📖 وضع الدراسة الحر</h2><div class="modal-settings"><select id="smChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="smCount"><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50" selected>50</option></select><button class="modal-btn btn-primary" onclick="startStudyMode()">ابدأ</button></div><div id="smQuestions"></div><div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal('studyModal')">إغلاق</button>`;openModal('studyModal',h)}
 function startStudyMode(){const chId=document.getElementById('smChapter')?.value||'all',catFilter=document.getElementById('catFilter')?.value||'all',count=parseInt(document.getElementById('smCount')?.value||50);let allQ=getAllQuestions(chId,catFilter).sort(()=>Math.random()-0.5).slice(0,count);const modal=document.getElementById('studyModal');if(!modal)return;let qHTML='';allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Study',allQ.length)});modal.querySelector('.modal-content').innerHTML=`<h2>📖 وضع الدراسة الحر</h2>${qHTML}<div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal('studyModal')">إغلاق</button>`;window._studyTotal=allQ.length;window._studyScores={}}
 function checkStudyAnswer(btn,chosen,correct,i,total){handleGenericAnswer(btn,chosen,correct,i,total,'Study','_studyTotal','_studyScores','smScore');}
 function checkStudyOther(i,correctText,total){handleGenericOther(i,correctText,total,'Study','_studyTotal','_studyScores','smScore');}
 
-// ==================== اختبار مؤقت ====================
+// ==================== اختبار مؤقت (مع ظهور النتيجة بعد آخر سؤال) ====================
 let qtTimer=null,qtLeft=0,qtScores={};
 function openTimedQuiz(){let h=`<h2>⏱️ اختبار مؤقت</h2><div class="modal-settings"><select id="qtChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="qtCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select><span>⏱️</span><input type="number" id="qtTime" value="20" min="1" max="120" style="width:60px;"> د<button class="modal-btn btn-danger" onclick="startTimedQuiz()">ابدأ</button></div><div id="qtQuestions"></div><div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal('timedQuizModal')">إغلاق</button>`;openModal('timedQuizModal',h)}
 function startTimedQuiz(){const chId=document.getElementById('qtChapter')?.value||'all',catFilter=document.getElementById('catFilter')?.value||'all',count=parseInt(document.getElementById('qtCount')?.value||30),mins=parseInt(document.getElementById('qtTime')?.value||20);let allQ=getAllQuestions(chId,catFilter).sort(()=>Math.random()-0.5).slice(0,count);qtScores={};qtLeft=mins*60;const modal=document.getElementById('timedQuizModal');if(!modal)return;let qHTML=`<div class="modal-timer" id="qtTimerDisplay">${formatTime(qtLeft)}</div>`;allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Timed',allQ.length)});modal.querySelector('.modal-content').innerHTML=`<h2>⏱️ اختبار مؤقت</h2>${qHTML}<div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal('timedQuizModal')">إغلاق</button>`;if(qtTimer)clearInterval(qtTimer);qtTimer=setInterval(()=>{qtLeft--;const td=document.getElementById('qtTimerDisplay');if(td)td.textContent=formatTime(qtLeft);if(qtLeft<=0){clearInterval(qtTimer);finishTimedQuiz(allQ.length)}},1000)}
@@ -754,7 +664,7 @@ function handleGenericOther(i,correctText,total,prefix,totalVar,scoresVar,scoreE
     if(sObj&&Object.keys(sObj).length>=t){const cc=Object.values(sObj).filter(v=>v===!0).length;const sc=Math.round(cc/t*100);const el=document.getElementById(scoreElId);if(el)el.innerHTML=`<div class="quiz-score">النتيجة: ${cc}/${t} (${sc}%)</div>`;if(sc>=80)spawnConfetti()}
 }
 
-// ==================== تحدي الأخطاء ====================
+// ==================== تحدي الأخطاء (بعد الحل تمسح الأخطاء) ====================
 function retryWrongQuestions(){
     if(wrongQuestions.length===0){alert('🎉 لا توجد أسئلة خاطئة! قم بحل بعض الاختبارات أولاً.');return}
     let allQ=[];const uniqueTexts=new Set();
@@ -783,8 +693,76 @@ function renderFC(){if(fcI<0||fcI>=fcQ.length)return;const q=fcQ[fcI];let front=
 function prevFC(){fcI--;if(fcI<0)fcI=fcQ.length-1;renderFC()}
 function nextFC(){fcI++;if(fcI>=fcQ.length)fcI=0;renderFC()}
 
-// ==================== لوحة تحكم ====================
-function openDashboard(){const tQ=quizHistory.reduce((s,h)=>s+h.total,0),tC=quizHistory.reduce((s,h)=>s+h.correct,0),avgS=tQ>0?Math.round(tC/tQ*100):0,streak=getStudyStreak();const chapters=Object.entries(chaptersData).map(([id,ch])=>({id,name:ch.name.split(':')[0],total:0,correct:0}));quizHistory.forEach(h=>{const c=chapters.find(x=>x.id===h.chapter);if(c){c.total+=h.total;c.correct+=h.correct}});let chH=chapters.map(c=>{const s=c.total>0?Math.round(c.correct/c.total*100):0;return`<div style="margin:4px 0;">${c.name}: ${s}%<div class="chart-bar"><div class="chart-fill" style="width:${s}%;background:${s>=80?'var(--green)':s>=50?'var(--orange)':'var(--red)'};"></div></div></div>`}).join('');let achH=allAchievements.map(a=>{const u=achievements.includes(a.id);return`<div class="achievement-badge ${u?'unlocked':'locked'}">${u?a.name:'🔒 '+a.name}</div>`}).join('');let h=`<h2>📊 لوحة التحكم</h2><div class="dashboard-grid"><div class="dashboard-card"><h4>📈 إحصائيات</h4><p>اختبارات: ${quizHistory.length}</p><p>أسئلة: ${tQ}</p><p>صحيحة: ${tC}</p><p>أخطاء: ${wrongQuestions.length}</p><div class="big-number">${avgS}%</div></div><div class="dashboard-card"><h4>🔥 التتابع</h4><div class="big-number">${streak} يوم</div><p>نقاط: ${xp} XP</p></div><div class="dashboard-card"><h4>📚 الفصول</h4>${chH}</div><div class="dashboard-card"><h4>🏆 الإنجازات</h4><div class="achievements-grid">${achH}</div></div></div><button class="modal-btn btn-close" onclick="closeModal('dashboardModal')">إغلاق</button>`;openModal('dashboardModal',h)}
+// ==================== لوحة تحكم (مع اسم المستخدم والاختبارات) ====================
+function openDashboard(){
+    const tQ=quizHistory.reduce((s,h)=>s+h.total,0);
+    const tC=quizHistory.reduce((s,h)=>s+h.correct,0);
+    const avgS=tQ>0?Math.round(tC/tQ*100):0;
+    const streak=getStudyStreak();
+    
+    // عرض سجل الاختبارات
+    let historyHTML = '';
+    if (quizHistory.length > 0) {
+        const recent = [...quizHistory].reverse().slice(0, 10);
+        historyHTML = recent.map(h => 
+            `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
+                <span>${h.date ? new Date(h.date).toLocaleDateString('ar-EG') : ''}</span>
+                <span>${h.total} سؤال</span>
+                <span style="color:${h.score >= 80 ? 'var(--green)' : h.score >= 50 ? 'var(--orange)' : 'var(--red)'};font-weight:700;">${h.score}%</span>
+            </div>
+        ).join('');
+    } else {
+        historyHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">لا توجد اختبارات بعد</p>';
+    }
+    
+    const chapters=Object.entries(chaptersData).map(([id,ch])=>({id,name:ch.name.split(':')[0],total:0,correct:0}));
+    quizHistory.forEach(h=>{const c=chapters.find(x=>x.id===h.chapter);if(c){c.total+=h.total;c.correct+=h.correct}});
+    let chH=chapters.map(c=>{const s=c.total>0?Math.round(c.correct/c.total*100):0;return`<div style="margin:4px 0;">${c.name}: ${s}%<div class="chart-bar"><div class="chart-fill" style="width:${s}%;background:${s>=80?'var(--green)':s>=50?'var(--orange)':'var(--red)'};"></div></div></div>`}).join('');
+    
+    let achH=allAchievements.map(a=>{const u=achievements.includes(a.id);return`<div class="achievement-badge ${u?'unlocked':'locked'}">${u?a.name:'🔒 '+a.name}</div>`}).join('');
+    
+    let h = `
+        <h2>📊 لوحة التحكم</h2>
+        <div style="display:flex;align-items:center;gap:15px;justify-content:center;margin-bottom:15px;flex-wrap:wrap;">
+            <div class="profile-avatar">
+                <span>${currentUser?.fullName ? currentUser.fullName.charAt(0).toUpperCase() : '👤'}</span>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-weight:700;font-size:1.1rem;color:var(--dark);">${currentUser?.fullName || 'مستخدم'}</div>
+                <div style="font-size:0.8rem;color:var(--text-secondary);">@${currentUser?.username || ''}</div>
+            </div>
+        </div>
+        <div class="dashboard-grid">
+            <div class="dashboard-card">
+                <h4>📈 إحصائيات</h4>
+                <p>اختبارات: ${quizHistory.length}</p>
+                <p>أسئلة: ${tQ}</p>
+                <p>صحيحة: ${tC}</p>
+                <p>أخطاء: ${wrongQuestions.length}</p>
+                <div class="big-number">${avgS}%</div>
+            </div>
+            <div class="dashboard-card">
+                <h4>🔥 التتابع</h4>
+                <div class="big-number">${streak} يوم</div>
+                <p>نقاط: ${xp} XP</p>
+            </div>
+            <div class="dashboard-card">
+                <h4>📚 الفصول</h4>
+                ${chH}
+            </div>
+            <div class="dashboard-card">
+                <h4>📋 سجل الاختبارات</h4>
+                <div style="max-height:150px;overflow-y:auto;">${historyHTML}</div>
+            </div>
+            <div class="dashboard-card" style="grid-column:1/-1;">
+                <h4>🏆 الإنجازات</h4>
+                <div class="achievements-grid">${achH}</div>
+            </div>
+        </div>
+        <button class="modal-btn btn-close" onclick="closeModal('dashboardModal')">إغلاق</button>
+    `;
+    openModal('dashboardModal', h);
+}
 
 // ==================== مساعدة ====================
 function formatTime(s){const m=Math.floor(s/60),sec=s%60;return`${m}:${sec.toString().padStart(2,'0')}`}
@@ -799,7 +777,6 @@ const ht=document.getElementById('hideAnswersToggle');ht.addEventListener('click
 
 // ==================== تهيئة ====================
 // تم نقل التهيئة إلى داخل initializePage() في DOMContentLoaded
-// لا تقم بتشغيل أي شيء هنا لتجنب عرض الصفحة قبل التحقق من تسجيل الدخول
 </script>
 </body>
 </html>
