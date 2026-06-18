@@ -238,9 +238,9 @@
                 <label><i class="fas fa-file"></i> اختر الملفات</label>
                 <input type="file" id="fileInput" name="files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt" required>
                 <div id="fileCountInfo" class="selected-files-info" style="display: none;"></div>
-                <div style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">
-                    ⚠️ الحد الأقصى لكل ملف هو 10MB (يتم الرفع مباشرة إلى Cloudinary)
-                </div>
+               <div style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">
+    ⚠️ الحد الأقصى لكل ملف هو <strong>50MB</strong> (يتم الرفع مباشرة إلى Cloudinary)
+</div>
             </div>
             <div class="modal-buttons">
                 <button type="submit" class="modal-btn confirm" id="submitUpload"><i class="fas fa-cloud-upload-alt"></i> رفع إلى السحابة</button>
@@ -697,9 +697,10 @@ async function uploadMultipleFiles(event) {
     if (!subject) { showToast('❌ يرجى إدخال اسم المادة', 'error'); return; }
     if (!files || files.length === 0) { showToast('❌ يرجى اختيار ملفات للرفع', 'error'); return; }
 
+    // ✅ تغيير الحد الأقصى من 10MB إلى 50MB
     for (const file of files) {
-        if (file.size > 10 * 1024 * 1024) {
-            showToast(`❌ ملف ${file.name} حجمه يتجاوز 10MB`, 'error');
+        if (file.size > 50 * 1024 * 1024) { // 50MB
+            showToast(`❌ ملف ${file.name} حجمه يتجاوز 50MB`, 'error');
             return;
         }
     }
