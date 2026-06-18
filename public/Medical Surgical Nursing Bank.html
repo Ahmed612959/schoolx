@@ -173,78 +173,6 @@
         @media print{.animated-bg,.progress-container,.back-to-top,.sidebar,.sidebar-toggle,.sidebar-overlay,.chapter-section,.category-tabs,.control-bar,.header-badge,.favorites-bar,.card-actions,.note-box,.footer,.stats-grid{display:none!important}body{background:white!important;color:black!important}.question-card{break-inside:avoid;border:1px solid #ccc!important;box-shadow:none!important}.container{max-width:100%!important;padding:0!important}.header{background:white!important;color:black!important;padding:10px!important;box-shadow:none!important}.header h1{color:black!important}}
         @media(max-width:768px){.header h1{font-size:1.3rem}.header{padding:15px 12px}.container{padding:0 10px}.chapter-btn{padding:6px 10px;font-size:.68rem}.category-btn{padding:6px 9px;font-size:.65rem}.back-to-top{bottom:18px;left:18px;width:40px;height:40px}.sidebar{width:260px}}
 
-        /* ===== استايل لوحة المتصدرين الجديد ===== */
-        .leaderboard-container {
-            max-height: 450px;
-            overflow-y: auto;
-            padding: 5px;
-        }
-        .leaderboard-container::-webkit-scrollbar {
-            width: 6px;
-        }
-        .leaderboard-container::-webkit-scrollbar-track {
-            background: var(--light-bg);
-            border-radius: 10px;
-        }
-        .leaderboard-container::-webkit-scrollbar-thumb {
-            background: var(--gold);
-            border-radius: 10px;
-        }
-        .leaderboard-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 6px;
-            text-align: center;
-        }
-        .leaderboard-table th {
-            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-            color: #0e2a35;
-            padding: 12px 8px;
-            font-weight: 800;
-            font-size: 0.85rem;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-            border-radius: 0;
-        }
-        .leaderboard-table th:first-child { border-radius: 0 12px 12px 0; }
-        .leaderboard-table th:last-child { border-radius: 12px 0 0 12px; }
-        .leaderboard-table td {
-            padding: 10px 8px;
-            background: var(--card-bg);
-            font-size: 0.85rem;
-            border: 1px solid var(--border-color);
-            border-right: none;
-            border-left: none;
-            transition: var(--transition);
-        }
-        .leaderboard-table td:first-child {
-            border-radius: 0 12px 12px 0;
-            border-right: 1px solid var(--border-color);
-        }
-        .leaderboard-table td:last-child {
-            border-radius: 12px 0 0 12px;
-            border-left: 1px solid var(--border-color);
-        }
-        .leaderboard-table tr:hover td {
-            background: var(--gold-light);
-            transform: scale(1.01);
-        }
-        .leaderboard-table .rank-1 td { background: linear-gradient(135deg, #fff8e8, #fef3d6); border-color: #d4af37; }
-        .leaderboard-table .rank-2 td { background: linear-gradient(135deg, #f5f5f5, #e8e8e8); border-color: #c0c0c0; }
-        .leaderboard-table .rank-3 td { background: linear-gradient(135deg, #fdf2e9, #fae8d8); border-color: #cd7f32; }
-        .medal-gold { color: #d4af37; font-weight: 900; font-size: 1.2rem; }
-        .medal-silver { color: #c0c0c0; font-weight: 900; font-size: 1.2rem; }
-        .medal-bronze { color: #cd7f32; font-weight: 900; font-size: 1.2rem; }
-        .lb-rank { font-weight: 700; font-size: 1.1rem; }
-        .lb-name { font-weight: 700; color: var(--dark); }
-        .lb-xp { font-weight: 700; color: var(--gold-dark); }
-        .lb-questions { color: var(--blue); font-weight: 600; }
-        .lb-accuracy { font-weight: 700; }
-        .lb-accuracy.high { color: var(--green); }
-        .lb-accuracy.medium { color: var(--orange); }
-        .lb-accuracy.low { color: var(--red); }
-
         /* ===== استايل التحدي ===== */
         .challenge-participants {
             display: grid;
@@ -270,7 +198,9 @@
         .challenge-participant .status { font-size: 0.7rem; padding: 2px 10px; border-radius: 12px; }
         .challenge-participant .status.completed { background: var(--green); color: white; }
         .challenge-participant .status.pending { background: var(--orange); color: white; }
+        .challenge-participant .status.waiting { background: var(--blue); color: white; }
         .challenge-participant .score { font-weight: 700; color: var(--gold-dark); }
+        .challenge-participant .joined { font-size: 0.65rem; color: var(--text-secondary); }
 
         .challenge-results-table {
             width: 100%;
@@ -297,6 +227,76 @@
         }
         .challenge-results-table tr:first-child td { border-top: 2px solid var(--gold); }
         .challenge-results-table .winner td { background: linear-gradient(135deg, #fff8e8, #fef3d6); }
+
+        .challenge-timer {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--red);
+            margin: 10px 0;
+            text-align: center;
+        }
+        .challenge-timer.warning {
+            color: var(--orange);
+            animation: pulse 1s infinite;
+        }
+        .challenge-timer.danger {
+            color: var(--red);
+            animation: pulse 0.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .challenge-complete-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+        .challenge-complete-overlay .complete-card {
+            background: var(--card-bg);
+            border-radius: 30px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            animation: fadeInUp 0.5s ease;
+        }
+        .challenge-complete-overlay .complete-card h2 {
+            color: var(--gold-dark);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        .challenge-complete-overlay .complete-card .score-display {
+            font-size: 4rem;
+            font-weight: 900;
+            color: var(--gold);
+            margin: 15px 0;
+        }
+        .challenge-complete-overlay .complete-card .participants-list {
+            margin-top: 15px;
+            text-align: right;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .challenge-complete-overlay .complete-card .participants-list .p-item {
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -432,10 +432,7 @@ var achievements = JSON.parse(localStorage.getItem('nb_achievements') || '[]');
 var currentUser = null;
 var leaderboardData = JSON.parse(localStorage.getItem('leaderboard') || '[]');
 var challengeData = JSON.parse(localStorage.getItem('challengeData') || '{}');
-var examTabSwitchCount = 0;
-var examTabSwitchLimit = 2;
-var examTimerInterval = null;
-var examTimeLimit = 0;
+var challengeTimerInterval = null;
 
 var categoryMeta = [
     {id: 'definitions', icon: 'fas fa-bookmark', label: 'تعريفات', badge: 'badge-def'},
@@ -606,7 +603,6 @@ function removeWrongQuestion(questionId) { wrongQuestions = wrongQuestions.filte
 function updateRetryButton() { var btn = document.getElementById('retryWrongBtn'); if (btn) { var count = wrongQuestions.length; if (count > 0) { btn.style.display = 'inline-flex'; btn.innerHTML = '<i class="fas fa-redo"></i> تحدي الأخطاء (' + count + ')'; } else { btn.style.display = 'none'; } } }
 function clearAllWrongQuestions() { if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; } if (confirm('⚠️ هل أنت متأكد من مسح جميع الأسئلة الخاطئة؟')) { wrongQuestions = []; localStorage.setItem('nb_wrong', JSON.stringify(wrongQuestions)); if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: [] }); updateRetryButton(); renderAllQuestions(); closeModal('retryModal'); showToast('🎉 تم مسح جميع الأسئلة الخاطئة بنجاح!', 'success'); } }
 
-// ====================== تحدي الأخطاء ====================
 function retryWrongQuestions() {
     if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; }
     var allQ = []; var uniqueIds = new Set();
@@ -646,6 +642,8 @@ function handleGenericAnswer(btn, chosen, correct, i, total, prefix, totalVar, s
         var el = document.getElementById(scoreElId);
         if (el) { el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>'; saveQuizHistory(t, cc, sc); if (sc === 100 && prefix === 'Retry') { showClearWrongButton(); } }
         if (sc >= 80) spawnConfetti();
+        // التحقق من اكتمال التحدي
+        if (prefix === 'Challenge') { checkChallengeComplete(); }
     }
 }
 
@@ -670,6 +668,8 @@ function handleGenericOther(i, correctText, total, prefix, totalVar, scoresVar, 
         var el = document.getElementById(scoreElId);
         if (el) { el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>'; saveQuizHistory(t, cc, sc); if (sc === 100 && prefix === 'Retry') { showClearWrongButton(); } }
         if (sc >= 80) spawnConfetti();
+        // التحقق من اكتمال التحدي
+        if (prefix === 'Challenge') { checkChallengeComplete(); }
     }
 }
 
@@ -976,22 +976,70 @@ function updateLeaderboard() {
 }
 function saveLeaderboard() { if (currentUser) { updateLeaderboard(); } }
 
-// ====================== التحدي ====================
+// ====================== التحدي المتكامل ====================
 function openChallengeMode() {
     var h = '<h2>🤝 التحدي مع الأصدقاء</h2>';
+    // التحقق من وجود تحدٍ نشط للمستخدم
+    var hasActiveChallenge = false;
+    var activeChallengeCode = '';
+    if (challengeData && challengeData.status !== 'completed') {
+        if (challengeData.creatorUsername === currentUser?.username || 
+            challengeData.participants.some(function(p) { return p.username === currentUser?.username; })) {
+            hasActiveChallenge = true;
+            activeChallengeCode = challengeData.code;
+        }
+    }
+    
+    if (hasActiveChallenge) {
+        h += '<div style="background:var(--gold-light);padding:15px;border-radius:16px;text-align:center;margin-bottom:15px;">';
+        h += '<p style="font-weight:700;color:var(--gold-dark);">📌 لديك تحدٍ نشط: ' + activeChallengeCode + '</p>';
+        h += '<button class="modal-btn btn-primary" onclick="viewActiveChallenge()" style="margin-top:10px;">👀 عرض التحدي</button>';
+        h += '</div>';
+    }
+    
     h += '<div class="modal-settings"><select id="challengeChapter">';
     for (var id in chaptersData) { if (chaptersData.hasOwnProperty(id)) { h += '<option value="' + id + '">' + chaptersData[id].name.split(':')[0] + '</option>'; } }
     h += '<option value="all" selected>جميع الفصول</option></select>' + getCategoryOptions() + '<select id="challengeCount"><option value="5">5</option><option value="10">10</option><option value="15" selected>15</option><option value="20">20</option><option value="30">30</option></select>';
     h += '<select id="challengeDuration"><option value="1">1 يوم</option><option value="3">3 أيام</option><option value="5">5 أيام</option><option value="7" selected>7 أيام</option><option value="10">10 أيام</option></select></div>';
-    h += '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"><button class="modal-btn btn-primary" onclick="createChallenge()">📤 إنشاء تحدي</button><button class="modal-btn btn-success" onclick="joinChallenge()">📥 انضمام لتحدي</button></div>';
+    h += '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';
+    h += '<button class="modal-btn btn-primary" onclick="createChallenge()">📤 إنشاء تحدي</button>';
+    h += '<button class="modal-btn btn-success" onclick="joinChallenge()">📥 انضمام لتحدي</button>';
+    h += '</div>';
     h += '<div id="challengeStatus" style="margin-top:15px;"></div>';
     h += '<div id="challengeParticipantsList" style="margin-top:15px;"></div>';
     h += '<div id="challengeResults" style="margin-top:15px;"></div>';
+    h += '<div id="challengeTimerDisplay" style="margin-top:10px;"></div>';
     h += '<button class="modal-btn btn-close" onclick="closeModal(\'challengeModal\')">إغلاق</button>';
     openModal('challengeModal', h);
+    // عرض أي تحدٍ موجود
+    if (hasActiveChallenge) {
+        viewActiveChallenge();
+    }
+}
+
+function viewActiveChallenge() {
+    if (challengeData && challengeData.status !== 'completed') {
+        document.getElementById('challengeStatus').innerHTML = 
+            '<div style="background:var(--gold-light);padding:15px;border-radius:16px;text-align:center;">' +
+            '<p style="font-weight:700;">📌 التحدي النشط: ' + challengeData.code + '</p>' +
+            '<p style="font-size:0.85rem;color:var(--text-secondary);">الحالة: ' + (challengeData.status === 'started' ? '🚀 بدأ' : '⏳ في الانتظار') + '</p>' +
+            '<p style="font-size:0.85rem;color:var(--text-secondary);">المدة: ' + challengeData.duration + ' يوم</p>' +
+            (challengeData.status === 'started' ? '<button class="modal-btn btn-primary" onclick="startChallengeForUser()" style="margin-top:10px;">📝 حل التحدي</button>' : '') +
+            '</div>';
+        showChallengeParticipantsList();
+        if (challengeData.status === 'started') {
+            startChallengeTimer();
+        }
+    }
 }
 
 function createChallenge() {
+    // التحقق من وجود تحدٍ نشط للمستخدم
+    if (challengeData && challengeData.status !== 'completed' && challengeData.creatorUsername === currentUser?.username) {
+        showToast('⚠️ لديك تحدٍ نشط بالفعل! انتظر حتى ينتهي قبل إنشاء آخر.', 'warning');
+        return;
+    }
+    
     var chId = document.getElementById('challengeChapter')?.value || 'all';
     var catFilter = document.getElementById('catFilter')?.value || 'all';
     var count = parseInt(document.getElementById('challengeCount')?.value || 15);
@@ -1005,10 +1053,12 @@ function createChallenge() {
         creatorUsername: currentUser?.username || '',
         createdAt: new Date().toISOString(),
         duration: duration,
-        participants: [{name: currentUser?.fullName || 'مستخدم', username: currentUser?.username || '', score: 0, completed: false}],
+        endTime: new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString(),
+        participants: [{name: currentUser?.fullName || 'مستخدم', username: currentUser?.username || '', score: 0, completed: false, joined: true}],
         status: 'waiting',
         startTime: null,
-        results: []
+        results: [],
+        completedParticipants: []
     };
     localStorage.setItem('challengeData', JSON.stringify(challengeData));
     document.getElementById('challengeStatus').innerHTML =
@@ -1019,9 +1069,26 @@ function createChallenge() {
         '<button class="modal-btn btn-primary" onclick="startChallenge()" style="margin-top:10px;">🚀 بدء التحدي</button>' +
         '</div>';
     showChallengeParticipantsList();
+    showToast('✅ تم إنشاء التحدي بنجاح! كود: ' + challengeCode, 'success');
 }
 
 function joinChallenge() {
+    // التحقق من وجود تحدٍ نشط للمستخدم
+    if (challengeData && challengeData.status !== 'completed') {
+        var isParticipant = challengeData.participants.some(function(p) { return p.username === currentUser?.username; });
+        if (isParticipant) {
+            showToast('⚠️ أنت بالفعل عضو في هذا التحدي!', 'warning');
+            return;
+        }
+        // إذا كان هناك تحدٍ نشط آخر للمستخدم
+        var hasOtherChallenge = challengeData.creatorUsername !== currentUser?.username && 
+            challengeData.participants.some(function(p) { return p.username === currentUser?.username; });
+        if (hasOtherChallenge) {
+            showToast('⚠️ أنت مشترك بالفعل في تحدٍ آخر!', 'warning');
+            return;
+        }
+    }
+    
     var code = prompt('📝 أدخل كود التحدي:');
     if (!code) return;
     code = code.toUpperCase();
@@ -1030,10 +1097,12 @@ function joinChallenge() {
         var userName = currentUser?.fullName || 'مستخدم';
         var userUsername = currentUser?.username || '';
         var exists = savedData.participants.some(function(p) { return p.username === userUsername; });
-        if (!exists) {
-            savedData.participants.push({name: userName, username: userUsername, score: 0, completed: false});
-            localStorage.setItem('challengeData', JSON.stringify(savedData));
+        if (exists) {
+            showToast('⚠️ أنت بالفعل عضو في هذا التحدي! لا يمكنك الانضمام مرة أخرى.', 'warning');
+            return;
         }
+        savedData.participants.push({name: userName, username: userUsername, score: 0, completed: false, joined: true});
+        localStorage.setItem('challengeData', JSON.stringify(savedData));
         challengeData = savedData;
         var statusText = challengeData.status === 'started' ? 'التحدي بدأ بالفعل! 🚀' : 'انتظر بدء التحدي من المنشئ';
         document.getElementById('challengeStatus').innerHTML =
@@ -1056,6 +1125,7 @@ function showChallengeParticipantsList() {
         var p = challengeData.participants[i];
         var statusClass = p.completed ? 'completed' : 'pending';
         var statusText = p.completed ? '✅ مكتمل' : '⏳ قيد الانتظار';
+        if (!p.joined) statusText = '⏳ لم ينضم بعد';
         h += '<div class="challenge-participant"><span class="name">' + p.name + '</span><span class="status ' + statusClass + '">' + statusText + '</span><span class="score">' + (p.completed ? p.score + '%' : '') + '</span></div>';
     }
     h += '</div>';
@@ -1075,11 +1145,45 @@ function startChallenge() {
         '<div style="background:var(--gold);color:#0e2a35;padding:15px;border-radius:16px;text-align:center;font-weight:700;">🚀 تم بدء التحدي! حظاً سعيداً للجميع!</div>';
     showChallengeParticipantsList();
     startChallengeForUser();
-    // إرسال إشعار للمشاركين (محاكاة)
     showToast('🚀 تم بدء التحدي! يمكن للجميع الآن بدء الحل.', 'success');
+    startChallengeTimer();
+}
+
+function startChallengeTimer() {
+    if (!challengeData || !challengeData.endTime) return;
+    var endTime = new Date(challengeData.endTime).getTime();
+    if (challengeTimerInterval) clearInterval(challengeTimerInterval);
+    challengeTimerInterval = setInterval(function() {
+        var now = Date.now();
+        var remaining = Math.max(0, endTime - now);
+        var days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+        var hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+        var mins = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+        var secs = Math.floor((remaining % (60 * 1000)) / 1000);
+        
+        var timerDisplay = document.getElementById('challengeTimerDisplay');
+        if (timerDisplay) {
+            if (remaining <= 0) {
+                timerDisplay.innerHTML = '<div class="challenge-timer danger">⏰ انتهت مدة التحدي!</div>';
+                clearInterval(challengeTimerInterval);
+                // عرض النتائج النهائية
+                showChallengeFinalResults();
+                return;
+            }
+            var timeStr = (days > 0 ? days + ' يوم ' : '') + 
+                         (hours > 0 ? hours + ' ساعة ' : '') + 
+                         mins + ' د ' + secs + ' ث';
+            var timerClass = remaining < 24 * 60 * 60 * 1000 ? 'warning' : '';
+            timerDisplay.innerHTML = '<div class="challenge-timer ' + timerClass + '">⏱️ الوقت المتبقي: ' + timeStr + '</div>';
+        }
+    }, 1000);
 }
 
 function startChallengeForUser() {
+    if (!challengeData || !challengeData.questions) {
+        showToast('❌ لا توجد أسئلة في التحدي', 'error');
+        return;
+    }
     var questions = challengeData.questions;
     window._currentQuestions = questions;
     var h = '<h2>🏁 التحدي - ' + challengeData.code + '</h2>';
@@ -1100,11 +1204,9 @@ function startChallengeForUser() {
 
 function checkChallengeAnswer(btn, chosen, correct, i, total) {
     handleGenericAnswer(btn, chosen, correct, i, total, 'Challenge', '_challengeTotal', '_challengeScores', 'challengeScore');
-    checkChallengeComplete();
 }
 function checkChallengeOther(i, correctText, total) {
     handleGenericOther(i, correctText, total, 'Challenge', '_challengeTotal', '_challengeScores', 'challengeScore');
-    checkChallengeComplete();
 }
 
 function checkChallengeComplete() {
@@ -1120,26 +1222,45 @@ function checkChallengeComplete() {
                 participant.completed = true;
                 localStorage.setItem('challengeData', JSON.stringify(challengeData));
             }
-            // تحديث قائمة المشاركين
             showChallengeParticipantsList();
+            // عرض شاشة اكتمال التحدي
+            showChallengeCompleteOverlay(sc);
+        }
+    }
+}
+
+function showChallengeCompleteOverlay(score) {
+    // عرض شاشة اكتمال التحدي
+    var overlay = document.createElement('div');
+    overlay.className = 'challenge-complete-overlay';
+    overlay.id = 'challengeCompleteOverlay';
+    var participantsHtml = '';
+    if (challengeData && challengeData.participants) {
+        var sorted = challengeData.participants.slice().sort(function(a, b) { return (b.score || 0) - (a.score || 0); });
+        participantsHtml = sorted.map(function(p, i) {
+            var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+            return '<div class="p-item"><span>' + medal + ' ' + p.name + '</span><span>' + (p.completed ? p.score + '%' : 'لم يكمل') + '</span></div>';
+        }).join('');
+    }
+    overlay.innerHTML = 
+        '<div class="complete-card">' +
+        '<h2>🎉 أكملت التحدي!</h2>' +
+        '<div class="score-display">' + score + '%</div>' +
+        '<p style="color:var(--text-secondary);">نتيجتك في التحدي</p>' +
+        '<div class="participants-list"><h4 style="text-align:center;margin-bottom:10px;">👥 ترتيب المشاركين:</h4>' + participantsHtml + '</div>' +
+        '<p style="font-size:0.8rem;color:var(--text-secondary);margin-top:10px;">سيتم إغلاق هذه النافذة تلقائياً بعد 10 ثوان...</p>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    
+    // إغلاق تلقائي بعد 10 ثواني
+    setTimeout(function() {
+        var overlayEl = document.getElementById('challengeCompleteOverlay');
+        if (overlayEl) {
+            overlayEl.remove();
             // عرض النتائج النهائية
             showChallengeFinalResults();
         }
-        // إظهار زر عرض النتائج
-        var scoreEl = document.getElementById('challengeScore');
-        if (scoreEl) {
-            var resultsBtn = document.createElement('button');
-            resultsBtn.className = 'modal-btn btn-info';
-            resultsBtn.innerHTML = '📊 عرض النتائج النهائية';
-            resultsBtn.style.margin = '10px auto';
-            resultsBtn.style.display = 'block';
-            resultsBtn.onclick = function() { showChallengeFinalResults(); };
-            if (!scoreEl.querySelector('.results-btn')) {
-                resultsBtn.className += ' results-btn';
-                scoreEl.appendChild(resultsBtn);
-            }
-        }
-    }
+    }, 10000);
 }
 
 function showChallengeFinalResults() {
@@ -1162,7 +1283,6 @@ function showChallengeFinalResults() {
             h += '<tr class="' + rowClass + '"><td>' + medal + ' ' + (i+1) + '</td><td>' + p.name + '</td><td>' + (p.completed ? p.score + '%' : 'لم يكمل') + '</td><td>' + (p.completed ? '✅ مكتمل' : '⏳ لم يكمل') + '</td></tr>';
         }
         h += '</table>';
-        // عرض الفائز
         if (sorted.length > 0 && sorted[0].completed) {
             h += '<div style="text-align:center;margin-top:15px;padding:10px;background:var(--gold-light);border-radius:12px;font-weight:700;color:var(--gold-dark);">🏆 الفائز: ' + sorted[0].name + ' بنسبة ' + sorted[0].score + '%</div>';
         }
@@ -1197,6 +1317,15 @@ function initPage() {
     updateStats(); updateXPDisplay(); renderChapterButtons(); renderCategoryTabs(); renderAllQuestions(); buildSidebar();
     updateFavCount(); updateHardCount(); updateRetryButton();
     fetchProgress(); checkAchievements();
+    // التحقق من وجود تحدٍ نشط
+    if (challengeData && challengeData.status === 'started' && challengeData.endTime) {
+        var now = Date.now();
+        var endTime = new Date(challengeData.endTime).getTime();
+        if (now >= endTime) {
+            showToast('⏰ انتهت مدة التحدي! يمكنك عرض النتائج.', 'info');
+            showChallengeFinalResults();
+        }
+    }
     debugLog('✅ تم تهيئة الصفحة بنجاح');
 }
 
