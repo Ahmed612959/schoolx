@@ -588,10 +588,8 @@ if(localStorage.getItem('darkMode')==='true'){document.body.classList.add('dark-
 const ht=document.getElementById('hideAnswersToggle');ht.addEventListener('click',()=>{hideAnswers=!hideAnswers;const i=ht.querySelector('i');if(hideAnswers){i.className='fas fa-eye';applyHideAnswers()}else{i.className='fas fa-eye-slash';removeHideAnswers()}});
 
 // ==================== تهيئة ====================
-updateStats();updateXPDisplay();renderChapterButtons();renderCategoryTabs();renderAllQuestions();buildSidebar();updateFavCount();updateHardCount();
-document.getElementById('retryWrongBtn').style.display=wrongQuestions.length>0?'inline-flex':'none';
-// محاولة الاتصال بالسيرفر
-fetchProgress();
+// تم نقل التهيئة إلى داخل initializePage() في DOMContentLoaded
+// لا تقم بتشغيل أي شيء هنا لتجنب عرض الصفحة قبل التحقق من تسجيل الدخول
 </script>
 </body>
 </html>
