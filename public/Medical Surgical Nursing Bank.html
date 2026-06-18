@@ -196,6 +196,109 @@
 <footer class="footer"><p>تم التطوير بواسطة <span class="developer-name">أحمد موسى</span> | <span class="institute-name">معهد رعاية الضبعية الفني للتمريض</span></p><p style="margin-top:5px;font-size:0.73rem">Medical Surgical Nursing Bank &copy; 2025</p></footer>
 <script src="chapter1.js"></script><script src="chapter2.js"></script><script src="chapter3.js"></script><script src="chapter4.js"></script><script src="chapter5.js"></script><script src="chapter6.js"></script><script src="chapter7.js"></script><script src="chapter8.js"></script><script src="chapter9.js"></script><script src="chapter10.js"></script><script src="chapter11.js"></script>
 <script>
+
+// ====================== حماية الصفحة ======================
+(function protectPage() {
+    // 1. منع اختصارات لوحة المفاتيح
+    document.addEventListener('keydown', function(e) {
+        const blockedKeys = {
+            'F12': true,
+            'I': e.ctrlKey && e.shiftKey,
+            'J': e.ctrlKey && e.shiftKey,
+            'U': e.ctrlKey,
+            'S': e.ctrlKey,
+            'C': e.ctrlKey && e.shiftKey,
+            'E': e.ctrlKey && e.shiftKey
+        };
+        
+        if (e.key === 'F12' || 
+            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C' || e.key === 'E')) ||
+            (e.ctrlKey && (e.key === 'U' || e.key === 'S'))) {
+            e.preventDefault();
+            return false;
+        }
+    });
+    
+    // 2. منع النقر بزر الماوس الأيمن
+    document.addEventListener('contextmenu', function(e) {
+        if (!e.target.closest('input') && !e.target.closest('textarea')) {
+            e.preventDefault();
+            return false;
+        }
+    });
+    
+    // 3. منع الضغط المطول على الهواتف
+    let longPressTimer;
+    document.addEventListener('touchstart', function(e) {
+        if (e.target.closest('input') || e.target.closest('textarea')) return;
+        longPressTimer = setTimeout(function() {
+            e.preventDefault();
+        }, 500);
+    }, { passive: false });
+    
+    document.addEventListener('touchend', function() {
+        clearTimeout(longPressTimer);
+    }, { passive: false });
+    
+    // 4. كشف فتح Console
+    let devToolsOpen = false;
+    const startTime = performance.now();
+    
+    setInterval(function() {
+        const currentTime = performance.now();
+        if (currentTime - startTime > 5000 && !devToolsOpen) {
+            devToolsOpen = true;
+            
+            // إعادة التوجيه أو عرض رسالة
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(15, 23, 42, 0.95);
+                z-index: 99999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 20px;
+                color: white;
+                font-family: 'Tajawal', sans-serif;
+            `;
+            overlay.innerHTML = `
+                <div>
+                    <div style="font-size:4rem;margin-bottom:20px;">🚫</div>
+                    <h2 style="font-size:1.5rem;">أدوات المطور غير مسموح بها</h2>
+                    <p style="color:#94a3b8;margin-top:10px;font-size:1rem;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            // منع التفاعل مع الصفحة
+            document.body.style.pointerEvents = 'none';
+            
+            // محاولة إغلاق Console
+            try {
+                console.clear();
+                console.log = function() {};
+                console.error = function() {};
+                console.warn = function() {};
+            } catch(e) {}
+        }
+    }, 3000);
+    
+    // 5. منع فتح المصدر عبر URL
+    if (window.location.href.includes('view-source:')) {
+        window.location.href = window.location.origin + '/';
+    }
+    
+    console.log('%c تم تفعيل الحماية 🔒', 'color: #d4af5a; font-size: 16px; font-weight: bold;');
+})();
+
+
+    
+
+
+
+    
 // ==================== المتغيرات ====================
 const chaptersData={chapter1,chapter2,chapter3,chapter4,chapter5,chapter6,chapter7,chapter8,chapter9,chapter10,chapter11};
 let currentChapterId='all',currentCategory='all',hideAnswers=!1;
