@@ -219,9 +219,9 @@
         }
     });
     
-    // 2. منع النقر بزر الماوس الأيمن
+    // 2. منع النقر بزر الماوس الأيمن (مع السماح في الحقول)
     document.addEventListener('contextmenu', function(e) {
-        if (!e.target.closest('input') && !e.target.closest('textarea')) {
+        if (!e.target.closest('input') && !e.target.closest('textarea') && !e.target.closest('select')) {
             e.preventDefault();
             return false;
         }
@@ -230,7 +230,7 @@
     // 3. منع الضغط المطول على الهواتف
     let longPressTimer;
     document.addEventListener('touchstart', function(e) {
-        if (e.target.closest('input') || e.target.closest('textarea')) return;
+        if (e.target.closest('input') || e.target.closest('textarea') || e.target.closest('select')) return;
         longPressTimer = setTimeout(function() {
             e.preventDefault();
         }, 500);
@@ -240,53 +240,134 @@
         clearTimeout(longPressTimer);
     }, { passive: false });
     
-    // 4. كشف فتح Console
+    // 4. كشف فتح Console (نسخة محسنة لا تظهر خطأ)
     let devToolsOpen = false;
-    const startTime = performance.now();
+    let warningShown = false;
     
-    setInterval(function() {
-        const currentTime = performance.now();
-        if (currentTime - startTime > 5000 && !devToolsOpen) {
-            devToolsOpen = true;
-            
-            // إعادة التوجيه أو عرض رسالة
-            const overlay = document.createElement('div');
-            overlay.style.cssText = `
-                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(15, 23, 42, 0.95);
-                z-index: 99999;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-                padding: 20px;
-                color: white;
-                font-family: 'Tajawal', sans-serif;
-            `;
-            overlay.innerHTML = `
-                <div>
-                    <div style="font-size:4rem;margin-bottom:20px;">🚫</div>
-                    <h2 style="font-size:1.5rem;">أدوات المطور غير مسموح بها</h2>
-                    <p style="color:#94a3b8;margin-top:10px;font-size:1rem;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p>
-                </div>
-            `;
-            document.body.appendChild(overlay);
-            
-            // منع التفاعل مع الصفحة
-            document.body.style.pointerEvents = 'none';
-            
-            // محاولة إغلاق Console
-            try {
-                console.clear();
-                console.log = function() {};
-                console.error = function() {};
-                console.warn = function() {};
-            } catch(e) {}
+    // طريقة أكثر دقة للكشف عن أدوات المطور
+    function detectDevTools() {
+        // لا نعيد التحقق إذا كانت الرسالة ظاهرة بالفعل
+        if (document.getElementById('devtools-warning')) return;
+        if (warningShown) return;
+        
+        // 1. كشف عبر console.log مع تتبع الزمن (الأكثر دقة)
+        const startTime = performance.now();
+        console.log('%c', '');
+        const endTime = performance.now();
+        
+        // الفرق الطبيعي أقل من 50ms، إذا كان أكثر فهذا يشير إلى Console مفتوح
+        if (endTime - startTime > 80) {
+            showDevToolsWarning();
+            return;
         }
-    }, 3000);
+        
+        // 2. كشف عبر تغيير حجم العنصر (طريقة آمنة)
+        try {
+            const element = new Image();
+            let detected = false;
+            Object.defineProperty(element, 'id', {
+                get: function() {
+                    if (!detected) {
+                        detected = true;
+                        showDevToolsWarning();
+                    }
+                    return '';
+                }
+            });
+            // قراءة الخاصية لتشغيل الـ getter
+            console.log(element.id);
+        } catch(e) {
+            // تجاهل الأخطاء
+        }
+        
+        // 3. كشف عبر حجم النافذة (قد يكون غير دقيق في بعض المتصفحات)
+        try {
+            const threshold = 160;
+            const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+            const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+            
+            if ((widthThreshold || heightThreshold)) {
+                showDevToolsWarning();
+            }
+        } catch(e) {
+            // تجاهل الأخطاء
+        }
+    }
+    
+    // عرض رسالة التحذير
+    function showDevToolsWarning() {
+        if (document.getElementById('devtools-warning')) return;
+        if (warningShown) return;
+        warningShown = true;
+        
+        const overlay = document.createElement('div');
+        overlay.id = 'devtools-warning';
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            color: white;
+            font-family: 'Tajawal', sans-serif;
+        `;
+        overlay.innerHTML = `
+            <div>
+                <div style="font-size:4rem;margin-bottom:20px;">🚫</div>
+                <h2 style="font-size:1.5rem;margin-bottom:10px;">أدوات المطور غير مسموح بها</h2>
+                <p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p>
+                <button onclick="closeDevToolsWarning()" style="margin-top:10px;padding:10px 35px;background:linear-gradient(135deg,var(--gold, #d4af5a),var(--gold-dark, #b8943a));color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;font-size:1rem;font-family:'Tajawal',sans-serif;transition:all 0.3s ease;">
+                    ✅ تم الإغلاق
+                </button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        document.body.style.pointerEvents = 'none';
+        
+        // محاولة إغلاق Console
+        try {
+            console.clear();
+            console.log = function() {};
+            console.error = function() {};
+            console.warn = function() {};
+            console.info = function() {};
+            console.debug = function() {};
+        } catch(e) {}
+    }
+    
+    // إغلاق رسالة التحذير
+    window.closeDevToolsWarning = function() {
+        const overlay = document.getElementById('devtools-warning');
+        if (overlay) {
+            overlay.remove();
+            document.body.style.pointerEvents = 'auto';
+            devToolsOpen = false;
+            warningShown = false;
+        }
+    };
+    
+    // تشغيل الكشف بشكل دوري (كل 3 ثواني)
+    let detectInterval = setInterval(detectDevTools, 3000);
+    
+    // تشغيل الكشف عند تحميل الصفحة
+    setTimeout(detectDevTools, 1000);
+    
+    // عند تغيير حجم النافذة
+    window.addEventListener('resize', function() {
+        clearTimeout(window._resizeTimer);
+        window._resizeTimer = setTimeout(detectDevTools, 500);
+    });
     
     // 5. منع فتح المصدر عبر URL
     if (window.location.href.includes('view-source:')) {
+        window.location.href = window.location.origin + '/';
+    }
+    
+    // 6. منع فتح Console عبر about:blank
+    if (window.location.href.includes('about:blank')) {
         window.location.href = window.location.origin + '/';
     }
     
