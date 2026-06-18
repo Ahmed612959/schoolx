@@ -210,215 +210,81 @@
 <footer class="footer"><p>تم التطوير بواسطة <span class="developer-name">أحمد موسى</span> | <span class="institute-name">معهد رعاية الضبعية الفني للتمريض</span></p><p style="margin-top:5px;font-size:0.73rem">Medical Surgical Nursing Bank &copy; 2025</p></footer>
 <script src="chapter1.js"></script><script src="chapter2.js"></script><script src="chapter3.js"></script><script src="chapter4.js"></script><script src="chapter5.js"></script><script src="chapter6.js"></script><script src="chapter7.js"></script><script src="chapter8.js"></script><script src="chapter9.js"></script><script src="chapter10.js"></script><script src="chapter11.js"></script>
 <script>
+// ====================== وضع التصحيح ======================
+const DEBUG = true;
+function debugLog(...args) { if (DEBUG) console.log('🔍 [DEBUG]:', ...args); }
+function debugError(...args) { if (DEBUG) console.error('❌ [ERROR]:', ...args); }
 
-// ====================== حماية الصفحة (الحل الجذري) ======================
+// ====================== حماية الصفحة ======================
 (function protectPage() {
-    // ====== 1. منع اختصارات لوحة المفاتيح ======
     document.addEventListener('keydown', function(e) {
-        const key = e.key;
-        const ctrl = e.ctrlKey;
-        const shift = e.shiftKey;
-        
-        if (key === 'F12') {
-            e.preventDefault(); e.stopPropagation(); return false;
-        }
-        if (ctrl && shift && (key === 'I' || key === 'J' || key === 'C' || key === 'E')) {
-            e.preventDefault(); e.stopPropagation(); return false;
-        }
-        if (ctrl && (key === 'U' || key === 'S')) {
-            e.preventDefault(); e.stopPropagation(); return false;
-        }
-        if (ctrl && shift && key === 'Delete') {
+        const key = e.key, ctrl = e.ctrlKey, shift = e.shiftKey;
+        if (key === 'F12' || (ctrl && shift && (key === 'I' || key === 'J' || key === 'C' || key === 'E')) || (ctrl && (key === 'U' || key === 'S'))) {
             e.preventDefault(); e.stopPropagation(); return false;
         }
     }, true);
-
-    // ====== 2. منع النقر بزر الماوس الأيمن ======
     document.addEventListener('contextmenu', function(e) {
-        const target = e.target;
-        if (target.closest('input') || target.closest('textarea') || target.closest('select')) {
-            return true;
+        if (!e.target.closest('input') && !e.target.closest('textarea') && !e.target.closest('select')) {
+            e.preventDefault(); e.stopPropagation(); return false;
         }
-        e.preventDefault(); e.stopPropagation(); return false;
     }, true);
-
-    // ====== 3. منع السحب والنسخ ======
-    document.addEventListener('dragstart', function(e) {
-        e.preventDefault(); return false;
-    }, true);
-    
+    document.addEventListener('dragstart', function(e) { e.preventDefault(); return false; }, true);
     document.addEventListener('copy', function(e) {
         if (e.target.closest('input') || e.target.closest('textarea')) return true;
         e.preventDefault(); return false;
     }, true);
     
-    document.addEventListener('cut', function(e) {
-        if (e.target.closest('input') || e.target.closest('textarea')) return true;
-        e.preventDefault(); return false;
-    }, true);
-
-    // ====== 4. منع الضغط المطول على الهواتف ======
-    let longPressTimer = null;
-    let longPressTriggered = false;
-    
+    let longPressTimer = null, longPressTriggered = false;
     document.addEventListener('touchstart', function(e) {
         const target = e.target;
-        if (target.closest('input') || target.closest('textarea') || target.closest('select') || target.closest('button')) {
-            return;
-        }
+        if (target.closest('input') || target.closest('textarea') || target.closest('select') || target.closest('button')) return;
         longPressTriggered = false;
-        longPressTimer = setTimeout(function() {
-            longPressTriggered = true;
-            e.preventDefault();
-        }, 500);
+        longPressTimer = setTimeout(function() { longPressTriggered = true; e.preventDefault(); }, 500);
     }, { passive: false });
-    
-    document.addEventListener('touchmove', function() {
-        clearTimeout(longPressTimer);
-    }, { passive: false });
-    
-    document.addEventListener('touchend', function(e) {
-        clearTimeout(longPressTimer);
-        if (longPressTriggered) {
-            e.preventDefault();
-        }
-    }, { passive: false });
+    document.addEventListener('touchmove', function() { clearTimeout(longPressTimer); }, { passive: false });
+    document.addEventListener('touchend', function(e) { clearTimeout(longPressTimer); if (longPressTriggered) e.preventDefault(); }, { passive: false });
 
-    // ====== 5. كشف فتح Console (نسخة محسنة) ======
-    let warningShown = false;
-    let checkCount = 0;
-    let isPageLoaded = false;
-
+    let warningShown = false, checkCount = 0, isPageLoaded = false;
     function showDevToolsWarning() {
-        if (warningShown) return;
-        if (document.getElementById('devtools-warning')) return;
+        if (warningShown || document.getElementById('devtools-warning')) return;
         warningShown = true;
-        
         const overlay = document.createElement('div');
         overlay.id = 'devtools-warning';
-        overlay.style.cssText = `
-            position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
-            background: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(10px) !important;
-            z-index: 999999 !important; display: flex !important; align-items: center !important; justify-content: center !important;
-            text-align: center !important; padding: 20px !important; color: white !important;
-            font-family: 'Tajawal', sans-serif !important; pointer-events: all !important;
-        `;
-        overlay.innerHTML = `
-            <div style="max-width:400px;width:100%;">
-                <div style="font-size:4rem;margin-bottom:20px;">🚫</div>
-                <h2 style="font-size:1.5rem;margin-bottom:10px;color:white;">أدوات المطور غير مسموح بها</h2>
-                <p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;line-height:1.8;">
-                    يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح
-                </p>
-                <button onclick="window.closeDevToolsWarning()" 
-                    style="padding:12px 40px;background:linear-gradient(135deg,#d4af5a,#b8943a);
-                    color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;
-                    font-size:1rem;font-family:'Tajawal',sans-serif;transition:all 0.3s ease;
-                    box-shadow:0 4px 15px rgba(212,175,90,0.3);"
-                    onmouseover="this.style.transform='scale(1.05)'"
-                    onmouseout="this.style.transform='scale(1)'">
-                    ✅ تم الإغلاق
-                </button>
-            </div>
-        `;
+        overlay.style.cssText = `position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;background:rgba(15,23,42,0.95)!important;backdrop-filter:blur(10px)!important;z-index:999999!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;padding:20px!important;color:white!important;font-family:'Tajawal',sans-serif!important;pointer-events:all!important;`;
+        overlay.innerHTML = `<div style="max-width:400px;width:100%;"><div style="font-size:4rem;margin-bottom:20px;">🚫</div><h2 style="font-size:1.5rem;margin-bottom:10px;color:white;">أدوات المطور غير مسموح بها</h2><p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;line-height:1.8;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p><button onclick="window.closeDevToolsWarning()" style="padding:12px 40px;background:linear-gradient(135deg,#d4af5a,#b8943a);color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;font-size:1rem;font-family:'Tajawal',sans-serif;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(212,175,90,0.3);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">✅ تم الإغلاق</button></div>`;
         document.body.appendChild(overlay);
         document.body.style.pointerEvents = 'none';
         document.body.style.overflow = 'hidden';
-        
-        try {
-            console.clear();
-            console.log = function() {};
-            console.error = function() {};
-            console.warn = function() {};
-            console.info = function() {};
-            console.debug = function() {};
-            console.table = function() {};
-            console.dir = function() {};
-        } catch(e) {}
+        try { console.clear(); } catch(e) {}
     }
-
     window.closeDevToolsWarning = function() {
         const overlay = document.getElementById('devtools-warning');
-        if (overlay) {
-            overlay.remove();
-            document.body.style.pointerEvents = 'auto';
-            document.body.style.overflow = 'auto';
-            warningShown = false;
-        }
+        if (overlay) { overlay.remove(); document.body.style.pointerEvents = 'auto'; document.body.style.overflow = 'auto'; warningShown = false; }
     };
-
     function detectDevTools() {
-        if (!isPageLoaded) return;
-        if (warningShown) return;
+        if (!isPageLoaded || warningShown) return;
         checkCount++;
         if (checkCount < 3) return;
-        
         try {
             const start = performance.now();
             console.log('%c', '');
-            const end = performance.now();
-            if (end - start > 80) {
-                showDevToolsWarning();
-                return;
-            }
-            
+            if (performance.now() - start > 80) { showDevToolsWarning(); return; }
             const threshold = 120;
-            const widthDiff = Math.abs(window.outerWidth - window.innerWidth);
-            const heightDiff = Math.abs(window.outerHeight - window.innerHeight);
-            
-            if ((widthDiff > threshold || heightDiff > threshold) && checkCount > 5) {
+            if ((Math.abs(window.outerWidth - window.innerWidth) > threshold || Math.abs(window.outerHeight - window.innerHeight) > threshold) && checkCount > 5) {
                 showDevToolsWarning();
-                return;
             }
         } catch(e) {}
     }
-
-    console.log = function() {};
-    console.error = function() {};
-    console.warn = function() {};
-    console.info = function() {};
-    console.debug = function() {};
-    console.table = function() {};
-    console.dir = function() {};
-
-    document.addEventListener('DOMContentLoaded', function() {
-        isPageLoaded = true;
-    });
-    
-    setTimeout(function() {
-        isPageLoaded = true;
-    }, 2000);
-
+    console.log = function() {}; console.error = function() {}; console.warn = function() {};
+    console.info = function() {}; console.debug = function() {}; console.table = function() {}; console.dir = function() {};
+    document.addEventListener('DOMContentLoaded', function() { isPageLoaded = true; });
+    setTimeout(function() { isPageLoaded = true; }, 2000);
     setInterval(detectDevTools, 3000);
-
     let resizeTimer = null;
-    window.addEventListener('resize', function() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(detectDevTools, 400);
-    });
-
+    window.addEventListener('resize', function() { clearTimeout(resizeTimer); resizeTimer = setTimeout(detectDevTools, 400); });
     if (window.location.href.includes('view-source:') || window.location.href.includes('about:blank')) {
         window.location.href = window.location.origin + '/';
     }
-
-    document.querySelectorAll('img, a, p, div').forEach(el => {
-        el.addEventListener('dragstart', function(e) {
-            e.preventDefault(); return false;
-        });
-    });
-
-    document.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 'n') {
-            e.preventDefault(); return false;
-        }
-    });
-
-    document.addEventListener('keyup', function(e) {
-        if (e.key === 'F12') {
-            e.preventDefault(); return false;
-        }
-    });
-
     console.log('%c تم تفعيل الحماية المتقدمة 🔒', 'color: #d4af5a; font-size: 16px; font-weight: bold;');
 })();
 
@@ -429,115 +295,101 @@ let bookmarks=new Set(JSON.parse(localStorage.getItem('nb_bookmarks')||'[]')),ha
 const categoryMeta=[{id:'definitions',icon:'fas fa-bookmark',label:'تعريفات',badge:'badge-def'},{id:'mcq',icon:'fas fa-tasks',label:'اختيار متعدد',badge:'badge-mcq'},{id:'truefalse',icon:'fas fa-check-double',label:'صح وخطأ',badge:'badge-tf'},{id:'complete',icon:'fas fa-pen',label:'أكمل',badge:'badge-complete'},{id:'explain',icon:'fas fa-comment-dots',label:'اشرح',badge:'badge-explain'},{id:'list',icon:'fas fa-list-ul',label:'قوائم',badge:'badge-list'},{id:'situations',icon:'fas fa-stethoscope',label:'مواقف',badge:'badge-situation'}];
 const testCategories=['mcq','truefalse','complete','explain','list','situations'];
 
-// ====================== التحقق من تسجيل الدخول ======================
-async function checkAuth() {
-    try {
-        const response = await fetch(`${API_BASE}/api/verify-session`, {
-            credentials: 'include'
-        });
-        if (response.ok) {
-            const data = await response.json();
-            if (data.valid) {
-                console.log('✅ مستخدم مسجل:', data.user);
-                return data.user;
-            }
-        }
-        return null;
-    } catch (error) {
-        console.error('❌ خطأ في التحقق من الجلسة:', error);
-        return null;
-    }
-}
-
-// ====================== تسجيل الخروج ======================
-async function logoutUser() {
-    if (confirm('هل تريد تسجيل الخروج؟')) {
-        try {
-            await fetch(`${API_BASE}/api/logout`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-            sessionStorage.clear();
-            localStorage.removeItem('loggedInUser');
-            window.location.href = 'login.html';
-        } catch (error) {
-            console.error('❌ خطأ في تسجيل الخروج:', error);
-        }
-    }
-}
-
-// ====================== تهيئة الصفحة ======================
-let currentUser = null;
-
-document.addEventListener('DOMContentLoaded', async function() {
-    const userData = await checkAuth();
-    
-    if (!userData) {
-        document.body.innerHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;text-align:center;background:var(--light-bg);">
-                <div style="background:var(--card-bg);border-radius:30px;padding:40px;max-width:450px;width:100%;box-shadow:var(--shadow-lg);border:2px solid var(--gold);">
-                    <div style="font-size:4rem;margin-bottom:20px;">🔒</div>
-                    <h2 style="color:var(--dark);margin-bottom:10px;">يجب تسجيل الدخول أولاً</h2>
-                    <p style="color:var(--text-secondary);margin-bottom:25px;">يرجى تسجيل الدخول للوصول إلى بنك الأسئلة ومتابعة تقدمك</p>
-                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                        <a href="login.html" style="background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#0e2a35;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">تسجيل الدخول</a>
-                        <a href="register.html" style="background:var(--dark);color:white;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">إنشاء حساب</a>
-                    </div>
-                </div>
-            </div>
-        `;
-        return;
-    }
-
-    currentUser = userData;
-    initializePage();
-});
-
-function initializePage() {
-    updateStats();
-    updateXPDisplay();
-    renderChapterButtons();
-    renderCategoryTabs();
-    renderAllQuestions();
-    buildSidebar();
-    updateFavCount();
-    updateHardCount();
-    document.getElementById('retryWrongBtn').style.display = wrongQuestions.length > 0 ? 'inline-flex' : 'none';
-    fetchProgress();
-}
-
 // ====================== الاتصال بالسيرفر ======================
 const API_BASE = '';
 let isOnlineMode = false;
+let currentUser = null;
+
 function updateSyncIndicator(status, text) {
     const el = document.getElementById('syncIndicator');
     if (!el) return;
     el.className = 'sync-indicator ' + status;
     el.querySelector('span').textContent = text;
 }
-async function apiCall(endpoint, method = 'GET', body = null) {
-    const options = { method, credentials: 'include', headers: { 'Content-Type': 'application/json' } };
-    if (body) options.body = JSON.stringify(body);
+
+// ====================== التحقق من تسجيل الدخول ======================
+async function checkAuth() {
+    debugLog('🔄 التحقق من الجلسة...');
     try {
-        const response = await fetch(`${API_BASE}${endpoint}`, options);
-        if (response.ok) { updateSyncIndicator('synced', '🟢 متزامن'); return await response.json(); }
-        else { updateSyncIndicator('error', '🔴 خطأ'); return null; }
-    } catch (error) { updateSyncIndicator('error', '🔴 غير متصل'); return null; }
-}
-async function fetchProgress() {
-    const data = await apiCall('/api/progress');
-    if (data) {
-        xp = data.xp || 0; bookmarks = new Set(data.bookmarks || []); hardQuestions = new Set(data.hardQuestions || []);
-        notes = data.notes || {}; difficulties = data.difficulties || {}; quizHistory = data.quizHistory || [];
-        achievements = data.achievements || []; wrongQuestions = data.wrongQuestions || [];
-        updateAllUI(); updateSyncIndicator('synced', '🟢 تم تحميل البيانات');
-        isOnlineMode = true;
+        const response = await fetch(`${API_BASE}/api/verify-session`, {
+            credentials: 'include'
+        });
+        debugLog('📡 استجابة التحقق:', response.status);
+        if (response.ok) {
+            const data = await response.json();
+            debugLog('✅ الجلسة نشطة:', data);
+            if (data.valid) {
+                return data.user;
+            }
+        }
+        return null;
+    } catch (error) {
+        debugError('❌ خطأ في التحقق من الجلسة:', error);
+        return null;
     }
 }
+
+async function fetchProgress() {
+    debugLog('🔄 جاري تحميل البيانات من السيرفر...');
+    try {
+        const response = await fetch(`${API_BASE}/api/progress`, {
+            credentials: 'include',
+            headers: { 'Cache-Control': 'no-cache' }
+        });
+        debugLog('📡 استجابة السيرفر:', response.status);
+        if (response.ok) {
+            const data = await response.json();
+            debugLog('📦 البيانات المستلمة:', data);
+            if (data) {
+                xp = data.xp || 0;
+                bookmarks = new Set(data.bookmarks || []);
+                hardQuestions = new Set(data.hardQuestions || []);
+                notes = data.notes || {};
+                difficulties = data.difficulties || {};
+                quizHistory = data.quizHistory || [];
+                achievements = data.achievements || [];
+                wrongQuestions = data.wrongQuestions || [];
+                debugLog('✅ تم تحديث البيانات');
+                updateAllUI();
+                updateSyncIndicator('synced', '🟢 تم تحميل البيانات');
+                isOnlineMode = true;
+                return true;
+            }
+        } else {
+            debugError('❌ فشل جلب البيانات:', response.status);
+            updateSyncIndicator('error', '🔴 خطأ في التحميل');
+            return false;
+        }
+    } catch (error) {
+        debugError('❌ خطأ في الاتصال بالسيرفر:', error);
+        updateSyncIndicator('error', '🔴 غير متصل');
+        return false;
+    }
+}
+
 async function saveProgress(endpoint, data) {
     updateSyncIndicator('syncing', '🟡 جاري المزامنة...');
-    await apiCall(endpoint, 'POST', data);
+    try {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            updateSyncIndicator('synced', '🟢 متزامن');
+            return await response.json();
+        } else {
+            updateSyncIndicator('error', '🔴 خطأ');
+            return null;
+        }
+    } catch (error) {
+        updateSyncIndicator('error', '🔴 غير متصل');
+        return null;
+    }
 }
+
+// ==================== دوال مساعدة ====================
 function updateAllUI() {
     updateXPDisplay(); updateStats(); renderAllQuestions(); updateFavCount(); updateHardCount();
     localStorage.setItem('nb_xp', xp); localStorage.setItem('nb_bookmarks', JSON.stringify([...bookmarks]));
@@ -546,17 +398,16 @@ function updateAllUI() {
     localStorage.setItem('nb_achievements', JSON.stringify(achievements)); localStorage.setItem('nb_wrong', JSON.stringify(wrongQuestions));
 }
 
-// ==================== دوال مساعدة ====================
 function getCategoryLabel(cat){const m={definitions:'تعريف',mcq:'اختيار',truefalse:'صح/خطأ',complete:'أكمل',explain:'اشرح',list:'قائمة',situations:'موقف'};return m[cat]||cat}
 function getCategoryOptions(selected='all'){return `<select id="catFilter"><option value="all" ${selected==='all'?'selected':''}>جميع الأنواع</option>${categoryMeta.filter(c=>c.id!=='definitions').map(c=>`<option value="${c.id}" ${selected===c.id?'selected':''}>${c.label}</option>`).join('')}</select>`}
-function addXP(a){xp+=a;localStorage.setItem('nb_xp',xp);if(isOnlineMode)saveProgress('/api/progress/xp',{xp});updateXPDisplay();checkAchievements()}
+function addXP(a){xp+=a;localStorage.setItem('nb_xp',xp);if(isOnlineMode)saveProgress('/api/progress/xp',{amount:a});updateXPDisplay();checkAchievements()}
 function updateXPDisplay(){const l=getLevel(),n=getNextLevelXP(),p=getPrevLevelXP(),pr=Math.min(100,Math.round(((xp-p)/(n-p))*100));document.getElementById('xpPoints').textContent=xp;document.getElementById('xpFill').style.width=pr+'%';const b=document.getElementById('levelBadge');b.textContent=l.icon+' '+l.name;b.className='level-badge level-'+l.color}
 function getLevel(){if(xp>=5000)return{name:'💎 خبير',icon:'💎',color:'diamond'};if(xp>=2000)return{name:'🥇 متقدم',icon:'🥇',color:'gold'};if(xp>=500)return{name:'🥈 متوسط',icon:'🥈',color:'silver'};return{name:'🟤 مبتدئ',icon:'🟤',color:'bronze'}}
 function getNextLevelXP(){if(xp<500)return 500;if(xp<2000)return 2000;if(xp<5000)return 5000;return 10000}
 function getPrevLevelXP(){if(xp<500)return 0;if(xp<2000)return 500;if(xp<5000)return 2000;return 5000}
 const allAchievements=[{id:'first_quiz',name:'🎯 أول اختبار',condition:()=>quizHistory.length>=1},{id:'perfect_score',name:'💯 درجة كاملة',condition:()=>quizHistory.some(h=>h.score===100)},{id:'hundred_questions',name:'📚 100 سؤال',condition:()=>quizHistory.reduce((s,h)=>s+h.total,0)>=100},{id:'five_streak',name:'🔥 5 أيام',condition:()=>getStudyStreak()>=5},{id:'all_chapters',name:'🏆 كل الفصول',condition:()=>[...new Set(quizHistory.map(h=>h.chapter))].length>=Object.keys(chaptersData).length},{id:'three_perfect',name:'⭐ 3 مثالية',condition:()=>quizHistory.filter(h=>h.score===100).length>=3}];
 function getStudyStreak(){const d=[...new Set(quizHistory.map(h=>h.date.split('T')[0]))].sort().reverse();let s=0;const t=new Date().toISOString().split('T')[0];for(const x of d){if(x===t||new Date(t)-new Date(x)<=(s+1)*86400000)s++;else break}return s}
-function checkAchievements(){allAchievements.forEach(a=>{if(a.condition()&&!achievements.includes(a.id)){achievements.push(a.id);if(isOnlineMode)saveProgress('/api/progress/achievements',{achievements});spawnConfetti()}});localStorage.setItem('nb_achievements',JSON.stringify(achievements))}
+function checkAchievements(){allAchievements.forEach(a=>{if(a.condition()&&!achievements.includes(a.id)){achievements.push(a.id);if(isOnlineMode)saveProgress('/api/progress/achievements',{achievementId:a.id});spawnConfetti()}});localStorage.setItem('nb_achievements',JSON.stringify(achievements))}
 function getQuestionsFor(a,b){let q=[];if(a==='all'){for(const ch of Object.values(chaptersData)){if(ch[b]&&Array.isArray(ch[b]))q=q.concat(ch[b].map(x=>({...x,chapterName:ch.name})))}}else{const ch=chaptersData[a];if(ch&&ch[b]&&Array.isArray(ch[b]))q=ch[b].map(x=>({...x,chapterName:ch.name}))}return q}
 function countQuestions(a,b){return getQuestionsFor(a,b).length}
 function getAllQuestions(chapterId='all',categoryFilter='all'){let q=[];const cats=categoryFilter==='all'?testCategories:[categoryFilter];if(chapterId==='all'){for(const ch of Object.values(chaptersData)){for(const cat of cats){if(ch[cat]&&Array.isArray(ch[cat]))q=q.concat(ch[cat].map(x=>({...x,cat,chapterName:ch.name})))}}}else{const ch=chaptersData[chapterId];for(const cat of cats){if(ch&&ch[cat]&&Array.isArray(ch[cat]))q=ch[cat].map(x=>({...x,cat,chapterName:ch.name}))}}return q}
@@ -608,23 +459,22 @@ function cycleDifficulty(qId) {
     localStorage.setItem('nb_diff', JSON.stringify(difficulties));
     if (isOnlineMode) saveProgress('/api/progress/difficulty', { questionId: qId, difficulty: newDiff });
     renderAllQuestions();
-    if (currentChapterId === 'all') navigateSidebar('all', 'all');
 }
 function copyQuestion(a){const c=document.getElementById(a);if(!c)return;const t=c.querySelector('.question-text')?.textContent?.trim()||'',r=c.querySelector('.translation-box')?.textContent?.trim()||'',n=c.querySelector('.answer-box')?.textContent?.trim()||'';navigator.clipboard.writeText(t+'\n'+r+'\n'+n)}
 function openModal(a,b){let m=document.getElementById(a);if(!m){m=document.createElement('div');m.className='modal-overlay';m.id=a;document.body.appendChild(m)}m.innerHTML=`<div class="modal-content">${b}</div>`;m.classList.add('active')}
 function closeModal(a){const m=document.getElementById(a);if(m){m.classList.remove('active');setTimeout(()=>m.remove(),300)}}
 function checkDefinitionAnswer(userText,correctText){const u=userText.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,'').split(/\s+/).filter(w=>w.length>2);const c=correctText.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,'').split(/\s+/).filter(w=>w.length>2);if(u.length===0||c.length===0)return!1;let matches=0;const cSet=new Set(c);u.forEach(w=>{if(cSet.has(w))matches++});return(matches/Math.max(c.length,1))>=0.5}
-function isAnswerCorrect(chosen,correct){if(!chosen||!correct)return!1;const c=String(chosen).trim(),a=String(correct).trim();if(c===a)return!0;if(c.startsWith(a+')')||c.startsWith(a+' '))return!0;if(a.startsWith(c+')')||a.startsWith(c+' '))return!0;const cl=c.toLowerCase(),al=a.toLowerCase();if(cl===al)return!0;if(cl==='true'&&(al==='true'||al==='صواب'))return!0;if(cl==='false'&&(al==='false'||al==='خطأ'))return!0;if((cl==='true'||cl==='صواب')&&a===!0)return!0;if((cl==='false'||cl==='خطأ')&&a===!1)return!0;return!1}
+function isAnswerCorrect(chosen,correct){if(!chosen||!correct)return!1;const c=String(chosen).trim(),a=String(correct).trim();if(c===a)return!0;if(c.startsWith(a+')')||c.startsWith(a+' '))return!0;if(a.startsWith(c+')')||a.startsWith(c+' '))return!0;const cl=c.toLowerCase(),al=a.toLowerCase();if(cl===al)return!0;if(cl==='true'&&(al==='true'||al==='صواب'))return!0;if(cl==='false'&&(al==='false'||al==='خطأ'))return!0;return!1}
 function renderQuestionHTML(q,i,prefix,total){const catLabel=getCategoryLabel(q.cat);let h=`<div class="quiz-q"><strong>${i+1}. ${q.text}</strong> <span class="q-type-badge">${catLabel}</span>`;if(q.translation){h+=`<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ${q.translation}</div>`}if(q.cat==='mcq'&&q.options){q.options.forEach(opt=>{h+=`<button class="quiz-opt" onclick="check${prefix}Answer(this,'${opt.replace(/'/g,"\\'")}','${q.correct.replace(/'/g,"\\'")}',${i}${total?','+total:''})">${opt}</button>`})}else if(q.cat==='truefalse'){h+=`<button class="quiz-opt" onclick="check${prefix}Answer(this,'true','${q.correct}',${i}${total?','+total:''})">✅ صواب</button><button class="quiz-opt" onclick="check${prefix}Answer(this,'false','${q.correct}',${i}${total?','+total:''})">❌ خطأ</button>`}else{h+=`<textarea class="def-input" id="${prefix}-other-${i}" placeholder="اكتب إجابتك هنا..." style="min-height:60px;"></textarea><button class="modal-btn btn-primary" onclick="check${prefix}Other(${i},'${(q.completion||q.answer||'').replace(/'/g,"\\'")}'${total?','+total:''})">تحقق</button>`}h+=`<div class="quiz-fb" id="${prefix}-fb-${i}"></div></div>`;return h}
 function addWrong(type,correct){wrongQuestions.push({text:type,correct,date:new Date().toISOString()});wrongQuestions=wrongQuestions.slice(-200);localStorage.setItem('nb_wrong',JSON.stringify(wrongQuestions));document.getElementById('retryWrongBtn').style.display='inline-flex'}
 
-// ==================== وضع الدراسة (مع ظهور النتيجة بعد آخر سؤال) ====================
+// ==================== وضع الدراسة ====================
 function openStudyMode(){let h=`<h2>📖 وضع الدراسة الحر</h2><div class="modal-settings"><select id="smChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="smCount"><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50" selected>50</option></select><button class="modal-btn btn-primary" onclick="startStudyMode()">ابدأ</button></div><div id="smQuestions"></div><div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal('studyModal')">إغلاق</button>`;openModal('studyModal',h)}
 function startStudyMode(){const chId=document.getElementById('smChapter')?.value||'all',catFilter=document.getElementById('catFilter')?.value||'all',count=parseInt(document.getElementById('smCount')?.value||50);let allQ=getAllQuestions(chId,catFilter).sort(()=>Math.random()-0.5).slice(0,count);const modal=document.getElementById('studyModal');if(!modal)return;let qHTML='';allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Study',allQ.length)});modal.querySelector('.modal-content').innerHTML=`<h2>📖 وضع الدراسة الحر</h2>${qHTML}<div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal('studyModal')">إغلاق</button>`;window._studyTotal=allQ.length;window._studyScores={}}
 function checkStudyAnswer(btn,chosen,correct,i,total){handleGenericAnswer(btn,chosen,correct,i,total,'Study','_studyTotal','_studyScores','smScore');}
 function checkStudyOther(i,correctText,total){handleGenericOther(i,correctText,total,'Study','_studyTotal','_studyScores','smScore');}
 
-// ==================== اختبار مؤقت (مع ظهور النتيجة بعد آخر سؤال) ====================
+// ==================== اختبار مؤقت ====================
 let qtTimer=null,qtLeft=0,qtScores={};
 function openTimedQuiz(){let h=`<h2>⏱️ اختبار مؤقت</h2><div class="modal-settings"><select id="qtChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="qtCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select><span>⏱️</span><input type="number" id="qtTime" value="20" min="1" max="120" style="width:60px;"> د<button class="modal-btn btn-danger" onclick="startTimedQuiz()">ابدأ</button></div><div id="qtQuestions"></div><div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal('timedQuizModal')">إغلاق</button>`;openModal('timedQuizModal',h)}
 function startTimedQuiz(){const chId=document.getElementById('qtChapter')?.value||'all',catFilter=document.getElementById('catFilter')?.value||'all',count=parseInt(document.getElementById('qtCount')?.value||30),mins=parseInt(document.getElementById('qtTime')?.value||20);let allQ=getAllQuestions(chId,catFilter).sort(()=>Math.random()-0.5).slice(0,count);qtScores={};qtLeft=mins*60;const modal=document.getElementById('timedQuizModal');if(!modal)return;let qHTML=`<div class="modal-timer" id="qtTimerDisplay">${formatTime(qtLeft)}</div>`;allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Timed',allQ.length)});modal.querySelector('.modal-content').innerHTML=`<h2>⏱️ اختبار مؤقت</h2>${qHTML}<div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal('timedQuizModal')">إغلاق</button>`;if(qtTimer)clearInterval(qtTimer);qtTimer=setInterval(()=>{qtLeft--;const td=document.getElementById('qtTimerDisplay');if(td)td.textContent=formatTime(qtLeft);if(qtLeft<=0){clearInterval(qtTimer);finishTimedQuiz(allQ.length)}},1000)}
@@ -664,14 +514,14 @@ function handleGenericOther(i,correctText,total,prefix,totalVar,scoresVar,scoreE
     if(sObj&&Object.keys(sObj).length>=t){const cc=Object.values(sObj).filter(v=>v===!0).length;const sc=Math.round(cc/t*100);const el=document.getElementById(scoreElId);if(el)el.innerHTML=`<div class="quiz-score">النتيجة: ${cc}/${t} (${sc}%)</div>`;if(sc>=80)spawnConfetti()}
 }
 
-// ==================== تحدي الأخطاء (بعد الحل تمسح الأخطاء) ====================
+// ==================== تحدي الأخطاء ====================
 function retryWrongQuestions(){
-    if(wrongQuestions.length===0){alert('🎉 لا توجد أسئلة خاطئة! قم بحل بعض الاختبارات أولاً.');return}
+    if(wrongQuestions.length===0){alert('🎉 لا توجد أسئلة خاطئة!');return}
     let allQ=[];const uniqueTexts=new Set();
     wrongQuestions.forEach(w=>{const searchText=(w.correct||'').toLowerCase().trim();if(!searchText||uniqueTexts.has(searchText))return;
         for(const ch of Object.values(chaptersData)){for(const cat of testCategories){if(ch[cat]&&Array.isArray(ch[cat])){const found=ch[cat].find(q=>{const qAns=(q.correct||q.completion||q.answer||'').toLowerCase().trim();return qAns===searchText||qAns.includes(searchText)||searchText.includes(qAns)});
         if(found&&!uniqueTexts.has(searchText)){allQ.push({...found,cat,chapterName:ch.name});uniqueTexts.add(searchText);return}}}}});
-    if(allQ.length===0){alert('لم يتم العثور على الأسئلة الخاطئة في قاعدة البيانات.');return}
+    if(allQ.length===0){alert('لم يتم العثور على الأسئلة الخاطئة.');return}
     allQ=allQ.sort(()=>Math.random()-0.5).slice(0,Math.min(30,allQ.length));
     let h=`<h2>🔄 تحدي الأخطاء (${allQ.length} سؤال)</h2><div id="rwQuestions"></div><div id="rwScore"></div><button class="modal-btn btn-close" onclick="closeModal('retryModal')">إغلاق</button>`;
     openModal('retryModal',h);let qHTML='';allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Retry',allQ.length)});
@@ -679,6 +529,14 @@ function retryWrongQuestions(){
 }
 function checkRetryAnswer(btn,chosen,correct,i,total){handleGenericAnswer(btn,chosen,correct,i,total,'Retry','_retryTotal','_retryScores','rwScore');}
 function checkRetryOther(i,correctText,total){handleGenericOther(i,correctText,total,'Retry','_retryTotal','_retryScores','rwScore');}
+function finishRetry(total){
+    // مسح الأخطاء بعد حل جميع الأسئلة
+    wrongQuestions = [];
+    localStorage.setItem('nb_wrong', JSON.stringify(wrongQuestions));
+    if(isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: [] });
+    document.getElementById('retryWrongBtn').style.display = 'none';
+    showToast('🎉 تم حل جميع الأخطاء بنجاح!', 'success');
+}
 
 // ==================== امتحان ====================
 function openExamGenerator(){let h=`<h2>📄 توليد ورقة امتحان</h2><div class="modal-settings"><select id="exChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="exCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select><label><input type="checkbox" id="exAnswers" checked> تضمين الإجابات</label><button class="modal-btn btn-info" onclick="generateExam()">📄 إنشاء</button></div><div id="exPreview" style="text-align:right;margin-top:10px;max-height:45vh;overflow-y:auto;"></div><button class="modal-btn btn-close" onclick="closeModal('examModal')">إغلاق</button><button class="modal-btn btn-primary" id="printExamBtn" onclick="printExam()" style="display:none;">🖨️ طباعة</button>`;openModal('examModal',h)}
@@ -693,14 +551,13 @@ function renderFC(){if(fcI<0||fcI>=fcQ.length)return;const q=fcQ[fcI];let front=
 function prevFC(){fcI--;if(fcI<0)fcI=fcQ.length-1;renderFC()}
 function nextFC(){fcI++;if(fcI>=fcQ.length)fcI=0;renderFC()}
 
-// ==================== لوحة تحكم (مع اسم المستخدم والاختبارات) ====================
+// ==================== لوحة تحكم ====================
 function openDashboard(){
     const tQ=quizHistory.reduce((s,h)=>s+h.total,0);
     const tC=quizHistory.reduce((s,h)=>s+h.correct,0);
     const avgS=tQ>0?Math.round(tC/tQ*100):0;
     const streak=getStudyStreak();
     
-    // عرض سجل الاختبارات
     let historyHTML = '';
     if (quizHistory.length > 0) {
         const recent = [...quizHistory].reverse().slice(0, 10);
@@ -718,7 +575,6 @@ function openDashboard(){
     const chapters=Object.entries(chaptersData).map(([id,ch])=>({id,name:ch.name.split(':')[0],total:0,correct:0}));
     quizHistory.forEach(h=>{const c=chapters.find(x=>x.id===h.chapter);if(c){c.total+=h.total;c.correct+=h.correct}});
     let chH=chapters.map(c=>{const s=c.total>0?Math.round(c.correct/c.total*100):0;return`<div style="margin:4px 0;">${c.name}: ${s}%<div class="chart-bar"><div class="chart-fill" style="width:${s}%;background:${s>=80?'var(--green)':s>=50?'var(--orange)':'var(--red)'};"></div></div></div>`}).join('');
-    
     let achH=allAchievements.map(a=>{const u=achievements.includes(a.id);return`<div class="achievement-badge ${u?'unlocked':'locked'}">${u?a.name:'🔒 '+a.name}</div>`}).join('');
     
     let h = `
@@ -775,8 +631,60 @@ const dt=document.getElementById('darkModeToggle');dt.addEventListener('click',(
 if(localStorage.getItem('darkMode')==='true'){document.body.classList.add('dark-mode');dt.querySelector('i').className='fas fa-sun'}
 const ht=document.getElementById('hideAnswersToggle');ht.addEventListener('click',()=>{hideAnswers=!hideAnswers;const i=ht.querySelector('i');if(hideAnswers){i.className='fas fa-eye';applyHideAnswers()}else{i.className='fas fa-eye-slash';removeHideAnswers()}});
 
-// ==================== تهيئة ====================
-// تم نقل التهيئة إلى داخل initializePage() في DOMContentLoaded
+// ==================== تهيئة الصفحة ====================
+async function initPage() {
+    debugLog('🚀 بدء تهيئة الصفحة...');
+    
+    // 1. تحديث الواجهة الأساسية
+    updateStats();
+    updateXPDisplay();
+    renderChapterButtons();
+    renderCategoryTabs();
+    renderAllQuestions();
+    buildSidebar();
+    updateFavCount();
+    updateHardCount();
+    
+    const retryBtn = document.getElementById('retryWrongBtn');
+    if (retryBtn) retryBtn.style.display = wrongQuestions.length > 0 ? 'inline-flex' : 'none';
+    
+    // 2. محاولة تحميل البيانات من السيرفر
+    await fetchProgress();
+    
+    debugLog('✅ تم تهيئة الصفحة بنجاح');
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    debugLog('🚀 تحميل الصفحة...');
+    
+    // 1. التحقق من تسجيل الدخول
+    const userData = await checkAuth();
+    
+    if (!userData) {
+        debugLog('❌ المستخدم غير مسجل');
+        document.body.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;text-align:center;background:var(--light-bg);">
+                <div style="background:var(--card-bg);border-radius:30px;padding:40px;max-width:450px;width:100%;box-shadow:var(--shadow-lg);border:2px solid var(--gold);">
+                    <div style="font-size:4rem;margin-bottom:20px;">🔒</div>
+                    <h2 style="color:var(--dark);margin-bottom:10px;">يجب تسجيل الدخول أولاً</h2>
+                    <p style="color:var(--text-secondary);margin-bottom:25px;">يرجى تسجيل الدخول للوصول إلى بنك الأسئلة ومتابعة تقدمك</p>
+                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                        <a href="login.html" style="background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#0e2a35;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">تسجيل الدخول</a>
+                        <a href="register.html" style="background:var(--dark);color:white;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">إنشاء حساب</a>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // 2. تخزين بيانات المستخدم
+    currentUser = userData;
+    debugLog('✅ المستخدم مسجل:', currentUser);
+    
+    // 3. تهيئة الصفحة
+    await initPage();
+});
 </script>
 </body>
 </html>
