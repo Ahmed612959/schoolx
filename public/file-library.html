@@ -283,7 +283,10 @@
 // ====================== إعدادات ======================
 const BASE_URL = '';
 const CLOUDINARY_CLOUD_NAME = 'di47of300';
-const CLOUDINARY_UPLOAD_PRESET = 'school_preset'; // ✅ تم إنشاؤه في Cloudinary
+const CLOUDINARY_UPLOAD_PRESET = 'school_preset';
+
+// ✅ الحد الأقصى لحجم الملف (50MB)
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 let allFiles = [];
 let currentUser = null;
@@ -661,12 +664,13 @@ async function deleteAllFiles() {
 document.getElementById('confirmDeleteAll')?.addEventListener('click', deleteAllFiles);
 document.getElementById('deleteAllBtn')?.addEventListener('click', openDeleteAllModal);
 
-// ====================== رفع الملفات مباشرة إلى Cloudinary ======================
+// ====================== رفع الملفات مباشرة إلى Cloudinary (الحل النهائي) ======================
 async function uploadFileToCloudinary(file, grade, subject) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
     formData.append('folder', `school/${grade}/${subject}`);
+    formData.append('max_bytes', MAX_FILE_SIZE); // ✅ تحديد الحد الأقصى 50MB
     
     const cleanFileName = file.name.replace(/\s+/g, '_');
     formData.append('public_id', `${Date.now()}-${cleanFileName.split('.')[0]}`);
@@ -697,9 +701,9 @@ async function uploadMultipleFiles(event) {
     if (!subject) { showToast('❌ يرجى إدخال اسم المادة', 'error'); return; }
     if (!files || files.length === 0) { showToast('❌ يرجى اختيار ملفات للرفع', 'error'); return; }
 
-    // ✅ الحد الأقصى 50MB لكل ملف
+    // ✅ التحقق من حجم الملفات (الحد الأقصى 50MB)
     for (const file of files) {
-        if (file.size > 50 * 1024 * 1024) {
+        if (file.size > MAX_FILE_SIZE) {
             showToast(`❌ ملف ${file.name} حجمه يتجاوز 50MB`, 'error');
             return;
         }
