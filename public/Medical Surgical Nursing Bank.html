@@ -306,7 +306,6 @@ var achievements = JSON.parse(localStorage.getItem('nb_achievements') || '[]');
 var currentUser = null;
 var leaderboardData = JSON.parse(localStorage.getItem('leaderboard') || '[]');
 var challengeData = JSON.parse(localStorage.getItem('challengeData') || '{}');
-var examStartTime = null;
 var examTabSwitchCount = 0;
 var examTabSwitchLimit = 2;
 var examTimerInterval = null;
@@ -432,7 +431,7 @@ function updateAllUI() {
     saveLeaderboard();
 }
 
-// ====================== دوال مساعدة ======================
+// ====================== دوال مساعدة ====================
 function getCategoryLabel(cat) {
     var m = {definitions:'تعريف', mcq:'اختيار', truefalse:'صح/خطأ', complete:'أكمل', explain:'اشرح', list:'قائمة', situations:'موقف'};
     return m[cat] || cat;
@@ -516,14 +515,14 @@ var allAchievements = [
 ];
 
 function getTotalQuestionsSolved() {
-    return quizHistory.reduce(function(s, h) { return s + h.total; }, 0);
+    return quizHistory.reduce(function(s, h) { return s + (h.total || 0); }, 0);
 }
 
 function getTodayQuestions() {
     var today = new Date().toISOString().split('T')[0];
     return quizHistory.filter(function(h) {
         return h.date && h.date.split('T')[0] === today;
-    }).reduce(function(s, h) { return s + h.total; }, 0);
+    }).reduce(function(s, h) { return s + (h.total || 0); }, 0);
 }
 
 function getStudyStreak() {
@@ -1122,6 +1121,8 @@ function handleGenericAnswer(btn, chosen, correct, i, total, prefix, totalVar, s
         var el = document.getElementById(scoreElId);
         if (el) {
             el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>';
+            // حفظ في سجل الاختبارات
+            saveQuizHistory(t, cc, sc);
             if (sc === 100 && prefix === 'Retry') {
                 showClearWrongButton();
             }
@@ -1162,12 +1163,27 @@ function handleGenericOther(i, correctText, total, prefix, totalVar, scoresVar, 
         var el = document.getElementById(scoreElId);
         if (el) {
             el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>';
+            saveQuizHistory(t, cc, sc);
             if (sc === 100 && prefix === 'Retry') {
                 showClearWrongButton();
             }
         }
         if (sc >= 80) spawnConfetti();
     }
+}
+
+function saveQuizHistory(total, correct, score) {
+    var entry = {
+        date: new Date().toISOString(),
+        total: total,
+        correct: correct,
+        score: score,
+        chapter: currentChapterId || 'all'
+    };
+    quizHistory.push(entry);
+    localStorage.setItem('nb_history', JSON.stringify(quizHistory.slice(-50)));
+    if (isOnlineMode) saveProgress('/api/progress/quiz', entry);
+    updateStats();
 }
 
 function showClearWrongButton() {
@@ -1242,7 +1258,6 @@ function renderQuestionHTML(q, i, prefix, total) {
 // ====================== توقيت الاختبار ومنع التبديل ====================
 function startExamTimer(seconds, onTimeout) {
     examTimeLimit = seconds;
-    examStartTime = Date.now();
     examTabSwitchCount = 0;
     
     if (examTimerInterval) clearInterval(examTimerInterval);
@@ -1253,7 +1268,7 @@ function startExamTimer(seconds, onTimeout) {
             showToast('⚠️ تم اكتشاف تبديل التبويب! (' + examTabSwitchCount + '/' + examTabSwitchLimit + ')', 'warning');
             if (examTabSwitchCount >= examTabSwitchLimit) {
                 document.removeEventListener('visibilitychange', onVisibilityChange);
-                showToast('❌ تم إلغاء الاختبار بسبب تبديل التبويبات أكثر من المسموح!', 'error');
+                showToast('❌ تم إلغاء الامتحان بسبب تبديل التبويبات أكثر من المسموح!', 'error');
                 if (onTimeout) onTimeout();
             }
         }
@@ -1390,6 +1405,7 @@ function checkTimedAnswer(btn, chosen, correct, i, total) {
         var sc = Math.round(cc / total * 100);
         var el = document.getElementById('qtScore');
         if (el) el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + total + ' (' + sc + '%)</div>';
+        saveQuizHistory(total, cc, sc);
         if (sc >= 80) spawnConfetti();
     }
 }
@@ -1416,6 +1432,7 @@ function checkTimedOther(i, correctText, total) {
         var sc = Math.round(cc / total * 100);
         var el = document.getElementById('qtScore');
         if (el) el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + total + ' (' + sc + '%)</div>';
+        saveQuizHistory(total, cc, sc);
         if (sc >= 80) spawnConfetti();
     }
 }
@@ -1425,8 +1442,15 @@ function finishTimedQuiz(scoresObj, total) {
     var sc = Math.round(cc / total * 100);
     var el = document.getElementById('qtScore');
     if (el) el.innerHTML = '<div class="quiz-score">⏰ انتهى الوقت! النتيجة: ' + cc + '/' + total + ' (' + sc + '%)</div>';
+    saveQuizHistory(total, cc, sc);
     updateRetryButton();
     updateStats();
+}
+
+function formatTime(seconds) {
+    var m = Math.floor(seconds / 60);
+    var sec = seconds % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
 }
 
 // ====================== امتحان مع توقيت ومنع تبديل ====================
@@ -1438,28 +1462,26 @@ function openExamGenerator() {
         }
     }
     h += '<option value="all" selected>جميع الفصول</option></select>' + getCategoryOptions() + '<select id="exCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select>';
-    h += '<span>⏱️</span><input type="number" id="exTime" value="10" min="1" max="60" style="width:60px;"> د';
     h += '<label><input type="checkbox" id="exAnswers" checked> تضمين الإجابات</label>';
-    h += '<button class="modal-btn btn-danger" onclick="startExam()">🚀 بدء الامتحان</button></div>';
-    h += '<div id="exPreview" style="text-align:right;margin-top:10px;max-height:45vh;overflow-y:auto;"></div>';
+    h += '<button class="modal-btn btn-info" onclick="generateExam()">📄 إنشاء الامتحان</button></div>';
+    h += '<div id="examPrintArea" style="text-align:right;margin-top:10px;max-height:45vh;overflow-y:auto;"></div>';
+    h += '<button class="modal-btn btn-primary" onclick="printExamSheet()" style="display:none;" id="printExamSheetBtn">🖨️ طباعة الامتحان</button>';
     h += '<button class="modal-btn btn-close" onclick="closeModal(\'examModal\')">إغلاق</button>';
     openModal('examModal', h);
 }
 
-function startExam() {
+function generateExam() {
     var chId = document.getElementById('exChapter')?.value || 'all';
     var catFilter = document.getElementById('catFilter')?.value || 'all';
     var count = parseInt(document.getElementById('exCount')?.value || 30);
-    var timeLimit = parseInt(document.getElementById('exTime')?.value || 10) * 60;
     var incAns = document.getElementById('exAnswers')?.checked;
     
     var examQ = getAllQuestions(chId, catFilter).sort(function() { return Math.random() - 0.5; }).slice(0, count);
-    window._currentQuestions = examQ;
+    window._examQuestions = examQ;
     
     var h = '<div style="text-align:center;margin-bottom:15px;">';
     h += '<h3>📝 الامتحان - Medical Surgical Nursing</h3>';
-    h += '<div id="examTimerDisplay" style="font-size:2rem;font-weight:900;color:var(--red);margin:10px 0;">⏱️ ' + formatTime(timeLimit) + '</div>';
-    h += '<p style="font-size:0.85rem;color:var(--text-secondary);">⚠️ لا تخرج من الصفحة أثناء الامتحان! (' + examTabSwitchLimit + ' محاولات مسموحة)</p>';
+    h += '<p style="font-size:0.85rem;color:var(--text-secondary);">عدد الأسئلة: ' + examQ.length + '</p>';
     h += '</div>';
     
     for (var i = 0; i < examQ.length; i++) {
@@ -1483,21 +1505,24 @@ function startExam() {
         h += '</div>';
     }
     
-    document.getElementById('exPreview').innerHTML = h;
-    
-    startExamTimer(timeLimit, function() {
-        closeModal('examModal');
-        showToast('⏰ انتهى وقت الامتحان!', 'error');
-    });
+    document.getElementById('examPrintArea').innerHTML = h;
+    document.getElementById('printExamSheetBtn').style.display = 'inline-block';
+    showToast('✅ تم إنشاء الامتحان بنجاح!', 'success');
 }
 
-function formatTime(seconds) {
-    var m = Math.floor(seconds / 60);
-    var sec = seconds % 60;
-    return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+function printExamSheet() {
+    var content = document.getElementById('examPrintArea').innerHTML;
+    if (!content) {
+        showToast('❌ لا يوجد امتحان للطباعة', 'error');
+        return;
+    }
+    var w = window.open('', '_blank');
+    w.document.write('<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ورقة امتحان - Medical Surgical Nursing</title><style>body{font-family:Tajawal,sans-serif;padding:20px;line-height:2;background:white;} .exam-q{margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;}</style></head><body><div style="text-align:center;margin-bottom:15px;"><h2>📝 Medical Surgical Nursing - ورقة امتحان</h2></div>' + content + '</body></html>');
+    w.document.close();
+    setTimeout(function() { w.print(); }, 500);
 }
 
-// ====================== بطاقات ذكاء اصطناعي (حسب المستوى) ====================
+// ====================== بطاقات ذكاء اصطناعي ====================
 function openAIFlashcards() {
     var level = getLevel();
     var levelName = level.name;
@@ -1521,7 +1546,6 @@ function openAIFlashcards() {
         }
     }
     
-    // اختيار الأسئلة حسب المستوى
     var filteredQ = [];
     if (levelXP === 'bronze') {
         filteredQ = allQuestions.filter(function(q) { return difficulties[q.questionId] === 'easy' || !difficulties[q.questionId]; });
@@ -1666,22 +1690,30 @@ function nextFC() {
     renderFC(fcQ, fcI);
 }
 
-// ====================== لوحة المتصدرين (Leaderboard) ====================
+// ====================== لوحة المتصدرين ====================
 function openLeaderboard() {
     updateLeaderboard();
     var data = leaderboardData.slice(0, 10);
     var h = '<h2>🏆 لوحة المتصدرين</h2>';
+    h += '<style>.leaderboard-table{width:100%;border-collapse:collapse;text-align:center;border-radius:12px;overflow:hidden;box-shadow:var(--shadow-sm);} .leaderboard-table th{background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#0e2a35;padding:12px;font-weight:700;font-size:0.9rem;} .leaderboard-table td{padding:10px;border-bottom:1px solid var(--border-color);font-size:0.85rem;} .leaderboard-table tr:nth-child(even){background:var(--light-bg);} .leaderboard-table tr:hover{background:var(--gold-light);} .medal-gold{color:#d4af37;font-weight:900;} .medal-silver{color:#c0c0c0;font-weight:900;} .medal-bronze{color:#cd7f32;font-weight:900;} .lb-rank{font-weight:700;font-size:1.1rem;} .lb-name{font-weight:600;} .lb-xp{font-weight:700;color:var(--gold-dark);} .lb-questions{color:var(--blue);} .lb-accuracy{font-weight:700;}</style>';
     h += '<div style="max-height:400px;overflow-y:auto;">';
     if (data.length === 0) {
         h += '<p style="color:var(--text-secondary);padding:20px;">لا يوجد متصدرين بعد. كن أول من يصل إلى القمة! 🚀</p>';
     } else {
-        h += '<table style="width:100%;border-collapse:collapse;text-align:center;">';
-        h += '<tr style="background:var(--gold);color:#0e2a35;"><th>#</th><th>👤 المستخدم</th><th>⭐ XP</th><th>📚 الأسئلة</th><th>✅ النسبة</th></tr>';
+        h += '<table class="leaderboard-table">';
+        h += '<tr><th>#</th><th>👤 المستخدم</th><th>⭐ XP</th><th>📚 الأسئلة</th><th>✅ النسبة</th></tr>';
         for (var i = 0; i < data.length; i++) {
             var rank = i + 1;
-            var bg = i % 2 === 0 ? 'var(--card-bg)' : 'var(--light-bg)';
-            var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
-            h += '<tr style="background:' + bg + ';border-bottom:1px solid var(--border-color);"><td>' + medal + ' ' + rank + '</td><td>' + data[i].name + '</td><td>' + data[i].xp + '</td><td>' + data[i].questions + '</td><td>' + data[i].accuracy + '%</td></tr>';
+            var medal = '';
+            var rankClass = '';
+            if (rank === 1) { medal = '🥇'; rankClass = 'medal-gold'; }
+            else if (rank === 2) { medal = '🥈'; rankClass = 'medal-silver'; }
+            else if (rank === 3) { medal = '🥉'; rankClass = 'medal-bronze'; }
+            h += '<tr><td class="lb-rank ' + rankClass + '">' + medal + ' ' + rank + '</td>';
+            h += '<td class="lb-name">' + (data[i].name || 'مستخدم') + '</td>';
+            h += '<td class="lb-xp">' + (data[i].xp || 0) + '</td>';
+            h += '<td class="lb-questions">' + (data[i].questions || 0) + '</td>';
+            h += '<td class="lb-accuracy">' + (data[i].accuracy || 0) + '%</td></tr>';
         }
         h += '</table>';
     }
@@ -1693,9 +1725,9 @@ function updateLeaderboard() {
     var userEntry = {
         name: currentUser?.fullName || 'مستخدم',
         username: currentUser?.username || '',
-        xp: xp,
-        questions: getTotalQuestionsSolved(),
-        accuracy: quizHistory.length > 0 ? Math.round(quizHistory.reduce(function(s, h) { return s + h.correct; }, 0) / quizHistory.reduce(function(s, h) { return s + h.total; }, 0) * 100) : 0
+        xp: xp || 0,
+        questions: getTotalQuestionsSolved() || 0,
+        accuracy: quizHistory.length > 0 ? Math.round(quizHistory.reduce(function(s, h) { return s + (h.correct || 0); }, 0) / quizHistory.reduce(function(s, h) { return s + (h.total || 1); }, 0) * 100) : 0
     };
     
     var existing = leaderboardData.findIndex(function(item) { return item.username === userEntry.username; });
@@ -1704,7 +1736,7 @@ function updateLeaderboard() {
     } else {
         leaderboardData.push(userEntry);
     }
-    leaderboardData.sort(function(a, b) { return b.xp - a.xp; });
+    leaderboardData.sort(function(a, b) { return (b.xp || 0) - (a.xp || 0); });
     if (leaderboardData.length > 100) {
         leaderboardData = leaderboardData.slice(0, 100);
     }
@@ -1730,12 +1762,14 @@ function openChallengeMode() {
     h += '<option value="all" selected>جميع الفصول</option></select>';
     h += getCategoryOptions();
     h += '<select id="challengeCount"><option value="5">5</option><option value="10">10</option><option value="15" selected>15</option><option value="20">20</option><option value="30">30</option></select>';
+    h += '<select id="challengeDuration"><option value="1">1 يوم</option><option value="3">3 أيام</option><option value="5">5 أيام</option><option value="7" selected>7 أيام</option><option value="10">10 أيام</option></select>';
     h += '</div>';
     h += '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';
     h += '<button class="modal-btn btn-primary" onclick="createChallenge()">📤 إنشاء تحدي</button>';
     h += '<button class="modal-btn btn-success" onclick="joinChallenge()">📥 انضمام لتحدي</button>';
     h += '</div>';
     h += '<div id="challengeStatus" style="margin-top:15px;"></div>';
+    h += '<div id="challengeResults" style="margin-top:15px;"></div>';
     h += '<button class="modal-btn btn-close" onclick="closeModal(\'challengeModal\')">إغلاق</button>';
     openModal('challengeModal', h);
 }
@@ -1744,6 +1778,7 @@ function createChallenge() {
     var chId = document.getElementById('challengeChapter')?.value || 'all';
     var catFilter = document.getElementById('catFilter')?.value || 'all';
     var count = parseInt(document.getElementById('challengeCount')?.value || 15);
+    var duration = parseInt(document.getElementById('challengeDuration')?.value || 7);
     
     var questions = getAllQuestions(chId, catFilter).sort(function() { return Math.random() - 0.5; }).slice(0, count);
     var challengeCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -1753,14 +1788,18 @@ function createChallenge() {
         questions: questions,
         creator: currentUser?.fullName || 'مستخدم',
         createdAt: new Date().toISOString(),
+        duration: duration,
         participants: [{name: currentUser?.fullName || 'مستخدم', score: 0, completed: false}],
-        status: 'active'
+        status: 'active',
+        results: [],
+        startTime: new Date().toISOString()
     };
     localStorage.setItem('challengeData', JSON.stringify(challengeData));
     
     document.getElementById('challengeStatus').innerHTML = 
         '<div style="background:var(--gold-light);padding:15px;border-radius:16px;text-align:center;">' +
         '<p style="font-size:1.2rem;font-weight:700;color:var(--gold-dark);">🎯 كود التحدي: <span style="font-size:1.8rem;">' + challengeCode + '</span></p>' +
+        '<p style="font-size:0.85rem;color:var(--text-secondary);">مدة التحدي: ' + duration + ' يوم</p>' +
         '<p style="font-size:0.85rem;color:var(--text-secondary);">شارك هذا الكود مع أصدقائك للانضمام</p>' +
         '<button class="modal-btn btn-primary" onclick="startChallenge()" style="margin-top:10px;">🚀 بدء التحدي</button>' +
         '</div>';
@@ -1779,11 +1818,23 @@ function joinChallenge() {
         }
         challengeData = savedData;
         document.getElementById('challengeStatus').innerHTML = 
-            '<div style="background:var(--green);color:white;padding:15px;border-radius:16px;text-align:center;">✅ تم الانضمام إلى التحدي! في انتظار بدء التحدي.</div>';
+            '<div style="background:var(--green);color:white;padding:15px;border-radius:16px;text-align:center;">✅ تم الانضمام إلى التحدي! انتظر بدء التحدي من المنشئ.</div>';
         showToast('✅ تم الانضمام إلى التحدي بنجاح!', 'success');
+        showChallengeParticipants();
     } else {
         showToast('❌ كود التحدي غير صالح أو منتهي', 'error');
     }
+}
+
+function showChallengeParticipants() {
+    if (!challengeData || !challengeData.participants) return;
+    var h = '<h4 style="margin-top:10px;">👥 المشاركون:</h4><ul style="list-style:none;padding:0;">';
+    for (var i = 0; i < challengeData.participants.length; i++) {
+        var p = challengeData.participants[i];
+        h += '<li style="padding:5px 10px;border-bottom:1px solid var(--border-color);">' + (p.name || 'مستخدم') + ' ' + (p.completed ? '✅' : '⏳') + '</li>';
+    }
+    h += '</ul>';
+    document.getElementById('challengeResults').innerHTML = h;
 }
 
 function startChallenge() {
@@ -1797,6 +1848,7 @@ function startChallenge() {
     
     var h = '<h2>🏁 التحدي - ' + challengeData.code + '</h2>';
     h += '<p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:10px;">المشاركون: ' + challengeData.participants.map(function(p) { return p.name; }).join(', ') + '</p>';
+    h += '<p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:10px;">⏱️ مدة التحدي: ' + challengeData.duration + ' يوم</p>';
     h += '<div id="challengeQuestions"></div><div id="challengeScore"></div>';
     h += '<button class="modal-btn btn-close" onclick="closeModal(\'challengeModal\')">إغلاق</button>';
     
@@ -1816,27 +1868,71 @@ function startChallenge() {
 
 function checkChallengeAnswer(btn, chosen, correct, i, total) {
     handleGenericAnswer(btn, chosen, correct, i, total, 'Challenge', '_challengeTotal', '_challengeScores', 'challengeScore');
+    checkChallengeComplete();
 }
 
 function checkChallengeOther(i, correctText, total) {
     handleGenericOther(i, correctText, total, 'Challenge', '_challengeTotal', '_challengeScores', 'challengeScore');
+    checkChallengeComplete();
+}
+
+function checkChallengeComplete() {
+    var sObj = window._challengeScores || {};
+    var total = window._challengeTotal || 0;
+    if (Object.keys(sObj).length >= total) {
+        var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
+        var sc = Math.round(cc / total * 100);
+        
+        // تحديث نتيجة المشارك
+        if (challengeData && challengeData.participants) {
+            var participant = challengeData.participants.find(function(p) { return p.name === (currentUser?.fullName || 'مستخدم'); });
+            if (participant) {
+                participant.score = sc;
+                participant.completed = true;
+                localStorage.setItem('challengeData', JSON.stringify(challengeData));
+            }
+        }
+        
+        // عرض النتائج النهائية
+        showChallengeFinalResults();
+    }
+}
+
+function showChallengeFinalResults() {
+    if (!challengeData || !challengeData.participants) return;
+    
+    var sorted = challengeData.participants.slice().sort(function(a, b) { return (b.score || 0) - (a.score || 0); });
+    var h = '<h3 style="margin-top:15px;">🏆 النتائج النهائية</h3>';
+    h += '<div style="max-height:300px;overflow-y:auto;">';
+    h += '<table style="width:100%;border-collapse:collapse;text-align:center;">';
+    h += '<tr style="background:var(--gold);color:#0e2a35;"><th>#</th><th>👤 المستخدم</th><th>📊 النتيجة</th></tr>';
+    for (var i = 0; i < sorted.length; i++) {
+        var p = sorted[i];
+        var medal = '';
+        if (i === 0) medal = '🥇';
+        else if (i === 1) medal = '🥈';
+        else if (i === 2) medal = '🥉';
+        h += '<tr><td>' + medal + ' ' + (i+1) + '</td><td>' + p.name + '</td><td>' + (p.completed ? p.score + '%' : 'لم يكمل') + '</td></tr>';
+    }
+    h += '</table></div>';
+    
+    document.getElementById('challengeResults').innerHTML = h;
 }
 
 // ====================== لوحة تحكم ====================
 function openDashboard() {
-    var tQ = quizHistory.reduce(function(s, h) { return s + h.total; }, 0);
-    var tC = quizHistory.reduce(function(s, h) { return s + h.correct; }, 0);
+    var tQ = getTotalQuestionsSolved();
+    var tC = quizHistory.reduce(function(s, h) { return s + (h.correct || 0); }, 0);
     var avgS = tQ > 0 ? Math.round(tC / tQ * 100) : 0;
     var streak = getStudyStreak();
     var todayQ = getTodayQuestions();
-    var totalQ = getTotalQuestionsSolved();
     
     var historyHTML = '';
     if (quizHistory.length > 0) {
         var recent = quizHistory.slice().reverse().slice(0, 10);
         historyHTML = recent.map(function(h) {
-            var color = h.score >= 80 ? 'var(--green)' : h.score >= 50 ? 'var(--orange)' : 'var(--red)';
-            return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;"><span>' + (h.date ? new Date(h.date).toLocaleDateString('ar-EG') : '') + '</span><span>' + h.total + ' سؤال</span><span style="color:' + color + ';font-weight:700;">' + h.score + '%</span></div>';
+            var color = (h.score || 0) >= 80 ? 'var(--green)' : (h.score || 0) >= 50 ? 'var(--orange)' : 'var(--red)';
+            return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;"><span>' + (h.date ? new Date(h.date).toLocaleDateString('ar-EG') : '') + '</span><span>' + (h.total || 0) + ' سؤال</span><span style="color:' + color + ';font-weight:700;">' + (h.score || 0) + '%</span></div>';
         }).join('');
     } else {
         historyHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">لا توجد اختبارات بعد</p>';
@@ -1847,7 +1943,7 @@ function openDashboard() {
         return '<div class="achievement-badge ' + (unlocked ? 'unlocked' : 'locked') + '" title="' + a.desc + '">' + (unlocked ? a.name : '🔒 ' + a.name) + '</div>';
     }).join('');
     
-    var h = '<h2>📊 لوحة التحكم</h2><div style="display:flex;align-items:center;gap:15px;justify-content:center;margin-bottom:15px;flex-wrap:wrap;"><div class="profile-avatar"><span>' + (currentUser?.fullName ? currentUser.fullName.charAt(0).toUpperCase() : '👤') + '</span></div><div style="text-align:right;"><div style="font-weight:700;font-size:1.1rem;color:var(--dark);">' + (currentUser?.fullName || 'مستخدم') + '</div><div style="font-size:0.8rem;color:var(--text-secondary);">@' + (currentUser?.username || '') + '</div></div></div><div class="dashboard-grid"><div class="dashboard-card"><h4>📈 إحصائيات</h4><p>اختبارات: ' + quizHistory.length + '</p><p>أسئلة اليوم: ' + todayQ + '</p><p>إجمالي الأسئلة: ' + totalQ + '</p><p>أخطاء: ' + wrongQuestions.length + '</p><div class="big-number">' + avgS + '%</div></div><div class="dashboard-card"><h4>🔥 التتابع</h4><div class="big-number">' + streak + ' يوم</div><p>نقاط: ' + xp + ' XP</p></div><div class="dashboard-card"><h4>📋 سجل الاختبارات</h4><div style="max-height:150px;overflow-y:auto;">' + historyHTML + '</div></div><div class="dashboard-card" style="grid-column:1/-1;"><h4>🏆 الإنجازات (' + achievements.length + '/' + allAchievements.length + ')</h4><div class="achievements-grid">' + achH + '</div></div></div><button class="modal-btn btn-close" onclick="closeModal(\'dashboardModal\')">إغلاق</button>';
+    var h = '<h2>📊 لوحة التحكم</h2><div style="display:flex;align-items:center;gap:15px;justify-content:center;margin-bottom:15px;flex-wrap:wrap;"><div class="profile-avatar"><span>' + (currentUser?.fullName ? currentUser.fullName.charAt(0).toUpperCase() : '👤') + '</span></div><div style="text-align:right;"><div style="font-weight:700;font-size:1.1rem;color:var(--dark);">' + (currentUser?.fullName || 'مستخدم') + '</div><div style="font-size:0.8rem;color:var(--text-secondary);">@' + (currentUser?.username || '') + '</div></div></div><div class="dashboard-grid"><div class="dashboard-card"><h4>📈 إحصائيات</h4><p>اختبارات: ' + quizHistory.length + '</p><p>أسئلة اليوم: ' + todayQ + '</p><p>إجمالي الأسئلة: ' + tQ + '</p><p>أخطاء: ' + wrongQuestions.length + '</p><div class="big-number">' + avgS + '%</div></div><div class="dashboard-card"><h4>🔥 التتابع</h4><div class="big-number">' + streak + ' يوم</div><p>نقاط: ' + xp + ' XP</p></div><div class="dashboard-card"><h4>📋 سجل الاختبارات</h4><div style="max-height:150px;overflow-y:auto;">' + historyHTML + '</div></div><div class="dashboard-card" style="grid-column:1/-1;"><h4>🏆 الإنجازات (' + achievements.length + '/' + allAchievements.length + ')</h4><div class="achievements-grid">' + achH + '</div></div></div><button class="modal-btn btn-close" onclick="closeModal(\'dashboardModal\')">إغلاق</button>';
     openModal('dashboardModal', h);
 }
 
