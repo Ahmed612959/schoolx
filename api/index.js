@@ -86,7 +86,27 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET || 'HkoDVSfeDHmRQJjd4Q_B1uEQlpA'
 });
 
-// ====================== دالة رفع ملف إلى Cloudinary من Buffer (للاستخدام عبر السيرفر) ======================
+// ====================== إعداد Multer ======================
+const storage = multer.memoryStorage();
+
+const upload = multer({
+    storage: storage,
+    limits: { 
+        fileSize: 4 * 1024 * 1024, // 4MB (حد Vercel)
+        files: 10
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'txt'];
+        const ext = file.originalname.split('.').pop().toLowerCase();
+        if (allowedTypes.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('نوع الملف غير مدعوم'), false);
+        }
+    }
+});
+
+// دالة رفع ملف إلى Cloudinary من Buffer
 const uploadToCloudinary = (buffer, folder, fileName) => {
     return new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
