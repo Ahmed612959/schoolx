@@ -250,8 +250,8 @@ function debugError(...args) { if (DEBUG) console.error('❌ [ERROR]:', ...args)
         warningShown = true;
         const overlay = document.createElement('div');
         overlay.id = 'devtools-warning';
-        overlay.style.cssText = `position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;background:rgba(15,23,42,0.95)!important;backdrop-filter:blur(10px)!important;z-index:999999!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;padding:20px!important;color:white!important;font-family:'Tajawal',sans-serif!important;pointer-events:all!important;`;
-        overlay.innerHTML = `<div style="max-width:400px;width:100%;"><div style="font-size:4rem;margin-bottom:20px;">🚫</div><h2 style="font-size:1.5rem;margin-bottom:10px;color:white;">أدوات المطور غير مسموح بها</h2><p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;line-height:1.8;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p><button onclick="window.closeDevToolsWarning()" style="padding:12px 40px;background:linear-gradient(135deg,#d4af5a,#b8943a);color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;font-size:1rem;font-family:'Tajawal',sans-serif;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(212,175,90,0.3);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">✅ تم الإغلاق</button></div>`;
+        overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;background:rgba(15,23,42,0.95)!important;backdrop-filter:blur(10px)!important;z-index:999999!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;padding:20px!important;color:white!important;font-family:"Tajawal",sans-serif!important;pointer-events:all!important;';
+        overlay.innerHTML = '<div style="max-width:400px;width:100%;"><div style="font-size:4rem;margin-bottom:20px;">🚫</div><h2 style="font-size:1.5rem;margin-bottom:10px;color:white;">أدوات المطور غير مسموح بها</h2><p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;line-height:1.8;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p><button onclick="window.closeDevToolsWarning()" style="padding:12px 40px;background:linear-gradient(135deg,#d4af5a,#b8943a);color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;font-size:1rem;font-family:Tajawal,sans-serif;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(212,175,90,0.3);" onmouseover="this.style.transform=scale(1.05)" onmouseout="this.style.transform=scale(1)">✅ تم الإغلاق</button></div>';
         document.body.appendChild(overlay);
         document.body.style.pointerEvents = 'none';
         document.body.style.overflow = 'hidden';
@@ -289,11 +289,29 @@ function debugError(...args) { if (DEBUG) console.error('❌ [ERROR]:', ...args)
 })();
 
 // ==================== المتغيرات ====================
-const chaptersData={chapter1,chapter2,chapter3,chapter4,chapter5,chapter6,chapter7,chapter8,chapter9,chapter10,chapter11};
-let currentChapterId='all',currentCategory='all',hideAnswers=!1;
-let bookmarks=new Set(JSON.parse(localStorage.getItem('nb_bookmarks')||'[]')),hardQuestions=new Set(JSON.parse(localStorage.getItem('nb_hard')||'[]')),notes=JSON.parse(localStorage.getItem('nb_notes')||'{}'),difficulties=JSON.parse(localStorage.getItem('nb_diff')||'{}'),quizHistory=JSON.parse(localStorage.getItem('nb_history')||'[]'),wrongQuestions=JSON.parse(localStorage.getItem('nb_wrong')||'[]'),xp=parseInt(localStorage.getItem('nb_xp')||0),achievements=JSON.parse(localStorage.getItem('nb_achievements')||'[]');
-const categoryMeta=[{id:'definitions',icon:'fas fa-bookmark',label:'تعريفات',badge:'badge-def'},{id:'mcq',icon:'fas fa-tasks',label:'اختيار متعدد',badge:'badge-mcq'},{id:'truefalse',icon:'fas fa-check-double',label:'صح وخطأ',badge:'badge-tf'},{id:'complete',icon:'fas fa-pen',label:'أكمل',badge:'badge-complete'},{id:'explain',icon:'fas fa-comment-dots',label:'اشرح',badge:'badge-explain'},{id:'list',icon:'fas fa-list-ul',label:'قوائم',badge:'badge-list'},{id:'situations',icon:'fas fa-stethoscope',label:'مواقف',badge:'badge-situation'}];
-const testCategories=['mcq','truefalse','complete','explain','list','situations'];
+const chaptersData = {chapter1, chapter2, chapter3, chapter4, chapter5, chapter6, chapter7, chapter8, chapter9, chapter10, chapter11};
+let currentChapterId = 'all';
+let currentCategory = 'all';
+let hideAnswers = false;
+let bookmarks = new Set(JSON.parse(localStorage.getItem('nb_bookmarks') || '[]'));
+let hardQuestions = new Set(JSON.parse(localStorage.getItem('nb_hard') || '[]'));
+let notes = JSON.parse(localStorage.getItem('nb_notes') || '{}');
+let difficulties = JSON.parse(localStorage.getItem('nb_diff') || '{}');
+let quizHistory = JSON.parse(localStorage.getItem('nb_history') || '[]');
+let wrongQuestions = JSON.parse(localStorage.getItem('nb_wrong') || '[]');
+let xp = parseInt(localStorage.getItem('nb_xp') || 0);
+let achievements = JSON.parse(localStorage.getItem('nb_achievements') || '[]');
+
+const categoryMeta = [
+    {id: 'definitions', icon: 'fas fa-bookmark', label: 'تعريفات', badge: 'badge-def'},
+    {id: 'mcq', icon: 'fas fa-tasks', label: 'اختيار متعدد', badge: 'badge-mcq'},
+    {id: 'truefalse', icon: 'fas fa-check-double', label: 'صح وخطأ', badge: 'badge-tf'},
+    {id: 'complete', icon: 'fas fa-pen', label: 'أكمل', badge: 'badge-complete'},
+    {id: 'explain', icon: 'fas fa-comment-dots', label: 'اشرح', badge: 'badge-explain'},
+    {id: 'list', icon: 'fas fa-list-ul', label: 'قوائم', badge: 'badge-list'},
+    {id: 'situations', icon: 'fas fa-stethoscope', label: 'مواقف', badge: 'badge-situation'}
+];
+const testCategories = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situations'];
 
 // ====================== الاتصال بالسيرفر ======================
 const API_BASE = '';
@@ -311,7 +329,7 @@ function updateSyncIndicator(status, text) {
 async function checkAuth() {
     debugLog('🔄 التحقق من الجلسة...');
     try {
-        const response = await fetch(`${API_BASE}/api/verify-session`, {
+        const response = await fetch(API_BASE + '/api/verify-session', {
             credentials: 'include'
         });
         debugLog('📡 استجابة التحقق:', response.status);
@@ -332,7 +350,7 @@ async function checkAuth() {
 async function fetchProgress() {
     debugLog('🔄 جاري تحميل البيانات من السيرفر...');
     try {
-        const response = await fetch(`${API_BASE}/api/progress`, {
+        const response = await fetch(API_BASE + '/api/progress', {
             credentials: 'include',
             headers: { 'Cache-Control': 'no-cache' }
         });
@@ -370,7 +388,7 @@ async function fetchProgress() {
 async function saveProgress(endpoint, data) {
     updateSyncIndicator('syncing', '🟡 جاري المزامنة...');
     try {
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        const response = await fetch(API_BASE + endpoint, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -391,251 +409,992 @@ async function saveProgress(endpoint, data) {
 
 // ==================== دوال مساعدة ====================
 function updateAllUI() {
-    updateXPDisplay(); updateStats(); renderAllQuestions(); updateFavCount(); updateHardCount();
-    localStorage.setItem('nb_xp', xp); localStorage.setItem('nb_bookmarks', JSON.stringify([...bookmarks]));
-    localStorage.setItem('nb_hard', JSON.stringify([...hardQuestions])); localStorage.setItem('nb_notes', JSON.stringify(notes));
-    localStorage.setItem('nb_diff', JSON.stringify(difficulties)); localStorage.setItem('nb_history', JSON.stringify(quizHistory));
-    localStorage.setItem('nb_achievements', JSON.stringify(achievements)); localStorage.setItem('nb_wrong', JSON.stringify(wrongQuestions));
+    updateXPDisplay(); 
+    updateStats(); 
+    renderAllQuestions(); 
+    updateFavCount(); 
+    updateHardCount();
+    localStorage.setItem('nb_xp', xp); 
+    localStorage.setItem('nb_bookmarks', JSON.stringify([...bookmarks]));
+    localStorage.setItem('nb_hard', JSON.stringify([...hardQuestions])); 
+    localStorage.setItem('nb_notes', JSON.stringify(notes));
+    localStorage.setItem('nb_diff', JSON.stringify(difficulties)); 
+    localStorage.setItem('nb_history', JSON.stringify(quizHistory));
+    localStorage.setItem('nb_achievements', JSON.stringify(achievements)); 
+    localStorage.setItem('nb_wrong', JSON.stringify(wrongQuestions));
 }
 
-function getCategoryLabel(cat){const m={definitions:'تعريف',mcq:'اختيار',truefalse:'صح/خطأ',complete:'أكمل',explain:'اشرح',list:'قائمة',situations:'موقف'};return m[cat]||cat}
-function getCategoryOptions(selected='all'){return `<select id="catFilter"><option value="all" ${selected==='all'?'selected':''}>جميع الأنواع</option>${categoryMeta.filter(c=>c.id!=='definitions').map(c=>`<option value="${c.id}" ${selected===c.id?'selected':''}>${c.label}</option>`).join('')}</select>`}
-function addXP(a){xp+=a;localStorage.setItem('nb_xp',xp);if(isOnlineMode)saveProgress('/api/progress/xp',{amount:a});updateXPDisplay();checkAchievements()}
-function updateXPDisplay(){const l=getLevel(),n=getNextLevelXP(),p=getPrevLevelXP(),pr=Math.min(100,Math.round(((xp-p)/(n-p))*100));document.getElementById('xpPoints').textContent=xp;document.getElementById('xpFill').style.width=pr+'%';const b=document.getElementById('levelBadge');b.textContent=l.icon+' '+l.name;b.className='level-badge level-'+l.color}
-function getLevel(){if(xp>=5000)return{name:'💎 خبير',icon:'💎',color:'diamond'};if(xp>=2000)return{name:'🥇 متقدم',icon:'🥇',color:'gold'};if(xp>=500)return{name:'🥈 متوسط',icon:'🥈',color:'silver'};return{name:'🟤 مبتدئ',icon:'🟤',color:'bronze'}}
-function getNextLevelXP(){if(xp<500)return 500;if(xp<2000)return 2000;if(xp<5000)return 5000;return 10000}
-function getPrevLevelXP(){if(xp<500)return 0;if(xp<2000)return 500;if(xp<5000)return 2000;return 5000}
-const allAchievements=[{id:'first_quiz',name:'🎯 أول اختبار',condition:()=>quizHistory.length>=1},{id:'perfect_score',name:'💯 درجة كاملة',condition:()=>quizHistory.some(h=>h.score===100)},{id:'hundred_questions',name:'📚 100 سؤال',condition:()=>quizHistory.reduce((s,h)=>s+h.total,0)>=100},{id:'five_streak',name:'🔥 5 أيام',condition:()=>getStudyStreak()>=5},{id:'all_chapters',name:'🏆 كل الفصول',condition:()=>[...new Set(quizHistory.map(h=>h.chapter))].length>=Object.keys(chaptersData).length},{id:'three_perfect',name:'⭐ 3 مثالية',condition:()=>quizHistory.filter(h=>h.score===100).length>=3}];
-function getStudyStreak(){const d=[...new Set(quizHistory.map(h=>h.date.split('T')[0]))].sort().reverse();let s=0;const t=new Date().toISOString().split('T')[0];for(const x of d){if(x===t||new Date(t)-new Date(x)<=(s+1)*86400000)s++;else break}return s}
-function checkAchievements(){allAchievements.forEach(a=>{if(a.condition()&&!achievements.includes(a.id)){achievements.push(a.id);if(isOnlineMode)saveProgress('/api/progress/achievements',{achievementId:a.id});spawnConfetti()}});localStorage.setItem('nb_achievements',JSON.stringify(achievements))}
-function getQuestionsFor(a,b){let q=[];if(a==='all'){for(const ch of Object.values(chaptersData)){if(ch[b]&&Array.isArray(ch[b]))q=q.concat(ch[b].map(x=>({...x,chapterName:ch.name})))}}else{const ch=chaptersData[a];if(ch&&ch[b]&&Array.isArray(ch[b]))q=ch[b].map(x=>({...x,chapterName:ch.name}))}return q}
-function countQuestions(a,b){return getQuestionsFor(a,b).length}
-function getAllQuestions(chapterId='all',categoryFilter='all'){let q=[];const cats=categoryFilter==='all'?testCategories:[categoryFilter];if(chapterId==='all'){for(const ch of Object.values(chaptersData)){for(const cat of cats){if(ch[cat]&&Array.isArray(ch[cat]))q=q.concat(ch[cat].map(x=>({...x,cat,chapterName:ch.name})))}}}else{const ch=chaptersData[chapterId];for(const cat of cats){if(ch&&ch[cat]&&Array.isArray(ch[cat]))q=ch[cat].map(x=>({...x,cat,chapterName:ch.name}))}}return q}
-function getFullAnswerForTest(q){if(q.cat==='mcq'){let ans=q.correct;if(q.correctTranslation)ans+=' - '+q.correctTranslation;return ans}if(q.cat==='truefalse'){const t=(q.correct===!0||q.correct==='true');let ans=t?'صواب (True)':'خطأ (False)';if(q.correctTranslation)ans+=' - '+q.correctTranslation;return ans}if(q.cat==='complete'){let ans=q.completion||'';if(q.completionTranslation)ans+=' - '+q.completionTranslation;return ans}return q.answer||q.completion||q.translation||''}
-function getFlashcardFront(q){let h='';h+='<div class="fc-label">📝 السؤال (English):</div>';h+='<div class="fc-content">'+q.text+'</div>';if(q.translation){h+='<div class="fc-label" style="margin-top:10px;">🌐 الترجمة:</div>';h+='<div class="fc-content">'+q.translation+'</div>'}return h}
-function getFlashcardBack(q){let h='';h+='<div class="fc-label">✅ الإجابة (English):</div>';if(q.cat==='mcq'){h+='<div class="fc-content">'+q.correct+'</div>';if(q.correctTranslation){h+='<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';h+='<div class="fc-content">'+q.correctTranslation+'</div>'}}else if(q.cat==='truefalse'){const t=(q.correct===!0||q.correct==='true');h+='<div class="fc-content">'+(t?'True (صواب)':'False (خطأ)')+'</div>';if(q.correctTranslation){h+='<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';h+='<div class="fc-content">'+q.correctTranslation+'</div>'}}else if(q.cat==='complete'){h+='<div class="fc-content">'+((q.completion)||'')+'</div>';if(q.completionTranslation){h+='<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';h+='<div class="fc-content">'+q.completionTranslation+'</div>'}}else{let ans=q.answer||q.completion||q.translation||'';h+='<div class="fc-content">'+ans+'</div>';if(q.answerTranslation){h+='<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';h+='<div class="fc-content">'+q.answerTranslation+'</div>'}}return h}
-function updateStats(){let t=0;for(const ch of Object.values(chaptersData)){for(const k of Object.keys(ch)){if(['name','icon'].includes(k))continue;if(Array.isArray(ch[k]))t+=ch[k].length}}document.getElementById('chapterCount').textContent=Object.keys(chaptersData).length;document.getElementById('statsGrid').innerHTML=`<div class="stat-card"><div class="icon-wrap"><i class="fas fa-question-circle"></i></div><div class="number">${t}</div><div class="label">إجمالي الأسئلة</div></div><div class="stat-card"><div class="icon-wrap"><i class="fas fa-book-open"></i></div><div class="number">${Object.keys(chaptersData).length}</div><div class="label">الفصول</div></div><div class="stat-card"><div class="icon-wrap"><i class="fas fa-layer-group"></i></div><div class="number">7</div><div class="label">أنواع الأسئلة</div></div><div class="stat-card"><div class="icon-wrap"><i class="fas fa-star"></i></div><div class="number">${xp}</div><div class="label">نقاط الخبرة</div></div>`}
-function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sidebarOverlay').classList.toggle('active')}
-function buildSidebar(){document.getElementById('sidebarChapters').innerHTML=Object.entries(chaptersData).map(([id,ch])=>`<button class="side-chapter ${currentChapterId===id?'active':''}" onclick="navigateSidebar('${id}','all')"><i class="${ch.icon}"></i> ${ch.name.split(':')[0]}</button>`).join('');document.getElementById('sidebarCategories').innerHTML=categoryMeta.map(c=>`<button class="side-category ${currentCategory===c.id?'active':''}" onclick="navigateSidebar('${currentChapterId}','${c.id}')"><i class="${c.icon}"></i> ${c.label}</button>`).join('')}
-function navigateSidebar(a,b){currentChapterId=a;currentCategory=b;renderChapterButtons();renderCategoryTabs();renderAllQuestions();buildSidebar();document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('active');setTimeout(()=>{const t=document.getElementById('questionsWrapper');if(t)t.scrollIntoView({behavior:'smooth',block:'start'})},150)}
-function renderChapterButtons(){document.getElementById('chapterSelector').innerHTML=`<button class="chapter-btn ${currentChapterId==='all'?'active':''}" onclick="navigateSidebar('all','all')"><i class="fas fa-globe"></i> الكل</button>${Object.entries(chaptersData).map(([id,ch])=>`<button class="chapter-btn ${currentChapterId===id?'active':''}" onclick="navigateSidebar('${id}','all')"><i class="${ch.icon}"></i> ${ch.name.split(':')[0]}</button>`).join('')}`}
-function renderCategoryTabs(){document.getElementById('categoryTabs').innerHTML=`<button class="category-btn ${currentCategory==='all'?'active':''}" onclick="navigateSidebar('${currentChapterId}','all')"><i class="fas fa-border-all"></i> الكل <span class="count">${categoryMeta.reduce((s,c)=>s+countQuestions(currentChapterId,c.id),0)}</span></button>${categoryMeta.map(c=>`<button class="category-btn ${currentCategory===c.id?'active':''}" onclick="navigateSidebar('${currentChapterId}','${c.id}')"><i class="${c.icon}"></i> ${c.label} <span class="count">${countQuestions(currentChapterId,c.id)}</span></button>`).join('')}`}
-function renderAllQuestions(){const w=document.getElementById('questionsWrapper');w.innerHTML='';const cats=currentCategory==='all'?categoryMeta.map(c=>c.id):[currentCategory];let idx=0,total=0;cats.forEach(cid=>{const qs=getQuestionsFor(currentChapterId,cid);if(qs.length===0)return;total+=qs.length;const ci=categoryMeta.find(c=>c.id===cid);const sec=document.createElement('div');sec.className='questions-section';sec.innerHTML=`<div class="section-title"><i class="${ci.icon}"></i> ${ci.label} <span class="section-count">${qs.length} سؤال</span></div>${qs.map((q,i)=>{idx++;return renderCard(q,cid,idx)}).join('')}`;w.appendChild(sec)});if(total===0)w.innerHTML='<div class="empty-state"><i class="fas fa-inbox"></i><h3>لا توجد أسئلة</h3></div>';if(hideAnswers)applyHideAnswers();updateFavCount();updateHardCount()}
-function renderCard(q,cat,idx){const ci=categoryMeta.find(c=>c.id===cat),bc=ci?ci.badge:'badge-def',tl=ci?ci.label:'',ti=ci?ci.icon:'fa-question',qId='q-'+idx,isB=bookmarks.has(qId),isH=hardQuestions.has(qId),diff=difficulties[qId]||'',note=notes[qId]||'';let h=`<div class="question-card" id="${qId}"><div class="question-header"><span class="question-badge ${bc}"><i class="fas ${ti}"></i> ${tl}</span><span class="question-number">#${idx} | ${q.chapterName||''}</span>${diff?`<span class="difficulty-badge diff-${diff}" onclick="cycleDifficulty('${qId}')">${diff==='easy'?'🟢':diff==='medium'?'🟡':'🔴'}</span>`:`<span class="difficulty-badge" onclick="cycleDifficulty('${qId}')" style="cursor:pointer;opacity:0.4;">⚪</span>`}<div class="card-actions"><button class="action-btn" onclick="copyQuestion('${qId}')"><i class="fas fa-copy"></i></button><button class="action-btn ${isB?'bookmarked':''}" onclick="toggleBookmark('${qId}',this)"><i class="fas fa-star"></i></button><button class="action-btn ${isH?'hard-marked':''}" onclick="toggleHard('${qId}',this)"><i class="fas fa-exclamation-triangle"></i></button></div></div><div class="question-content"><div class="question-text"><i class="fas fa-question-circle"></i> ${q.text}</div>${q.translation?`<div class="translation-box"><i class="fas fa-language"></i> ${q.translation}</div>`:''}`;if(cat==='mcq'&&q.options){h+=`<div class="options-list">${q.options.map(o=>{const ic=(o===q.correct||o.startsWith(q.correct+')')||o.startsWith(q.correct+' '));return`<li style="${ic?'font-weight:700;color:#166534;background:#f0fdf4;padding:6px 12px;border-radius:10px;':''}">${o} ${ic?'✅':''}</li>`}).join('')}</div><div class="answer-box"><strong>✅ ${getFullAnswerForTest(q)}</strong></div>`}else if(cat==='truefalse'){const cv=q.correct,sv=String(cv).toLowerCase().replace(/['"]/g,'').trim(),isT=(sv==='true'||cv===!0||cv===1),at=isT?'✅ صواب (True)':'❌ خطأ (False)',ec=isT?'':' false-answer';h+=`<div class="answer-box${ec}"><strong>${at}</strong></div>`;if(q.correctTranslation)h+=`<div class="answer-translation">${q.correctTranslation}</div>`}else if(q.completion){h+=`<div class="answer-box"><strong>📝 ${q.completion}</strong></div>`;if(q.completionTranslation)h+=`<div class="answer-translation">${q.completionTranslation}</div>`}else if(q.answer){h+=`<div class="answer-box"><strong>📝 ${q.answer}</strong></div>`;if(q.answerTranslation)h+=`<div class="answer-translation">${q.answerTranslation}</div>`}else if(q.items){h+=`<div class="list-items-box"><ul>${q.items.map(i=>`<li>${i}</li>`).join('')}</ul></div>`}h+=`<div class="note-box"><textarea class="note-input" placeholder="📝 ملاحظة..." onchange="saveNote('${qId}',this.value)">${note}</textarea></div></div></div>`;return h}
-function applyHideAnswers(){document.querySelectorAll('.question-card').forEach(c=>c.classList.add('hide-answers'))}
-function removeHideAnswers(){document.querySelectorAll('.question-card').forEach(c=>c.classList.remove('hide-answers'))}
+function getCategoryLabel(cat) {
+    const m = {definitions:'تعريف', mcq:'اختيار', truefalse:'صح/خطأ', complete:'أكمل', explain:'اشرح', list:'قائمة', situations:'موقف'};
+    return m[cat] || cat;
+}
+
+function getCategoryOptions(selected) {
+    selected = selected || 'all';
+    return '<select id="catFilter"><option value="all" ' + (selected === 'all' ? 'selected' : '') + '>جميع الأنواع</option>' + categoryMeta.filter(function(c) { return c.id !== 'definitions'; }).map(function(c) { return '<option value="' + c.id + '" ' + (selected === c.id ? 'selected' : '') + '>' + c.label + '</option>'; }).join('') + '</select>';
+}
+
+function addXP(amount) {
+    xp += amount;
+    localStorage.setItem('nb_xp', xp);
+    if (isOnlineMode) saveProgress('/api/progress/xp', {amount: amount});
+    updateXPDisplay();
+    checkAchievements();
+}
+
+function updateXPDisplay() {
+    var level = getLevel();
+    var nextXP = getNextLevelXP();
+    var prevXP = getPrevLevelXP();
+    var progress = Math.min(100, Math.round(((xp - prevXP) / (nextXP - prevXP)) * 100));
+    document.getElementById('xpPoints').textContent = xp;
+    document.getElementById('xpFill').style.width = progress + '%';
+    var badge = document.getElementById('levelBadge');
+    badge.textContent = level.icon + ' ' + level.name;
+    badge.className = 'level-badge level-' + level.color;
+}
+
+function getLevel() {
+    if (xp >= 5000) return {name: '💎 خبير', icon: '💎', color: 'diamond'};
+    if (xp >= 2000) return {name: '🥇 متقدم', icon: '🥇', color: 'gold'};
+    if (xp >= 500) return {name: '🥈 متوسط', icon: '🥈', color: 'silver'};
+    return {name: '🟤 مبتدئ', icon: '🟤', color: 'bronze'};
+}
+
+function getNextLevelXP() {
+    if (xp < 500) return 500;
+    if (xp < 2000) return 2000;
+    if (xp < 5000) return 5000;
+    return 10000;
+}
+
+function getPrevLevelXP() {
+    if (xp < 500) return 0;
+    if (xp < 2000) return 500;
+    if (xp < 5000) return 2000;
+    return 5000;
+}
+
+var allAchievements = [
+    {id: 'first_quiz', name: '🎯 أول اختبار', condition: function() { return quizHistory.length >= 1; }},
+    {id: 'perfect_score', name: '💯 درجة كاملة', condition: function() { return quizHistory.some(function(h) { return h.score === 100; }); }},
+    {id: 'hundred_questions', name: '📚 100 سؤال', condition: function() { return quizHistory.reduce(function(s, h) { return s + h.total; }, 0) >= 100; }},
+    {id: 'five_streak', name: '🔥 5 أيام', condition: function() { return getStudyStreak() >= 5; }},
+    {id: 'all_chapters', name: '🏆 كل الفصول', condition: function() { return new Set(quizHistory.map(function(h) { return h.chapter; })).size >= Object.keys(chaptersData).length; }},
+    {id: 'three_perfect', name: '⭐ 3 مثالية', condition: function() { return quizHistory.filter(function(h) { return h.score === 100; }).length >= 3; }}
+];
+
+function getStudyStreak() {
+    var dates = quizHistory.map(function(h) { return h.date.split('T')[0]; }).filter(function(d) { return d; });
+    var uniqueDates = new Set(dates);
+    var sorted = Array.from(uniqueDates).sort().reverse();
+    var streak = 0;
+    var today = new Date().toISOString().split('T')[0];
+    for (var i = 0; i < sorted.length; i++) {
+        var diff = Math.floor((new Date(today) - new Date(sorted[i])) / (1000 * 60 * 60 * 24));
+        if (diff === i) {
+            streak++;
+        } else {
+            break;
+        }
+    }
+    return streak;
+}
+
+function checkAchievements() {
+    for (var i = 0; i < allAchievements.length; i++) {
+        var a = allAchievements[i];
+        if (a.condition() && !achievements.includes(a.id)) {
+            achievements.push(a.id);
+            if (isOnlineMode) saveProgress('/api/progress/achievements', {achievementId: a.id});
+            spawnConfetti();
+        }
+    }
+    localStorage.setItem('nb_achievements', JSON.stringify(achievements));
+}
+
+function getQuestionsFor(chapterId, categoryId) {
+    var questions = [];
+    if (chapterId === 'all') {
+        for (var key in chaptersData) {
+            if (chaptersData.hasOwnProperty(key)) {
+                var ch = chaptersData[key];
+                if (ch[categoryId] && Array.isArray(ch[categoryId])) {
+                    questions = questions.concat(ch[categoryId].map(function(q) {
+                        q.chapterName = ch.name;
+                        return q;
+                    }));
+                }
+            }
+        }
+    } else {
+        var ch = chaptersData[chapterId];
+        if (ch && ch[categoryId] && Array.isArray(ch[categoryId])) {
+            questions = ch[categoryId].map(function(q) {
+                q.chapterName = ch.name;
+                return q;
+            });
+        }
+    }
+    return questions;
+}
+
+function countQuestions(chapterId, categoryId) {
+    return getQuestionsFor(chapterId, categoryId).length;
+}
+
+function getAllQuestions(chapterId, categoryFilter) {
+    chapterId = chapterId || 'all';
+    categoryFilter = categoryFilter || 'all';
+    var questions = [];
+    var cats = categoryFilter === 'all' ? testCategories : [categoryFilter];
+    if (chapterId === 'all') {
+        for (var key in chaptersData) {
+            if (chaptersData.hasOwnProperty(key)) {
+                var ch = chaptersData[key];
+                for (var c = 0; c < cats.length; c++) {
+                    var cat = cats[c];
+                    if (ch[cat] && Array.isArray(ch[cat])) {
+                        questions = questions.concat(ch[cat].map(function(q) {
+                            q.cat = cat;
+                            q.chapterName = ch.name;
+                            return q;
+                        }));
+                    }
+                }
+            }
+        }
+    } else {
+        var ch = chaptersData[chapterId];
+        for (var c = 0; c < cats.length; c++) {
+            var cat = cats[c];
+            if (ch && ch[cat] && Array.isArray(ch[cat])) {
+                questions = questions.concat(ch[cat].map(function(q) {
+                    q.cat = cat;
+                    q.chapterName = ch.name;
+                    return q;
+                }));
+            }
+        }
+    }
+    return questions;
+}
+
+function getFullAnswerForTest(q) {
+    if (q.cat === 'mcq') {
+        var ans = q.correct;
+        if (q.correctTranslation) ans += ' - ' + q.correctTranslation;
+        return ans;
+    }
+    if (q.cat === 'truefalse') {
+        var isTrue = (q.correct === true || q.correct === 'true');
+        var ans = isTrue ? 'صواب (True)' : 'خطأ (False)';
+        if (q.correctTranslation) ans += ' - ' + q.correctTranslation;
+        return ans;
+    }
+    if (q.cat === 'complete') {
+        var ans = q.completion || '';
+        if (q.completionTranslation) ans += ' - ' + q.completionTranslation;
+        return ans;
+    }
+    return q.answer || q.completion || q.translation || '';
+}
+
+function getFlashcardFront(q) {
+    var h = '';
+    h += '<div class="fc-label">📝 السؤال (English):</div>';
+    h += '<div class="fc-content">' + q.text + '</div>';
+    if (q.translation) {
+        h += '<div class="fc-label" style="margin-top:10px;">🌐 الترجمة:</div>';
+        h += '<div class="fc-content">' + q.translation + '</div>';
+    }
+    return h;
+}
+
+function getFlashcardBack(q) {
+    var h = '';
+    h += '<div class="fc-label">✅ الإجابة (English):</div>';
+    if (q.cat === 'mcq') {
+        h += '<div class="fc-content">' + q.correct + '</div>';
+        if (q.correctTranslation) {
+            h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';
+            h += '<div class="fc-content">' + q.correctTranslation + '</div>';
+        }
+    } else if (q.cat === 'truefalse') {
+        var isTrue = (q.correct === true || q.correct === 'true');
+        h += '<div class="fc-content">' + (isTrue ? 'True (صواب)' : 'False (خطأ)') + '</div>';
+        if (q.correctTranslation) {
+            h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';
+            h += '<div class="fc-content">' + q.correctTranslation + '</div>';
+        }
+    } else if (q.cat === 'complete') {
+        h += '<div class="fc-content">' + (q.completion || '') + '</div>';
+        if (q.completionTranslation) {
+            h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';
+            h += '<div class="fc-content">' + q.completionTranslation + '</div>';
+        }
+    } else {
+        var ans = q.answer || q.completion || q.translation || '';
+        h += '<div class="fc-content">' + ans + '</div>';
+        if (q.answerTranslation) {
+            h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>';
+            h += '<div class="fc-content">' + q.answerTranslation + '</div>';
+        }
+    }
+    return h;
+}
+
+function updateStats() {
+    var total = 0;
+    for (var key in chaptersData) {
+        if (chaptersData.hasOwnProperty(key)) {
+            var ch = chaptersData[key];
+            for (var k in ch) {
+                if (ch.hasOwnProperty(k) && k !== 'name' && k !== 'icon' && Array.isArray(ch[k])) {
+                    total += ch[k].length;
+                }
+            }
+        }
+    }
+    document.getElementById('chapterCount').textContent = Object.keys(chaptersData).length;
+    document.getElementById('statsGrid').innerHTML = 
+        '<div class="stat-card"><div class="icon-wrap"><i class="fas fa-question-circle"></i></div><div class="number">' + total + '</div><div class="label">إجمالي الأسئلة</div></div>' +
+        '<div class="stat-card"><div class="icon-wrap"><i class="fas fa-book-open"></i></div><div class="number">' + Object.keys(chaptersData).length + '</div><div class="label">الفصول</div></div>' +
+        '<div class="stat-card"><div class="icon-wrap"><i class="fas fa-layer-group"></i></div><div class="number">7</div><div class="label">أنواع الأسئلة</div></div>' +
+        '<div class="stat-card"><div class="icon-wrap"><i class="fas fa-star"></i></div><div class="number">' + xp + '</div><div class="label">نقاط الخبرة</div></div>';
+}
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+function buildSidebar() {
+    var chaptersHtml = '';
+    for (var id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            var ch = chaptersData[id];
+            chaptersHtml += '<button class="side-chapter ' + (currentChapterId === id ? 'active' : '') + '" onclick="navigateSidebar(\'' + id + '\',\'all\')"><i class="' + ch.icon + '"></i> ' + ch.name.split(':')[0] + '</button>';
+        }
+    }
+    document.getElementById('sidebarChapters').innerHTML = chaptersHtml;
+    var catsHtml = '';
+    for (var i = 0; i < categoryMeta.length; i++) {
+        var c = categoryMeta[i];
+        catsHtml += '<button class="side-category ' + (currentCategory === c.id ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'' + c.id + '\')"><i class="' + c.icon + '"></i> ' + c.label + '</button>';
+    }
+    document.getElementById('sidebarCategories').innerHTML = catsHtml;
+}
+
+function navigateSidebar(chapter, category) {
+    currentChapterId = chapter;
+    currentCategory = category;
+    renderChapterButtons();
+    renderCategoryTabs();
+    renderAllQuestions();
+    buildSidebar();
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+    setTimeout(function() {
+        var wrapper = document.getElementById('questionsWrapper');
+        if (wrapper) wrapper.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }, 150);
+}
+
+function renderChapterButtons() {
+    var html = '<button class="chapter-btn ' + (currentChapterId === 'all' ? 'active' : '') + '" onclick="navigateSidebar(\'all\',\'all\')"><i class="fas fa-globe"></i> الكل</button>';
+    for (var id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            var ch = chaptersData[id];
+            html += '<button class="chapter-btn ' + (currentChapterId === id ? 'active' : '') + '" onclick="navigateSidebar(\'' + id + '\',\'all\')"><i class="' + ch.icon + '"></i> ' + ch.name.split(':')[0] + '</button>';
+        }
+    }
+    document.getElementById('chapterSelector').innerHTML = html;
+}
+
+function renderCategoryTabs() {
+    var total = 0;
+    for (var i = 0; i < categoryMeta.length; i++) {
+        total += countQuestions(currentChapterId, categoryMeta[i].id);
+    }
+    var html = '<button class="category-btn ' + (currentCategory === 'all' ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'all\')"><i class="fas fa-border-all"></i> الكل <span class="count">' + total + '</span></button>';
+    for (var i = 0; i < categoryMeta.length; i++) {
+        var c = categoryMeta[i];
+        var count = countQuestions(currentChapterId, c.id);
+        html += '<button class="category-btn ' + (currentCategory === c.id ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'' + c.id + '\')"><i class="' + c.icon + '"></i> ' + c.label + ' <span class="count">' + count + '</span></button>';
+    }
+    document.getElementById('categoryTabs').innerHTML = html;
+}
+
+function renderAllQuestions() {
+    var wrapper = document.getElementById('questionsWrapper');
+    wrapper.innerHTML = '';
+    var cats = currentCategory === 'all' ? categoryMeta.map(function(c) { return c.id; }) : [currentCategory];
+    var idx = 0;
+    var total = 0;
+    for (var c = 0; c < cats.length; c++) {
+        var cid = cats[c];
+        var qs = getQuestionsFor(currentChapterId, cid);
+        if (qs.length === 0) continue;
+        total += qs.length;
+        var ci = categoryMeta.find(function(item) { return item.id === cid; });
+        var sec = document.createElement('div');
+        sec.className = 'questions-section';
+        var html = '<div class="section-title"><i class="' + ci.icon + '"></i> ' + ci.label + ' <span class="section-count">' + qs.length + ' سؤال</span></div>';
+        for (var i = 0; i < qs.length; i++) {
+            idx++;
+            html += renderCard(qs[i], cid, idx);
+        }
+        sec.innerHTML = html;
+        wrapper.appendChild(sec);
+    }
+    if (total === 0) {
+        wrapper.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><h3>لا توجد أسئلة</h3></div>';
+    }
+    if (hideAnswers) applyHideAnswers();
+    updateFavCount();
+    updateHardCount();
+}
+
+function renderCard(q, cat, idx) {
+    var ci = categoryMeta.find(function(c) { return c.id === cat; });
+    var badgeClass = ci ? ci.badge : 'badge-def';
+    var label = ci ? ci.label : '';
+    var icon = ci ? ci.icon : 'fa-question';
+    var qId = 'q-' + idx;
+    var isBookmarked = bookmarks.has(qId);
+    var isHard = hardQuestions.has(qId);
+    var diff = difficulties[qId] || '';
+    var note = notes[qId] || '';
+    var h = '<div class="question-card" id="' + qId + '">';
+    h += '<div class="question-header"><span class="question-badge ' + badgeClass + '"><i class="fas ' + icon + '"></i> ' + label + '</span>';
+    h += '<span class="question-number">#' + idx + ' | ' + (q.chapterName || '') + '</span>';
+    if (diff) {
+        h += '<span class="difficulty-badge diff-' + diff + '" onclick="cycleDifficulty(\'' + qId + '\')">' + (diff === 'easy' ? '🟢' : diff === 'medium' ? '🟡' : '🔴') + '</span>';
+    } else {
+        h += '<span class="difficulty-badge" onclick="cycleDifficulty(\'' + qId + '\')" style="cursor:pointer;opacity:0.4;">⚪</span>';
+    }
+    h += '<div class="card-actions"><button class="action-btn" onclick="copyQuestion(\'' + qId + '\')"><i class="fas fa-copy"></i></button>';
+    h += '<button class="action-btn ' + (isBookmarked ? 'bookmarked' : '') + '" onclick="toggleBookmark(\'' + qId + '\',this)"><i class="fas fa-star"></i></button>';
+    h += '<button class="action-btn ' + (isHard ? 'hard-marked' : '') + '" onclick="toggleHard(\'' + qId + '\',this)"><i class="fas fa-exclamation-triangle"></i></button></div></div>';
+    h += '<div class="question-content"><div class="question-text"><i class="fas fa-question-circle"></i> ' + q.text + '</div>';
+    if (q.translation) h += '<div class="translation-box"><i class="fas fa-language"></i> ' + q.translation + '</div>';
+    if (cat === 'mcq' && q.options) {
+        h += '<div class="options-list">';
+        for (var o = 0; o < q.options.length; o++) {
+            var opt = q.options[o];
+            var isCorrect = (opt === q.correct || opt.startsWith(q.correct + ')') || opt.startsWith(q.correct + ' '));
+            h += '<li style="' + (isCorrect ? 'font-weight:700;color:#166534;background:#f0fdf4;padding:6px 12px;border-radius:10px;' : '') + '">' + opt + (isCorrect ? ' ✅' : '') + '</li>';
+        }
+        h += '</div><div class="answer-box"><strong>✅ ' + getFullAnswerForTest(q) + '</strong></div>';
+    } else if (cat === 'truefalse') {
+        var cv = q.correct;
+        var sv = String(cv).toLowerCase().replace(/['"]/g, '').trim();
+        var isTrue = (sv === 'true' || cv === true || cv === 1);
+        var answerText = isTrue ? '✅ صواب (True)' : '❌ خطأ (False)';
+        var extraClass = isTrue ? '' : ' false-answer';
+        h += '<div class="answer-box' + extraClass + '"><strong>' + answerText + '</strong></div>';
+        if (q.correctTranslation) h += '<div class="answer-translation">' + q.correctTranslation + '</div>';
+    } else if (q.completion) {
+        h += '<div class="answer-box"><strong>📝 ' + q.completion + '</strong></div>';
+        if (q.completionTranslation) h += '<div class="answer-translation">' + q.completionTranslation + '</div>';
+    } else if (q.answer) {
+        h += '<div class="answer-box"><strong>📝 ' + q.answer + '</strong></div>';
+        if (q.answerTranslation) h += '<div class="answer-translation">' + q.answerTranslation + '</div>';
+    } else if (q.items) {
+        h += '<div class="list-items-box"><ul>';
+        for (var i = 0; i < q.items.length; i++) {
+            h += '<li>' + q.items[i] + '</li>';
+        }
+        h += '</ul></div>';
+    }
+    h += '<div class="note-box"><textarea class="note-input" placeholder="📝 ملاحظة..." onchange="saveNote(\'' + qId + '\',this.value)">' + note + '</textarea></div></div></div>';
+    return h;
+}
+
+function applyHideAnswers() {
+    document.querySelectorAll('.question-card').forEach(function(c) { c.classList.add('hide-answers'); });
+}
+
+function removeHideAnswers() {
+    document.querySelectorAll('.question-card').forEach(function(c) { c.classList.remove('hide-answers'); });
+}
 
 // ==================== دوال معدلة للاتصال بالسيرفر ====================
 function toggleBookmark(qId, btn) {
-    const action = bookmarks.has(qId) ? 'remove' : 'add';
+    var action = bookmarks.has(qId) ? 'remove' : 'add';
     if (action === 'add') { bookmarks.add(qId); btn.classList.add('bookmarked'); }
     else { bookmarks.delete(qId); btn.classList.remove('bookmarked'); }
     localStorage.setItem('nb_bookmarks', JSON.stringify([...bookmarks]));
-    if (isOnlineMode) saveProgress('/api/progress/bookmarks', { questionId: qId, action });
+    if (isOnlineMode) saveProgress('/api/progress/bookmarks', { questionId: qId, action: action });
     updateFavCount();
 }
-function updateFavCount(){document.getElementById('favCount').textContent=bookmarks.size;document.getElementById('favoritesBar').style.display=(bookmarks.size+hardQuestions.size)>0?'flex':'none'}
-function showFavorites(){document.querySelectorAll('.question-card').forEach(c=>c.style.display=bookmarks.has(c.id)?'block':'none')}
-function showAllQuestions(){document.querySelectorAll('.question-card').forEach(c=>c.style.display='block')}
+
+function updateFavCount() {
+    document.getElementById('favCount').textContent = bookmarks.size;
+    document.getElementById('favoritesBar').style.display = (bookmarks.size + hardQuestions.size) > 0 ? 'flex' : 'none';
+}
+
+function showFavorites() {
+    document.querySelectorAll('.question-card').forEach(function(c) {
+        c.style.display = bookmarks.has(c.id) ? 'block' : 'none';
+    });
+}
+
+function showAllQuestions() {
+    document.querySelectorAll('.question-card').forEach(function(c) { c.style.display = 'block'; });
+}
+
 function toggleHard(qId, btn) {
-    const action = hardQuestions.has(qId) ? 'remove' : 'add';
+    var action = hardQuestions.has(qId) ? 'remove' : 'add';
     if (action === 'add') { hardQuestions.add(qId); btn.classList.add('hard-marked'); }
     else { hardQuestions.delete(qId); btn.classList.remove('hard-marked'); }
     localStorage.setItem('nb_hard', JSON.stringify([...hardQuestions]));
-    if (isOnlineMode) saveProgress('/api/progress/hard', { questionId: qId, action });
+    if (isOnlineMode) saveProgress('/api/progress/hard', { questionId: qId, action: action });
     updateHardCount();
 }
-function updateHardCount(){document.getElementById('hardCount').textContent=hardQuestions.size;document.getElementById('favoritesBar').style.display=(bookmarks.size+hardQuestions.size)>0?'flex':'none'}
-function showHardQuestions(){document.querySelectorAll('.question-card').forEach(c=>c.style.display=hardQuestions.has(c.id)?'block':'none')}
+
+function updateHardCount() {
+    document.getElementById('hardCount').textContent = hardQuestions.size;
+    document.getElementById('favoritesBar').style.display = (bookmarks.size + hardQuestions.size) > 0 ? 'flex' : 'none';
+}
+
+function showHardQuestions() {
+    document.querySelectorAll('.question-card').forEach(function(c) {
+        c.style.display = hardQuestions.has(c.id) ? 'block' : 'none';
+    });
+}
+
 function saveNote(qId, note) {
     notes[qId] = note;
     localStorage.setItem('nb_notes', JSON.stringify(notes));
-    if (isOnlineMode) saveProgress('/api/progress/notes', { questionId: qId, note });
+    if (isOnlineMode) saveProgress('/api/progress/notes', { questionId: qId, note: note });
 }
+
 function cycleDifficulty(qId) {
-    const current = difficulties[qId] || '';
-    const newDiff = current === 'easy' ? 'medium' : current === 'medium' ? 'hard' : 'easy';
+    var current = difficulties[qId] || '';
+    var newDiff = current === 'easy' ? 'medium' : current === 'medium' ? 'hard' : 'easy';
     difficulties[qId] = newDiff;
     localStorage.setItem('nb_diff', JSON.stringify(difficulties));
     if (isOnlineMode) saveProgress('/api/progress/difficulty', { questionId: qId, difficulty: newDiff });
     renderAllQuestions();
 }
-function copyQuestion(a){const c=document.getElementById(a);if(!c)return;const t=c.querySelector('.question-text')?.textContent?.trim()||'',r=c.querySelector('.translation-box')?.textContent?.trim()||'',n=c.querySelector('.answer-box')?.textContent?.trim()||'';navigator.clipboard.writeText(t+'\n'+r+'\n'+n)}
-function openModal(a,b){let m=document.getElementById(a);if(!m){m=document.createElement('div');m.className='modal-overlay';m.id=a;document.body.appendChild(m)}m.innerHTML=`<div class="modal-content">${b}</div>`;m.classList.add('active')}
-function closeModal(a){const m=document.getElementById(a);if(m){m.classList.remove('active');setTimeout(()=>m.remove(),300)}}
-function checkDefinitionAnswer(userText,correctText){const u=userText.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,'').split(/\s+/).filter(w=>w.length>2);const c=correctText.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,'').split(/\s+/).filter(w=>w.length>2);if(u.length===0||c.length===0)return!1;let matches=0;const cSet=new Set(c);u.forEach(w=>{if(cSet.has(w))matches++});return(matches/Math.max(c.length,1))>=0.5}
-function isAnswerCorrect(chosen,correct){if(!chosen||!correct)return!1;const c=String(chosen).trim(),a=String(correct).trim();if(c===a)return!0;if(c.startsWith(a+')')||c.startsWith(a+' '))return!0;if(a.startsWith(c+')')||a.startsWith(c+' '))return!0;const cl=c.toLowerCase(),al=a.toLowerCase();if(cl===al)return!0;if(cl==='true'&&(al==='true'||al==='صواب'))return!0;if(cl==='false'&&(al==='false'||al==='خطأ'))return!0;return!1}
-function renderQuestionHTML(q,i,prefix,total){const catLabel=getCategoryLabel(q.cat);let h=`<div class="quiz-q"><strong>${i+1}. ${q.text}</strong> <span class="q-type-badge">${catLabel}</span>`;if(q.translation){h+=`<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ${q.translation}</div>`}if(q.cat==='mcq'&&q.options){q.options.forEach(opt=>{h+=`<button class="quiz-opt" onclick="check${prefix}Answer(this,'${opt.replace(/'/g,"\\'")}','${q.correct.replace(/'/g,"\\'")}',${i}${total?','+total:''})">${opt}</button>`})}else if(q.cat==='truefalse'){h+=`<button class="quiz-opt" onclick="check${prefix}Answer(this,'true','${q.correct}',${i}${total?','+total:''})">✅ صواب</button><button class="quiz-opt" onclick="check${prefix}Answer(this,'false','${q.correct}',${i}${total?','+total:''})">❌ خطأ</button>`}else{h+=`<textarea class="def-input" id="${prefix}-other-${i}" placeholder="اكتب إجابتك هنا..." style="min-height:60px;"></textarea><button class="modal-btn btn-primary" onclick="check${prefix}Other(${i},'${(q.completion||q.answer||'').replace(/'/g,"\\'")}'${total?','+total:''})">تحقق</button>`}h+=`<div class="quiz-fb" id="${prefix}-fb-${i}"></div></div>`;return h}
-function addWrong(type,correct){wrongQuestions.push({text:type,correct,date:new Date().toISOString()});wrongQuestions=wrongQuestions.slice(-200);localStorage.setItem('nb_wrong',JSON.stringify(wrongQuestions));document.getElementById('retryWrongBtn').style.display='inline-flex'}
+
+function copyQuestion(qId) {
+    var card = document.getElementById(qId);
+    if (!card) return;
+    var text = card.querySelector('.question-text')?.textContent?.trim() || '';
+    var trans = card.querySelector('.translation-box')?.textContent?.trim() || '';
+    var answer = card.querySelector('.answer-box')?.textContent?.trim() || '';
+    navigator.clipboard.writeText(text + '\n' + trans + '\n' + answer);
+}
+
+function openModal(id, content) {
+    var modal = document.getElementById(id);
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = id;
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = '<div class="modal-content">' + content + '</div>';
+    modal.classList.add('active');
+}
+
+function closeModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.remove('active');
+        setTimeout(function() { modal.remove(); }, 300);
+    }
+}
+
+function checkDefinitionAnswer(userText, correctText) {
+    var u = userText.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '').split(/\s+/).filter(function(w) { return w.length > 2; });
+    var c = correctText.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '').split(/\s+/).filter(function(w) { return w.length > 2; });
+    if (u.length === 0 || c.length === 0) return false;
+    var matches = 0;
+    var cSet = new Set(c);
+    u.forEach(function(w) { if (cSet.has(w)) matches++; });
+    return (matches / Math.max(c.length, 1)) >= 0.5;
+}
+
+function isAnswerCorrect(chosen, correct) {
+    if (!chosen || !correct) return false;
+    var c = String(chosen).trim();
+    var a = String(correct).trim();
+    if (c === a) return true;
+    if (c.startsWith(a + ')') || c.startsWith(a + ' ')) return true;
+    if (a.startsWith(c + ')') || a.startsWith(c + ' ')) return true;
+    var cl = c.toLowerCase();
+    var al = a.toLowerCase();
+    if (cl === al) return true;
+    if (cl === 'true' && (al === 'true' || al === 'صواب')) return true;
+    if (cl === 'false' && (al === 'false' || al === 'خطأ')) return true;
+    if ((cl === 'true' || cl === 'صواب') && a === true) return true;
+    if ((cl === 'false' || cl === 'خطأ') && a === false) return true;
+    return false;
+}
+
+function renderQuestionHTML(q, i, prefix, total) {
+    var catLabel = getCategoryLabel(q.cat);
+    var h = '<div class="quiz-q"><strong>' + (i+1) + '. ' + q.text + '</strong> <span class="q-type-badge">' + catLabel + '</span>';
+    if (q.translation) {
+        h += '<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ' + q.translation + '</div>';
+    }
+    if (q.cat === 'mcq' && q.options) {
+        for (var o = 0; o < q.options.length; o++) {
+            var opt = q.options[o];
+            var escapedOpt = opt.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            var escapedCorrect = q.correct.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            h += '<button class="quiz-opt" onclick="check' + prefix + 'Answer(this,\'' + escapedOpt + '\',\'' + escapedCorrect + '\',' + i + (total ? ',' + total : '') + ')">' + opt + '</button>';
+        }
+    } else if (q.cat === 'truefalse') {
+        var escapedCorrect = String(q.correct).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        h += '<button class="quiz-opt" onclick="check' + prefix + 'Answer(this,\'true\',\'' + escapedCorrect + '\',' + i + (total ? ',' + total : '') + ')">✅ صواب</button>';
+        h += '<button class="quiz-opt" onclick="check' + prefix + 'Answer(this,\'false\',\'' + escapedCorrect + '\',' + i + (total ? ',' + total : '') + ')">❌ خطأ</button>';
+    } else {
+        var escapedAnswer = (q.completion || q.answer || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        h += '<textarea class="def-input" id="' + prefix + '-other-' + i + '" placeholder="اكتب إجابتك هنا..." style="min-height:60px;"></textarea>';
+        h += '<button class="modal-btn btn-primary" onclick="check' + prefix + 'Other(' + i + ',\'' + escapedAnswer + '\'' + (total ? ',' + total : '') + ')">تحقق</button>';
+    }
+    h += '<div class="quiz-fb" id="' + prefix + '-fb-' + i + '"></div></div>';
+    return h;
+}
+
+function addWrong(type, correct) {
+    wrongQuestions.push({text: type, correct: correct, date: new Date().toISOString()});
+    wrongQuestions = wrongQuestions.slice(-200);
+    localStorage.setItem('nb_wrong', JSON.stringify(wrongQuestions));
+    document.getElementById('retryWrongBtn').style.display = 'inline-flex';
+}
 
 // ==================== وضع الدراسة ====================
-function openStudyMode(){let h=`<h2>📖 وضع الدراسة الحر</h2><div class="modal-settings"><select id="smChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="smCount"><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50" selected>50</option></select><button class="modal-btn btn-primary" onclick="startStudyMode()">ابدأ</button></div><div id="smQuestions"></div><div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal('studyModal')">إغلاق</button>`;openModal('studyModal',h)}
-function startStudyMode(){const chId=document.getElementById('smChapter')?.value||'all',catFilter=document.getElementById('catFilter')?.value||'all',count=parseInt(document.getElementById('smCount')?.value||50);let allQ=getAllQuestions(chId,catFilter).sort(()=>Math.random()-0.5).slice(0,count);const modal=document.getElementById('studyModal');if(!modal)return;let qHTML='';allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Study',allQ.length)});modal.querySelector('.modal-content').innerHTML=`<h2>📖 وضع الدراسة الحر</h2>${qHTML}<div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal('studyModal')">إغلاق</button>`;window._studyTotal=allQ.length;window._studyScores={}}
-function checkStudyAnswer(btn,chosen,correct,i,total){handleGenericAnswer(btn,chosen,correct,i,total,'Study','_studyTotal','_studyScores','smScore');}
-function checkStudyOther(i,correctText,total){handleGenericOther(i,correctText,total,'Study','_studyTotal','_studyScores','smScore');}
+function openStudyMode() {
+    var h = '<h2>📖 وضع الدراسة الحر</h2><div class="modal-settings"><select id="smChapter">';
+    for (var id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            h += '<option value="' + id + '">' + chaptersData[id].name.split(':')[0] + '</option>';
+        }
+    }
+    h += '<option value="all" selected>جميع الفصول</option></select>' + getCategoryOptions() + '<select id="smCount"><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50" selected>50</option></select><button class="modal-btn btn-primary" onclick="startStudyMode()">ابدأ</button></div><div id="smQuestions"></div><div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal(\'studyModal\')">إغلاق</button>';
+    openModal('studyModal', h);
+}
+
+function startStudyMode() {
+    var chId = document.getElementById('smChapter')?.value || 'all';
+    var catFilter = document.getElementById('catFilter')?.value || 'all';
+    var count = parseInt(document.getElementById('smCount')?.value || 50);
+    var allQ = getAllQuestions(chId, catFilter).sort(function() { return Math.random() - 0.5; }).slice(0, count);
+    var modal = document.getElementById('studyModal');
+    if (!modal) return;
+    var qHTML = '';
+    for (var i = 0; i < allQ.length; i++) {
+        qHTML += renderQuestionHTML(allQ[i], i, 'Study', allQ.length);
+    }
+    modal.querySelector('.modal-content').innerHTML = '<h2>📖 وضع الدراسة الحر</h2>' + qHTML + '<div id="smScore"></div><button class="modal-btn btn-close" onclick="closeModal(\'studyModal\')">إغلاق</button>';
+    window._studyTotal = allQ.length;
+    window._studyScores = {};
+}
+
+function checkStudyAnswer(btn, chosen, correct, i, total) {
+    handleGenericAnswer(btn, chosen, correct, i, total, 'Study', '_studyTotal', '_studyScores', 'smScore');
+}
+
+function checkStudyOther(i, correctText, total) {
+    handleGenericOther(i, correctText, total, 'Study', '_studyTotal', '_studyScores', 'smScore');
+}
 
 // ==================== اختبار مؤقت ====================
-let qtTimer=null,qtLeft=0,qtScores={};
-function openTimedQuiz(){let h=`<h2>⏱️ اختبار مؤقت</h2><div class="modal-settings"><select id="qtChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="qtCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select><span>⏱️</span><input type="number" id="qtTime" value="20" min="1" max="120" style="width:60px;"> د<button class="modal-btn btn-danger" onclick="startTimedQuiz()">ابدأ</button></div><div id="qtQuestions"></div><div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal('timedQuizModal')">إغلاق</button>`;openModal('timedQuizModal',h)}
-function startTimedQuiz(){const chId=document.getElementById('qtChapter')?.value||'all',catFilter=document.getElementById('catFilter')?.value||'all',count=parseInt(document.getElementById('qtCount')?.value||30),mins=parseInt(document.getElementById('qtTime')?.value||20);let allQ=getAllQuestions(chId,catFilter).sort(()=>Math.random()-0.5).slice(0,count);qtScores={};qtLeft=mins*60;const modal=document.getElementById('timedQuizModal');if(!modal)return;let qHTML=`<div class="modal-timer" id="qtTimerDisplay">${formatTime(qtLeft)}</div>`;allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Timed',allQ.length)});modal.querySelector('.modal-content').innerHTML=`<h2>⏱️ اختبار مؤقت</h2>${qHTML}<div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal('timedQuizModal')">إغلاق</button>`;if(qtTimer)clearInterval(qtTimer);qtTimer=setInterval(()=>{qtLeft--;const td=document.getElementById('qtTimerDisplay');if(td)td.textContent=formatTime(qtLeft);if(qtLeft<=0){clearInterval(qtTimer);finishTimedQuiz(allQ.length)}},1000)}
-function checkTimedAnswer(btn,chosen,correct,i,total){handleGenericAnswer(btn,chosen,correct,i,total,'Timed',null,'qtScores','qtScore');}
-function checkTimedOther(i,correctText,total){handleGenericOther(i,correctText,total,'Timed',null,'qtScores','qtScore');}
-function finishTimedQuiz(total){
+var qtTimer = null;
+var qtLeft = 0;
+var qtScores = {};
+
+function openTimedQuiz() {
+    var h = '<h2>⏱️ اختبار مؤقت</h2><div class="modal-settings"><select id="qtChapter">';
+    for (var id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            h += '<option value="' + id + '">' + chaptersData[id].name.split(':')[0] + '</option>';
+        }
+    }
+    h += '<option value="all" selected>جميع الفصول</option></select>' + getCategoryOptions() + '<select id="qtCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select><span>⏱️</span><input type="number" id="qtTime" value="20" min="1" max="120" style="width:60px;"> د<button class="modal-btn btn-danger" onclick="startTimedQuiz()">ابدأ</button></div><div id="qtQuestions"></div><div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal(\'timedQuizModal\')">إغلاق</button>';
+    openModal('timedQuizModal', h);
+}
+
+function startTimedQuiz() {
+    var chId = document.getElementById('qtChapter')?.value || 'all';
+    var catFilter = document.getElementById('catFilter')?.value || 'all';
+    var count = parseInt(document.getElementById('qtCount')?.value || 30);
+    var mins = parseInt(document.getElementById('qtTime')?.value || 20);
+    var allQ = getAllQuestions(chId, catFilter).sort(function() { return Math.random() - 0.5; }).slice(0, count);
+    qtScores = {};
+    qtLeft = mins * 60;
+    var modal = document.getElementById('timedQuizModal');
+    if (!modal) return;
+    var qHTML = '<div class="modal-timer" id="qtTimerDisplay">' + formatTime(qtLeft) + '</div>';
+    for (var i = 0; i < allQ.length; i++) {
+        qHTML += renderQuestionHTML(allQ[i], i, 'Timed', allQ.length);
+    }
+    modal.querySelector('.modal-content').innerHTML = '<h2>⏱️ اختبار مؤقت</h2>' + qHTML + '<div id="qtScore"></div><button class="modal-btn btn-close" onclick="closeModal(\'timedQuizModal\')">إغلاق</button>';
+    if (qtTimer) clearInterval(qtTimer);
+    qtTimer = setInterval(function() {
+        qtLeft--;
+        var td = document.getElementById('qtTimerDisplay');
+        if (td) td.textContent = formatTime(qtLeft);
+        if (qtLeft <= 0) {
+            clearInterval(qtTimer);
+            finishTimedQuiz(allQ.length);
+        }
+    }, 1000);
+}
+
+function checkTimedAnswer(btn, chosen, correct, i, total) {
+    handleGenericAnswer(btn, chosen, correct, i, total, 'Timed', null, 'qtScores', 'qtScore');
+}
+
+function checkTimedOther(i, correctText, total) {
+    handleGenericOther(i, correctText, total, 'Timed', null, 'qtScores', 'qtScore');
+}
+
+function finishTimedQuiz(total) {
     clearInterval(qtTimer);
-    const correctCount=Object.values(qtScores).filter(v=>v===!0).length,score=Math.round(correctCount/total*100);
-    const quizEntry={date:new Date().toISOString(),total,correct:correctCount,score,chapter:currentChapterId};
+    var correctCount = Object.values(qtScores).filter(function(v) { return v === true; }).length;
+    var score = Math.round(correctCount / total * 100);
+    var quizEntry = {date: new Date().toISOString(), total: total, correct: correctCount, score: score, chapter: currentChapterId};
     quizHistory.push(quizEntry);
-    localStorage.setItem('nb_history',JSON.stringify(quizHistory.slice(-50)));
-    if(isOnlineMode) saveProgress('/api/progress/quiz', {total,correct:correctCount,score,chapter:currentChapterId,wrongQuestions:wrongQuestions.slice(-20)});
-    addXP(correctCount*10);
-    if(score>=80)spawnConfetti();
-    const el=document.getElementById('qtScore');if(el)el.innerHTML=`<div class="quiz-score">النتيجة: ${correctCount}/${total} (${score}%)</div>`;
-    updateStats();document.getElementById('retryWrongBtn').style.display=wrongQuestions.length>0?'inline-flex':'none';
+    localStorage.setItem('nb_history', JSON.stringify(quizHistory.slice(-50)));
+    if (isOnlineMode) saveProgress('/api/progress/quiz', {total: total, correct: correctCount, score: score, chapter: currentChapterId, wrongQuestions: wrongQuestions.slice(-20)});
+    addXP(correctCount * 10);
+    if (score >= 80) spawnConfetti();
+    var el = document.getElementById('qtScore');
+    if (el) el.innerHTML = '<div class="quiz-score">النتيجة: ' + correctCount + '/' + total + ' (' + score + '%)</div>';
+    updateStats();
+    document.getElementById('retryWrongBtn').style.display = wrongQuestions.length > 0 ? 'inline-flex' : 'none';
 }
 
 // ==================== دوال مساعدة للإجابات ====================
-function handleGenericAnswer(btn,chosen,correct,i,total,prefix,totalVar,scoresVar,scoreElId){
-    const parent=btn.parentElement;parent.querySelectorAll('.quiz-opt').forEach(b=>b.disabled=!0);
-    const isCorrect=isAnswerCorrect(chosen,correct);btn.classList.add(isCorrect?'correct':'wrong');
-    const scoresObj=totalVar?window[scoresVar]:window[scoresVar];if(scoresObj)scoresObj[i]=isCorrect;
-    if(!isCorrect){parent.querySelectorAll('.quiz-opt').forEach(b=>{if(isAnswerCorrect(b.textContent.trim(),correct))b.classList.add('correct')});addWrong('',correct)}
-    const fb=document.getElementById(prefix+'-fb-'+i);if(fb){fb.textContent=isCorrect?'✅ صحيح':`❌ خطأ - الصحيح: ${correct}`;fb.style.color=isCorrect?'var(--green)':'var(--red)'}
-    if(isCorrect)addXP(5);
-    const t=totalVar?window[totalVar]:total;const sObj=totalVar?window[scoresVar]:window[scoresVar];
-    if(sObj&&Object.keys(sObj).length>=t){const cc=Object.values(sObj).filter(v=>v===!0).length;const sc=Math.round(cc/t*100);const el=document.getElementById(scoreElId);if(el)el.innerHTML=`<div class="quiz-score">النتيجة: ${cc}/${t} (${sc}%)</div>`;if(sc>=80)spawnConfetti()}
+function handleGenericAnswer(btn, chosen, correct, i, total, prefix, totalVar, scoresVar, scoreElId) {
+    var parent = btn.parentElement;
+    parent.querySelectorAll('.quiz-opt').forEach(function(b) { b.disabled = true; });
+    var isCorrect = isAnswerCorrect(chosen, correct);
+    btn.classList.add(isCorrect ? 'correct' : 'wrong');
+    var scoresObj = totalVar ? window[scoresVar] : window[scoresVar];
+    if (scoresObj) scoresObj[i] = isCorrect;
+    if (!isCorrect) {
+        parent.querySelectorAll('.quiz-opt').forEach(function(b) {
+            if (isAnswerCorrect(b.textContent.trim(), correct)) b.classList.add('correct');
+        });
+        addWrong('', correct);
+    }
+    var fb = document.getElementById(prefix + '-fb-' + i);
+    if (fb) {
+        fb.textContent = isCorrect ? '✅ صحيح' : '❌ خطأ - الصحيح: ' + correct;
+        fb.style.color = isCorrect ? 'var(--green)' : 'var(--red)';
+    }
+    if (isCorrect) addXP(5);
+    var t = totalVar ? window[totalVar] : total;
+    var sObj = totalVar ? window[scoresVar] : window[scoresVar];
+    if (sObj && Object.keys(sObj).length >= t) {
+        var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
+        var sc = Math.round(cc / t * 100);
+        var el = document.getElementById(scoreElId);
+        if (el) el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>';
+        if (sc >= 80) spawnConfetti();
+    }
 }
-function handleGenericOther(i,correctText,total,prefix,totalVar,scoresVar,scoreElId){
-    const input=document.getElementById(prefix+'-other-'+i);if(!input||input.disabled)return;
-    const isCorrect=checkDefinitionAnswer(input.value,correctText);input.classList.add(isCorrect?'correct-input':'wrong-input');input.disabled=!0;
-    const scoresObj=totalVar?window[scoresVar]:window[scoresVar];if(scoresObj)scoresObj[i]=isCorrect;
-    const fb=document.getElementById(prefix+'-fb-'+i);if(fb){fb.textContent=isCorrect?'✅ صحيح':`❌ خطأ - الإجابة: ${correctText}`;fb.style.color=isCorrect?'var(--green)':'var(--red)'}
-    if(isCorrect)addXP(8);else addWrong('سؤال',correctText);
-    const t=totalVar?window[totalVar]:total;const sObj=totalVar?window[scoresVar]:window[scoresVar];
-    if(sObj&&Object.keys(sObj).length>=t){const cc=Object.values(sObj).filter(v=>v===!0).length;const sc=Math.round(cc/t*100);const el=document.getElementById(scoreElId);if(el)el.innerHTML=`<div class="quiz-score">النتيجة: ${cc}/${t} (${sc}%)</div>`;if(sc>=80)spawnConfetti()}
+
+function handleGenericOther(i, correctText, total, prefix, totalVar, scoresVar, scoreElId) {
+    var input = document.getElementById(prefix + '-other-' + i);
+    if (!input || input.disabled) return;
+    var isCorrect = checkDefinitionAnswer(input.value, correctText);
+    input.classList.add(isCorrect ? 'correct-input' : 'wrong-input');
+    input.disabled = true;
+    var scoresObj = totalVar ? window[scoresVar] : window[scoresVar];
+    if (scoresObj) scoresObj[i] = isCorrect;
+    var fb = document.getElementById(prefix + '-fb-' + i);
+    if (fb) {
+        fb.textContent = isCorrect ? '✅ صحيح' : '❌ خطأ - الإجابة: ' + correctText;
+        fb.style.color = isCorrect ? 'var(--green)' : 'var(--red)';
+    }
+    if (isCorrect) addXP(8);
+    else addWrong('سؤال', correctText);
+    var t = totalVar ? window[totalVar] : total;
+    var sObj = totalVar ? window[scoresVar] : window[scoresVar];
+    if (sObj && Object.keys(sObj).length >= t) {
+        var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
+        var sc = Math.round(cc / t * 100);
+        var el = document.getElementById(scoreElId);
+        if (el) el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>';
+        if (sc >= 80) spawnConfetti();
+    }
 }
 
 // ==================== تحدي الأخطاء ====================
-function retryWrongQuestions(){
-    if(wrongQuestions.length===0){alert('🎉 لا توجد أسئلة خاطئة!');return}
-    let allQ=[];const uniqueTexts=new Set();
-    wrongQuestions.forEach(w=>{const searchText=(w.correct||'').toLowerCase().trim();if(!searchText||uniqueTexts.has(searchText))return;
-        for(const ch of Object.values(chaptersData)){for(const cat of testCategories){if(ch[cat]&&Array.isArray(ch[cat])){const found=ch[cat].find(q=>{const qAns=(q.correct||q.completion||q.answer||'').toLowerCase().trim();return qAns===searchText||qAns.includes(searchText)||searchText.includes(qAns)});
-        if(found&&!uniqueTexts.has(searchText)){allQ.push({...found,cat,chapterName:ch.name});uniqueTexts.add(searchText);return}}}}});
-    if(allQ.length===0){alert('لم يتم العثور على الأسئلة الخاطئة.');return}
-    allQ=allQ.sort(()=>Math.random()-0.5).slice(0,Math.min(30,allQ.length));
-    let h=`<h2>🔄 تحدي الأخطاء (${allQ.length} سؤال)</h2><div id="rwQuestions"></div><div id="rwScore"></div><button class="modal-btn btn-close" onclick="closeModal('retryModal')">إغلاق</button>`;
-    openModal('retryModal',h);let qHTML='';allQ.forEach((q,i)=>{qHTML+=renderQuestionHTML(q,i,'Retry',allQ.length)});
-    document.getElementById('rwQuestions').innerHTML=qHTML;window._retryTotal=allQ.length;window._retryScores={};
+function retryWrongQuestions() {
+    if (wrongQuestions.length === 0) {
+        alert('🎉 لا توجد أسئلة خاطئة!');
+        return;
+    }
+    var allQ = [];
+    var uniqueTexts = new Set();
+    for (var w = 0; w < wrongQuestions.length; w++) {
+        var searchText = (wrongQuestions[w].correct || '').toLowerCase().trim();
+        if (!searchText || uniqueTexts.has(searchText)) continue;
+        var found = false;
+        for (var key in chaptersData) {
+            if (chaptersData.hasOwnProperty(key)) {
+                var ch = chaptersData[key];
+                for (var c = 0; c < testCategories.length; c++) {
+                    var cat = testCategories[c];
+                    if (ch[cat] && Array.isArray(ch[cat])) {
+                        var match = ch[cat].find(function(q) {
+                            var qAns = (q.correct || q.completion || q.answer || '').toLowerCase().trim();
+                            return qAns === searchText || qAns.includes(searchText) || searchText.includes(qAns);
+                        });
+                        if (match && !uniqueTexts.has(searchText)) {
+                            var qCopy = JSON.parse(JSON.stringify(match));
+                            qCopy.cat = cat;
+                            qCopy.chapterName = ch.name;
+                            allQ.push(qCopy);
+                            uniqueTexts.add(searchText);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (found) break;
+            }
+        }
+    }
+    if (allQ.length === 0) {
+        alert('لم يتم العثور على الأسئلة الخاطئة في قاعدة البيانات.');
+        return;
+    }
+    allQ = allQ.sort(function() { return Math.random() - 0.5; }).slice(0, Math.min(30, allQ.length));
+    var h = '<h2>🔄 تحدي الأخطاء (' + allQ.length + ' سؤال)</h2><div id="rwQuestions"></div><div id="rwScore"></div><button class="modal-btn btn-close" onclick="closeModal(\'retryModal\')">إغلاق</button>';
+    openModal('retryModal', h);
+    var qHTML = '';
+    for (var i = 0; i < allQ.length; i++) {
+        qHTML += renderQuestionHTML(allQ[i], i, 'Retry', allQ.length);
+    }
+    document.getElementById('rwQuestions').innerHTML = qHTML;
+    window._retryTotal = allQ.length;
+    window._retryScores = {};
 }
-function checkRetryAnswer(btn,chosen,correct,i,total){handleGenericAnswer(btn,chosen,correct,i,total,'Retry','_retryTotal','_retryScores','rwScore');}
-function checkRetryOther(i,correctText,total){handleGenericOther(i,correctText,total,'Retry','_retryTotal','_retryScores','rwScore');}
-function finishRetry(total){
-    // مسح الأخطاء بعد حل جميع الأسئلة
-    wrongQuestions = [];
-    localStorage.setItem('nb_wrong', JSON.stringify(wrongQuestions));
-    if(isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: [] });
-    document.getElementById('retryWrongBtn').style.display = 'none';
-    showToast('🎉 تم حل جميع الأخطاء بنجاح!', 'success');
+
+function checkRetryAnswer(btn, chosen, correct, i, total) {
+    handleGenericAnswer(btn, chosen, correct, i, total, 'Retry', '_retryTotal', '_retryScores', 'rwScore');
+}
+
+function checkRetryOther(i, correctText, total) {
+    handleGenericOther(i, correctText, total, 'Retry', '_retryTotal', '_retryScores', 'rwScore');
 }
 
 // ==================== امتحان ====================
-function openExamGenerator(){let h=`<h2>📄 توليد ورقة امتحان</h2><div class="modal-settings"><select id="exChapter">${Object.entries(chaptersData).map(([id,ch])=>`<option value="${id}">${ch.name.split(':')[0]}</option>`).join('')}<option value="all" selected>جميع الفصول</option></select>${getCategoryOptions()}<select id="exCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select><label><input type="checkbox" id="exAnswers" checked> تضمين الإجابات</label><button class="modal-btn btn-info" onclick="generateExam()">📄 إنشاء</button></div><div id="exPreview" style="text-align:right;margin-top:10px;max-height:45vh;overflow-y:auto;"></div><button class="modal-btn btn-close" onclick="closeModal('examModal')">إغلاق</button><button class="modal-btn btn-primary" id="printExamBtn" onclick="printExam()" style="display:none;">🖨️ طباعة</button>`;openModal('examModal',h)}
-let examQ=[];
-function generateExam(){const chId=document.getElementById('exChapter')?.value||'all',catFilter=document.getElementById('catFilter')?.value||'all',count=parseInt(document.getElementById('exCount')?.value||30),incAns=document.getElementById('exAnswers')?.checked;examQ=getAllQuestions(chId,catFilter).sort(()=>Math.random()-0.5).slice(0,count);let h=`<div style="text-align:center;margin-bottom:15px;"><h3>ورقة امتحان - Medical Surgical Nursing</h3><p>التاريخ: _______ | الاسم: _______ | الدرجة: ___/${examQ.length}</p></div>`;examQ.forEach((q,i)=>{h+=`<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;"><strong>${i+1}. ${q.text}</strong>`;if(q.cat==='mcq'&&q.options){h+=`<div style="margin:4px 0;padding-right:12px;">${q.options.map(o=>`<div>⬜ ${o}</div>`).join('')}</div>`}else if(q.cat==='truefalse'){h+=`<div>⬜ صواب &nbsp; ⬜ خطأ</div>`}else{h+=`<div>___________________________________</div>`}if(incAns){h+=`<div style="color:green;font-size:0.75rem;">✅ ${q.cat==='truefalse'?(q.correct===!0||q.correct==='true'?'صواب':'خطأ'):q.correct||q.completion||''}</div>`}h+=`</div>`});document.getElementById('exPreview').innerHTML=h;document.getElementById('printExamBtn').style.display='inline-block'}
-function printExam(){const w=window.open('','_blank');w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ورقة امتحان</title><style>body{font-family:Tajawal,sans-serif;padding:20px;line-height:2}</style></head><body>${document.getElementById('exPreview').innerHTML}</body></html>`);w.document.close();setTimeout(()=>w.print(),500)}
+function openExamGenerator() {
+    var h = '<h2>📄 توليد ورقة امتحان</h2><div class="modal-settings"><select id="exChapter">';
+    for (var id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            h += '<option value="' + id + '">' + chaptersData[id].name.split(':')[0] + '</option>';
+        }
+    }
+    h += '<option value="all" selected>جميع الفصول</option></select>' + getCategoryOptions() + '<select id="exCount"><option value="10">10</option><option value="20">20</option><option value="30" selected>30</option><option value="40">40</option><option value="50">50</option></select><label><input type="checkbox" id="exAnswers" checked> تضمين الإجابات</label><button class="modal-btn btn-info" onclick="generateExam()">📄 إنشاء</button></div><div id="exPreview" style="text-align:right;margin-top:10px;max-height:45vh;overflow-y:auto;"></div><button class="modal-btn btn-close" onclick="closeModal(\'examModal\')">إغلاق</button><button class="modal-btn btn-primary" id="printExamBtn" onclick="printExam()" style="display:none;">🖨️ طباعة</button>';
+    openModal('examModal', h);
+}
+
+var examQ = [];
+
+function generateExam() {
+    var chId = document.getElementById('exChapter')?.value || 'all';
+    var catFilter = document.getElementById('catFilter')?.value || 'all';
+    var count = parseInt(document.getElementById('exCount')?.value || 30);
+    var incAns = document.getElementById('exAnswers')?.checked;
+    examQ = getAllQuestions(chId, catFilter).sort(function() { return Math.random() - 0.5; }).slice(0, count);
+    var h = '<div style="text-align:center;margin-bottom:15px;"><h3>ورقة امتحان - Medical Surgical Nursing</h3><p>التاريخ: _______ | الاسم: _______ | الدرجة: ___/' + examQ.length + '</p></div>';
+    for (var i = 0; i < examQ.length; i++) {
+        var q = examQ[i];
+        h += '<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;"><strong>' + (i+1) + '. ' + q.text + '</strong>';
+        if (q.cat === 'mcq' && q.options) {
+            h += '<div style="margin:4px 0;padding-right:12px;">';
+            for (var o = 0; o < q.options.length; o++) {
+                h += '<div>⬜ ' + q.options[o] + '</div>';
+            }
+            h += '</div>';
+        } else if (q.cat === 'truefalse') {
+            h += '<div>⬜ صواب &nbsp; ⬜ خطأ</div>';
+        } else {
+            h += '<div>___________________________________</div>';
+        }
+        if (incAns) {
+            var ans = q.cat === 'truefalse' ? (q.correct === true || q.correct === 'true' ? 'صواب' : 'خطأ') : q.correct || q.completion || '';
+            h += '<div style="color:green;font-size:0.75rem;">✅ ' + ans + '</div>';
+        }
+        h += '</div>';
+    }
+    document.getElementById('exPreview').innerHTML = h;
+    document.getElementById('printExamBtn').style.display = 'inline-block';
+}
+
+function printExam() {
+    var w = window.open('', '_blank');
+    w.document.write('<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ورقة امتحان</title><style>body{font-family:Tajawal,sans-serif;padding:20px;line-height:2}</style></head><body>' + document.getElementById('exPreview').innerHTML + '</body></html>');
+    w.document.close();
+    setTimeout(function() { w.print(); }, 500);
+}
 
 // ==================== بطاقات ====================
-let fcQ=[],fcI=0;
-function openFlashcards(){fcQ=[];for(const ch of Object.values(chaptersData)){for(const cat of testCategories){if(ch[cat]&&Array.isArray(ch[cat]))fcQ=fcQ.concat(ch[cat].map(x=>({...x,cat,chapterName:ch.name})))}};fcQ=fcQ.sort(()=>Math.random()-0.5).slice(0,30);fcI=0;let h=`<h2>🃏 بطاقات تعليمية</h2><div id="fcCard"></div><div class="flashcard-nav"><button class="modal-btn btn-primary" onclick="prevFC()">⬅️</button><span id="fcCounter">1/${fcQ.length}</span><button class="modal-btn btn-primary" onclick="nextFC()">➡️</button></div><button class="modal-btn btn-close" onclick="closeModal('fcModal')">إغلاق</button>`;openModal('fcModal',h);renderFC()}
-function renderFC(){if(fcI<0||fcI>=fcQ.length)return;const q=fcQ[fcI];let front=getFlashcardFront(q),back=getFlashcardBack(q);document.getElementById('fcCard').innerHTML=`<div class="flashcard" onclick="this.classList.toggle('flipped')"><div class="flashcard-inner"><div class="flashcard-front">${front}</div><div class="flashcard-back">${back}</div></div></div>`;document.getElementById('fcCounter').textContent=`${fcI+1}/${fcQ.length}`}
-function prevFC(){fcI--;if(fcI<0)fcI=fcQ.length-1;renderFC()}
-function nextFC(){fcI++;if(fcI>=fcQ.length)fcI=0;renderFC()}
+var fcQ = [];
+var fcI = 0;
+
+function openFlashcards() {
+    fcQ = [];
+    for (var key in chaptersData) {
+        if (chaptersData.hasOwnProperty(key)) {
+            var ch = chaptersData[key];
+            for (var c = 0; c < testCategories.length; c++) {
+                var cat = testCategories[c];
+                if (ch[cat] && Array.isArray(ch[cat])) {
+                    fcQ = fcQ.concat(ch[cat].map(function(q) { q.cat = cat; q.chapterName = ch.name; return q; }));
+                }
+            }
+        }
+    }
+    fcQ = fcQ.sort(function() { return Math.random() - 0.5; }).slice(0, 30);
+    fcI = 0;
+    var h = '<h2>🃏 بطاقات تعليمية</h2><div id="fcCard"></div><div class="flashcard-nav"><button class="modal-btn btn-primary" onclick="prevFC()">⬅️</button><span id="fcCounter">1/' + fcQ.length + '</span><button class="modal-btn btn-primary" onclick="nextFC()">➡️</button></div><button class="modal-btn btn-close" onclick="closeModal(\'fcModal\')">إغلاق</button>';
+    openModal('fcModal', h);
+    renderFC();
+}
+
+function renderFC() {
+    if (fcI < 0 || fcI >= fcQ.length) return;
+    var q = fcQ[fcI];
+    var front = getFlashcardFront(q);
+    var back = getFlashcardBack(q);
+    document.getElementById('fcCard').innerHTML = '<div class="flashcard" onclick="this.classList.toggle(\'flipped\')"><div class="flashcard-inner"><div class="flashcard-front">' + front + '</div><div class="flashcard-back">' + back + '</div></div></div>';
+    document.getElementById('fcCounter').textContent = (fcI + 1) + '/' + fcQ.length;
+}
+
+function prevFC() {
+    fcI--;
+    if (fcI < 0) fcI = fcQ.length - 1;
+    renderFC();
+}
+
+function nextFC() {
+    fcI++;
+    if (fcI >= fcQ.length) fcI = 0;
+    renderFC();
+}
 
 // ==================== لوحة تحكم ====================
-function openDashboard(){
-    const tQ=quizHistory.reduce((s,h)=>s+h.total,0);
-    const tC=quizHistory.reduce((s,h)=>s+h.correct,0);
-    const avgS=tQ>0?Math.round(tC/tQ*100):0;
-    const streak=getStudyStreak();
+function openDashboard() {
+    var tQ = quizHistory.reduce(function(s, h) { return s + h.total; }, 0);
+    var tC = quizHistory.reduce(function(s, h) { return s + h.correct; }, 0);
+    var avgS = tQ > 0 ? Math.round(tC / tQ * 100) : 0;
+    var streak = getStudyStreak();
     
-    let historyHTML = '';
+    var historyHTML = '';
     if (quizHistory.length > 0) {
-        const recent = [...quizHistory].reverse().slice(0, 10);
-        historyHTML = recent.map(h => 
-            `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
-                <span>${h.date ? new Date(h.date).toLocaleDateString('ar-EG') : ''}</span>
-                <span>${h.total} سؤال</span>
-                <span style="color:${h.score >= 80 ? 'var(--green)' : h.score >= 50 ? 'var(--orange)' : 'var(--red)'};font-weight:700;">${h.score}%</span>
-            </div>
-        ).join('');
+        var recent = quizHistory.slice().reverse().slice(0, 10);
+        historyHTML = recent.map(function(h) {
+            var color = h.score >= 80 ? 'var(--green)' : h.score >= 50 ? 'var(--orange)' : 'var(--red)';
+            return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;"><span>' + (h.date ? new Date(h.date).toLocaleDateString('ar-EG') : '') + '</span><span>' + h.total + ' سؤال</span><span style="color:' + color + ';font-weight:700;">' + h.score + '%</span></div>';
+        }).join('');
     } else {
         historyHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">لا توجد اختبارات بعد</p>';
     }
     
-    const chapters=Object.entries(chaptersData).map(([id,ch])=>({id,name:ch.name.split(':')[0],total:0,correct:0}));
-    quizHistory.forEach(h=>{const c=chapters.find(x=>x.id===h.chapter);if(c){c.total+=h.total;c.correct+=h.correct}});
-    let chH=chapters.map(c=>{const s=c.total>0?Math.round(c.correct/c.total*100):0;return`<div style="margin:4px 0;">${c.name}: ${s}%<div class="chart-bar"><div class="chart-fill" style="width:${s}%;background:${s>=80?'var(--green)':s>=50?'var(--orange)':'var(--red)'};"></div></div></div>`}).join('');
-    let achH=allAchievements.map(a=>{const u=achievements.includes(a.id);return`<div class="achievement-badge ${u?'unlocked':'locked'}">${u?a.name:'🔒 '+a.name}</div>`}).join('');
+    var chapters = Object.keys(chaptersData).map(function(id) {
+        var ch = chaptersData[id];
+        return {id: id, name: ch.name.split(':')[0], total: 0, correct: 0};
+    });
+    quizHistory.forEach(function(h) {
+        var c = chapters.find(function(x) { return x.id === h.chapter; });
+        if (c) { c.total += h.total; c.correct += h.correct; }
+    });
+    var chH = chapters.map(function(c) {
+        var s = c.total > 0 ? Math.round(c.correct / c.total * 100) : 0;
+        var color = s >= 80 ? 'var(--green)' : s >= 50 ? 'var(--orange)' : 'var(--red)';
+        return '<div style="margin:4px 0;">' + c.name + ': ' + s + '%<div class="chart-bar"><div class="chart-fill" style="width:' + s + '%;background:' + color + ';"></div></div></div>';
+    }).join('');
     
-    let h = `
-        <h2>📊 لوحة التحكم</h2>
-        <div style="display:flex;align-items:center;gap:15px;justify-content:center;margin-bottom:15px;flex-wrap:wrap;">
-            <div class="profile-avatar">
-                <span>${currentUser?.fullName ? currentUser.fullName.charAt(0).toUpperCase() : '👤'}</span>
-            </div>
-            <div style="text-align:right;">
-                <div style="font-weight:700;font-size:1.1rem;color:var(--dark);">${currentUser?.fullName || 'مستخدم'}</div>
-                <div style="font-size:0.8rem;color:var(--text-secondary);">@${currentUser?.username || ''}</div>
-            </div>
-        </div>
-        <div class="dashboard-grid">
-            <div class="dashboard-card">
-                <h4>📈 إحصائيات</h4>
-                <p>اختبارات: ${quizHistory.length}</p>
-                <p>أسئلة: ${tQ}</p>
-                <p>صحيحة: ${tC}</p>
-                <p>أخطاء: ${wrongQuestions.length}</p>
-                <div class="big-number">${avgS}%</div>
-            </div>
-            <div class="dashboard-card">
-                <h4>🔥 التتابع</h4>
-                <div class="big-number">${streak} يوم</div>
-                <p>نقاط: ${xp} XP</p>
-            </div>
-            <div class="dashboard-card">
-                <h4>📚 الفصول</h4>
-                ${chH}
-            </div>
-            <div class="dashboard-card">
-                <h4>📋 سجل الاختبارات</h4>
-                <div style="max-height:150px;overflow-y:auto;">${historyHTML}</div>
-            </div>
-            <div class="dashboard-card" style="grid-column:1/-1;">
-                <h4>🏆 الإنجازات</h4>
-                <div class="achievements-grid">${achH}</div>
-            </div>
-        </div>
-        <button class="modal-btn btn-close" onclick="closeModal('dashboardModal')">إغلاق</button>
-    `;
+    var achH = allAchievements.map(function(a) {
+        var unlocked = achievements.includes(a.id);
+        return '<div class="achievement-badge ' + (unlocked ? 'unlocked' : 'locked') + '">' + (unlocked ? a.name : '🔒 ' + a.name) + '</div>';
+    }).join('');
+    
+    var h = '<h2>📊 لوحة التحكم</h2><div style="display:flex;align-items:center;gap:15px;justify-content:center;margin-bottom:15px;flex-wrap:wrap;"><div class="profile-avatar"><span>' + (currentUser?.fullName ? currentUser.fullName.charAt(0).toUpperCase() : '👤') + '</span></div><div style="text-align:right;"><div style="font-weight:700;font-size:1.1rem;color:var(--dark);">' + (currentUser?.fullName || 'مستخدم') + '</div><div style="font-size:0.8rem;color:var(--text-secondary);">@' + (currentUser?.username || '') + '</div></div></div><div class="dashboard-grid"><div class="dashboard-card"><h4>📈 إحصائيات</h4><p>اختبارات: ' + quizHistory.length + '</p><p>أسئلة: ' + tQ + '</p><p>صحيحة: ' + tC + '</p><p>أخطاء: ' + wrongQuestions.length + '</p><div class="big-number">' + avgS + '%</div></div><div class="dashboard-card"><h4>🔥 التتابع</h4><div class="big-number">' + streak + ' يوم</div><p>نقاط: ' + xp + ' XP</p></div><div class="dashboard-card"><h4>📚 الفصول</h4>' + chH + '</div><div class="dashboard-card"><h4>📋 سجل الاختبارات</h4><div style="max-height:150px;overflow-y:auto;">' + historyHTML + '</div></div><div class="dashboard-card" style="grid-column:1/-1;"><h4>🏆 الإنجازات</h4><div class="achievements-grid">' + achH + '</div></div></div><button class="modal-btn btn-close" onclick="closeModal(\'dashboardModal\')">إغلاق</button>';
     openModal('dashboardModal', h);
 }
 
 // ==================== مساعدة ====================
-function formatTime(s){const m=Math.floor(s/60),sec=s%60;return`${m}:${sec.toString().padStart(2,'0')}`}
-function spawnConfetti(){const colors=['#d4af5a','#ef4444','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899'];for(let i=0;i<60;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.animationDelay=Math.random()*2+'s';p.style.animationDuration=(2+Math.random()*3)+'s';p.style.width=(7+Math.random()*9)+'px';p.style.height=(7+Math.random()*9)+'px';p.style.background=colors[Math.floor(Math.random()*colors.length)];p.style.borderRadius=Math.random()>0.5?'50%':'2px';document.body.appendChild(p);setTimeout(()=>p.remove(),5000)}}
+function formatTime(seconds) {
+    var m = Math.floor(seconds / 60);
+    var sec = seconds % 60;
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+function spawnConfetti() {
+    var colors = ['#d4af5a', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+    for (var i = 0; i < 60; i++) {
+        var p = document.createElement('div');
+        p.className = 'confetti-piece';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.animationDelay = Math.random() * 2 + 's';
+        p.style.animationDuration = (2 + Math.random() * 3) + 's';
+        p.style.width = (7 + Math.random() * 9) + 'px';
+        p.style.height = (7 + Math.random() * 9) + 'px';
+        p.style.background = colors[Math.floor(Math.random() * colors.length)];
+        p.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+        document.body.appendChild(p);
+        setTimeout(function() { p.remove(); }, 5000);
+    }
+}
 
 // ==================== أحداث ====================
-window.addEventListener('scroll',()=>{document.getElementById('progressBar').style.width=(window.scrollY/(document.documentElement.scrollHeight-window.innerHeight)*100)+'%'});
-const bb=document.getElementById('backToTop');window.addEventListener('scroll',()=>{bb.classList.toggle('visible',window.scrollY>400)});bb.addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'})});
-const dt=document.getElementById('darkModeToggle');dt.addEventListener('click',()=>{document.body.classList.toggle('dark-mode');const i=dt.querySelector('i');if(document.body.classList.contains('dark-mode')){i.className='fas fa-sun'}else{i.className='fas fa-moon'}localStorage.setItem('darkMode',document.body.classList.contains('dark-mode'))});
-if(localStorage.getItem('darkMode')==='true'){document.body.classList.add('dark-mode');dt.querySelector('i').className='fas fa-sun'}
-const ht=document.getElementById('hideAnswersToggle');ht.addEventListener('click',()=>{hideAnswers=!hideAnswers;const i=ht.querySelector('i');if(hideAnswers){i.className='fas fa-eye';applyHideAnswers()}else{i.className='fas fa-eye-slash';removeHideAnswers()}});
+window.addEventListener('scroll', function() {
+    var progress = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
+    document.getElementById('progressBar').style.width = progress + '%';
+});
+
+var backToTop = document.getElementById('backToTop');
+window.addEventListener('scroll', function() {
+    backToTop.classList.toggle('visible', window.scrollY > 400);
+});
+backToTop.addEventListener('click', function() {
+    window.scrollTo({top: 0, behavior: 'smooth'});
+});
+
+var darkToggle = document.getElementById('darkModeToggle');
+darkToggle.addEventListener('click', function() {
+    document.body.classList.toggle('dark-mode');
+    var icon = darkToggle.querySelector('i');
+    icon.className = document.body.classList.contains('dark-mode') ? 'fas fa-sun' : 'fas fa-moon';
+    localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+});
+if (localStorage.getItem('darkMode') === 'true') {
+    document.body.classList.add('dark-mode');
+    darkToggle.querySelector('i').className = 'fas fa-sun';
+}
+
+var hideToggle = document.getElementById('hideAnswersToggle');
+hideToggle.addEventListener('click', function() {
+    hideAnswers = !hideAnswers;
+    var icon = hideToggle.querySelector('i');
+    if (hideAnswers) {
+        icon.className = 'fas fa-eye';
+        applyHideAnswers();
+    } else {
+        icon.className = 'fas fa-eye-slash';
+        removeHideAnswers();
+    }
+});
 
 // ==================== تهيئة الصفحة ====================
 async function initPage() {
     debugLog('🚀 بدء تهيئة الصفحة...');
     
-    // 1. تحديث الواجهة الأساسية
     updateStats();
     updateXPDisplay();
     renderChapterButtons();
@@ -645,10 +1404,9 @@ async function initPage() {
     updateFavCount();
     updateHardCount();
     
-    const retryBtn = document.getElementById('retryWrongBtn');
+    var retryBtn = document.getElementById('retryWrongBtn');
     if (retryBtn) retryBtn.style.display = wrongQuestions.length > 0 ? 'inline-flex' : 'none';
     
-    // 2. محاولة تحميل البيانات من السيرفر
     await fetchProgress();
     
     debugLog('✅ تم تهيئة الصفحة بنجاح');
@@ -657,32 +1415,17 @@ async function initPage() {
 document.addEventListener('DOMContentLoaded', async function() {
     debugLog('🚀 تحميل الصفحة...');
     
-    // 1. التحقق من تسجيل الدخول
-    const userData = await checkAuth();
+    var userData = await checkAuth();
     
     if (!userData) {
         debugLog('❌ المستخدم غير مسجل');
-        document.body.innerHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;text-align:center;background:var(--light-bg);">
-                <div style="background:var(--card-bg);border-radius:30px;padding:40px;max-width:450px;width:100%;box-shadow:var(--shadow-lg);border:2px solid var(--gold);">
-                    <div style="font-size:4rem;margin-bottom:20px;">🔒</div>
-                    <h2 style="color:var(--dark);margin-bottom:10px;">يجب تسجيل الدخول أولاً</h2>
-                    <p style="color:var(--text-secondary);margin-bottom:25px;">يرجى تسجيل الدخول للوصول إلى بنك الأسئلة ومتابعة تقدمك</p>
-                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                        <a href="login.html" style="background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#0e2a35;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">تسجيل الدخول</a>
-                        <a href="register.html" style="background:var(--dark);color:white;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">إنشاء حساب</a>
-                    </div>
-                </div>
-            </div>
-        `;
+        document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;text-align:center;background:var(--light-bg);"><div style="background:var(--card-bg);border-radius:30px;padding:40px;max-width:450px;width:100%;box-shadow:var(--shadow-lg);border:2px solid var(--gold);"><div style="font-size:4rem;margin-bottom:20px;">🔒</div><h2 style="color:var(--dark);margin-bottom:10px;">يجب تسجيل الدخول أولاً</h2><p style="color:var(--text-secondary);margin-bottom:25px;">يرجى تسجيل الدخول للوصول إلى بنك الأسئلة ومتابعة تقدمك</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"><a href="login.html" style="background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#0e2a35;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">تسجيل الدخول</a><a href="register.html" style="background:var(--dark);color:white;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">إنشاء حساب</a></div></div></div>';
         return;
     }
     
-    // 2. تخزين بيانات المستخدم
     currentUser = userData;
     debugLog('✅ المستخدم مسجل:', currentUser);
     
-    // 3. تهيئة الصفحة
     await initPage();
 });
 </script>
