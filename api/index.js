@@ -292,8 +292,24 @@ const fileSchema = new mongoose.Schema({
     uploadedBy: { type: String },
     createdAt: { type: Date, default: Date.now }
 });
-
 const File = mongoose.models.File || mongoose.model('File', fileSchema);
+
+
+// ====================== نموذج تقدم الطالب ======================
+const progressSchema = new mongoose.Schema({
+    userId: { type: String, required: true, unique: true },
+    xp: { type: Number, default: 0 },
+    level: { type: String, default: 'beginner' },
+    bookmarks: { type: [String], default: [] },
+    hardQuestions: { type: [String], default: [] },
+    notes: { type: Map, of: String, default: {} },
+    difficulties: { type: Map, of: String, default: {} },
+    achievements: { type: [String], default: [] },
+    quizHistory: { type: Array, default: [] },
+    wrongQuestions: { type: Array, default: [] }
+}, { timestamps: true });
+
+const Progress = mongoose.models.Progress || mongoose.model('Progress', progressSchema);
 
 const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
@@ -988,6 +1004,213 @@ app.post('/api/gemini/questions', async (req, res) => {
     const { questionCount = 5, filename } = req.body;
     res.json({ reply: `📝 **طلب إنشاء ${questionCount} سؤال**\n\nمن ملف: ${filename || 'الملف'}\n\nهذه الخدمة قيد التطوير.\n\n📌 قريباً سأتمكن من إنشاء:\n• أسئلة اختيار من متعدد\n• أسئلة صح/خطأ\n• أسئلة مقالية\n\nعلى حسب المحتوى الذي ترفعه!` });
 });
+
+
+
+
+// ====================== مسارات تقدم الطالب ======================
+
+// جلب تقدم الطالب
+app.get('/api/progress', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.id || req.user.username;
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+            await progress.save();
+        }
+        res.json(progress);
+    } catch (error) {
+        console.error('❌ خطأ في جلب التقدم:', error);
+        res.status(500).json({ error: 'خطأ في جلب التقدم' });
+    }
+});
+
+// تحديث نقاط XP
+app.post('/api/progress/xp', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { amount } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.xp = (progress.xp || 0) + amount;
+        await progress.save();
+        
+        res.json({ success: true, xp: progress.xp });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث XP:', error);
+        res.status(500).json({ error: 'خطأ في تحديث XP' });
+    }
+});
+
+// تحديث المفضلة
+app.post('/api/progress/bookmarks', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body; // action: 'add' or 'remove'
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        if (action === 'add') {
+            if (!progress.bookmarks.includes(questionId)) {
+                progress.bookmarks.push(questionId);
+            }
+        } else {
+            progress.bookmarks = progress.bookmarks.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, bookmarks: progress.bookmarks });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث المفضلة:', error);
+        res.status(500).json({ error: 'خطأ في تحديث المفضلة' });
+    }
+});
+
+// تحديث الأسئلة الصعبة
+app.post('/api/progress/hard', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        if (action === 'add') {
+            if (!progress.hardQuestions.includes(questionId)) {
+                progress.hardQuestions.push(questionId);
+            }
+        } else {
+            progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, hardQuestions: progress.hardQuestions });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الأسئلة الصعبة:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' });
+    }
+});
+
+// حفظ الملاحظات
+app.post('/api/progress/notes', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, note } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.notes.set(questionId, note);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الملاحظة:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الملاحظة' });
+    }
+});
+
+// حفظ سجل الاختبارات
+app.post('/api/progress/quiz', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { total, correct, score, chapter } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.quizHistory.push({
+            date: new Date().toISOString(),
+            total,
+            correct,
+            score,
+            chapter: chapter || 'all'
+        });
+        
+        // حفظ الأسئلة الخاطئة
+        if (req.body.wrongQuestions) {
+            progress.wrongQuestions = progress.wrongQuestions.concat(req.body.wrongQuestions);
+            if (progress.wrongQuestions.length > 200) {
+                progress.wrongQuestions = progress.wrongQuestions.slice(-200);
+            }
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ سجل الاختبار:', error);
+        res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' });
+    }
+});
+
+// حفظ الإنجازات
+app.post('/api/progress/achievements', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { achievementId } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        if (!progress.achievements.includes(achievementId)) {
+            progress.achievements.push(achievementId);
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الإنجاز:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الإنجاز' });
+    }
+});
+
+// تحديث صعوبة السؤال
+app.post('/api/progress/difficulty', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, difficulty } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.difficulties.set(questionId, difficulty);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الصعوبة:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الصعوبة' });
+    }
+});
+
+
+
 
 // ====================== الكابتشا ======================
 const captchaStore = new Map();
