@@ -1037,7 +1037,7 @@ app.post('/api/captcha/verify', (req, res) => {
 // ====================== مسارات الملفات ======================
 // ⬇⬇⬇⬇⬇ يجب أن تكون قبل app.get('*') ⬇⬇⬇⬇⬇
 
-// رفع ملفات متعددة
+// رفع ملفات متعددة (عن طريق السيرفر - للاستخدام الاحتياطي)
 app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files', 20), async (req, res) => {
     try {
         await connectToDatabase();
@@ -1079,12 +1079,12 @@ app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files
         });
 
     } catch (error) {
-        console.error('Upload error:', error);
+        console.error('❌ Upload error:', error);
         res.status(500).json({ error: 'خطأ في رفع الملفات: ' + error.message });
     }
 });
 
-// جلب جميع الملفات
+// ====================== جلب جميع الملفات ======================
 app.get('/api/files', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1093,11 +1093,11 @@ app.get('/api/files', verifyToken, async (req, res) => {
         res.json(files);
     } catch (error) {
         console.error('❌ خطأ في جلب الملفات:', error);
-        res.status(500).json({ error: 'خطأ في جلب الملفات' });
+        res.status(500).json({ error: 'خطأ في جلب الملفات: ' + error.message });
     }
 });
 
-// تحميل ملف
+// ====================== تحميل ملف (إعادة توجيه إلى Cloudinary) ======================
 app.get('/api/files/download/:id', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1111,11 +1111,12 @@ app.get('/api/files/download/:id', verifyToken, async (req, res) => {
 
         return res.redirect(file.url);
     } catch (error) {
+        console.error('❌ خطأ في تحميل الملف:', error);
         res.status(500).json({ error: 'خطأ في تحميل الملف' });
     }
 });
 
-// حذف ملف
+// ====================== حذف ملف ======================
 app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1124,10 +1125,12 @@ app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
             return res.status(404).json({ error: 'الملف غير موجود' });
         }
 
+        // حذف من Cloudinary
         try {
             await cloudinary.uploader.destroy(file.publicId, {
                 resource_type: 'auto'
             });
+            console.log('✅ تم حذف الملف من Cloudinary:', file.publicId);
         } catch (e) {
             console.log('⚠️ Cloudinary delete error:', e.message);
         }
@@ -1135,11 +1138,12 @@ app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
         await File.findByIdAndDelete(req.params.id);
         res.json({ success: true, message: 'تم حذف الملف بنجاح' });
     } catch (error) {
+        console.error('❌ خطأ في حذف الملف:', error);
         res.status(500).json({ error: 'خطأ في حذف الملف' });
     }
 });
 
-// إحصائيات الملفات
+// ====================== إحصائيات الملفات ======================
 app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1159,15 +1163,18 @@ app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
             grades: grades
         });
     } catch (error) {
+        console.error('❌ خطأ في جلب الإحصائيات:', error);
         res.status(500).json({ error: 'خطأ في جلب الإحصائيات' });
     }
 });
 
-// ====================== حفظ معلومات الملف من Cloudinary ======================
+// ====================== حفظ معلومات الملف من Cloudinary (للرفع المباشر) ======================
 app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
         const { name, url, publicId, size, type, grade, subject } = req.body;
+        
+        console.log('📥 استلام معلومات ملف:', { name, grade, subject });
         
         if (!name || !url || !grade || !subject) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
@@ -1185,9 +1192,10 @@ app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
         });
 
         await fileData.save();
+        console.log('✅ تم حفظ الملف في DB:', fileData.name);
         res.json({ success: true, file: fileData });
     } catch (error) {
-        console.error('Save file error:', error);
+        console.error('❌ Save file error:', error);
         res.status(500).json({ error: 'خطأ في حفظ معلومات الملف: ' + error.message });
     }
 });
@@ -1206,6 +1214,35 @@ app.post('/api/files/view/:id', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('❌ خطأ في تحديث المشاهدات:', error);
         res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
+    }
+});
+
+// ====================== إنشاء توقيع للرفع (Signature) ======================
+app.get('/api/upload/signature', verifyToken, (req, res) => {
+    try {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const folder = req.query.folder || 'school';
+        
+        // إنشاء التوقيع
+        const signature = cloudinary.utils.api_sign_request(
+            {
+                timestamp: timestamp,
+                folder: folder,
+                upload_preset: 'school_preset'
+            },
+            process.env.CLOUDINARY_API_SECRET || 'HkoDVSfeDHmRQJjd4Q_B1uEQlpA'
+        );
+        
+        res.json({
+            signature: signature,
+            timestamp: timestamp,
+            cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'di47of300',
+            apiKey: process.env.CLOUDINARY_API_KEY || '344972868721826',
+            uploadPreset: 'school_preset'
+        });
+    } catch (error) {
+        console.error('❌ Signature error:', error);
+        res.status(500).json({ error: 'خطأ في إنشاء التوقيع' });
     }
 });
 
