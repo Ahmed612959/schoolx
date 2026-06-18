@@ -203,6 +203,86 @@ let bookmarks=new Set(JSON.parse(localStorage.getItem('nb_bookmarks')||'[]')),ha
 const categoryMeta=[{id:'definitions',icon:'fas fa-bookmark',label:'تعريفات',badge:'badge-def'},{id:'mcq',icon:'fas fa-tasks',label:'اختيار متعدد',badge:'badge-mcq'},{id:'truefalse',icon:'fas fa-check-double',label:'صح وخطأ',badge:'badge-tf'},{id:'complete',icon:'fas fa-pen',label:'أكمل',badge:'badge-complete'},{id:'explain',icon:'fas fa-comment-dots',label:'اشرح',badge:'badge-explain'},{id:'list',icon:'fas fa-list-ul',label:'قوائم',badge:'badge-list'},{id:'situations',icon:'fas fa-stethoscope',label:'مواقف',badge:'badge-situation'}];
 const testCategories=['mcq','truefalse','complete','explain','list','situations'];
 
+    // ====================== التحقق من تسجيل الدخول ======================
+async function checkAuth() {
+    try {
+        const response = await fetch(`${API_BASE}/api/verify-session`, {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.valid) {
+                console.log('✅ مستخدم مسجل:', data.user);
+                return true;
+            }
+        }
+        return false;
+    } catch (error) {
+        console.error('❌ خطأ في التحقق من الجلسة:', error);
+        return false;
+    }
+}
+
+// ====================== تسجيل الخروج ======================
+async function logoutUser() {
+    if (confirm('هل تريد تسجيل الخروج؟')) {
+        try {
+            await fetch(`${API_BASE}/api/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            sessionStorage.clear();
+            localStorage.removeItem('loggedInUser');
+            window.location.href = 'login.html';
+        } catch (error) {
+            console.error('❌ خطأ في تسجيل الخروج:', error);
+        }
+    }
+}
+
+// ====================== تهيئة الصفحة ======================
+document.addEventListener('DOMContentLoaded', async function() {
+    // التحقق من تسجيل الدخول
+    const isLoggedIn = await checkAuth();
+    
+    if (!isLoggedIn) {
+        // عرض رسالة للمستخدم غير مسجل
+        document.body.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;text-align:center;background:var(--light-bg);">
+                <div style="background:var(--card-bg);border-radius:30px;padding:40px;max-width:450px;width:100%;box-shadow:var(--shadow-lg);border:2px solid var(--gold);">
+                    <div style="font-size:4rem;margin-bottom:20px;">🔒</div>
+                    <h2 style="color:var(--dark);margin-bottom:10px;">يجب تسجيل الدخول أولاً</h2>
+                    <p style="color:var(--text-secondary);margin-bottom:25px;">يرجى تسجيل الدخول للوصول إلى بنك الأسئلة ومتابعة تقدمك</p>
+                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                        <a href="login.html" style="background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#0e2a35;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">تسجيل الدخول</a>
+                        <a href="register.html" style="background:var(--dark);color:white;padding:12px 30px;border-radius:50px;text-decoration:none;font-weight:700;transition:var(--transition);">إنشاء حساب</a>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // إذا كان المستخدم مسجلاً، أكمل تحميل الصفحة
+    initializePage();
+});
+
+function initializePage() {
+    // تحديث الإحصائيات
+    updateStats();
+    updateXPDisplay();
+    renderChapterButtons();
+    renderCategoryTabs();
+    renderAllQuestions();
+    buildSidebar();
+    updateFavCount();
+    updateHardCount();
+    document.getElementById('retryWrongBtn').style.display = wrongQuestions.length > 0 ? 'inline-flex' : 'none';
+    
+    // محاولة تحميل البيانات من السيرفر
+    fetchProgress();
+}
+
 // ====================== الاتصال بالسيرفر ======================
 const API_BASE = '';
 let isOnlineMode = false;
