@@ -1,4 +1,4 @@
-const chapter3_internal = {
+var chap3 = {
     name: "🩺 الفصل الثالث: Gastrointestinal Bleeding, Peptic Ulcer & Acute Diarrhea",
     icon: "fas fa-stomach",
     definitions: [
