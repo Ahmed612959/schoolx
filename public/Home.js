@@ -1,4 +1,4 @@
-// Home.js - نسخة معدلة (إزالة آخر الملفات، المرشد يظهر للجميع)
+// Home.js - نسخة معدلة مع تحديث فوري للحضور
 
 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
@@ -137,7 +137,7 @@ async function loadNotifications() {
             if (tableBody) {
                 tableBody.innerHTML = '';
                 if (!notifications.length) {
-                    tableBody.innerHTML = '<tr><td colspan="2">لا توجد إشعارات حاليًا</td><tr>';
+                    tableBody.innerHTML = '<tr><td colspan="2">لا توجد إشعارات حاليًا</td></tr>';
                     return;
                 }
                 notifications.forEach(n => {
@@ -152,37 +152,73 @@ async function loadNotifications() {
     }
 }
 
-// ====================== الحضور ======================
+// ====================== الحضور - مع تحديث فوري ======================
 let attendanceStats = null;
+let lastAttendanceFetch = 0;
+const ATTENDANCE_FETCH_INTERVAL = 5000; // 5 ثواني
 
-async function fetchAttendanceStats(studentCode) {
+async function fetchAttendanceStats(studentCode, force = false) {
+    const now = Date.now();
+    if (!force && (now - lastAttendanceFetch) < ATTENDANCE_FETCH_INTERVAL) {
+        // إذا كان الطلب الأخير منذ أقل من 5 ثواني، نعيد البيانات المخزنة مؤقتاً
+        return attendanceStats;
+    }
+    
     try {
-        const response = await apiRequest(`/api/attendance/student/${studentCode}?t=${Date.now()}`);
+        const response = await apiRequest(`/api/attendance/student/${studentCode}?t=${now}`);
         if (response.ok) {
             const attendanceRecords = await response.json();
-            if (!attendanceRecords.length) {
-                attendanceStats = null;
-                return null;
+            lastAttendanceFetch = now;
+            
+            if (!attendanceRecords || attendanceRecords.length === 0) {
+                attendanceStats = {
+                    present: 0, absent: 0, late: 0, total: 0,
+                    percentage: 0, lastPresentDate: null, lastAbsentDate: null,
+                    records: []
+                };
+                renderAttendanceStats();
+                return attendanceStats;
             }
+            
             const present = attendanceRecords.filter(a => a.status === 'present').length;
             const absent = attendanceRecords.filter(a => a.status === 'absent').length;
             const late = attendanceRecords.filter(a => a.status === 'late').length;
             const total = attendanceRecords.length;
             const percentage = total > 0 ? (present / total) * 100 : 0;
-            const lastPresent = attendanceRecords.filter(a => a.status === 'present').sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-            const lastAbsent = attendanceRecords.filter(a => a.status === 'absent').sort((a, b) => new Date(b.date) - new Date(a.date))[0];
             
-            attendanceStats = {
-                present, absent, late, total, percentage: percentage.toFixed(1),
-                lastPresentDate: lastPresent ? formatDate(lastPresent.date) : null,
-                lastAbsentDate: lastAbsent ? formatDate(lastAbsent.date) : null
+            const presentRecords = attendanceRecords.filter(a => a.status === 'present').sort((a, b) => new Date(b.date) - new Date(a.date));
+            const absentRecords = attendanceRecords.filter(a => a.status === 'absent').sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            const newStats = {
+                present, absent, late, total,
+                percentage: percentage.toFixed(1),
+                lastPresentDate: presentRecords.length > 0 ? formatDate(presentRecords[0].date) : null,
+                lastAbsentDate: absentRecords.length > 0 ? formatDate(absentRecords[0].date) : null,
+                records: attendanceRecords
             };
+            
+            // التحقق من وجود تغيير في البيانات
+            const hasChanged = !attendanceStats || 
+                attendanceStats.present !== newStats.present ||
+                attendanceStats.absent !== newStats.absent ||
+                attendanceStats.late !== newStats.late;
+            
+            attendanceStats = newStats;
+            
+            if (hasChanged) {
+                renderAttendanceStats();
+                // إظهار إشعار عند تحديث البيانات
+                if (attendanceStats.total > 0) {
+                    showToast(`📊 تم تحديث الحضور: ${attendanceStats.present} حاضر، ${attendanceStats.absent} غائب، ${attendanceStats.late} متأخر`, 'info');
+                }
+            }
+            
             return attendanceStats;
         }
-        return null;
+        return attendanceStats;
     } catch (error) {
         console.error('خطأ في جلب إحصائيات الحضور:', error);
-        return null;
+        return attendanceStats;
     }
 }
 
@@ -195,28 +231,32 @@ function formatDate(dateStr) {
 function renderAttendanceStats() {
     const section = document.getElementById('attendanceStatsSection');
     if (!section) return;
+    
     const user = getLoggedInUser();
     if (!user || user.type !== 'student') {
         section.style.display = 'none';
         return;
     }
     
-    if (!attendanceStats) {
-        section.style.display = 'block';
-        const noMsgDiv = document.getElementById('noAttendanceMessage');
+    // إظهار القسم دائماً للطلاب
+    section.style.display = 'block';
+    
+    const noMsgDiv = document.getElementById('noAttendanceMessage');
+    const grid = document.querySelector('.attendance-stats-grid');
+    const datesDiv = document.querySelector('.attendance-dates');
+    
+    if (!attendanceStats || attendanceStats.total === 0) {
         if (noMsgDiv) noMsgDiv.style.display = 'block';
-        const grid = document.querySelector('.attendance-stats-grid');
-        const datesDiv = document.querySelector('.attendance-dates');
         if (grid) grid.style.display = 'none';
         if (datesDiv) datesDiv.style.display = 'none';
+        document.getElementById('presentCount').textContent = '0';
+        document.getElementById('absentCount').textContent = '0';
+        document.getElementById('lateCount').textContent = '0';
+        document.getElementById('attendancePercentage').textContent = '0%';
         return;
     }
     
-    section.style.display = 'block';
-    const noMsgDiv = document.getElementById('noAttendanceMessage');
     if (noMsgDiv) noMsgDiv.style.display = 'none';
-    const grid = document.querySelector('.attendance-stats-grid');
-    const datesDiv = document.querySelector('.attendance-dates');
     if (grid) grid.style.display = 'grid';
     if (datesDiv) datesDiv.style.display = 'flex';
     
@@ -224,13 +264,42 @@ function renderAttendanceStats() {
     document.getElementById('absentCount').textContent = attendanceStats.absent;
     document.getElementById('lateCount').textContent = attendanceStats.late;
     document.getElementById('attendancePercentage').textContent = attendanceStats.percentage + '%';
+    
     const lastPresentSpan = document.getElementById('lastPresentDate');
     const lastAbsentSpan = document.getElementById('lastAbsentDate');
-    if (lastPresentSpan) lastPresentSpan.innerHTML = attendanceStats.lastPresentDate || 'لم يتم تسجيل بعد';
-    if (lastAbsentSpan) lastAbsentSpan.innerHTML = attendanceStats.lastAbsentDate || 'لم يتم تسجيل بعد';
+    if (lastPresentSpan) lastPresentSpan.textContent = attendanceStats.lastPresentDate || 'لم يتم تسجيل بعد';
+    if (lastAbsentSpan) lastAbsentSpan.textContent = attendanceStats.lastAbsentDate || 'لم يتم تسجيل بعد';
+}
+
+// ====================== مراقبة التغييرات في الحضور (WebSocket-like polling) ======================
+let attendancePollingInterval = null;
+
+function startAttendancePolling(studentCode) {
+    // إيقاف الـ polling السابق إن وجد
+    if (attendancePollingInterval) {
+        clearInterval(attendancePollingInterval);
+        attendancePollingInterval = null;
+    }
+    
+    // جلب فوري أول مرة
+    fetchAttendanceStats(studentCode, true);
+    
+    // البدء في الـ polling كل 5 ثواني
+    attendancePollingInterval = setInterval(() => {
+        fetchAttendanceStats(studentCode, true);
+    }, ATTENDANCE_FETCH_INTERVAL);
+}
+
+function stopAttendancePolling() {
+    if (attendancePollingInterval) {
+        clearInterval(attendancePollingInterval);
+        attendancePollingInterval = null;
+    }
 }
 
 // ====================== لوحة التحكم ======================
+let currentStudentCode = null;
+
 async function renderDashboard() {
     const user = getLoggedInUser();
     const dashboard = document.getElementById('dashboard');
@@ -249,6 +318,7 @@ async function renderDashboard() {
     }
     
     dashboard.style.display = 'block';
+    currentStudentCode = student.studentCode;
     
     if (student.subjects && student.subjects.length > 0) {
         const percentage = calculateStudentPercentage(student);
@@ -303,8 +373,10 @@ async function renderDashboard() {
     }
     
     if (student.studentCode) {
-        await fetchAttendanceStats(student.studentCode);
+        // جلب الحضور وبدء الـ polling
+        await fetchAttendanceStats(student.studentCode, true);
         renderAttendanceStats();
+        startAttendancePolling(student.studentCode);
     }
 }
 
@@ -478,16 +550,43 @@ function setupLogoutButton() {
     }
 }
 
-// ====================== مرشد المكتبة (تم نقله إلى HTML) ======================
-// تم نقل منطق المرشد إلى HTML لضمان عمله بشكل صحيح
+// ====================== مرشد المكتبة ======================
 function initLibraryTour() {
-    // الوظيفة فارغة - المرشد يعمل من HTML الآن
-    console.log('Tour handled by HTML script');
+    const hasSeenTour = localStorage.getItem('hasSeenLibraryTour');
+    if (hasSeenTour === 'true') {
+        document.getElementById('guidedTour').style.display = 'none';
+        return;
+    }
+    
+    // إظهار نافذة المكتبة بعد 2 ثانية من تحميل الصفحة
+    setTimeout(() => {
+        const tour = document.getElementById('guidedTour');
+        if (tour) {
+            tour.style.display = 'flex';
+        }
+    }, 2000);
+    
+    // زر الإغلاق
+    document.getElementById('closeTourBtn')?.addEventListener('click', function() {
+        document.getElementById('guidedTour').style.display = 'none';
+        localStorage.setItem('hasSeenLibraryTour', 'true');
+    });
+    
+    // زر الذهاب للمكتبة
+    document.getElementById('gotoLibraryBtn')?.addEventListener('click', function() {
+        document.getElementById('guidedTour').style.display = 'none';
+        localStorage.setItem('hasSeenLibraryTour', 'true');
+        window.location.href = 'file-library.html';
+    });
+    
+    // زر عدم الظهور مرة أخرى
+    document.getElementById('dontShowAgain')?.addEventListener('click', function() {
+        document.getElementById('guidedTour').style.display = 'none';
+        localStorage.setItem('hasSeenLibraryTour', 'true');
+    });
 }
 
-
-
-// ====================== البوت المساعد الذكي (نسخة ثابتة) ======================
+// ====================== البوت المساعد الذكي ======================
 class SmartAssistantBot {
     constructor() {
         this.bot = document.getElementById('liveBot');
@@ -499,7 +598,6 @@ class SmartAssistantBot {
         this.originalPosition = { right: 20, bottom: 20 };
         this.userName = this.getUserName();
         
-        // حقول الصفحة
         this.fields = {
             name: document.getElementById('search-name'),
             code: document.getElementById('search-id'),
@@ -518,32 +616,25 @@ class SmartAssistantBot {
         this.resetPosition();
         this.attachFieldListeners();
         this.welcomeUser();
-        
-        // مراقبة أخطاء البحث
         this.observeSearchErrors();
-        
         console.log('🤖 Smart Assistant Bot initialized');
     }
     
     resetPosition() {
+        if (!this.bot) return;
         this.bot.style.bottom = this.originalPosition.bottom + 'px';
         this.bot.style.right = this.originalPosition.right + 'px';
         this.bot.style.left = 'auto';
         this.bot.style.top = 'auto';
     }
     
-    // الانتقال إلى حقل معين
     moveToField(fieldElement) {
-        if (!fieldElement) return;
+        if (!fieldElement || !this.bot) return;
         
         const fieldRect = fieldElement.getBoundingClientRect();
-        const botRect = this.bot.getBoundingClientRect();
-        
-        // حساب الموقع الجديد للبوت بجانب الحقل
         let targetRight = window.innerWidth - fieldRect.right + 10;
         let targetBottom = window.innerHeight - fieldRect.top + 10;
         
-        // التأكد من عدم خروج البوت عن الشاشة
         targetRight = Math.max(10, Math.min(window.innerWidth - 100, targetRight));
         targetBottom = Math.max(10, Math.min(window.innerHeight - 150, targetBottom));
         
@@ -553,7 +644,6 @@ class SmartAssistantBot {
         this.bot.style.left = 'auto';
         this.bot.style.top = 'auto';
         
-        // العودة إلى المكان الأصلي بعد 3 ثواني
         setTimeout(() => {
             this.resetPosition();
         }, 4000);
@@ -562,7 +652,6 @@ class SmartAssistantBot {
     pointTo(element) {
         if (!element) return;
         
-        // تحريك الذراع للإشارة
         const rightArm = document.querySelector('.bot-arm-right');
         if (rightArm) {
             rightArm.classList.add('pointing');
@@ -571,7 +660,6 @@ class SmartAssistantBot {
             }, 800);
         }
         
-        // إضاءة الحقل
         element.classList.add('field-error');
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
@@ -581,7 +669,6 @@ class SmartAssistantBot {
     }
     
     attachFieldListeners() {
-        // عند ترك حقل الاسم بدون كتابة
         if (this.fields.name) {
             this.fields.name.addEventListener('blur', () => {
                 if (!this.fields.name.value.trim()) {
@@ -595,7 +682,6 @@ class SmartAssistantBot {
             });
         }
         
-        // عند ترك حقل رقم الجلوس بدون كتابة
         if (this.fields.code) {
             this.fields.code.addEventListener('blur', () => {
                 if (!this.fields.code.value.trim()) {
@@ -614,7 +700,6 @@ class SmartAssistantBot {
             });
         }
         
-        // عند الضغط على زر البحث بدون بيانات
         if (this.fields.submit) {
             this.fields.submit.addEventListener('click', (e) => {
                 if (!this.fields.name.value.trim() || !this.fields.code.value.trim()) {
@@ -638,11 +723,9 @@ class SmartAssistantBot {
     }
     
     observeSearchErrors() {
-        // مراقبة ظهور رسالة خطأ بعد البحث
         const observer = new MutationObserver((mutations) => {
             const resultBody = document.getElementById('result-table-body');
             if (resultBody && resultBody.innerHTML.includes('لا توجد نتيجة')) {
-                // تحديد الحقل الذي به مشكلة
                 if (!this.fields.name.value.trim()) {
                     this.moveToField(this.fields.name);
                     this.pointTo(this.fields.name);
@@ -671,22 +754,21 @@ class SmartAssistantBot {
     }
     
     speak(message, duration = 3500) {
-        if (this.isSpeaking) return;
+        if (this.isSpeaking || !this.bubble || !this.bubbleText || !this.screenMsg) return;
         
         this.isSpeaking = true;
         this.bubbleText.textContent = message;
         this.screenMsg.textContent = message.substring(0, 15) + (message.length > 15 ? '..' : '');
         
-        // تحريك الشفاه أثناء الكلام
         this.setEmotion('speaking');
         
         this.bubble.classList.remove('show');
         setTimeout(() => {
-            this.bubble.classList.add('show');
+            if (this.bubble) this.bubble.classList.add('show');
         }, 100);
         
         setTimeout(() => {
-            this.bubble.classList.remove('show');
+            if (this.bubble) this.bubble.classList.remove('show');
             this.isSpeaking = false;
             this.setEmotion('happy');
         }, duration);
@@ -694,34 +776,23 @@ class SmartAssistantBot {
     
     setEmotion(emotion) {
         const bot = document.querySelector('.live-bot');
+        if (!bot) return;
         const mouth = document.querySelector('.bot-mouth-line');
-        const eyebrows = document.querySelectorAll('.bot-eyebrow');
         
         bot.classList.remove('angry', 'happy', 'sad', 'speaking');
         
         switch(emotion) {
-            case 'happy':
-                bot.classList.add('happy');
-                if (mouth) mouth.style.animation = '';
-                break;
-            case 'sad':
-                bot.classList.add('sad');
-                if (mouth) mouth.style.animation = '';
-                break;
-            case 'angry':
-                bot.classList.add('angry');
-                if (mouth) mouth.style.animation = '';
-                break;
-            case 'speaking':
-                bot.classList.add('speaking');
-                break;
-            default:
-                bot.classList.add('happy');
+            case 'happy': bot.classList.add('happy'); break;
+            case 'sad': bot.classList.add('sad'); break;
+            case 'angry': bot.classList.add('angry'); break;
+            case 'speaking': bot.classList.add('speaking'); break;
+            default: bot.classList.add('happy');
         }
     }
     
     dance() {
         const bot = this.bot;
+        if (!bot) return;
         bot.style.animation = 'none';
         setTimeout(() => {
             bot.style.animation = 'headBob 0.1s infinite';
@@ -752,14 +823,38 @@ class SmartAssistantBot {
     }
 }
 
-// تشغيل البوت بعد تحميل الصفحة
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        window.smartBot = new SmartAssistantBot();
-    }, 800);
-});
+// ====================== مراقبة التغييرات من أي مكان ======================
+// هذه الدالة تسمح لأي صفحة أخرى (مثل attendance-first.html) بتحديث الحضور فوراً
+window.refreshAttendance = function(studentCode) {
+    if (studentCode) {
+        fetchAttendanceStats(studentCode, true);
+    } else {
+        const user = getLoggedInUser();
+        if (user && user.type === 'student' && user.id) {
+            fetchAttendanceStats(user.id, true);
+        }
+    }
+};
 
+// الاستماع لأحداث التحديث من خلال BroadcastChannel (للتواصل بين التابات)
+let attendanceChannel = null;
 
+function setupAttendanceChannel() {
+    try {
+        attendanceChannel = new BroadcastChannel('attendance-updates');
+        attendanceChannel.onmessage = function(event) {
+            if (event.data && event.data.type === 'attendance-updated') {
+                const user = getLoggedInUser();
+                if (user && user.type === 'student' && user.id) {
+                    fetchAttendanceStats(user.id, true);
+                }
+            }
+        };
+    } catch (e) {
+        console.log('BroadcastChannel not supported, using fallback');
+        // استخدام polling كبديل
+    }
+}
 
 // ====================== التشغيل ======================
 async function init() {
@@ -774,12 +869,27 @@ async function init() {
     setupSearchForm();
     setupLogoutButton();
     
-    // تشغيل مرشد المكتبة للمستخدمين الجدد فقط
     initLibraryTour();
+    setupAttendanceChannel();
     
+    // تجديد التوكن كل 55 دقيقة
     setInterval(async () => {
-        await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' });
+        try {
+            await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' });
+        } catch (e) {}
     }, 55 * 60 * 1000);
+    
+    // تشغيل البوت بعد تحميل الصفحة
+    setTimeout(() => {
+        if (document.getElementById('liveBot')) {
+            window.smartBot = new SmartAssistantBot();
+        }
+    }, 800);
 }
 
-init();
+// تنفيذ التهيئة عند تحميل الصفحة
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
