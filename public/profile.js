@@ -81,9 +81,8 @@ async function apiRequest(endpoint, options = {}) {
     return response;
 }
 
-// ====================== جلب بيانات الطالب (API مخصص للطلاب) ======================
+// ====================== جلب بيانات الطالب ======================
 async function fetchStudentDataFromServer() {
-    // الطريقة الصحيحة: استخدام API جلب الطالب برقم الجلوس
     if (currentUser.studentCode) {
         console.log('📡 جلب بيانات الطالب من /api/student/by-code/', currentUser.studentCode);
         const response = await apiRequest(`/api/student/by-code/${currentUser.studentCode}`);
@@ -93,21 +92,6 @@ async function fetchStudentDataFromServer() {
             return student;
         }
     }
-    
-    // محاولة بديلة: استخدام username
-    if (currentUser.username) {
-        console.log('📡 محاولة جلب بيانات الطالب بالاسم:', currentUser.username);
-        // ملاحظة: هذا الAPI يتطلب أدمن، لذا قد يفشل
-        try {
-            const response = await apiRequest(`/api/student/by-username/${currentUser.username}`);
-            if (response.ok) {
-                return await response.json();
-            }
-        } catch (e) {
-            console.log('⚠️ فشل جلب البيانات بالاسم');
-        }
-    }
-    
     return null;
 }
 
@@ -139,14 +123,11 @@ async function fetchUserData() {
     
     try {
         if (isAdminUser) {
-            // للأدمن - استخدام API الأدمن
             userData = await fetchAdminDataFromServer();
         } else {
-            // للطالب - استخدام API الطالب
             userData = await fetchStudentDataFromServer();
         }
         
-        // إذا فشل جلب البيانات من السيرفر، استخدم البيانات المحلية
         if (!userData) {
             console.log('⚠️ استخدام البيانات المحلية كبديل');
             userData = currentUser;
@@ -154,7 +135,6 @@ async function fetchUserData() {
             console.log('✅ تم جلب البيانات بنجاح من السيرفر');
         }
         
-        // تحديث التخزين المحلي
         sessionStorage.setItem('userData', JSON.stringify(userData));
         if (!isAdminUser) {
             localStorage.setItem('loggedInUser', JSON.stringify(userData));
@@ -192,19 +172,15 @@ function displayUserData() {
     const avatarIcon = document.querySelector('.profile-avatar i');
     
     if (isAdminUser) {
-        // عرض بيانات الأدمن
         userTypeBadge.innerHTML = '<i class="fas fa-crown"></i><span>مدير النظام</span>';
         userTypeBadge.style.background = '#f59e0b';
         studentCodeElem.textContent = 'مدير';
         userGradeElem.textContent = 'جميع الصفوف';
         avatarIcon.className = 'fas fa-user-shield';
         
-        const parentNameGroup = document.getElementById('parentNameGroup');
-        const parentIdGroup = document.getElementById('parentIdGroup');
-        if (parentNameGroup) parentNameGroup.style.display = 'none';
-        if (parentIdGroup) parentIdGroup.style.display = 'none';
+        document.getElementById('parentNameGroup').style.display = 'none';
+        document.getElementById('parentIdGroup').style.display = 'none';
     } else {
-        // عرض بيانات الطالب
         userTypeBadge.innerHTML = '<i class="fas fa-graduation-cap"></i><span>طالب</span>';
         userTypeBadge.style.background = '#1a4f6e';
         
@@ -217,10 +193,8 @@ function displayUserData() {
         
         avatarIcon.className = 'fas fa-user-graduate';
         
-        const parentNameGroup = document.getElementById('parentNameGroup');
-        const parentIdGroup = document.getElementById('parentIdGroup');
-        if (parentNameGroup) parentNameGroup.style.display = 'block';
-        if (parentIdGroup) parentIdGroup.style.display = 'block';
+        document.getElementById('parentNameGroup').style.display = 'block';
+        document.getElementById('parentIdGroup').style.display = 'block';
     }
     
     // عرض الصف
@@ -246,7 +220,8 @@ function displayUserData() {
 // ====================== حساب نسبة اكتمال الملف ======================
 function updateProgress() {
     const profile = userData?.profile || {};
-    let fields = isAdminUser ? ['phone'] : ['phone', 'parentName', 'parentId'];
+    // للطالب: رقم الهاتف فقط هو المطلوب (ولي الأمر للعرض فقط)
+    let fields = isAdminUser ? ['phone'] : ['phone'];
     let completed = fields.filter(f => profile[f] && profile[f].trim() !== '').length;
     const percentage = Math.round((completed / fields.length) * 100);
     
@@ -257,36 +232,57 @@ function updateProgress() {
     return percentage;
 }
 
-// ====================== حفظ التغييرات ======================
+// ====================== حفظ التغييرات (للطالب: رقم الهاتف فقط) ======================
 async function saveProfile(event) {
     event.preventDefault();
     
-    const updatedProfile = { 
-        phone: document.getElementById('phone').value.trim() 
-    };
+    // ====== الحقول المسموح بتعديلها ======
+    // للطالب: فقط رقم الهاتف
+    // للأدمن: فقط رقم الهاتف
     
-    if (!isAdminUser) {
-        updatedProfile.parentName = document.getElementById('parentName').value.trim();
-        updatedProfile.parentId = document.getElementById('parentId').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    
+    // التحقق من صحة رقم الهاتف (اختياري)
+    if (phone && !/^[0-9+\-\s()]{8,15}$/.test(phone)) {
+        showToast('⚠️ يرجى إدخال رقم هاتف صحيح (8-15 رقم)', 'warning');
+        return;
     }
     
+    const updatedProfile = { 
+        phone: phone 
+    };
+    
     try {
-        let endpoint = isAdminUser 
-            ? `/api/admins/${userData.username}` 
-            : `/api/students/${userData.studentCode}`;
+        let endpoint;
+        let method = 'PUT';
+        let body = { profile: updatedProfile };
+        
+        if (isAdminUser) {
+            // للأدمن - تحديث بيانات الأدمن
+            endpoint = `/api/admins/${userData.username}`;
+        } else {
+            // للطالب - استخدام API تحديث الطالب (يتطلب أدمن على السيرفر)
+            // لكننا نستخدم نفس المسار مع صلاحية الطالب
+            endpoint = `/api/students/${userData.studentCode}`;
+            // إضافة studentCode في body للتأكيد
+            body.studentCode = userData.studentCode;
+        }
         
         console.log('📤 حفظ إلى:', endpoint);
+        console.log('📤 البيانات:', body);
         showToast('جاري حفظ البيانات...', 'info');
         
         const response = await apiRequest(endpoint, {
-            method: 'PUT',
-            body: JSON.stringify({ profile: updatedProfile })
+            method: method,
+            body: JSON.stringify(body)
         });
         
         if (response.ok) {
+            // تحديث البيانات المحلية
             if (!userData.profile) userData.profile = {};
-            userData.profile = { ...userData.profile, ...updatedProfile };
+            userData.profile.phone = phone;
             
+            // تحديث sessionStorage
             if (currentUser) {
                 currentUser.profile = userData.profile;
                 sessionStorage.setItem('userData', JSON.stringify(currentUser));
@@ -297,14 +293,22 @@ async function saveProfile(event) {
             
             const percentage = updateProgress();
             if (percentage === 100) {
-                showToast('🎉 مبروك! ملفك الشخصي مكتمل 100%', 'success');
+                showToast('🎉 مبروك! تم تحديث رقم هاتفك بنجاح', 'success');
             } else {
-                showToast('✅ تم حفظ التغييرات بنجاح', 'success');
+                showToast('✅ تم تحديث رقم الهاتف بنجاح', 'success');
             }
         } else {
             const error = await response.json();
             console.error('❌ فشل الحفظ:', error);
-            showToast(error.error || 'فشل حفظ البيانات', 'error');
+            
+            // رسائل خطأ مخصصة
+            if (response.status === 403) {
+                showToast('⚠️ غير مصرح لك بتعديل هذه البيانات', 'error');
+            } else if (response.status === 400) {
+                showToast('⚠️ ' + (error.error || 'بيانات غير صحيحة'), 'error');
+            } else {
+                showToast(error.error || 'فشل حفظ البيانات', 'error');
+            }
         }
     } catch (error) {
         console.error('❌ خطأ:', error);
@@ -344,7 +348,6 @@ function buildBottomNav() {
         { href: 'Home.html', icon: 'fas fa-home', label: 'الرئيسية' },
         { href: 'exams.html', icon: 'fas fa-book', label: 'الاختبارات' },
         { href: 'profile.html', icon: 'fas fa-user', label: 'ملفي', active: true }
-        
     ];
     if (isAdmin) navItems.push({ href: 'admin.html', icon: 'fas fa-chalkboard-user', label: 'التحكم' });
     
@@ -380,6 +383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const profileForm = document.getElementById('profileForm');
     if (profileForm) profileForm.addEventListener('submit', saveProfile);
     
+    // رسالة ترحيب
     const firstName = userData?.fullName?.split(' ')[0] || userData?.username || 'بطل';
     setTimeout(() => showToast(`مرحباً بك يا ${firstName} 👋`, 'success'), 500);
 });
