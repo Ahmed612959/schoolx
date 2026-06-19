@@ -1,4 +1,4 @@
-const chapter2_internal = {
+var chap2 = {
     name: "🫁 الفصل الثاني: Respiratory Diseases",
     icon: "fas fa-lungs",
     definitions: [
