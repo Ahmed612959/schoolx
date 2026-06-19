@@ -1,4 +1,4 @@
-// Home.js - نسخة مصححة مع معالجة أخطاء الحضور
+// Home.js - نسخة مع إزالة رسالة "لم يتم تسجيل أي حضور" فوراً
 
 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
@@ -170,14 +170,11 @@ async function fetchAttendanceStats(studentCode, force = false) {
             lastAttendanceFetch = now;
             
             // ====== التحقق من صيغة البيانات ======
-            // البيانات قد تأتي كمصفوفة مباشرة أو ككائن يحتوي على مصفوفة records
             let attendanceRecords = [];
             
             if (Array.isArray(data)) {
-                // إذا كانت البيانات مصفوفة مباشرة
                 attendanceRecords = data;
             } else if (data && typeof data === 'object') {
-                // إذا كانت البيانات كائن يحتوي على records أو results
                 if (Array.isArray(data.records)) {
                     attendanceRecords = data.records;
                 } else if (Array.isArray(data.results)) {
@@ -185,34 +182,21 @@ async function fetchAttendanceStats(studentCode, force = false) {
                 } else if (Array.isArray(data.data)) {
                     attendanceRecords = data.data;
                 } else {
-                    // محاولة تحويل الكائن إلى مصفوفة إذا كان يحتوي على مفاتيح رقمية
                     const keys = Object.keys(data);
                     if (keys.length > 0 && !isNaN(keys[0])) {
                         attendanceRecords = Object.values(data);
                     } else {
-                        // إذا كان الكائن يحتوي على إحصائيات فقط
                         attendanceRecords = [];
                     }
                 }
             }
             
-            // التأكد من أن attendanceRecords هي مصفوفة
             if (!Array.isArray(attendanceRecords)) {
                 console.warn('⚠️ attendanceRecords ليس مصفوفة، تحويل إلى مصفوفة فارغة');
                 attendanceRecords = [];
             }
             
-            if (attendanceRecords.length === 0) {
-                attendanceStats = {
-                    present: 0, absent: 0, late: 0, total: 0,
-                    percentage: 0, lastPresentDate: null, lastAbsentDate: null,
-                    records: []
-                };
-                renderAttendanceStats();
-                return attendanceStats;
-            }
-            
-            // حساب الإحصائيات
+            // ====== حساب الإحصائيات ======
             const present = attendanceRecords.filter(a => a.status === 'present').length;
             const absent = attendanceRecords.filter(a => a.status === 'absent').length;
             const late = attendanceRecords.filter(a => a.status === 'late').length;
@@ -227,21 +211,32 @@ async function fetchAttendanceStats(studentCode, force = false) {
                 percentage: percentage.toFixed(1),
                 lastPresentDate: presentRecords.length > 0 ? formatDate(presentRecords[0].date) : null,
                 lastAbsentDate: absentRecords.length > 0 ? formatDate(absentRecords[0].date) : null,
-                records: attendanceRecords
+                records: attendanceRecords,
+                // إضافة خاصية لتتبع ما إذا كانت هناك أي سجلات
+                hasRecords: total > 0
             };
             
             // التحقق من وجود تغيير في البيانات
             const hasChanged = !attendanceStats || 
                 attendanceStats.present !== newStats.present ||
                 attendanceStats.absent !== newStats.absent ||
-                attendanceStats.late !== newStats.late;
+                attendanceStats.late !== newStats.late ||
+                attendanceStats.hasRecords !== newStats.hasRecords;
             
             attendanceStats = newStats;
             
+            // ====== إخفاء رسالة "لم يتم تسجيل أي حضور" فوراً عند وجود سجلات ======
+            if (attendanceStats.hasRecords) {
+                const noMsgDiv = document.getElementById('noAttendanceMessage');
+                if (noMsgDiv) {
+                    noMsgDiv.style.display = 'none';
+                }
+            }
+            
             if (hasChanged && attendanceStats.total > 0) {
                 renderAttendanceStats();
-                // إظهار إشعار عند تحديث البيانات (ولكن ليس في أول تحميل)
-                if (attendanceStats.total > 0) {
+                // إظهار إشعار فقط عند التحديث الفعلي (ليس أول تحميل)
+                if (attendanceStats.total > 0 && lastAttendanceFetch > 0) {
                     showToast(`📊 تم تحديث الحضور: ${attendanceStats.present} حاضر، ${attendanceStats.absent} غائب، ${attendanceStats.late} متأخر`, 'info');
                 }
             }
@@ -252,11 +247,10 @@ async function fetchAttendanceStats(studentCode, force = false) {
         return attendanceStats;
     } catch (error) {
         console.error('❌ خطأ في جلب إحصائيات الحضور:', error.message);
-        // عدم تعطيل التطبيق بسبب خطأ في الحضور
         return attendanceStats || {
             present: 0, absent: 0, late: 0, total: 0,
             percentage: 0, lastPresentDate: null, lastAbsentDate: null,
-            records: []
+            records: [], hasRecords: false
         };
     }
 }
@@ -288,8 +282,15 @@ function renderAttendanceStats() {
     const grid = document.querySelector('.attendance-stats-grid');
     const datesDiv = document.querySelector('.attendance-dates');
     
-    if (!attendanceStats || attendanceStats.total === 0) {
-        if (noMsgDiv) noMsgDiv.style.display = 'block';
+    // ====== التحقق من وجود سجلات ======
+    const hasRecords = attendanceStats && attendanceStats.total > 0;
+    
+    if (!hasRecords) {
+        // إظهار رسالة "لا توجد سجلات"
+        if (noMsgDiv) {
+            noMsgDiv.style.display = 'block';
+            noMsgDiv.innerHTML = '📌 لم يتم تسجيل أي حضور أو غياب لك حتى الآن.';
+        }
         if (grid) grid.style.display = 'none';
         if (datesDiv) datesDiv.style.display = 'none';
         document.getElementById('presentCount').textContent = '0';
@@ -299,7 +300,10 @@ function renderAttendanceStats() {
         return;
     }
     
-    if (noMsgDiv) noMsgDiv.style.display = 'none';
+    // ====== إخفاء رسالة "لا توجد سجلات" فوراً ======
+    if (noMsgDiv) {
+        noMsgDiv.style.display = 'none';
+    }
     if (grid) grid.style.display = 'grid';
     if (datesDiv) datesDiv.style.display = 'flex';
     
@@ -318,16 +322,13 @@ function renderAttendanceStats() {
 let attendancePollingInterval = null;
 
 function startAttendancePolling(studentCode) {
-    // إيقاف الـ polling السابق إن وجد
     if (attendancePollingInterval) {
         clearInterval(attendancePollingInterval);
         attendancePollingInterval = null;
     }
     
-    // جلب فوري أول مرة
     fetchAttendanceStats(studentCode, true);
     
-    // البدء في الـ polling كل 5 ثواني
     attendancePollingInterval = setInterval(() => {
         fetchAttendanceStats(studentCode, true);
     }, ATTENDANCE_FETCH_INTERVAL);
@@ -416,7 +417,6 @@ async function renderDashboard() {
     }
     
     if (student.studentCode) {
-        // جلب الحضور وبدء الـ polling
         await fetchAttendanceStats(student.studentCode, true);
         renderAttendanceStats();
         startAttendancePolling(student.studentCode);
@@ -911,14 +911,12 @@ async function init() {
     initLibraryTour();
     setupAttendanceChannel();
     
-    // تجديد التوكن كل 55 دقيقة
     setInterval(async () => {
         try {
             await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' });
         } catch (e) {}
     }, 55 * 60 * 1000);
     
-    // تشغيل البوت بعد تحميل الصفحة
     setTimeout(() => {
         if (document.getElementById('liveBot')) {
             window.smartBot = new SmartAssistantBot();
@@ -926,7 +924,6 @@ async function init() {
     }, 800);
 }
 
-// تنفيذ التهيئة عند تحميل الصفحة
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
