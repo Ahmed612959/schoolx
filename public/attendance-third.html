@@ -25,7 +25,7 @@
         .btn-attendance { background: #c4a35a; color: #1a4f6e; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
         .btn-attendance:hover { background: #1a4f6e; color: #c4a35a; transform: translateY(-2px); }
         .date-picker { text-align: center; margin-bottom: 20px; }
-        .date-picker input { padding: 10px; font-size: 16px; border: 2px solid #c4a35a; border-radius: 12px; }
+        .date-picker input { padding: 10px; font-size: 16px; border: 2px solid #c4a35a; border-radius: 12px; background: white; }
         .summary-card { background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; padding: 20px; border-radius: 20px; margin-bottom: 20px; }
         .summary-stats { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
         .stat-box { text-align: center; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 12px; min-width: 120px; }
@@ -38,7 +38,7 @@
         .bulk-late { background: #d97706; color: white; }
         .bulk-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
         .search-section { margin-bottom: 20px; text-align: center; }
-        .search-input { width: 100%; max-width: 400px; padding: 12px 20px; border: 2px solid #c4a35a; border-radius: 30px; font-size: 16px; outline: none; }
+        .search-input { width: 100%; max-width: 400px; padding: 12px 20px; border: 2px solid #c4a35a; border-radius: 30px; font-size: 16px; outline: none; background: white; }
         .search-input:focus { border-color: #1a4f6e; box-shadow: 0 0 0 4px rgba(196,163,90,0.15); }
         .search-info { margin-top: 10px; color: #64748b; font-size: 14px; }
         .grade-tabs { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
@@ -85,10 +85,40 @@
             color: #64748b;
             font-size: 1rem;
         }
+        .status-select {
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #c4a35a;
+            background: white;
+            font-family: 'Tajawal', sans-serif;
+            font-size: 14px;
+        }
+        .note-input {
+            width: 100%;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: white;
+            font-family: 'Tajawal', sans-serif;
+            font-size: 14px;
+        }
+        .note-input:focus {
+            border-color: #c4a35a;
+            outline: none;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            background: white;
+            border-radius: 16px;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
         @media (max-width: 768px) {
             .main-header { flex-direction: column; text-align: center; gap: 10px; }
             .admin-container { padding: 0 15px 80px; }
             .stat-number { font-size: 20px; }
+            .attendance-table th, .attendance-table td { padding: 8px 4px; font-size: 13px; }
+            .status-select { padding: 4px 6px; font-size: 12px; }
         }
     </style>
 </head>
@@ -136,7 +166,7 @@
 
     <div id="attendanceTableContainer"></div>
 
-    <div style="margin-top: 20px; text-align: center;" id="saveButtonContainer" style="display: none;">
+    <div style="margin-top: 20px; text-align: center;" id="saveButtonContainer">
         <button class="submit-btn" onclick="saveAttendance()">💾 حفظ جميع التغييرات</button>
     </div>
 </div>
@@ -204,7 +234,6 @@ function showEmptyState() {
     document.getElementById('bulkButtons').style.display = 'none';
     document.getElementById('datePicker').style.display = 'none';
     document.getElementById('searchSection').style.display = 'none';
-    document.getElementById('saveButtonContainer').style.display = 'none';
     
     document.getElementById('totalCount').textContent = '0';
     document.getElementById('presentCount').textContent = '0';
@@ -217,7 +246,6 @@ function showAttendanceTable() {
     document.getElementById('bulkButtons').style.display = 'flex';
     document.getElementById('datePicker').style.display = 'block';
     document.getElementById('searchSection').style.display = 'block';
-    document.getElementById('saveButtonContainer').style.display = 'block';
 }
 
 async function loadStudents() {
@@ -260,7 +288,7 @@ async function loadAttendance() {
     currentDate = document.getElementById('attendance-date').value;
     if (!currentDate) return;
     try {
-        const response = await apiRequest(`/api/attendance/${currentDate}`);
+        const response = await apiRequest(`/api/attendance/date/${currentDate}`);
         const records = await response.json();
         attendanceRecords = {};
         records.forEach(record => { attendanceRecords[record.studentCode] = record; });
@@ -268,6 +296,9 @@ async function loadAttendance() {
         updateSummary();
     } catch (error) {
         console.error('Error loading attendance:', error);
+        attendanceRecords = {};
+        renderAttendanceTable();
+        updateSummary();
     }
 }
 
@@ -314,9 +345,16 @@ function renderAttendanceTable() {
             <div class="table-wrapper">
                 <table id="attendanceTable">
                     <thead>
-                        <tr><th>#</th><th>رقم الجلوس</th><th>اسم الطالب</th><th>الحالة</th><th>ملاحظة</th><th>إجراء</th></tr>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الجلوس</th>
+                            <th>اسم الطالب</th>
+                            <th>الحالة</th>
+                            <th>ملاحظة</th>
+                            <th>إجراء</th>
+                        </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="attendance-table-body">
     `;
     
     filteredStudents.forEach((student, index) => {
@@ -330,19 +368,25 @@ function renderAttendanceTable() {
                 <td><strong>${escapeHtml(student.studentCode)}</strong></td>
                 <td style="text-align:right;">${escapeHtml(student.fullName)}</td>
                 <td>
-                    <select class="status-select" data-code="${student.studentCode}">
+                    <select class="status-select" data-code="${student.studentCode}" style="padding: 6px 10px; border-radius: 8px; border: 1px solid #c4a35a; background: white; font-family: 'Tajawal', sans-serif;">
                         <option value="present" ${status === 'present' ? 'selected' : ''}>✅ حاضر</option>
                         <option value="absent" ${status === 'absent' ? 'selected' : ''}>❌ غائب</option>
                         <option value="late" ${status === 'late' ? 'selected' : ''}>⏰ متأخر</option>
                     </select>
                 </td>
-                <td><input type="text" class="note-input" data-code="${student.studentCode}" value="${escapeHtml(note)}" placeholder="ملاحظة"></td>
+                <td><input type="text" class="note-input" data-code="${student.studentCode}" value="${escapeHtml(note)}" placeholder="ملاحظة" style="width:100%; padding:6px; border-radius:8px; border:1px solid #ddd; background:white;"></td>
                 <td><button class="btn-attendance" onclick="updateSingle('${student.studentCode}')"><i class="fas fa-save"></i> حفظ</button></td>
             </tr>
         `;
     });
     
-    tableHtml += `</tbody></table></div></div>`;
+    tableHtml += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
     container.innerHTML = tableHtml;
 }
 
@@ -352,20 +396,38 @@ window.updateSingle = async function(studentCode) {
     const select = document.querySelector(`.status-select[data-code="${studentCode}"]`);
     const noteInput = document.querySelector(`.note-input[data-code="${studentCode}"]`);
     const student = students.find(s => s.studentCode === studentCode);
-    if (!student) return;
+    if (!student) {
+        showToast('❌ الطالب غير موجود', 'error');
+        return;
+    }
     
-    const data = { studentCode, studentName: student.fullName, date: currentDate, status: select.value, note: noteInput?.value || '', recordedBy: 'admin' };
+    const data = { 
+        studentCode, 
+        studentName: student.fullName, 
+        date: currentDate, 
+        status: select.value, 
+        note: noteInput?.value || '', 
+        recordedBy: 'admin' 
+    };
     
     try {
         const response = await apiRequest('/api/attendance', { method: 'POST', body: JSON.stringify(data) });
-        if (response.ok) { showToast('✅ تم حفظ الحضور بنجاح', 'success'); await loadAttendance(); }
-        else showToast('❌ خطأ في حفظ الحضور', 'error');
-    } catch (error) { showToast('❌ خطأ في الاتصال', 'error'); }
+        if (response.ok) { 
+            showToast('✅ تم حفظ الحضور بنجاح', 'success'); 
+            await loadAttendance(); 
+        } else {
+            const errorData = await response.json();
+            showToast('❌ ' + (errorData.error || 'خطأ في حفظ الحضور'), 'error');
+        }
+    } catch (error) { 
+        showToast('❌ خطأ في الاتصال', 'error'); 
+    }
 };
 
 window.bulkUpdate = function(status) {
     document.querySelectorAll('.status-select').forEach(select => select.value = status);
-    showToast(`✅ تم تغيير جميع الطلاب إلى ${status === 'present' ? 'حاضر' : status === 'absent' ? 'غائب' : 'متأخر'}`, 'info');
+    const statusMap = { 'present': 'حاضر', 'absent': 'غائب', 'late': 'متأخر' };
+    showToast(`✅ تم تغيير جميع الطلاب إلى ${statusMap[status] || status}`, 'info');
 };
 
 window.saveAttendance = async function() {
@@ -374,16 +436,38 @@ window.saveAttendance = async function() {
         const studentCode = select.dataset.code;
         const noteInput = document.querySelector(`.note-input[data-code="${studentCode}"]`);
         const student = students.find(s => s.studentCode === studentCode);
-        if (student) updates.push({ code: studentCode, name: student.fullName, status: select.value, note: noteInput?.value || '' });
+        if (student) {
+            updates.push({ 
+                code: studentCode, 
+                name: student.fullName, 
+                status: select.value, 
+                note: noteInput?.value || '' 
+            });
+        }
     });
-    if (updates.length === 0) return;
+    
+    if (updates.length === 0) {
+        showToast('لا توجد طلاب للحفظ', 'info');
+        return;
+    }
     
     showToast('جاري حفظ التغييرات...', 'info');
+    
     try {
-        const response = await apiRequest('/api/attendance/bulk', { method: 'POST', body: JSON.stringify({ date: currentDate, students: updates, recordedBy: 'admin' }) });
-        if (response.ok) { showToast('✅ تم حفظ جميع تغييرات الحضور بنجاح', 'success'); await loadAttendance(); }
-        else showToast('❌ خطأ في حفظ التغييرات', 'error');
-    } catch (error) { showToast('❌ خطأ في الاتصال', 'error'); }
+        const response = await apiRequest('/api/attendance/bulk', { 
+            method: 'POST', 
+            body: JSON.stringify({ date: currentDate, students: updates, recordedBy: 'admin' }) 
+        });
+        if (response.ok) { 
+            showToast('✅ تم حفظ جميع تغييرات الحضور بنجاح', 'success'); 
+            await loadAttendance(); 
+        } else {
+            const errorData = await response.json();
+            showToast('❌ ' + (errorData.error || 'خطأ في حفظ التغييرات'), 'error');
+        }
+    } catch (error) { 
+        showToast('❌ خطأ في الاتصال', 'error'); 
+    }
 };
 
 function updateSummary() {
@@ -394,7 +478,9 @@ function updateSummary() {
             if (record.status === 'present') present++; 
             else if (record.status === 'absent') absent++; 
             else if (record.status === 'late') late++; 
-        } else { present++; }
+        } else {
+            present++;
+        }
     });
     const total = students.length, percentage = total > 0 ? (present / total) * 100 : 0;
     document.getElementById('totalCount').textContent = total;
@@ -412,7 +498,22 @@ window.logout = async function() {
     }
 };
 
+async function fetchCsrfToken() {
+    try {
+        const response = await fetch(`${BASE_URL}/api/csrf-token`, { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.csrfToken) {
+                sessionStorage.setItem('csrfToken', data.csrfToken);
+            }
+        }
+    } catch (e) {
+        console.log('⚠️ Could not fetch CSRF token');
+    }
+}
+
 (async function init() {
+    await fetchCsrfToken();
     const hasAccess = await verifyAccess();
     if (!hasAccess) return;
     await loadStudents();
