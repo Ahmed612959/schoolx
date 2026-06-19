@@ -1,4 +1,4 @@
-// Home.js - نسخة معدلة مع تحديث فوري للحضور
+// Home.js - نسخة مصححة مع معالجة أخطاء الحضور
 
 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
@@ -160,17 +160,49 @@ const ATTENDANCE_FETCH_INTERVAL = 5000; // 5 ثواني
 async function fetchAttendanceStats(studentCode, force = false) {
     const now = Date.now();
     if (!force && (now - lastAttendanceFetch) < ATTENDANCE_FETCH_INTERVAL) {
-        // إذا كان الطلب الأخير منذ أقل من 5 ثواني، نعيد البيانات المخزنة مؤقتاً
         return attendanceStats;
     }
     
     try {
         const response = await apiRequest(`/api/attendance/student/${studentCode}?t=${now}`);
         if (response.ok) {
-            const attendanceRecords = await response.json();
+            const data = await response.json();
             lastAttendanceFetch = now;
             
-            if (!attendanceRecords || attendanceRecords.length === 0) {
+            // ====== التحقق من صيغة البيانات ======
+            // البيانات قد تأتي كمصفوفة مباشرة أو ككائن يحتوي على مصفوفة records
+            let attendanceRecords = [];
+            
+            if (Array.isArray(data)) {
+                // إذا كانت البيانات مصفوفة مباشرة
+                attendanceRecords = data;
+            } else if (data && typeof data === 'object') {
+                // إذا كانت البيانات كائن يحتوي على records أو results
+                if (Array.isArray(data.records)) {
+                    attendanceRecords = data.records;
+                } else if (Array.isArray(data.results)) {
+                    attendanceRecords = data.results;
+                } else if (Array.isArray(data.data)) {
+                    attendanceRecords = data.data;
+                } else {
+                    // محاولة تحويل الكائن إلى مصفوفة إذا كان يحتوي على مفاتيح رقمية
+                    const keys = Object.keys(data);
+                    if (keys.length > 0 && !isNaN(keys[0])) {
+                        attendanceRecords = Object.values(data);
+                    } else {
+                        // إذا كان الكائن يحتوي على إحصائيات فقط
+                        attendanceRecords = [];
+                    }
+                }
+            }
+            
+            // التأكد من أن attendanceRecords هي مصفوفة
+            if (!Array.isArray(attendanceRecords)) {
+                console.warn('⚠️ attendanceRecords ليس مصفوفة، تحويل إلى مصفوفة فارغة');
+                attendanceRecords = [];
+            }
+            
+            if (attendanceRecords.length === 0) {
                 attendanceStats = {
                     present: 0, absent: 0, late: 0, total: 0,
                     percentage: 0, lastPresentDate: null, lastAbsentDate: null,
@@ -180,6 +212,7 @@ async function fetchAttendanceStats(studentCode, force = false) {
                 return attendanceStats;
             }
             
+            // حساب الإحصائيات
             const present = attendanceRecords.filter(a => a.status === 'present').length;
             const absent = attendanceRecords.filter(a => a.status === 'absent').length;
             const late = attendanceRecords.filter(a => a.status === 'late').length;
@@ -205,27 +238,37 @@ async function fetchAttendanceStats(studentCode, force = false) {
             
             attendanceStats = newStats;
             
-            if (hasChanged) {
+            if (hasChanged && attendanceStats.total > 0) {
                 renderAttendanceStats();
-                // إظهار إشعار عند تحديث البيانات
+                // إظهار إشعار عند تحديث البيانات (ولكن ليس في أول تحميل)
                 if (attendanceStats.total > 0) {
                     showToast(`📊 تم تحديث الحضور: ${attendanceStats.present} حاضر، ${attendanceStats.absent} غائب، ${attendanceStats.late} متأخر`, 'info');
                 }
             }
             
+            renderAttendanceStats();
             return attendanceStats;
         }
         return attendanceStats;
     } catch (error) {
-        console.error('خطأ في جلب إحصائيات الحضور:', error);
-        return attendanceStats;
+        console.error('❌ خطأ في جلب إحصائيات الحضور:', error.message);
+        // عدم تعطيل التطبيق بسبب خطأ في الحضور
+        return attendanceStats || {
+            present: 0, absent: 0, late: 0, total: 0,
+            percentage: 0, lastPresentDate: null, lastAbsentDate: null,
+            records: []
+        };
     }
 }
 
 function formatDate(dateStr) {
     if (!dateStr) return null;
-    const parts = dateStr.split('-');
-    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr;
+    try {
+        const parts = dateStr.split('-');
+        return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr;
+    } catch {
+        return dateStr;
+    }
 }
 
 function renderAttendanceStats() {
@@ -271,7 +314,7 @@ function renderAttendanceStats() {
     if (lastAbsentSpan) lastAbsentSpan.textContent = attendanceStats.lastAbsentDate || 'لم يتم تسجيل بعد';
 }
 
-// ====================== مراقبة التغييرات في الحضور (WebSocket-like polling) ======================
+// ====================== مراقبة التغييرات في الحضور ======================
 let attendancePollingInterval = null;
 
 function startAttendancePolling(studentCode) {
@@ -558,7 +601,6 @@ function initLibraryTour() {
         return;
     }
     
-    // إظهار نافذة المكتبة بعد 2 ثانية من تحميل الصفحة
     setTimeout(() => {
         const tour = document.getElementById('guidedTour');
         if (tour) {
@@ -566,24 +608,54 @@ function initLibraryTour() {
         }
     }, 2000);
     
-    // زر الإغلاق
     document.getElementById('closeTourBtn')?.addEventListener('click', function() {
         document.getElementById('guidedTour').style.display = 'none';
         localStorage.setItem('hasSeenLibraryTour', 'true');
     });
     
-    // زر الذهاب للمكتبة
     document.getElementById('gotoLibraryBtn')?.addEventListener('click', function() {
         document.getElementById('guidedTour').style.display = 'none';
         localStorage.setItem('hasSeenLibraryTour', 'true');
         window.location.href = 'file-library.html';
     });
     
-    // زر عدم الظهور مرة أخرى
     document.getElementById('dontShowAgain')?.addEventListener('click', function() {
         document.getElementById('guidedTour').style.display = 'none';
         localStorage.setItem('hasSeenLibraryTour', 'true');
     });
+}
+
+// ====================== دالة تحديث الحضور من أي مكان ======================
+window.refreshAttendance = function(studentCode) {
+    if (studentCode) {
+        fetchAttendanceStats(studentCode, true);
+    } else {
+        const user = getLoggedInUser();
+        if (user && user.type === 'student' && user.id) {
+            fetchAttendanceStats(user.id, true);
+        }
+    }
+};
+
+// ====================== إعداد BroadcastChannel للتواصل ======================
+let attendanceChannel = null;
+
+function setupAttendanceChannel() {
+    try {
+        attendanceChannel = new BroadcastChannel('attendance-updates');
+        attendanceChannel.onmessage = function(event) {
+            if (event.data && event.data.type === 'attendance-updated') {
+                const user = getLoggedInUser();
+                if (user && user.type === 'student' && user.id) {
+                    console.log('📡 استلام إشارة تحديث الحضور من BroadcastChannel');
+                    fetchAttendanceStats(user.id, true);
+                }
+            }
+        };
+        console.log('📡 BroadcastChannel جاهز للاستقبال');
+    } catch (e) {
+        console.log('⚠️ BroadcastChannel غير مدعوم، استخدام polling كبديل');
+    }
 }
 
 // ====================== البوت المساعد الذكي ======================
@@ -820,39 +892,6 @@ class SmartAssistantBot {
             this.speak(`${greeting} يا ${this.userName}! 👋 أنا مساعدك. اكتب اسم الطالب ورقم الجلوس واضغط عرض النتيجة`, 5000);
             this.pointTo(this.fields.name);
         }, 1500);
-    }
-}
-
-// ====================== مراقبة التغييرات من أي مكان ======================
-// هذه الدالة تسمح لأي صفحة أخرى (مثل attendance-first.html) بتحديث الحضور فوراً
-window.refreshAttendance = function(studentCode) {
-    if (studentCode) {
-        fetchAttendanceStats(studentCode, true);
-    } else {
-        const user = getLoggedInUser();
-        if (user && user.type === 'student' && user.id) {
-            fetchAttendanceStats(user.id, true);
-        }
-    }
-};
-
-// الاستماع لأحداث التحديث من خلال BroadcastChannel (للتواصل بين التابات)
-let attendanceChannel = null;
-
-function setupAttendanceChannel() {
-    try {
-        attendanceChannel = new BroadcastChannel('attendance-updates');
-        attendanceChannel.onmessage = function(event) {
-            if (event.data && event.data.type === 'attendance-updated') {
-                const user = getLoggedInUser();
-                if (user && user.type === 'student' && user.id) {
-                    fetchAttendanceStats(user.id, true);
-                }
-            }
-        };
-    } catch (e) {
-        console.log('BroadcastChannel not supported, using fallback');
-        // استخدام polling كبديل
     }
 }
 
