@@ -1,4 +1,4 @@
-const chapter10_internal = {
+var chap10 = {
     name: "🔬 الفصل العاشر: Dermatology and Venereal Diseases",
     icon: "fas fa-hand-dots",
     definitions: [],
