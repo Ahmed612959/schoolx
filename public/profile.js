@@ -85,11 +85,15 @@ async function apiRequest(endpoint, options = {}) {
 async function fetchStudentDataFromServer() {
     if (currentUser.studentCode) {
         console.log('📡 جلب بيانات الطالب من /api/student/by-code/', currentUser.studentCode);
-        const response = await apiRequest(`/api/student/by-code/${currentUser.studentCode}`);
-        if (response.ok) {
-            const student = await response.json();
-            console.log('✅ تم جلب بيانات الطالب:', student);
-            return student;
+        try {
+            const response = await apiRequest(`/api/student/by-code/${currentUser.studentCode}`);
+            if (response.ok) {
+                const student = await response.json();
+                console.log('✅ تم جلب بيانات الطالب:', student);
+                return student;
+            }
+        } catch (error) {
+            console.error('❌ خطأ في جلب بيانات الطالب:', error);
         }
     }
     return null;
@@ -98,10 +102,14 @@ async function fetchStudentDataFromServer() {
 // ====================== جلب بيانات الأدمن ======================
 async function fetchAdminDataFromServer() {
     console.log('📡 جلب بيانات الأدمن...');
-    const response = await apiRequest('/api/admins');
-    if (response.ok) {
-        const admins = await response.json();
-        return admins.find(a => a.username === currentUser.username);
+    try {
+        const response = await apiRequest('/api/admins');
+        if (response.ok) {
+            const admins = await response.json();
+            return admins.find(a => a.username === currentUser.username);
+        }
+    } catch (error) {
+        console.error('❌ خطأ في جلب بيانات الأدمن:', error);
     }
     return null;
 }
@@ -128,13 +136,23 @@ async function fetchUserData() {
             userData = await fetchStudentDataFromServer();
         }
         
+        // إذا فشل جلب البيانات من السيرفر، استخدم البيانات المحلية
         if (!userData) {
             console.log('⚠️ استخدام البيانات المحلية كبديل');
-            userData = currentUser;
-        } else {
-            console.log('✅ تم جلب البيانات بنجاح من السيرفر');
+            userData = {
+                ...currentUser,
+                profile: currentUser.profile || {}
+            };
         }
         
+        // التأكد من وجود profile
+        if (!userData.profile) {
+            userData.profile = {};
+        }
+        
+        console.log('✅ البيانات النهائية:', userData);
+        
+        // تحديث التخزين المحلي
         sessionStorage.setItem('userData', JSON.stringify(userData));
         if (!isAdminUser) {
             localStorage.setItem('loggedInUser', JSON.stringify(userData));
@@ -146,7 +164,11 @@ async function fetchUserData() {
         
     } catch (error) {
         console.error('❌ خطأ في جلب البيانات:', error);
-        userData = currentUser;
+        // استخدام البيانات المحلية كحل أخير
+        userData = {
+            ...currentUser,
+            profile: currentUser.profile || {}
+        };
         displayUserData();
         updateProgress();
         return true;
@@ -155,72 +177,98 @@ async function fetchUserData() {
 
 // ====================== عرض بيانات المستخدم ======================
 function displayUserData() {
-    if (!userData) return;
+    if (!userData) {
+        console.warn('⚠️ لا توجد بيانات لعرضها');
+        return;
+    }
+    
+    console.log('📋 عرض البيانات:', userData);
     
     isAdminUser = userData.type === 'admin' || userData.role === 'admin';
     
-    // عرض الاسم
+    // ===== عرض الاسم =====
     const userNameElem = document.getElementById('userName');
-    if (userNameElem) userNameElem.textContent = userData.fullName || userData.username;
+    if (userNameElem) {
+        const fullName = userData.fullName || userData.username || 'غير معروف';
+        userNameElem.textContent = fullName;
+    }
     
-    document.getElementById('fullName').value = userData.fullName || '';
-    document.getElementById('username').value = userData.username || '';
+    // ===== الحقول الأساسية =====
+    const fullNameInput = document.getElementById('fullName');
+    if (fullNameInput) fullNameInput.value = userData.fullName || '';
     
+    const usernameInput = document.getElementById('username');
+    if (usernameInput) usernameInput.value = userData.username || '';
+    
+    // ===== نوع المستخدم =====
     const userTypeBadge = document.getElementById('userTypeBadge');
-    const studentCodeElem = document.getElementById('studentCode');
-    const userGradeElem = document.getElementById('userGrade');
     const avatarIcon = document.querySelector('.profile-avatar i');
     
     if (isAdminUser) {
-        userTypeBadge.innerHTML = '<i class="fas fa-crown"></i><span>مدير النظام</span>';
-        userTypeBadge.style.background = '#f59e0b';
-        studentCodeElem.textContent = 'مدير';
-        userGradeElem.textContent = 'جميع الصفوف';
-        avatarIcon.className = 'fas fa-user-shield';
+        if (userTypeBadge) {
+            userTypeBadge.innerHTML = '<i class="fas fa-crown"></i><span>مدير النظام</span>';
+            userTypeBadge.style.background = '#f59e0b';
+        }
+        if (avatarIcon) avatarIcon.className = 'fas fa-user-shield';
         
+        // إخفاء حقول الطالب
         document.getElementById('parentNameGroup').style.display = 'none';
         document.getElementById('parentIdGroup').style.display = 'none';
+        document.getElementById('studentCodeGroup').style.display = 'none';
+        document.getElementById('gradeGroup').style.display = 'none';
+        
+        // عرض بيانات الأدمن
+        document.getElementById('studentCode').textContent = 'مدير النظام';
+        document.getElementById('userGrade').textContent = 'جميع الصفوف';
+        document.getElementById('grade').value = 'مدير النظام';
+        
     } else {
-        userTypeBadge.innerHTML = '<i class="fas fa-graduation-cap"></i><span>طالب</span>';
-        userTypeBadge.style.background = '#1a4f6e';
+        // ===== بيانات الطالب =====
+        if (userTypeBadge) {
+            userTypeBadge.innerHTML = '<i class="fas fa-graduation-cap"></i><span>طالب</span>';
+            userTypeBadge.style.background = '#1a4f6e';
+        }
+        if (avatarIcon) avatarIcon.className = 'fas fa-user-graduate';
         
-        const studentCode = userData.studentCode || 'غير محدد';
-        studentCodeElem.textContent = studentCode;
-        
-        const gradeMap = { 'first': 'الأول', 'second': 'الثاني', 'third': 'الثالث' };
-        const gradeValue = userData.grade ? gradeMap[userData.grade] : 'غير محدد';
-        userGradeElem.textContent = gradeValue;
-        
-        avatarIcon.className = 'fas fa-user-graduate';
-        
+        // إظهار حقول الطالب
         document.getElementById('parentNameGroup').style.display = 'block';
         document.getElementById('parentIdGroup').style.display = 'block';
+        document.getElementById('studentCodeGroup').style.display = 'block';
+        document.getElementById('gradeGroup').style.display = 'block';
+        
+        // عرض رقم الجلوس
+        const studentCode = userData.studentCode || 'غير محدد';
+        document.getElementById('studentCode').textContent = studentCode;
+        document.getElementById('studentCodeDisplay').textContent = studentCode;
+        
+        // عرض الصف
+        const gradeMap = { 'first': 'الصف الأول', 'second': 'الصف الثاني', 'third': 'الصف الثالث' };
+        const gradeValue = userData.grade ? gradeMap[userData.grade] : 'غير محدد';
+        document.getElementById('userGrade').textContent = gradeValue;
+        document.getElementById('grade').value = gradeValue;
+        
+        // عرض ولي الأمر
+        const profile = userData.profile || {};
+        document.getElementById('parentName').value = profile.parentName || '';
+        document.getElementById('parentId').value = profile.parentId || '';
     }
     
-    // عرض الصف
-    const gradeInput = document.getElementById('grade');
-    if (gradeInput) {
-        if (!isAdminUser) {
-            const gradeMap = { 'first': 'الصف الأول', 'second': 'الصف الثاني', 'third': 'الصف الثالث' };
-            gradeInput.value = userData.grade ? gradeMap[userData.grade] : '-';
-        } else {
-            gradeInput.value = 'مدير النظام';
-        }
-    }
-    
-    // عرض بيانات البروفايل
+    // ===== رقم الهاتف (قابل للتعديل) =====
     const profile = userData.profile || {};
-    document.getElementById('phone').value = profile.phone || '';
-    document.getElementById('parentName').value = profile.parentName || '';
-    document.getElementById('parentId').value = profile.parentId || '';
+    const phoneInput = document.getElementById('phone');
+    if (phoneInput) {
+        phoneInput.value = profile.phone || '';
+        // إزالة خاصية disabled ليكون قابلاً للتعديل
+        phoneInput.disabled = false;
+    }
     
-    console.log('✅ تم عرض البيانات');
+    console.log('✅ تم عرض البيانات بنجاح');
 }
 
 // ====================== حساب نسبة اكتمال الملف ======================
 function updateProgress() {
     const profile = userData?.profile || {};
-    let fields = isAdminUser ? ['phone'] : ['phone'];
+    let fields = ['phone'];
     let completed = fields.filter(f => profile[f] && profile[f].trim() !== '').length;
     const percentage = Math.round((completed / fields.length) * 100);
     
@@ -250,10 +298,8 @@ async function saveProfile(event) {
         let body = { profile: updatedProfile };
         
         if (isAdminUser) {
-            // للأدمن - استخدام المسار الجديد
             endpoint = '/api/admin/profile';
         } else {
-            // للطالب - استخدام المسار الجديد
             endpoint = '/api/student/profile';
         }
         
@@ -268,6 +314,7 @@ async function saveProfile(event) {
         
         if (response.ok) {
             const result = await response.json();
+            console.log('✅ تم الحفظ بنجاح:', result);
             
             // تحديث البيانات المحلية
             if (!userData.profile) userData.profile = {};
