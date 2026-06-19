@@ -202,6 +202,31 @@ async function apiRequest(endpoint, options = {}) {
     return response;
 }
 
+// ====================== إرسال إشارة تحديث إلى Home ======================
+function sendAttendanceUpdateSignal() {
+    try {
+        if (typeof BroadcastChannel !== 'undefined') {
+            const channel = new BroadcastChannel('attendance-updates');
+            channel.postMessage({ type: 'attendance-updated', timestamp: Date.now(), grade: GRADE });
+            channel.close();
+            console.log('📡 تم إرسال إشارة تحديث الحضور عبر BroadcastChannel');
+        }
+    } catch (e) {
+        console.log('⚠️ BroadcastChannel not supported:', e.message);
+    }
+    
+    try {
+        if (window.opener && !window.opener.closed) {
+            if (typeof window.opener.refreshAttendance === 'function') {
+                window.opener.refreshAttendance();
+                console.log('📡 تم تحديث Home عبر window.opener');
+            }
+        }
+    } catch (e) {
+        console.log('⚠️ Could not update Home via opener:', e.message);
+    }
+}
+
 async function verifyAccess() {
     const user = getLoggedInUser();
     if (!user || user.type !== 'admin') {
@@ -414,7 +439,8 @@ window.updateSingle = async function(studentCode) {
         const response = await apiRequest('/api/attendance', { method: 'POST', body: JSON.stringify(data) });
         if (response.ok) { 
             showToast('✅ تم حفظ الحضور بنجاح', 'success'); 
-            await loadAttendance(); 
+            await loadAttendance();
+            sendAttendanceUpdateSignal();
         } else {
             const errorData = await response.json();
             showToast('❌ ' + (errorData.error || 'خطأ في حفظ الحضور'), 'error');
@@ -460,7 +486,8 @@ window.saveAttendance = async function() {
         });
         if (response.ok) { 
             showToast('✅ تم حفظ جميع تغييرات الحضور بنجاح', 'success'); 
-            await loadAttendance(); 
+            await loadAttendance();
+            sendAttendanceUpdateSignal();
         } else {
             const errorData = await response.json();
             showToast('❌ ' + (errorData.error || 'خطأ في حفظ التغييرات'), 'error');
