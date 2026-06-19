@@ -1,4 +1,4 @@
-// Home.js - نسخة مع إزالة رسالة "لم يتم تسجيل أي حضور" فوراً
+// Home.js - نسخة نهائية مع إزالة رسالة "لم يتم تسجيل أي حضور" بشكل نهائي
 
 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
@@ -212,11 +212,9 @@ async function fetchAttendanceStats(studentCode, force = false) {
                 lastPresentDate: presentRecords.length > 0 ? formatDate(presentRecords[0].date) : null,
                 lastAbsentDate: absentRecords.length > 0 ? formatDate(absentRecords[0].date) : null,
                 records: attendanceRecords,
-                // إضافة خاصية لتتبع ما إذا كانت هناك أي سجلات
                 hasRecords: total > 0
             };
             
-            // التحقق من وجود تغيير في البيانات
             const hasChanged = !attendanceStats || 
                 attendanceStats.present !== newStats.present ||
                 attendanceStats.absent !== newStats.absent ||
@@ -225,23 +223,16 @@ async function fetchAttendanceStats(studentCode, force = false) {
             
             attendanceStats = newStats;
             
-            // ====== إخفاء رسالة "لم يتم تسجيل أي حضور" فوراً عند وجود سجلات ======
-            if (attendanceStats.hasRecords) {
-                const noMsgDiv = document.getElementById('noAttendanceMessage');
-                if (noMsgDiv) {
-                    noMsgDiv.style.display = 'none';
-                }
-            }
+            // ====== تحديث واجهة المستخدم ======
+            renderAttendanceStats();
             
             if (hasChanged && attendanceStats.total > 0) {
-                renderAttendanceStats();
                 // إظهار إشعار فقط عند التحديث الفعلي (ليس أول تحميل)
-                if (attendanceStats.total > 0 && lastAttendanceFetch > 0) {
+                if (lastAttendanceFetch > 1000) { // تجنب الإشعار في أول تحميل
                     showToast(`📊 تم تحديث الحضور: ${attendanceStats.present} حاضر، ${attendanceStats.absent} غائب، ${attendanceStats.late} متأخر`, 'info');
                 }
             }
             
-            renderAttendanceStats();
             return attendanceStats;
         }
         return attendanceStats;
@@ -275,7 +266,6 @@ function renderAttendanceStats() {
         return;
     }
     
-    // إظهار القسم دائماً للطلاب
     section.style.display = 'block';
     
     const noMsgDiv = document.getElementById('noAttendanceMessage');
@@ -283,10 +273,10 @@ function renderAttendanceStats() {
     const datesDiv = document.querySelector('.attendance-dates');
     
     // ====== التحقق من وجود سجلات ======
-    const hasRecords = attendanceStats && attendanceStats.total > 0;
+    const hasRecords = attendanceStats && attendanceStats.total > 0 && attendanceStats.records && attendanceStats.records.length > 0;
     
     if (!hasRecords) {
-        // إظهار رسالة "لا توجد سجلات"
+        // لا توجد سجلات - إظهار الرسالة
         if (noMsgDiv) {
             noMsgDiv.style.display = 'block';
             noMsgDiv.innerHTML = '📌 لم يتم تسجيل أي حضور أو غياب لك حتى الآن.';
@@ -300,9 +290,10 @@ function renderAttendanceStats() {
         return;
     }
     
-    // ====== إخفاء رسالة "لا توجد سجلات" فوراً ======
+    // ====== توجد سجلات - إخفاء الرسالة وإظهار الإحصائيات ======
     if (noMsgDiv) {
         noMsgDiv.style.display = 'none';
+        noMsgDiv.innerHTML = ''; // مسح المحتوى بالكامل
     }
     if (grid) grid.style.display = 'grid';
     if (datesDiv) datesDiv.style.display = 'flex';
@@ -648,7 +639,10 @@ function setupAttendanceChannel() {
                 const user = getLoggedInUser();
                 if (user && user.type === 'student' && user.id) {
                     console.log('📡 استلام إشارة تحديث الحضور من BroadcastChannel');
-                    fetchAttendanceStats(user.id, true);
+                    // تحديث فوري بدون تأخير
+                    fetchAttendanceStats(user.id, true).then(() => {
+                        renderAttendanceStats();
+                    });
                 }
             }
         };
