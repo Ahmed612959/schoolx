@@ -1341,6 +1341,215 @@ app.post('/api/progress/difficulty', verifyToken, async (req, res) => {
     }
 });
 
+// ====================== مسارات Internal Medicine (طب باطنة) ======================
+
+// جلب تقدم الطالب في Internal Medicine
+app.get('/api/progress-internal', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.id || req.user.username;
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ 
+                userId: userId + '_internal',
+                xp: 0,
+                bookmarks: [],
+                hardQuestions: [],
+                notes: {},
+                difficulties: {},
+                achievements: [],
+                quizHistory: [],
+                wrongQuestions: []
+            });
+            await progress.save();
+        }
+        res.json(progress);
+    } catch (error) {
+        console.error('❌ خطأ في جلب تقدم Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في جلب التقدم' });
+    }
+});
+
+// تحديث نقاط XP في Internal Medicine
+app.post('/api/progress-internal/xp', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { amount } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.xp = (progress.xp || 0) + amount;
+        await progress.save();
+        
+        res.json({ success: true, xp: progress.xp });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث XP Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث XP' });
+    }
+});
+
+// تحديث المفضلة في Internal Medicine
+app.post('/api/progress-internal/bookmarks', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        if (action === 'add') {
+            if (!progress.bookmarks.includes(questionId)) {
+                progress.bookmarks.push(questionId);
+            }
+        } else {
+            progress.bookmarks = progress.bookmarks.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, bookmarks: progress.bookmarks });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث المفضلة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث المفضلة' });
+    }
+});
+
+// تحديث الأسئلة الصعبة في Internal Medicine
+app.post('/api/progress-internal/hard', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        if (action === 'add') {
+            if (!progress.hardQuestions.includes(questionId)) {
+                progress.hardQuestions.push(questionId);
+            }
+        } else {
+            progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, hardQuestions: progress.hardQuestions });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الأسئلة الصعبة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' });
+    }
+});
+
+// حفظ الملاحظات في Internal Medicine
+app.post('/api/progress-internal/notes', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, note } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.notes.set(questionId, note);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الملاحظة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الملاحظة' });
+    }
+});
+
+// حفظ سجل الاختبارات في Internal Medicine
+app.post('/api/progress-internal/quiz', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { total, correct, score, chapter } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.quizHistory.push({
+            date: new Date().toISOString(),
+            total: total || 0,
+            correct: correct || 0,
+            score: score || 0,
+            chapter: chapter || 'all'
+        });
+        
+        if (req.body.wrongQuestions) {
+            progress.wrongQuestions = progress.wrongQuestions.concat(req.body.wrongQuestions);
+            if (progress.wrongQuestions.length > 200) {
+                progress.wrongQuestions = progress.wrongQuestions.slice(-200);
+            }
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ سجل الاختبار Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' });
+    }
+});
+
+// حفظ الإنجازات في Internal Medicine
+app.post('/api/progress-internal/achievements', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { achievementId } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        if (!progress.achievements.includes(achievementId)) {
+            progress.achievements.push(achievementId);
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الإنجاز Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الإنجاز' });
+    }
+});
+
+// تحديث صعوبة السؤال في Internal Medicine
+app.post('/api/progress-internal/difficulty', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, difficulty } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.difficulties.set(questionId, difficulty);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الصعوبة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الصعوبة' });
+    }
+});
 
 
 
