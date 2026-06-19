@@ -24,7 +24,6 @@
             padding-bottom: 75px;
         }
 
-        /* ====================== Header رائع ====================== */
         .header {
             background: linear-gradient(135deg, #1e3c4a, #0f2c38);
             padding: 14px 24px;
@@ -87,14 +86,12 @@
             box-shadow: 0 4px 12px rgba(185, 28, 28, 0.3);
         }
 
-        /* ====================== Container ====================== */
         .container {
             max-width: 580px;
             margin: 30px auto;
             padding: 0 18px;
         }
 
-        /* ====================== Profile Card فاخر ====================== */
         .profile-card {
             background: white;
             border-radius: 32px;
@@ -192,13 +189,12 @@
         }
 
         .stat-label {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             color: #7a8b9e;
             font-weight: 500;
             margin-top: 4px;
         }
 
-        /* Progress Section */
         .progress-section {
             padding: 20px 24px;
             background: #f9fafc;
@@ -230,7 +226,6 @@
             width: 0%;
         }
 
-        /* Form Section */
         .form-section {
             padding: 24px;
         }
@@ -278,6 +273,25 @@
             color: #8a9ab0;
         }
 
+        /* ===== تنبيه للحقول الممنوعة ===== */
+        .readonly-notice {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fef9e7;
+            padding: 10px 14px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border-right: 4px solid #d4af5a;
+            font-size: 0.8rem;
+            color: #7a6a3a;
+        }
+
+        .readonly-notice i {
+            color: #d4af5a;
+            font-size: 1rem;
+        }
+
         .save-btn {
             width: 100%;
             background: linear-gradient(135deg, #d4af5a, #c29d45);
@@ -302,7 +316,10 @@
             box-shadow: 0 8px 20px rgba(212, 175, 90, 0.35);
         }
 
-        /* ====================== Bottom Navigation أنيق ====================== */
+        .save-btn:active {
+            transform: scale(0.97);
+        }
+
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -364,7 +381,6 @@
             opacity: 1;
         }
 
-        /* ====================== Responsive ====================== */
         @media (max-width: 600px) {
             .profile-name {
                 font-size: 1.3rem;
@@ -406,6 +422,11 @@
             
             .bottom-nav {
                 padding: 8px 12px 18px;
+            }
+
+            .readonly-notice {
+                font-size: 0.7rem;
+                padding: 8px 12px;
             }
         }
 
@@ -459,7 +480,7 @@
             <div class="profile-stats">
                 <div class="stat-item">
                     <div class="stat-value" id="studentCode">-</div>
-                    <div class="stat-label">آخر 7 أرقام من شهادة الميلاد</div>
+                    <div class="stat-label">رقم الجلوس</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-value" id="userGrade">-</div>
@@ -479,6 +500,12 @@
         </div>
         
         <div class="form-section">
+            <!-- ===== تنبيه للحقول الممنوعة ===== -->
+            <div class="readonly-notice">
+                <i class="fas fa-info-circle"></i>
+                <span>⚠️ يمكنك تعديل <strong>رقم الهاتف</strong> فقط. باقي البيانات للعرض فقط.</span>
+            </div>
+
             <form id="profileForm">
                 <div class="form-group">
                     <label><i class="fas fa-user"></i> الاسم الكامل</label>
@@ -490,9 +517,9 @@
                     <input type="text" id="username" disabled>
                 </div>
                 
-                <div class="form-group">
-                    <label><i class="fas fa-phone-alt"></i> رقم الهاتف</label>
-                    <input type="tel" id="phone" placeholder="أدخل رقم الهاتف">
+                <div class="form-group" style="border: 2px solid #d4af5a; border-radius: 16px; padding: 4px 12px 12px; background: #fefcf5;">
+                    <label style="color: #d4af5a;"><i class="fas fa-phone-alt"></i> 📱 رقم الهاتف <span style="color: #d4af5a; font-size: 0.7rem;">(قابل للتعديل)</span></label>
+                    <input type="tel" id="phone" placeholder="أدخل رقم الهاتف" style="border-color: #d4af5a;">
                 </div>
                 
                 <div class="form-group">
@@ -502,17 +529,17 @@
                 
                 <div class="form-group" id="parentNameGroup">
                     <label><i class="fas fa-user-friends"></i> ولي الأمر</label>
-                    <input type="text" id="parentName" placeholder="اسم ولي الأمر">
+                    <input type="text" id="parentName" disabled>
                 </div>
                 
                 <div class="form-group" id="parentIdGroup">
                     <label><i class="fas fa-id-card"></i> رقم بطاقة ولي الأمر</label>
-                    <input type="text" id="parentId" placeholder="رقم البطاقة">
+                    <input type="text" id="parentId" disabled>
                 </div>
                 
                 <button type="submit" class="save-btn">
                     <i class="fas fa-save"></i>
-                    حفظ التغييرات
+                    حفظ رقم الهاتف
                 </button>
             </form>
         </div>
