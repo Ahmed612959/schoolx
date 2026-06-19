@@ -220,7 +220,6 @@ function displayUserData() {
 // ====================== حساب نسبة اكتمال الملف ======================
 function updateProgress() {
     const profile = userData?.profile || {};
-    // للطالب: رقم الهاتف فقط هو المطلوب (ولي الأمر للعرض فقط)
     let fields = isAdminUser ? ['phone'] : ['phone'];
     let completed = fields.filter(f => profile[f] && profile[f].trim() !== '').length;
     const percentage = Math.round((completed / fields.length) * 100);
@@ -232,40 +231,30 @@ function updateProgress() {
     return percentage;
 }
 
-// ====================== حفظ التغييرات (للطالب: رقم الهاتف فقط) ======================
+// ====================== حفظ التغييرات ======================
 async function saveProfile(event) {
     event.preventDefault();
     
-    // ====== الحقول المسموح بتعديلها ======
-    // للطالب: فقط رقم الهاتف
-    // للأدمن: فقط رقم الهاتف
-    
     const phone = document.getElementById('phone').value.trim();
     
-    // التحقق من صحة رقم الهاتف (اختياري)
+    // التحقق من صحة رقم الهاتف
     if (phone && !/^[0-9+\-\s()]{8,15}$/.test(phone)) {
         showToast('⚠️ يرجى إدخال رقم هاتف صحيح (8-15 رقم)', 'warning');
         return;
     }
     
-    const updatedProfile = { 
-        phone: phone 
-    };
+    const updatedProfile = { phone: phone };
     
     try {
         let endpoint;
-        let method = 'PUT';
         let body = { profile: updatedProfile };
         
         if (isAdminUser) {
-            // للأدمن - تحديث بيانات الأدمن
-            endpoint = `/api/admins/${userData.username}`;
+            // للأدمن - استخدام المسار الجديد
+            endpoint = '/api/admin/profile';
         } else {
-            // للطالب - استخدام API تحديث الطالب (يتطلب أدمن على السيرفر)
-            // لكننا نستخدم نفس المسار مع صلاحية الطالب
-            endpoint = `/api/students/${userData.studentCode}`;
-            // إضافة studentCode في body للتأكيد
-            body.studentCode = userData.studentCode;
+            // للطالب - استخدام المسار الجديد
+            endpoint = '/api/student/profile';
         }
         
         console.log('📤 حفظ إلى:', endpoint);
@@ -273,16 +262,17 @@ async function saveProfile(event) {
         showToast('جاري حفظ البيانات...', 'info');
         
         const response = await apiRequest(endpoint, {
-            method: method,
+            method: 'PUT',
             body: JSON.stringify(body)
         });
         
         if (response.ok) {
+            const result = await response.json();
+            
             // تحديث البيانات المحلية
             if (!userData.profile) userData.profile = {};
             userData.profile.phone = phone;
             
-            // تحديث sessionStorage
             if (currentUser) {
                 currentUser.profile = userData.profile;
                 sessionStorage.setItem('userData', JSON.stringify(currentUser));
@@ -301,7 +291,6 @@ async function saveProfile(event) {
             const error = await response.json();
             console.error('❌ فشل الحفظ:', error);
             
-            // رسائل خطأ مخصصة
             if (response.status === 403) {
                 showToast('⚠️ غير مصرح لك بتعديل هذه البيانات', 'error');
             } else if (response.status === 400) {
@@ -383,7 +372,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const profileForm = document.getElementById('profileForm');
     if (profileForm) profileForm.addEventListener('submit', saveProfile);
     
-    // رسالة ترحيب
     const firstName = userData?.fullName?.split(' ')[0] || userData?.username || 'بطل';
     setTimeout(() => showToast(`مرحباً بك يا ${firstName} 👋`, 'success'), 500);
 });
