@@ -1,4 +1,4 @@
-const chapter6_internal = {
+var chap6 = {
     name: "🩸 الفصل السادس: Blood Diseases, Leukemia & Bleeding Tendency",
     icon: "fas fa-tint",
     definitions: [
