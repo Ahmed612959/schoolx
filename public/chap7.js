@@ -1,4 +1,4 @@
-const chapter7_internal = {
+var chap7 = {
     name: "🔬 الفصل السابع: Endocrine Glands, Thyroid Disorders & Diabetes Mellitus",
     icon: "fas fa-flask",
     definitions: [
