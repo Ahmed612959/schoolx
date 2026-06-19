@@ -273,7 +273,6 @@
             color: #8a9ab0;
         }
 
-        /* ===== تنبيه للحقول الممنوعة ===== */
         .readonly-notice {
             display: flex;
             align-items: center;
@@ -381,6 +380,15 @@
             opacity: 1;
         }
 
+        .editable-field {
+            border: 2px solid #d4af5a !important;
+            background: #fefcf5 !important;
+        }
+
+        .editable-field:focus {
+            box-shadow: 0 0 0 4px rgba(212, 175, 90, 0.2) !important;
+        }
+
         @media (max-width: 600px) {
             .profile-name {
                 font-size: 1.3rem;
@@ -478,11 +486,11 @@
             </div>
             
             <div class="profile-stats">
-                <div class="stat-item">
+                <div class="stat-item" id="studentCodeGroup">
                     <div class="stat-value" id="studentCode">-</div>
                     <div class="stat-label">رقم الجلوس</div>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item" id="gradeGroup">
                     <div class="stat-value" id="userGrade">-</div>
                     <div class="stat-label">الصف الدراسي</div>
                 </div>
@@ -500,38 +508,54 @@
         </div>
         
         <div class="form-section">
-            <!-- ===== تنبيه للحقول الممنوعة ===== -->
+            <!-- ===== تنبيه ===== -->
             <div class="readonly-notice">
                 <i class="fas fa-info-circle"></i>
-                <span>⚠️ يمكنك تعديل <strong>رقم الهاتف</strong> فقط. باقي البيانات للعرض فقط.</span>
+                <span>📌 <strong>رقم الهاتف</strong> فقط قابل للتعديل. باقي البيانات للعرض.</span>
             </div>
 
             <form id="profileForm">
+                <!-- الاسم الكامل -->
                 <div class="form-group">
                     <label><i class="fas fa-user"></i> الاسم الكامل</label>
                     <input type="text" id="fullName" disabled>
                 </div>
                 
+                <!-- اسم المستخدم -->
                 <div class="form-group">
                     <label><i class="fas fa-at"></i> اسم المستخدم</label>
                     <input type="text" id="username" disabled>
                 </div>
                 
-                <div class="form-group" style="border: 2px solid #d4af5a; border-radius: 16px; padding: 4px 12px 12px; background: #fefcf5;">
-                    <label style="color: #d4af5a;"><i class="fas fa-phone-alt"></i> 📱 رقم الهاتف <span style="color: #d4af5a; font-size: 0.7rem;">(قابل للتعديل)</span></label>
-                    <input type="tel" id="phone" placeholder="أدخل رقم الهاتف" style="border-color: #d4af5a;">
+                <!-- رقم الجلوس -->
+                <div class="form-group" id="studentCodeGroup">
+                    <label><i class="fas fa-id-badge"></i> اخر 7 ارقام من بطاقة الطالب الشخصية </label>
+                    <input type="text" id="studentCodeDisplay" disabled>
                 </div>
                 
-                <div class="form-group">
+                <!-- الصف -->
+                <div class="form-group" id="gradeGroup">
                     <label><i class="fas fa-chalkboard-user"></i> الصف الدراسي</label>
                     <input type="text" id="grade" disabled>
                 </div>
                 
+                <!-- رقم الهاتف (قابل للتعديل) -->
+                <div class="form-group" style="border: 2px solid #d4af5a; border-radius: 16px; padding: 4px 12px 12px; background: #fefcf5;">
+                    <label style="color: #d4af5a;">
+                        <i class="fas fa-phone-alt"></i> 
+                        📱 رقم الهاتف 
+                        <span style="color: #d4af5a; font-size: 0.7rem;">(قابل للتعديل)</span>
+                    </label>
+                    <input type="tel" id="phone" placeholder="أدخل رقم الهاتف" class="editable-field">
+                </div>
+                
+                <!-- ولي الأمر -->
                 <div class="form-group" id="parentNameGroup">
                     <label><i class="fas fa-user-friends"></i> ولي الأمر</label>
                     <input type="text" id="parentName" disabled>
                 </div>
                 
+                <!-- رقم بطاقة ولي الأمر -->
                 <div class="form-group" id="parentIdGroup">
                     <label><i class="fas fa-id-card"></i> رقم بطاقة ولي الأمر</label>
                     <input type="text" id="parentId" disabled>
