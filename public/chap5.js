@@ -1,4 +1,4 @@
-const chapter5_internal = {
+var chap5 = {
     name: "🩺 الفصل الخامس: Urinary System & Chronic Renal Failure",
     icon: "fas fa-kidney",
     definitions: [
