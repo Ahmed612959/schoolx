@@ -852,6 +852,92 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
     } catch (error) { res.status(500).json({ error: 'خطأ في تحديث البيانات' }); }
 });
 
+// ====================== تحديث بروفايل الطالب (للطالب نفسه) ======================
+app.put('/api/student/profile', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        // التأكد أن المستخدم طالب
+        if (req.user.type !== 'student') {
+            return res.status(403).json({ error: 'هذا المسار مخصص للطلاب فقط' });
+        }
+        
+        const { phone } = req.body.profile || {};
+        const studentCode = req.user.studentCode;
+        
+        if (!studentCode) {
+            return res.status(400).json({ error: 'رقم الطالب غير موجود' });
+        }
+        
+        // التحقق من صحة رقم الهاتف (اختياري)
+        if (phone && phone.trim() !== '') {
+            // يمكن إضافة validation هنا
+        }
+        
+        // تحديث رقم الهاتف فقط
+        const updated = await Student.findOneAndUpdate(
+            { studentCode: studentCode },
+            { $set: { 'profile.phone': phone || '' } },
+            { new: true }
+        ).select('-password -refreshToken');
+        
+        if (!updated) {
+            return res.status(404).json({ error: 'الطالب غير موجود' });
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'تم تحديث رقم الهاتف بنجاح',
+            student: updated 
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في تحديث بروفايل الطالب:', error);
+        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' + error.message });
+    }
+});
+
+// ====================== تحديث بروفايل الأدمن ======================
+app.put('/api/admin/profile', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        // التأكد أن المستخدم أدمن
+        if (req.user.type !== 'admin') {
+            return res.status(403).json({ error: 'هذا المسار مخصص للأدمن فقط' });
+        }
+        
+        const { phone } = req.body.profile || {};
+        const username = req.user.username;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'اسم المستخدم غير موجود' });
+        }
+        
+        const updated = await Admin.findOneAndUpdate(
+            { username: username },
+            { $set: { 'profile.phone': phone || '' } },
+            { new: true }
+        ).select('-password -refreshToken');
+        
+        if (!updated) {
+            return res.status(404).json({ error: 'الأدمن غير موجود' });
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'تم تحديث رقم الهاتف بنجاح',
+            admin: updated 
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في تحديث بروفايل الأدمن:', error);
+        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' + error.message });
+    }
+});
+
+
+
 app.delete('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
