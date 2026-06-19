@@ -744,6 +744,52 @@ app.get('/api/attendance/date/:date', verifyToken, isAdmin, async (req, res) => 
     }
 });
 
+// ====================== حفظ الحضور الجماعي (Bulk) ======================
+app.post('/api/attendance/bulk', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { date, students, recordedBy } = req.body;
+        
+        if (!date) {
+            return res.status(400).json({ error: 'التاريخ مطلوب' });
+        }
+        
+        if (!students || students.length === 0) {
+            return res.status(400).json({ error: 'يجب إرسال بيانات الطلاب' });
+        }
+
+        const operations = students.map(s => ({
+            updateOne: {
+                filter: { 
+                    studentCode: s.code, 
+                    date: date 
+                },
+                update: { 
+                    $set: { 
+                        studentName: s.name, 
+                        status: s.status, 
+                        note: s.note || '',
+                        recordedBy: recordedBy || req.user?.username || 'admin'
+                    } 
+                },
+                upsert: true
+            }
+        }));
+        
+        const result = await Attendance.bulkWrite(operations);
+        
+        res.json({ 
+            success: true, 
+            message: `تم حفظ ${students.length} طالب بنجاح`,
+            modifiedCount: result.modifiedCount,
+            upsertedCount: result.upsertedCount
+        });
+    } catch (error) {
+        console.error('❌ Bulk attendance error:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الحضور الجماعي: ' + error.message });
+    }
+});
+
 // ====================== جلب الطلاب (للأدمن) ======================
 app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
     try {
