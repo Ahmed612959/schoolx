@@ -1,4 +1,4 @@
-const chapter8_internal = {
+var chap8 = {
     name: "🦠 الفصل الثامن: Infectious Diseases & Nervous System",
     icon: "fas fa-brain",
     definitions: [
