@@ -202,6 +202,34 @@ async function apiRequest(endpoint, options = {}) {
     return response;
 }
 
+// ====================== إرسال إشارة تحديث إلى Home ======================
+function sendAttendanceUpdateSignal() {
+    try {
+        // استخدام BroadcastChannel
+        if (typeof BroadcastChannel !== 'undefined') {
+            const channel = new BroadcastChannel('attendance-updates');
+            channel.postMessage({ type: 'attendance-updated', timestamp: Date.now(), grade: GRADE });
+            channel.close();
+            console.log('📡 تم إرسال إشارة تحديث الحضور عبر BroadcastChannel');
+        }
+    } catch (e) {
+        console.log('⚠️ BroadcastChannel not supported:', e.message);
+    }
+    
+    // محاولة تحديث صفحة Home مباشرة إذا كانت مفتوحة
+    try {
+        if (window.opener && !window.opener.closed) {
+            if (typeof window.opener.refreshAttendance === 'function') {
+                window.opener.refreshAttendance();
+                console.log('📡 تم تحديث Home عبر window.opener');
+            }
+        }
+    } catch (e) {
+        console.log('⚠️ Could not update Home via opener:', e.message);
+    }
+}
+
+// ====================== التحقق من الصلاحية ======================
 async function verifyAccess() {
     const user = getLoggedInUser();
     if (!user || user.type !== 'admin') {
@@ -392,6 +420,7 @@ function renderAttendanceTable() {
 
 function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
 
+// ====================== تحديث طالب واحد ======================
 window.updateSingle = async function(studentCode) {
     const select = document.querySelector(`.status-select[data-code="${studentCode}"]`);
     const noteInput = document.querySelector(`.note-input[data-code="${studentCode}"]`);
@@ -414,7 +443,9 @@ window.updateSingle = async function(studentCode) {
         const response = await apiRequest('/api/attendance', { method: 'POST', body: JSON.stringify(data) });
         if (response.ok) { 
             showToast('✅ تم حفظ الحضور بنجاح', 'success'); 
-            await loadAttendance(); 
+            await loadAttendance();
+            // 🔥 إرسال إشارة تحديث إلى Home
+            sendAttendanceUpdateSignal();
         } else {
             const errorData = await response.json();
             showToast('❌ ' + (errorData.error || 'خطأ في حفظ الحضور'), 'error');
@@ -424,12 +455,14 @@ window.updateSingle = async function(studentCode) {
     }
 };
 
+// ====================== تحديث جماعي ======================
 window.bulkUpdate = function(status) {
     document.querySelectorAll('.status-select').forEach(select => select.value = status);
     const statusMap = { 'present': 'حاضر', 'absent': 'غائب', 'late': 'متأخر' };
     showToast(`✅ تم تغيير جميع الطلاب إلى ${statusMap[status] || status}`, 'info');
 };
 
+// ====================== حفظ جميع التغييرات ======================
 window.saveAttendance = async function() {
     const updates = [];
     document.querySelectorAll('.status-select').forEach(select => {
@@ -460,7 +493,9 @@ window.saveAttendance = async function() {
         });
         if (response.ok) { 
             showToast('✅ تم حفظ جميع تغييرات الحضور بنجاح', 'success'); 
-            await loadAttendance(); 
+            await loadAttendance();
+            // 🔥 إرسال إشارة تحديث إلى Home
+            sendAttendanceUpdateSignal();
         } else {
             const errorData = await response.json();
             showToast('❌ ' + (errorData.error || 'خطأ في حفظ التغييرات'), 'error');
