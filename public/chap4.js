@@ -1,4 +1,4 @@
-const chapter4_internal = {
+var chap4 = {
     name: "🦠 الفصل الرابع: Viral Hepatitis",
     icon: "fas fa-virus",
     definitions: [
