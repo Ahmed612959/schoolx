@@ -169,6 +169,36 @@
         .dashboard-card{background:var(--card-bg);border-radius:var(--radius-sm);padding:15px;border:1px solid var(--border-color)}.dashboard-card h4{color:var(--gold-dark);margin-bottom:8px;font-size:.9rem}.dashboard-card p{font-size:.8rem;color:var(--text-secondary);margin:3px 0}.dashboard-card .big-number{font-size:2rem;font-weight:900;color:var(--dark)}.chart-bar{height:20px;background:#e2e8f0;border-radius:10px;margin:5px 0;overflow:hidden}.chart-fill{height:100%;border-radius:10px;transition:width 0.5s ease}
         .achievements-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0}.achievement-badge{padding:8px 14px;border-radius:25px;font-size:.75rem;font-weight:600;border:2px solid #e2e8f0;text-align:center;min-width:100px}.achievement-badge.unlocked{border-color:var(--gold);background:var(--gold-light);color:var(--gold-dark)}.achievement-badge.locked{opacity:.4}
         .confetti-piece{position:fixed;z-index:3000;pointer-events:none;animation:confettiFall 3s ease-out forwards}@keyframes confettiFall{0%{transform:translateY(-100vh)rotate(0deg);opacity:1}100%{transform:translateY(100vh)rotate(720deg);opacity:0}}
+        
+        /* أنماط لوحة المتصدرين */
+        .leaderboard-container { max-height: 50vh; overflow-y: auto; margin: 15px 0; }
+        .leaderboard-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .leaderboard-table th { background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #0e2a35; padding: 10px; font-weight: 700; text-align: center; }
+        .leaderboard-table td { padding: 10px; text-align: center; border-bottom: 1px solid var(--border-color); }
+        .leaderboard-table tr:nth-child(even) { background: var(--light-bg); }
+        .leaderboard-table .rank-1 { background: #fffbeb !important; font-weight: 700; }
+        .leaderboard-table .rank-2 { background: #f1f5f9 !important; font-weight: 700; }
+        .leaderboard-table .rank-3 { background: #fef2f2 !important; font-weight: 700; }
+        .lb-rank { font-weight: 700; font-size: 0.9rem; }
+        .medal-gold { color: #f59e0b; }
+        .medal-silver { color: #94a3b8; }
+        .medal-bronze { color: #cd7f32; }
+        .lb-accuracy.high { color: #059669; font-weight: 700; }
+        .lb-accuracy.medium { color: #d97706; font-weight: 700; }
+        .lb-accuracy.low { color: #dc2626; font-weight: 700; }
+
+        /* أنماط تحدي المشاركين */
+        .challenge-participants { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .challenge-participant { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--light-bg); border-radius: 12px; border: 1px solid var(--border-color); }
+        .challenge-participant .name { font-weight: 600; }
+        .challenge-participant .status.pending { color: var(--orange); font-size: 0.75rem; }
+        .challenge-participant .status.completed { color: var(--green); font-size: 0.75rem; }
+        .challenge-participant .score { font-weight: 700; color: var(--gold-dark); }
+        .challenge-results-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        .challenge-results-table th { background: var(--dark); color: white; padding: 8px; }
+        .challenge-results-table td { padding: 8px; border-bottom: 1px solid var(--border-color); }
+        .challenge-results-table .winner { background: #fffbeb; font-weight: 700; }
+
         @media print{.animated-bg,.progress-container,.back-to-top,.sidebar,.sidebar-toggle,.sidebar-overlay,.chapter-section,.category-tabs,.control-bar,.header-badge,.favorites-bar,.card-actions,.note-box,.footer,.stats-grid{display:none!important}body{background:white!important;color:black!important}.question-card{break-inside:avoid;border:1px solid #ccc!important;box-shadow:none!important}.container{max-width:100%!important;padding:0!important}.header{background:white!important;color:black!important;padding:10px!important;box-shadow:none!important}.header h1{color:black!important}}
         @media(max-width:768px){.header h1{font-size:1.3rem}.header{padding:15px 12px}.container{padding:0 10px}.chapter-btn{padding:6px 10px;font-size:.68rem}.category-btn{padding:6px 9px;font-size:.65rem}.back-to-top{bottom:18px;left:18px;width:40px;height:40px}.sidebar{width:260px}}
     </style>
@@ -212,6 +242,8 @@
 </div>
 <button class="back-to-top" id="backToTop"><i class="fas fa-chevron-up"></i></button>
 <footer class="footer"><p>تم التطوير بواسطة <span class="developer-name">أحمد موسى</span> | <span class="institute-name">معهد رعاية الضبعية الفني للتمريض</span></p><p style="margin-top:5px;font-size:0.73rem">Internal Medicine Bank &copy; 2025</p></footer>
+
+<!-- ملفات البيانات للفصول -->
 <script src="chap1.js"></script>
 <script src="chap2.js"></script>
 <script src="chap3.js"></script>
@@ -222,6 +254,7 @@
 <script src="chap8.js"></script>
 <script src="chap9.js"></script>
 <script src="chap10.js"></script>
+
 <script>
 // ====================== وضع التصحيح ======================
 var DEBUG = true;
@@ -229,7 +262,6 @@ function debugLog() { if (DEBUG) { console.log('🔍 [DEBUG]:', ...arguments); }
 function debugError() { if (DEBUG) { console.error('❌ [ERROR]:', ...arguments); } }
 
 // ==================== المتغيرات ====================
-// ===== الفصول: 1-10 (باستخدام الأسماء chap1 إلى chap10) =====
 var chaptersData = {};
 
 // قائمة الفصول المتاحة
@@ -244,7 +276,6 @@ for (var i = 0; i < availableChapters.length; i++) {
             debugLog('✅ تم تحميل: ' + key);
         } else {
             debugLog('⚠️ ' + key + ' غير موجود');
-            // إنشاء بيانات افتراضية بسيطة للفصل
             chaptersData[key] = {
                 name: 'الفصل ' + (i + 1) + ' - طب الباطنة',
                 icon: 'fas fa-book',
@@ -416,6 +447,55 @@ function showToast(message, type) { type = type || 'info'; var colors = { succes
 function openModal(id, content) { var modal = document.getElementById(id); if (!modal) { modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = id; document.body.appendChild(modal); } modal.innerHTML = '<div class="modal-content">' + content + '</div>'; modal.classList.add('active'); }
 function closeModal(id) { var modal = document.getElementById(id); if (modal) { modal.classList.remove('active'); setTimeout(function() { modal.remove(); }, 300); } }
 
+// ====================== دالة getFullAnswer المعدلة (حل مشكلة ترجمة الإجابة) ====================
+function getFullAnswer(q) {
+    // دالة مساعدة لاستخراج الترجمة الصحيحة
+    function getCorrectTranslation(q) {
+        // إذا كان هناك correctTranslation مخصص، استخدمه
+        if (q.correctTranslation) {
+            // تأكد من أنها ليست نفس ترجمة السؤال
+            if (q.correctTranslation !== q.translation) {
+                return q.correctTranslation;
+            }
+        }
+        // إذا كان هناك answerTranslation
+        if (q.answerTranslation && q.answerTranslation !== q.translation) {
+            return q.answerTranslation;
+        }
+        // إذا كان هناك completionTranslation
+        if (q.completionTranslation && q.completionTranslation !== q.translation) {
+            return q.completionTranslation;
+        }
+        return '';
+    }
+
+    var translation = getCorrectTranslation(q);
+    var answer = '';
+
+    if (q.cat === 'mcq') {
+        answer = q.correct || '';
+        if (translation) answer += ' - ' + translation;
+        return answer;
+    }
+    if (q.cat === 'truefalse') {
+        var isTrue = (q.correct === true || q.correct === 'true');
+        answer = isTrue ? 'صواب (True)' : 'خطأ (False)';
+        if (translation) answer += ' - ' + translation;
+        return answer;
+    }
+    if (q.cat === 'complete') {
+        answer = q.completion || '';
+        if (translation) answer += ' - ' + translation;
+        return answer;
+    }
+    if (q.answer) {
+        answer = q.answer || '';
+        if (translation) answer += ' - ' + translation;
+        return answer;
+    }
+    return q.answer || q.completion || q.translation || '';
+}
+
 // ====================== دوال عرض الأسئلة ====================
 function getQuestionsFor(chapterId, categoryId) {
     var questions = [];
@@ -548,6 +628,8 @@ function renderCard(q, cat, idx) {
     h += '<button class="action-btn ' + (isHard ? 'hard-marked' : '') + '" onclick="toggleHard(\'' + qId + '\',this)"><i class="fas fa-exclamation-triangle"></i></button></div></div>';
     h += '<div class="question-content"><div class="question-text"><i class="fas fa-question-circle"></i> ' + q.text + '</div>';
     if (q.translation) h += '<div class="translation-box"><i class="fas fa-language"></i> ' + q.translation + '</div>';
+    
+    // عرض الإجابة مع استخدام getFullAnswer المعدلة
     if (cat === 'mcq' && q.options) {
         h += '<div class="options-list">';
         for (var o = 0; o < q.options.length; o++) {
@@ -560,16 +642,12 @@ function renderCard(q, cat, idx) {
         var cv = q.correct;
         var sv = String(cv).toLowerCase().replace(/['"]/g, '').trim();
         var isTrue = (sv === 'true' || cv === true || cv === 1);
-        var answerText = isTrue ? '✅ صواب (True)' : '❌ خطأ (False)';
         var extraClass = isTrue ? '' : ' false-answer';
-        h += '<div class="answer-box' + extraClass + '"><strong>' + answerText + '</strong></div>';
-        if (q.correctTranslation) h += '<div class="answer-translation">' + q.correctTranslation + '</div>';
+        h += '<div class="answer-box' + extraClass + '"><strong>' + getFullAnswer(q) + '</strong></div>';
     } else if (q.completion) {
-        h += '<div class="answer-box"><strong>📝 ' + q.completion + '</strong></div>';
-        if (q.completionTranslation) h += '<div class="answer-translation">' + q.completionTranslation + '</div>';
+        h += '<div class="answer-box"><strong>📝 ' + getFullAnswer(q) + '</strong></div>';
     } else if (q.answer) {
-        h += '<div class="answer-box"><strong>📝 ' + q.answer + '</strong></div>';
-        if (q.answerTranslation) h += '<div class="answer-translation">' + q.answerTranslation + '</div>';
+        h += '<div class="answer-box"><strong>📝 ' + getFullAnswer(q) + '</strong></div>';
     } else if (q.items) {
         h += '<div class="list-items-box"><ul>';
         for (var i = 0; i < q.items.length; i++) {
@@ -577,13 +655,13 @@ function renderCard(q, cat, idx) {
         }
         h += '</ul></div>';
     }
+    
     h += '<div class="note-box"><textarea class="note-input" placeholder="📝 ملاحظة..." onchange="saveNote(\'' + qId + '\',this.value)">' + note + '</textarea></div></div></div>';
     return h;
 }
 
 function applyHideAnswers() { document.querySelectorAll('.question-card').forEach(function(c) { c.classList.add('hide-answers'); }); }
 function removeHideAnswers() { document.querySelectorAll('.question-card').forEach(function(c) { c.classList.remove('hide-answers'); }); }
-function getFullAnswer(q) { if (q.cat === 'mcq') { var ans = q.correct; if (q.correctTranslation) ans += ' - ' + q.correctTranslation; return ans; } if (q.cat === 'truefalse') { var isTrue = (q.correct === true || q.correct === 'true'); var ans = isTrue ? 'صواب (True)' : 'خطأ (False)'; if (q.correctTranslation) ans += ' - ' + q.correctTranslation; return ans; } if (q.cat === 'complete') { var ans = q.completion || ''; if (q.completionTranslation) ans += ' - ' + q.completionTranslation; return ans; } return q.answer || q.completion || q.translation || ''; }
 
 function toggleBookmark(qId, btn) { var action = bookmarks.has(qId) ? 'remove' : 'add'; if (action === 'add') { bookmarks.add(qId); btn.classList.add('bookmarked'); } else { bookmarks.delete(qId); btn.classList.remove('bookmarked'); } localStorage.setItem('nb_bookmarks_internal', JSON.stringify([...bookmarks])); if (isOnlineMode) saveProgress('/api/progress/bookmarks', { questionId: qId, action: action }); updateFavCount(); }
 function updateFavCount() { document.getElementById('favCount').textContent = bookmarks.size; document.getElementById('favoritesBar').style.display = (bookmarks.size + hardQuestions.size) > 0 ? 'flex' : 'none'; }
@@ -602,29 +680,211 @@ function navigateSidebar(chapter, category) { currentChapterId = chapter; curren
 function renderChapterButtons() { var html = '<button class="chapter-btn ' + (currentChapterId === 'all' ? 'active' : '') + '" onclick="navigateSidebar(\'all\',\'all\')"><i class="fas fa-globe"></i> الكل</button>'; for (var id in chaptersData) { if (chaptersData.hasOwnProperty(id)) { var ch = chaptersData[id]; html += '<button class="chapter-btn ' + (currentChapterId === id ? 'active' : '') + '" onclick="navigateSidebar(\'' + id + '\',\'all\')"><i class="' + ch.icon + '"></i> ' + ch.name.split(':')[0] + '</button>'; } } document.getElementById('chapterSelector').innerHTML = html; }
 function renderCategoryTabs() { var total = 0; for (var i = 0; i < categoryMeta.length; i++) { total += getQuestionsFor(currentChapterId, categoryMeta[i].id).length; } var html = '<button class="category-btn ' + (currentCategory === 'all' ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'all\')"><i class="fas fa-border-all"></i> الكل <span class="count">' + total + '</span></button>'; for (var i = 0; i < categoryMeta.length; i++) { var c = categoryMeta[i]; var count = getQuestionsFor(currentChapterId, c.id).length; html += '<button class="category-btn ' + (currentCategory === c.id ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'' + c.id + '\')"><i class="' + c.icon + '"></i> ' + c.label + ' <span class="count">' + count + '</span></button>'; } document.getElementById('categoryTabs').innerHTML = html; }
 
-// ====================== وظائف الأخطاء ====================
-function addWrongQuestion(q) { var wrongEntry = { questionId: q.questionId, text: q.text, correct: q.correct || q.completion || q.answer || '', chapter: q.chapterName || '', cat: q.cat || '', date: new Date().toISOString() }; var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); if (!exists) { wrongQuestions.push(wrongEntry); localStorage.setItem('nb_wrong_internal', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: wrongQuestions }); } }
-function removeWrongQuestion(questionId) { wrongQuestions = wrongQuestions.filter(function(w) { return w.questionId !== questionId; }); localStorage.setItem('nb_wrong_internal', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: wrongQuestions }); }
-function updateRetryButton() { var btn = document.getElementById('retryWrongBtn'); if (btn) { var count = wrongQuestions.length; if (count > 0) { btn.style.display = 'inline-flex'; btn.innerHTML = '<i class="fas fa-redo"></i> تحدي الأخطاء (' + count + ')'; } else { btn.style.display = 'none'; } } }
-function clearAllWrongQuestions() { if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; } if (confirm('⚠️ هل أنت متأكد من مسح جميع الأسئلة الخاطئة؟')) { wrongQuestions = []; localStorage.setItem('nb_wrong_internal', JSON.stringify(wrongQuestions)); if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: [] }); updateRetryButton(); renderAllQuestions(); closeModal('retryModal'); showToast('🎉 تم مسح جميع الأسئلة الخاطئة بنجاح!', 'success'); } }
+// ====================== وظائف الأخطاء (معدلة) ====================
+function addWrongQuestion(q) {
+    var wrongEntry = { 
+        questionId: q.questionId, 
+        text: q.text, 
+        correct: q.correct || q.completion || q.answer || '', 
+        chapter: q.chapterName || '', 
+        cat: q.cat || '', 
+        date: new Date().toISOString() 
+    }; 
+    var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); 
+    if (!exists) { 
+        wrongQuestions.push(wrongEntry); 
+        localStorage.setItem('nb_wrong_internal', JSON.stringify(wrongQuestions)); 
+        updateRetryButton(); 
+        if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: wrongQuestions }); 
+    } 
+}
 
+function removeWrongQuestion(questionId) { 
+    wrongQuestions = wrongQuestions.filter(function(w) { return w.questionId !== questionId; }); 
+    localStorage.setItem('nb_wrong_internal', JSON.stringify(wrongQuestions)); 
+    updateRetryButton(); 
+    if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: wrongQuestions }); 
+}
+
+function updateRetryButton() { 
+    var btn = document.getElementById('retryWrongBtn'); 
+    if (btn) { 
+        var count = wrongQuestions.length; 
+        if (count > 0) { 
+            btn.style.display = 'inline-flex'; 
+            btn.innerHTML = '<i class="fas fa-redo"></i> تحدي الأخطاء (' + count + ')'; 
+        } else { 
+            btn.style.display = 'none'; 
+        } 
+    } 
+}
+
+function clearAllWrongQuestions() { 
+    if (wrongQuestions.length === 0) { 
+        showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); 
+        return; 
+    } 
+    if (confirm('⚠️ هل أنت متأكد من مسح جميع الأسئلة الخاطئة؟')) { 
+        wrongQuestions = []; 
+        localStorage.setItem('nb_wrong_internal', JSON.stringify(wrongQuestions)); 
+        if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: [] }); 
+        updateRetryButton(); 
+        renderAllQuestions(); 
+        closeModal('retryModal'); 
+        showToast('🎉 تم مسح جميع الأسئلة الخاطئة بنجاح!', 'success'); 
+    } 
+}
+
+// ====================== وضع تحدي الأخطاء (معدل) ====================
 function retryWrongQuestions() {
-    if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; }
-    var allQ = []; var uniqueIds = new Set();
-    for (var w = 0; w < wrongQuestions.length; w++) { var wrong = wrongQuestions[w]; var questionId = wrong.questionId; if (!questionId || uniqueIds.has(questionId)) continue; uniqueIds.add(questionId); var parts = questionId.split('_'); if (parts.length === 3) { var chKey = parts[0]; var cat = parts[1]; var idx = parseInt(parts[2]); var ch = chaptersData[chKey]; if (ch && ch[cat] && Array.isArray(ch[cat]) && ch[cat][idx]) { var q = ch[cat][idx]; q.cat = cat; q.chapterName = ch.name; q.questionId = questionId; allQ.push(q); } } }
-    if (allQ.length === 0) { showToast('⚠️ لم يتم العثور على الأسئلة الخاطئة.', 'warning'); return; }
-    allQ = allQ.sort(function() { return Math.random() - 0.5; }).slice(0, Math.min(30, allQ.length));
+    if (wrongQuestions.length === 0) { 
+        showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); 
+        return; 
+    }
+    
+    var allQ = []; 
+    var uniqueIds = new Set();
+    
+    for (var w = 0; w < wrongQuestions.length; w++) { 
+        var wrong = wrongQuestions[w]; 
+        var questionId = wrong.questionId; 
+        if (!questionId || uniqueIds.has(questionId)) continue; 
+        uniqueIds.add(questionId); 
+        var parts = questionId.split('_'); 
+        if (parts.length === 3) { 
+            var chKey = parts[0]; 
+            var cat = parts[1]; 
+            var idx = parseInt(parts[2]); 
+            var ch = chaptersData[chKey]; 
+            if (ch && ch[cat] && Array.isArray(ch[cat]) && ch[cat][idx]) { 
+                var q = ch[cat][idx]; 
+                q.cat = cat; 
+                q.chapterName = ch.name; 
+                q.questionId = questionId; 
+                allQ.push(q); 
+            } 
+        } 
+    }
+    
+    if (allQ.length === 0) { 
+        showToast('⚠️ لم يتم العثور على الأسئلة الخاطئة.', 'warning'); 
+        return; 
+    }
+    
+    // خلط الأسئلة
+    allQ = allQ.sort(function() { return Math.random() - 0.5; });
     window._currentQuestions = allQ;
-    var h = '<h2>🔄 تحدي الأخطاء (' + allQ.length + ' سؤال)</h2><div style="margin-bottom:10px;font-size:0.85rem;color:var(--text-secondary);">⚠️ قم بحل جميع الأسئلة لمسح الأخطاء</div><div id="rwQuestions"></div><div id="rwScore"></div><div style="display:flex;gap:10px;justify-content:center;margin-top:15px;flex-wrap:wrap;"><button class="modal-btn btn-close" onclick="closeModal(\'retryModal\')">إغلاق</button></div>';
+    
+    var h = '<h2>🔄 تحدي الأخطاء (' + allQ.length + ' سؤال)</h2>';
+    h += '<div style="margin-bottom:10px;font-size:0.85rem;color:var(--text-secondary);">⚠️ قم بحل جميع الأسئلة لمسح الأخطاء تلقائياً</div>';
+    
+    // إضافة أزرار التحكم
+    h += '<div style="display:flex;gap:10px;justify-content:center;margin-bottom:15px;flex-wrap:wrap;">';
+    h += '<button class="modal-btn btn-danger" onclick="clearAllWrongQuestions()"><i class="fas fa-trash"></i> 🗑️ مسح جميع الأخطاء مباشرة</button>';
+    h += '<button class="modal-btn btn-info" onclick="showWrongQuestionsList()"><i class="fas fa-list"></i> 📋 عرض قائمة الأخطاء</button>';
+    h += '</div>';
+    
+    h += '<div id="rwQuestions"></div><div id="rwScore"></div>';
+    h += '<div style="display:flex;gap:10px;justify-content:center;margin-top:15px;flex-wrap:wrap;">';
+    h += '<button class="modal-btn btn-close" onclick="closeModal(\'retryModal\')">إغلاق</button>';
+    h += '</div>';
+    
     openModal('retryModal', h);
-    var qHTML = ''; for (var i = 0; i < allQ.length; i++) { qHTML += renderQuestionHTML(allQ[i], i, 'Retry', allQ.length); }
+    
+    var qHTML = ''; 
+    for (var i = 0; i < allQ.length; i++) { 
+        qHTML += renderQuestionHTML(allQ[i], i, 'Retry', allQ.length); 
+    }
     document.getElementById('rwQuestions').innerHTML = qHTML;
     window._retryTotal = allQ.length;
     window._retryScores = {};
 }
 
-function checkRetryAnswer(btn, chosen, correct, i, total) { handleGenericAnswer(btn, chosen, correct, i, total, 'Retry', '_retryTotal', '_retryScores', 'rwScore'); }
-function checkRetryOther(i, correctText, total) { handleGenericOther(i, correctText, total, 'Retry', '_retryTotal', '_retryScores', 'rwScore'); }
+// دالة عرض قائمة الأسئلة الخاطئة مع إمكانية حذف فردي
+function showWrongQuestionsList() {
+    if (wrongQuestions.length === 0) {
+        showToast('🎉 لا توجد أسئلة خاطئة!', 'success');
+        return;
+    }
+    
+    var listHTML = '<h2>📋 قائمة الأسئلة الخاطئة (' + wrongQuestions.length + ')</h2>';
+    listHTML += '<div style="max-height:50vh;overflow-y:auto;text-align:right;">';
+    
+    for (var i = 0; i < wrongQuestions.length; i++) {
+        var w = wrongQuestions[i];
+        listHTML += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;margin:5px 0;background:var(--light-bg);border-radius:12px;border:1px solid var(--border-color);">';
+        listHTML += '<div style="flex:1;">';
+        listHTML += '<div style="font-weight:600;font-size:0.85rem;">' + (i+1) + '. ' + (w.text ? w.text.substring(0, 80) + '...' : 'سؤال بدون نص') + '</div>';
+        listHTML += '<div style="font-size:0.75rem;color:var(--text-secondary);">📝 الإجابة: ' + (w.correct || 'غير متوفرة') + '</div>';
+        listHTML += '<div style="font-size:0.7rem;color:var(--text-secondary);">📅 ' + (w.date ? new Date(w.date).toLocaleDateString('ar-EG') : '') + '</div>';
+        listHTML += '</div>';
+        listHTML += '<button class="modal-btn btn-danger" onclick="removeSingleWrong(\'' + w.questionId + '\')" style="font-size:0.7rem;padding:4px 8px;"><i class="fas fa-times"></i> حذف</button>';
+        listHTML += '</div>';
+    }
+    
+    listHTML += '</div>';
+    listHTML += '<div style="display:flex;gap:10px;justify-content:center;margin-top:15px;flex-wrap:wrap;">';
+    listHTML += '<button class="modal-btn btn-danger" onclick="clearAllWrongQuestions()"><i class="fas fa-trash"></i> 🗑️ مسح الكل</button>';
+    listHTML += '<button class="modal-btn btn-close" onclick="closeModal(\'wrongListModal\')">إغلاق</button>';
+    listHTML += '</div>';
+    
+    openModal('wrongListModal', listHTML);
+}
+
+// دالة حذف سؤال خاطئ واحد
+function removeSingleWrong(questionId) {
+    wrongQuestions = wrongQuestions.filter(function(w) { return w.questionId !== questionId; });
+    localStorage.setItem('nb_wrong_internal', JSON.stringify(wrongQuestions));
+    if (isOnlineMode) saveProgress('/api/progress/quiz', { wrongQuestions: wrongQuestions });
+    updateRetryButton();
+    showToast('✅ تم حذف السؤال من قائمة الأخطاء', 'success');
+    showWrongQuestionsList(); // تحديث القائمة
+}
+
+function checkRetryAnswer(btn, chosen, correct, i, total) { 
+    handleGenericAnswer(btn, chosen, correct, i, total, 'Retry', '_retryTotal', '_retryScores', 'rwScore'); 
+    
+    // التحقق من اكتمال جميع الأسئلة
+    var sObj = window._retryScores;
+    var t = window._retryTotal;
+    if (sObj && Object.keys(sObj).length >= t) {
+        var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
+        if (cc === t) {
+            // إذا أجاب على جميع الأسئلة صحيحة، اعرض زر المسح
+            showClearWrongButtonInRetry();
+        }
+    }
+}
+
+function checkRetryOther(i, correctText, total) { 
+    handleGenericOther(i, correctText, total, 'Retry', '_retryTotal', '_retryScores', 'rwScore'); 
+    
+    // التحقق من اكتمال جميع الأسئلة
+    var sObj = window._retryScores;
+    var t = window._retryTotal;
+    if (sObj && Object.keys(sObj).length >= t) {
+        var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
+        if (cc === t) {
+            // إذا أجاب على جميع الأسئلة صحيحة، اعرض زر المسح
+            showClearWrongButtonInRetry();
+        }
+    }
+}
+
+function showClearWrongButtonInRetry() {
+    var scoreEl = document.getElementById('rwScore');
+    if (scoreEl) {
+        var existingBtn = scoreEl.querySelector('.clear-wrong-btn');
+        if (existingBtn) return;
+        var clearBtn = document.createElement('button');
+        clearBtn.className = 'modal-btn btn-success clear-wrong-btn';
+        clearBtn.innerHTML = '<i class="fas fa-check-circle"></i> ✅ تهانينا! تم حل جميع الأخطاء - مسح القائمة';
+        clearBtn.style.margin = '10px auto';
+        clearBtn.style.display = 'block';
+        clearBtn.onclick = function() { clearAllWrongQuestions(); };
+        scoreEl.appendChild(clearBtn);
+    }
+}
 
 // ====================== دوال الإجابة العامة ====================
 function handleGenericAnswer(btn, chosen, correct, i, total, prefix, totalVar, scoresVar, scoreElId) {
@@ -645,7 +905,7 @@ function handleGenericAnswer(btn, chosen, correct, i, total, prefix, totalVar, s
         var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
         var sc = Math.round(cc / t * 100);
         var el = document.getElementById(scoreElId);
-        if (el) { el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>'; saveQuizHistory(t, cc, sc); if (sc === 100 && prefix === 'Retry') { showClearWrongButton(); } }
+        if (el) { el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>'; saveQuizHistory(t, cc, sc); }
         if (sc >= 80) spawnConfetti();
     }
 }
@@ -669,7 +929,7 @@ function handleGenericOther(i, correctText, total, prefix, totalVar, scoresVar, 
         var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
         var sc = Math.round(cc / t * 100);
         var el = document.getElementById(scoreElId);
-        if (el) { el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>'; saveQuizHistory(t, cc, sc); if (sc === 100 && prefix === 'Retry') { showClearWrongButton(); } }
+        if (el) { el.innerHTML = '<div class="quiz-score">النتيجة: ' + cc + '/' + t + ' (' + sc + '%)</div>'; saveQuizHistory(t, cc, sc); }
         if (sc >= 80) spawnConfetti();
     }
 }
@@ -680,21 +940,6 @@ function saveQuizHistory(total, correct, score) {
     localStorage.setItem('nb_history_internal', JSON.stringify(quizHistory.slice(-50)));
     if (isOnlineMode) saveProgress('/api/progress/quiz', entry);
     updateStats();
-}
-
-function showClearWrongButton() {
-    var scoreEl = document.getElementById('rwScore');
-    if (scoreEl) {
-        var existingBtn = scoreEl.querySelector('.clear-wrong-btn');
-        if (existingBtn) return;
-        var clearBtn = document.createElement('button');
-        clearBtn.className = 'modal-btn btn-success clear-wrong-btn';
-        clearBtn.innerHTML = '<i class="fas fa-check-circle"></i> ✅ مسح الأسئلة الخاطئة (100%)';
-        clearBtn.style.margin = '10px auto';
-        clearBtn.style.display = 'block';
-        clearBtn.onclick = function() { clearAllWrongQuestions(); };
-        scoreEl.appendChild(clearBtn);
-    }
 }
 
 function isAnswerCorrect(chosen, correct) {
@@ -882,7 +1127,10 @@ function generateExam() {
             for (var o = 0; o < q.options.length; o++) { h += '<div>⬜ ' + q.options[o] + '</div>'; }
             h += '</div>';
         } else if (q.cat === 'truefalse') { h += '<div>⬜ صواب &nbsp; ⬜ خطأ</div>'; } else { h += '<div>___________________________________</div>'; }
-        if (incAns) { var ans = q.cat === 'truefalse' ? (q.correct === true || q.correct === 'true' ? 'صواب' : 'خطأ') : q.correct || q.completion || ''; h += '<div style="color:green;font-size:0.75rem;">✅ ' + ans + '</div>'; }
+        if (incAns) { 
+            var ans = getFullAnswer(q);
+            h += '<div style="color:green;font-size:0.75rem;">✅ ' + ans + '</div>'; 
+        }
         h += '</div>';
     }
     document.getElementById('examPrintArea').innerHTML = h;
@@ -917,7 +1165,12 @@ function renderAIFC() { var qs = window._aiFcQ || []; var i = window._aiFcI || 0
 function prevAIFC() { window._aiFcI = (window._aiFcI || 0) - 1; if (window._aiFcI < 0) window._aiFcI = (window._aiFcQ || []).length - 1; renderAIFC(); }
 function nextAIFC() { window._aiFcI = (window._aiFcI || 0) + 1; if (window._aiFcI >= (window._aiFcQ || []).length) window._aiFcI = 0; renderAIFC(); }
 function getFlashcardFront(q) { var h = ''; h += '<div class="fc-label">📝 السؤال (English):</div>'; h += '<div class="fc-content">' + q.text + '</div>'; if (q.translation) { h += '<div class="fc-label" style="margin-top:10px;">🌐 الترجمة:</div>'; h += '<div class="fc-content">' + q.translation + '</div>'; } return h; }
-function getFlashcardBack(q) { var h = ''; h += '<div class="fc-label">✅ الإجابة (English):</div>'; if (q.cat === 'mcq') { h += '<div class="fc-content">' + q.correct + '</div>'; if (q.correctTranslation) { h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>'; h += '<div class="fc-content">' + q.correctTranslation + '</div>'; } } else if (q.cat === 'truefalse') { var isTrue = (q.correct === true || q.correct === 'true'); h += '<div class="fc-content">' + (isTrue ? 'True (صواب)' : 'False (خطأ)') + '</div>'; if (q.correctTranslation) { h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>'; h += '<div class="fc-content">' + q.correctTranslation + '</div>'; } } else if (q.cat === 'complete') { h += '<div class="fc-content">' + (q.completion || '') + '</div>'; if (q.completionTranslation) { h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>'; h += '<div class="fc-content">' + q.completionTranslation + '</div>'; } } else { var ans = q.answer || q.completion || q.translation || ''; h += '<div class="fc-content">' + ans + '</div>'; if (q.answerTranslation) { h += '<div class="fc-label" style="margin-top:10px;">🌐 ترجمة الإجابة:</div>'; h += '<div class="fc-content">' + q.answerTranslation + '</div>'; } } return h; }
+function getFlashcardBack(q) { 
+    var h = ''; 
+    h += '<div class="fc-label">✅ الإجابة (English):</div>'; 
+    h += '<div class="fc-content">' + getFullAnswer(q) + '</div>'; 
+    return h; 
+}
 function openFlashcards() {
     var fcQ = []; for (var key in chaptersData) { if (chaptersData.hasOwnProperty(key)) { var ch = chaptersData[key]; for (var c = 0; c < testCategories.length; c++) { var cat = testCategories[c]; if (ch[cat] && Array.isArray(ch[cat])) { for (var i = 0; i < ch[cat].length; i++) { var q = ch[cat][i]; q.cat = cat; q.chapterName = ch.name; fcQ.push(q); } } } } }
     fcQ = fcQ.sort(function() { return Math.random() - 0.5; }).slice(0, 30);
@@ -1113,55 +1366,6 @@ function checkChallengeOther(i, correctText, total) {
     handleGenericOther(i, correctText, total, 'Challenge', '_challengeTotal', '_challengeScores', 'challengeScore');
 }
 
-function checkChallengeComplete() {
-    var sObj = window._challengeScores || {};
-    var total = window._challengeTotal || 0;
-    if (Object.keys(sObj).length >= total) {
-        var cc = Object.values(sObj).filter(function(v) { return v === true; }).length;
-        var sc = Math.round(cc / total * 100);
-        var challengeData = JSON.parse(localStorage.getItem('challengeData_internal') || '{}');
-        if (challengeData && challengeData.participants) {
-            var participant = challengeData.participants.find(function(p) { return p.username === (currentUser?.username || ''); });
-            if (participant) {
-                participant.score = sc;
-                participant.completed = true;
-                localStorage.setItem('challengeData_internal', JSON.stringify(challengeData));
-            }
-            showChallengeParticipantsList();
-            showChallengeFinalResults();
-        }
-    }
-}
-
-function showChallengeFinalResults() {
-    var challengeData = JSON.parse(localStorage.getItem('challengeData_internal') || '{}');
-    if (!challengeData || !challengeData.participants) return;
-    var sorted = challengeData.participants.slice().sort(function(a, b) { return (b.score || 0) - (a.score || 0); });
-    var h = '<h3 style="margin-top:15px;">🏆 النتائج النهائية</h3>';
-    h += '<div style="max-height:300px;overflow-y:auto;">';
-    if (sorted.length === 0) {
-        h += '<p style="color:var(--text-secondary);padding:10px;">لا توجد نتائج بعد</p>';
-    } else {
-        h += '<table class="challenge-results-table">';
-        h += '<tr><th>#</th><th>👤 المستخدم</th><th>📊 النتيجة</th><th>الحالة</th></tr>';
-        for (var i = 0; i < sorted.length; i++) {
-            var p = sorted[i];
-            var medal = '';
-            var rowClass = '';
-            if (p.completed && i === 0) { medal = '🥇'; rowClass = 'winner'; }
-            else if (p.completed && i === 1) { medal = '🥈'; }
-            else if (p.completed && i === 2) { medal = '🥉'; }
-            h += '<tr class="' + rowClass + '"><td>' + medal + ' ' + (i+1) + '</td><td>' + p.name + '</td><td>' + (p.completed ? p.score + '%' : 'لم يكمل') + '</td><td>' + (p.completed ? '✅ مكتمل' : '⏳ لم يكمل') + '</td></tr>';
-        }
-        h += '</table>';
-        if (sorted.length > 0 && sorted[0].completed) {
-            h += '<div style="text-align:center;margin-top:15px;padding:10px;background:var(--gold-light);border-radius:12px;font-weight:700;color:var(--gold-dark);">🏆 الفائز: ' + sorted[0].name + ' بنسبة ' + sorted[0].score + '%</div>';
-        }
-    }
-    h += '</div>';
-    document.getElementById('challengeResults').innerHTML = h;
-}
-
 // ====================== لوحة تحكم ====================
 function openDashboard() {
     var tQ = getTotalQuestionsSolved();
@@ -1188,6 +1392,32 @@ function initPage() {
     updateStats(); updateXPDisplay(); renderChapterButtons(); renderCategoryTabs(); renderAllQuestions(); buildSidebar();
     updateFavCount(); updateHardCount(); updateRetryButton();
     fetchProgress(); checkAchievements();
+    
+    // إضافة مستمعي الأحداث
+    document.getElementById('darkModeToggle').addEventListener('click', function() {
+        document.body.classList.toggle('dark-mode');
+        this.innerHTML = document.body.classList.contains('dark-mode') ? '<i class="fas fa-sun"></i> نهاري' : '<i class="fas fa-moon"></i> ليلي';
+    });
+    
+    document.getElementById('hideAnswersToggle').addEventListener('click', function() {
+        hideAnswers = !hideAnswers;
+        if (hideAnswers) { applyHideAnswers(); this.innerHTML = '<i class="fas fa-eye"></i> إظهار'; } 
+        else { removeHideAnswers(); this.innerHTML = '<i class="fas fa-eye-slash"></i> إخفاء'; }
+    });
+    
+    // زر العودة للأعلى
+    window.addEventListener('scroll', function() {
+        var btn = document.getElementById('backToTop');
+        if (window.scrollY > 400) { btn.classList.add('visible'); } else { btn.classList.remove('visible'); }
+        var progressBar = document.getElementById('progressBar');
+        var scrollPercent = (document.documentElement.scrollTop || document.body.scrollTop) / ((document.documentElement.scrollHeight || document.body.scrollHeight) - document.documentElement.clientHeight) * 100;
+        progressBar.style.width = scrollPercent + '%';
+    });
+    
+    document.getElementById('backToTop').addEventListener('click', function() {
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    });
+    
     debugLog('✅ تم تهيئة الصفحة بنجاح');
 }
 
