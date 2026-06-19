@@ -212,174 +212,66 @@
 </div>
 <button class="back-to-top" id="backToTop"><i class="fas fa-chevron-up"></i></button>
 <footer class="footer"><p>تم التطوير بواسطة <span class="developer-name">أحمد موسى</span> | <span class="institute-name">معهد رعاية الضبعية الفني للتمريض</span></p><p style="margin-top:5px;font-size:0.73rem">Internal Medicine Bank &copy; 2025</p></footer>
-<script src="chapter1-internal.js"></script>
-<script src="chapter2-internal.js"></script>
-<script src="chapter3-internal.js"></script>
-<script src="chapter4-internal.js"></script>
-<script src="chapter5-internal.js"></script>
-<script src="chapter6-internal.js"></script>
-<script src="chapter7-internal.js"></script>
-<script src="chapter8-internal.js"></script>
-<!-- الفصل التاسع محذوف في سنة 2025/2026 -->
-<!-- <script src="chapter9-internal.js"></script> -->
-<script src="chapter10-internal.js"></script>
+<script src="chap1.js"></script>
+<script src="chap2.js"></script>
+<script src="chap3.js"></script>
+<script src="chap4.js"></script>
+<script src="chap5.js"></script>
+<script src="chap6.js"></script>
+<script src="chap7.js"></script>
+<script src="chap8.js"></script>
+<script src="chap9.js"></script>
+<script src="chap10.js"></script>
 <script>
 // ====================== وضع التصحيح ======================
 var DEBUG = true;
 function debugLog() { if (DEBUG) { console.log('🔍 [DEBUG]:', ...arguments); } }
 function debugError() { if (DEBUG) { console.error('❌ [ERROR]:', ...arguments); } }
 
-// ====================== حماية الصفحة ======================
-(function protectPage() {
-    document.addEventListener('keydown', function(e) {
-        var key = e.key, ctrl = e.ctrlKey, shift = e.shiftKey;
-        if (key === 'F12' || (ctrl && shift && (key === 'I' || key === 'J' || key === 'C' || key === 'E')) || (ctrl && (key === 'U' || key === 'S'))) {
-            e.preventDefault(); e.stopPropagation(); return false;
-        }
-    }, true);
-    document.addEventListener('contextmenu', function(e) {
-        if (!e.target.closest('input') && !e.target.closest('textarea') && !e.target.closest('select')) {
-            e.preventDefault(); e.stopPropagation(); return false;
-        }
-    }, true);
-    document.addEventListener('dragstart', function(e) { e.preventDefault(); return false; }, true);
-    document.addEventListener('copy', function(e) {
-        if (e.target.closest('input') || e.target.closest('textarea')) return true;
-        e.preventDefault(); return false;
-    }, true);
-    var longPressTimer = null, longPressTriggered = false;
-    document.addEventListener('touchstart', function(e) {
-        var target = e.target;
-        if (target.closest('input') || target.closest('textarea') || target.closest('select') || target.closest('button')) return;
-        longPressTriggered = false;
-        longPressTimer = setTimeout(function() { longPressTriggered = true; e.preventDefault(); }, 500);
-    }, { passive: false });
-    document.addEventListener('touchmove', function() { clearTimeout(longPressTimer); }, { passive: false });
-    document.addEventListener('touchend', function(e) { clearTimeout(longPressTimer); if (longPressTriggered) e.preventDefault(); }, { passive: false });
-    var warningShown = false, checkCount = 0, isPageLoaded = false;
-    function showDevToolsWarning() {
-        if (warningShown || document.getElementById('devtools-warning')) return;
-        warningShown = true;
-        var overlay = document.createElement('div');
-        overlay.id = 'devtools-warning';
-        overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;background:rgba(15,23,42,0.95)!important;backdrop-filter:blur(10px)!important;z-index:999999!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;padding:20px!important;color:white!important;font-family:"Tajawal",sans-serif!important;pointer-events:all!important;';
-        overlay.innerHTML = '<div style="max-width:400px;width:100%;"><div style="font-size:4rem;margin-bottom:20px;">🚫</div><h2 style="font-size:1.5rem;margin-bottom:10px;color:white;">أدوات المطور غير مسموح بها</h2><p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;line-height:1.8;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p><button onclick="window.closeDevToolsWarning()" style="padding:12px 40px;background:linear-gradient(135deg,#d4af5a,#b8943a);color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;font-size:1rem;font-family:Tajawal,sans-serif;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(212,175,90,0.3);" onmouseover="this.style.transform=scale(1.05)" onmouseout="this.style.transform=scale(1)">✅ تم الإغلاق</button></div>';
-        document.body.appendChild(overlay);
-        document.body.style.pointerEvents = 'none';
-        document.body.style.overflow = 'hidden';
-        try { console.clear(); } catch(e) {}
-    }
-    window.closeDevToolsWarning = function() {
-        var overlay = document.getElementById('devtools-warning');
-        if (overlay) { overlay.remove(); document.body.style.pointerEvents = 'auto'; document.body.style.overflow = 'auto'; warningShown = false; }
-    };
-    function detectDevTools() {
-        if (!isPageLoaded || warningShown) return;
-        checkCount++;
-        if (checkCount < 3) return;
-        try {
-            var start = performance.now();
-            console.log('%c', '');
-            if (performance.now() - start > 80) { showDevToolsWarning(); return; }
-            var threshold = 120;
-            if ((Math.abs(window.outerWidth - window.innerWidth) > threshold || Math.abs(window.outerHeight - window.innerHeight) > threshold) && checkCount > 5) {
-                showDevToolsWarning();
-            }
-        } catch(e) {}
-    }
-    console.log = function() {}; console.error = function() {}; console.warn = function() {};
-    console.info = function() {}; console.debug = function() {}; console.table = function() {}; console.dir = function() {};
-    document.addEventListener('DOMContentLoaded', function() { isPageLoaded = true; });
-    setTimeout(function() { isPageLoaded = true; }, 2000);
-    setInterval(detectDevTools, 3000);
-    var resizeTimer = null;
-    window.addEventListener('resize', function() { clearTimeout(resizeTimer); resizeTimer = setTimeout(detectDevTools, 400); });
-    if (window.location.href.includes('view-source:') || window.location.href.includes('about:blank')) {
-        window.location.href = window.location.origin + '/';
-    }
-    console.log('%c تم تفعيل الحماية المتقدمة 🔒', 'color: #d4af5a; font-size: 16px; font-weight: bold;');
-})();
-
-// ==================== المتغيرات (الحل النهائي - لا يعتمد على وجود الملفات) ====================
+// ==================== المتغيرات ====================
+// ===== الفصول: 1-10 (باستخدام الأسماء chap1 إلى chap10) =====
 var chaptersData = {};
 
-// إنشاء فصول افتراضية
-var chapterNames = [
-    'أمراض القلب',
-    'أمراض الجهاز التنفسي',
-    'أمراض الجهاز الهضمي',
-    'أمراض الكلى',
-    'أمراض الغدد الصماء',
-    'أمراض الدم',
-    'أمراض الجهاز العصبي',
-    'أمراض الروماتيزم',
-    'أمراض الجلد',  // الفصل التاسع - محذوف
-    'أمراض العظام'
-];
+// قائمة الفصول المتاحة
+var availableChapters = ['chap1', 'chap2', 'chap3', 'chap4', 'chap5', 'chap6', 'chap7', 'chap8', 'chap9', 'chap10'];
 
-// التحقق من وجود المتغيرات في window
-function checkChapterExists(chapterName) {
+// تحميل البيانات من الفصول
+for (var i = 0; i < availableChapters.length; i++) {
+    var key = availableChapters[i];
     try {
-        return window[chapterName] !== undefined && window[chapterName] !== null;
-    } catch(e) {
-        return false;
-    }
-}
-
-// تحميل الفصول: 1-8 و 10 (الفصل 9 محذوف في 2025/2026)
-for (var i = 1; i <= 10; i++) {
-    var key = 'chapter' + i;
-    var defaultData = {
-        name: 'الفصل ' + i + ' - ' + chapterNames[i-1],
-        icon: 'fas fa-book',
-        mcq: [
-            {
-                text: 'سؤال تجريبي للفصل ' + i,
-                translation: 'سؤال تجريبي',
-                options: ['الخيار أ', 'الخيار ب', 'الخيار ج', 'الخيار د'],
-                correct: 'الخيار أ',
-                correctTranslation: 'الخيار أ'
-            }
-        ],
-        truefalse: [
-            {
-                text: 'سؤال صح/خطأ تجريبي للفصل ' + i,
-                translation: 'سؤال صح/خطأ تجريبي',
-                correct: true,
-                correctTranslation: 'صواب'
-            }
-        ],
-        complete: [],
-        explain: [],
-        list: [],
-        situations: []
-    };
-    
-    // إذا كان الفصل 9، استخدم بيانات افتراضية مع ملاحظة
-    if (i === 9) {
-        defaultData.name = 'الفصل 9 - (محذوف في 2025/2026)';
-        defaultData.mcq[0].text = '⚠️ الفصل التاسع تم حذفه في سنة 2025/2026';
-        defaultData.truefalse[0].text = '⚠️ الفصل التاسع تم حذفه في سنة 2025/2026';
-    }
-    
-    try {
-        if (checkChapterExists(key)) {
+        if (window[key] !== undefined && window[key] !== null) {
             chaptersData[key] = window[key];
-            console.log('✅ تم تحميل: ' + key);
+            debugLog('✅ تم تحميل: ' + key);
         } else {
-            chaptersData[key] = defaultData;
-            console.log('⚠️ ' + key + ' غير موجود، استخدام بيانات افتراضية');
+            debugLog('⚠️ ' + key + ' غير موجود');
+            // إنشاء بيانات افتراضية بسيطة للفصل
+            chaptersData[key] = {
+                name: 'الفصل ' + (i + 1) + ' - طب الباطنة',
+                icon: 'fas fa-book',
+                mcq: [],
+                truefalse: [],
+                complete: [],
+                explain: [],
+                list: [],
+                situations: []
+            };
         }
     } catch(e) {
-        chaptersData[key] = defaultData;
-        console.log('⚠️ ' + key + ' خطأ، استخدام بيانات افتراضية');
+        debugError('❌ خطأ في تحميل ' + key + ': ' + e.message);
+        chaptersData[key] = {
+            name: 'الفصل ' + (i + 1) + ' - طب الباطنة',
+            icon: 'fas fa-book',
+            mcq: [],
+            truefalse: [],
+            complete: [],
+            explain: [],
+            list: [],
+            situations: []
+        };
     }
 }
 
-// إضافة ملاحظة حول الفصل التاسع المحذوف
-console.log('%c ⚠️ الفصل التاسع (Chapter 9) تم حذفه في سنة 2025/2026', 'color: #ff6b6b; font-size: 14px; font-weight: bold;');
-console.log('%c 📌 يمكن إضافته مستقبلاً عبر إلغاء التعليق عن <script src="chapter9-internal.js"> وإضافة الملف', 'color: #d4af5a; font-size: 12px;');
-console.log('📚 تم تحميل ' + Object.keys(chaptersData).length + ' فصول');
+debugLog('📚 تم تحميل ' + Object.keys(chaptersData).length + ' فصول');
 
 var currentChapterId = 'all';
 var currentCategory = 'all';
