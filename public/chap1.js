@@ -1,4 +1,4 @@
-const chapter1_internal = {
+var chap1 = {
     name: "❤️ الفصل الأول: Heart and Blood Vessels Diseases",
     icon: "fas fa-heart",
     definitions: [
