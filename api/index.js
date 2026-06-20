@@ -833,22 +833,66 @@ app.delete('/api/admins/:username', verifyToken, isAdmin, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في حذف الأدمن' }); }
 });
 
-// ====================== تحديث بيانات الطالب ======================
+// ====================== تحديث بيانات الطالب (نسخة محسنة) ======================
 app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
         const { studentCode } = req.params;
-        const { profile, subjects, fullName, semester, password } = req.body;
+        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, profile } = req.body;
+        
+        console.log('📝 تحديث الطالب:', studentCode, req.body);
+        
         const updateData = {};
-        if (profile !== undefined) updateData.profile = profile;
-        if (subjects !== undefined) updateData.subjects = subjects;
+        
+        // تحديث كل الحقول لو موجودة
         if (fullName !== undefined) updateData.fullName = fullName;
+        if (username !== undefined) updateData.username = username;
+        if (grade !== undefined) updateData.grade = grade;
         if (semester !== undefined) updateData.semester = semester;
-        if (password !== undefined && password !== '') updateData.password = await hashPassword(password);
-        const updated = await Student.findOneAndUpdate({ studentCode }, { $set: updateData }, { new: true }).select('-password -refreshToken');
-        if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
-        res.json(updated);
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث البيانات' }); }
+        if (subjects !== undefined) updateData.subjects = subjects;
+        
+        // تحديث رقم الجلوس
+        if (newStudentCode !== undefined && newStudentCode !== studentCode) {
+            // التحقق من عدم وجود طالب بنفس رقم الجلوس الجديد
+            const existingCode = await Student.findOne({ studentCode: newStudentCode });
+            if (existingCode) {
+                return res.status(400).json({ error: 'رقم الجلوس مستخدم من قبل' });
+            }
+            updateData.studentCode = newStudentCode;
+        }
+        
+        // تحديث البروفايل
+        if (profile !== undefined) {
+            updateData.profile = {
+                ...(await Student.findOne({ studentCode })?.profile || {}),
+                ...profile
+            };
+        }
+        
+        // تحديث كلمة المرور لو تم إرسالها
+        if (password !== undefined && password !== '') {
+            updateData.password = await hashPassword(password);
+        }
+        
+        console.log('📝 بيانات التحديث:', Object.keys(updateData));
+        
+        const updated = await Student.findOneAndUpdate(
+            { studentCode: studentCode },
+            { $set: updateData },
+            { new: true }
+        ).select('-password -refreshToken');
+        
+        if (!updated) {
+            return res.status(404).json({ error: 'الطالب غير موجود' });
+        }
+        
+        console.log('✅ تم تحديث الطالب:', updated.studentCode);
+        res.json({ success: true, message: 'تم تحديث البيانات بنجاح', student: updated });
+        
+    } catch (error) {
+        console.error('❌ خطأ في تحديث البيانات:', error);
+        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' + error.message });
+    }
 });
 
 
