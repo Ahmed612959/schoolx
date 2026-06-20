@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>نتايج الطلاب - معهد رعاية الضبعية</title>
-     <script src="security1.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
     <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
@@ -12,14 +11,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
-        /* ========== الاستايل الجديد ========== */
         @font-face {
             font-family: 'Cairo';
             src: url('Cairo-Regular.ttf') format('truetype');
             font-weight: normal;
             font-style: normal;
         }
-
         @font-face {
             font-family: 'Cairo';
             src: url('Cairo-Bold.ttf') format('truetype');
@@ -229,25 +226,10 @@
             background: #f0f0f0;
         }
 
-        th:nth-child(1), td:nth-child(1) {
-            width: 40%;
-            min-width: 160px;
-        }
-
-        th:nth-child(2), td:nth-child(2) {
-            width: 30%;
-            min-width: 120px;
-        }
-
-        th:nth-child(3), td:nth-child(3) {
-            width: 15%;
-            min-width: 60px;
-        }
-
-        th:nth-child(4), td:nth-child(4) {
-            width: 15%;
-            min-width: 60px;
-        }
+        th:nth-child(1), td:nth-child(1) { width: 40%; min-width: 160px; }
+        th:nth-child(2), td:nth-child(2) { width: 30%; min-width: 120px; }
+        th:nth-child(3), td:nth-child(3) { width: 15%; min-width: 60px; }
+        th:nth-child(4), td:nth-child(4) { width: 15%; min-width: 60px; }
 
         .table-separator {
             border: none;
@@ -259,7 +241,6 @@
             margin-right: auto;
         }
 
-        /* ========== الناف بار المحسن ========== */
         .nav-bar {
             background: #1a2526;
             display: flex;
@@ -294,31 +275,16 @@
             position: relative;
         }
 
-        .nav-bar a i {
-            font-size: 1.3em;
-            transition: transform 0.3s ease;
-        }
-
-        .nav-bar a span {
-            font-size: 0.6em;
-            opacity: 0.9;
-        }
+        .nav-bar a i { font-size: 1.3em; transition: transform 0.3s ease; }
+        .nav-bar a span { font-size: 0.6em; opacity: 0.9; }
 
         .nav-bar a:hover {
             color: #fff;
             background: rgba(212, 175, 55, 0.15);
             transform: translateY(-2px);
         }
-
-        .nav-bar a:hover i {
-            transform: scale(1.1);
-        }
-
-        .nav-bar a.active {
-            color: #fff;
-            background: rgba(212, 175, 55, 0.2);
-        }
-
+        .nav-bar a:hover i { transform: scale(1.1); }
+        .nav-bar a.active { color: #fff; background: rgba(212, 175, 55, 0.2); }
         .nav-bar a.active::before {
             content: '';
             position: absolute;
@@ -331,7 +297,6 @@
             border-radius: 0 0 3px 3px;
         }
 
-        /* ===== الفوتر ===== */
         footer {
             background: #1a2526;
             color: #d4af37;
@@ -371,24 +336,16 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.1); }
         }
-
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
 
-        /* ===== جداول المخالفات والإشعارات ===== */
         .violations-section, .notifications-section {
             margin-bottom: 15px;
             text-align: center;
         }
-
-        .violations-section h3 {
-            font-size: 0.85em;
-            margin-bottom: 8px;
-            color: #1a2526;
-            font-weight: bold;
-        }
+        .violations-section h3 { font-size: 0.85em; margin-bottom: 8px; color: #1a2526; font-weight: bold; }
 
         .violations-table, .notifications-table {
             width: 100%;
@@ -396,7 +353,6 @@
             overflow-x: auto;
             display: block;
         }
-
         .violations-table table, .notifications-table table {
             width: 100%;
             max-width: 100%;
@@ -406,20 +362,15 @@
             overflow: hidden;
             table-layout: fixed;
         }
-
-        .violations-table th,
-        .violations-table td,
-        .notifications-table th,
-        .notifications-table td {
+        .violations-table th, .violations-table td,
+        .notifications-table th, .notifications-table td {
             padding: 5px;
             text-align: center;
             border-bottom: 1px solid #d4af37;
             font-size: 0.7em;
             vertical-align: middle;
         }
-
-        .violations-table th,
-        .notifications-table th {
+        .violations-table th, .notifications-table th {
             background: linear-gradient(90deg, #1a2526, #2f3b3c);
             color: #d4af37;
             font-weight: bold;
@@ -427,45 +378,13 @@
             top: 0;
             z-index: 1;
         }
+        .violations-table td, .notifications-table td { color: #1a2526; background: #fff; }
+        .violations-table th:nth-child(1), .violations-table td:nth-child(1) { width: 15%; min-width: 40px; }
+        .violations-table th:nth-child(2), .violations-table td:nth-child(2) { width: 35%; min-width: 80px; white-space: normal; max-width: 150px; word-wrap: break-word; }
+        .violations-table th:nth-child(3), .violations-table td:nth-child(3) { width: 30%; min-width: 70px; white-space: normal; max-width: 150px; word-wrap: break-word; }
+        .violations-table th:nth-child(4), .violations-table td:nth-child(4) { width: 10%; min-width: 30px; }
+        .violations-table th:nth-child(5), .violations-table td:nth-child(5) { width: 20%; min-width: 50px; }
 
-        .violations-table td,
-        .notifications-table td {
-            color: #1a2526;
-            background: #fff;
-        }
-
-        .violations-table th:nth-child(1), .violations-table td:nth-child(1) {
-            width: 15%;
-            min-width: 40px;
-        }
-
-        .violations-table th:nth-child(2), .violations-table td:nth-child(2) {
-            width: 35%;
-            min-width: 80px;
-            white-space: normal;
-            max-width: 150px;
-            word-wrap: break-word;
-        }
-
-        .violations-table th:nth-child(3), .violations-table td:nth-child(3) {
-            width: 30%;
-            min-width: 70px;
-            white-space: normal;
-            max-width: 150px;
-            word-wrap: break-word;
-        }
-
-        .violations-table th:nth-child(4), .violations-table td:nth-child(4) {
-            width: 10%;
-            min-width: 30px;
-        }
-
-        .violations-table th:nth-child(5), .violations-table td:nth-child(5) {
-            width: 20%;
-            min-width: 50px;
-        }
-
-        /* ===== لوحة التحكم ===== */
         .student-dashboard {
             background: #fff;
             padding: 20px;
@@ -475,44 +394,13 @@
             border: 1px solid #d4af37;
             max-width: 800px;
         }
+        .student-dashboard h2 { font-size: 1.5em; color: #1a2526; margin-bottom: 15px; text-align: center; }
+        .dashboard-content { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; }
+        .stats { flex: 1; min-width: 200px; }
+        .stats p { font-size: 1em; color: #1a2526; margin: 10px 0; }
+        .chart-container { flex: 2; min-width: 300px; max-width: 600px; margin: 0 auto; }
+        canvas#gradesChart { max-height: 350px; }
 
-        .student-dashboard h2 {
-            font-size: 1.5em;
-            color: #1a2526;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-
-        .dashboard-content {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: space-between;
-        }
-
-        .stats {
-            flex: 1;
-            min-width: 200px;
-        }
-
-        .stats p {
-            font-size: 1em;
-            color: #1a2526;
-            margin: 10px 0;
-        }
-
-        .chart-container {
-            flex: 2;
-            min-width: 300px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        canvas#gradesChart {
-            max-height: 350px;
-        }
-
-        /* ===== إحصائيات الحضور ===== */
         .attendance-stats-section {
             background: #fff;
             border-radius: 12px;
@@ -522,537 +410,85 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             display: block !important;
         }
-
-        .attendance-stats-section h2 {
-            color: #1a2526;
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-
-        .attendance-stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            border-radius: 12px;
-            background: #f8f9fa;
-            transition: transform 0.3s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-3px);
-        }
-
+        .attendance-stats-section h2 { color: #1a2526; font-size: 1.2rem; margin-bottom: 15px; text-align: center; }
+        .attendance-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { display: flex; align-items: center; gap: 15px; padding: 15px; border-radius: 12px; background: #f8f9fa; transition: transform 0.3s; }
+        .stat-card:hover { transform: translateY(-3px); }
         .stat-card.present { border-right: 4px solid #28a745; }
         .stat-card.absent { border-right: 4px solid #dc3545; }
         .stat-card.late { border-right: 4px solid #ffc107; }
         .stat-card.percentage { border-right: 4px solid #d4af37; }
-
-        .stat-icon {
-            font-size: 2rem;
-        }
-
+        .stat-icon { font-size: 2rem; }
         .stat-card.present .stat-icon { color: #28a745; }
         .stat-card.absent .stat-icon { color: #dc3545; }
         .stat-card.late .stat-icon { color: #ffc107; }
         .stat-card.percentage .stat-icon { color: #d4af37; }
-
-        .stat-number {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #1a2526;
-        }
-
-        .stat-label {
-            font-size: 0.85rem;
-            color: #666;
-        }
-
-        .attendance-dates {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-        }
-
-        .date-card {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-
+        .stat-number { font-size: 1.8rem; font-weight: bold; color: #1a2526; }
+        .stat-label { font-size: 0.85rem; color: #666; }
+        .attendance-dates { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; padding-top: 15px; border-top: 1px solid #eee; }
+        .date-card { display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: #f8f9fa; border-radius: 8px; font-size: 0.9rem; }
         .date-card i.fa-calendar-check { color: #28a745; }
         .date-card i.fa-calendar-times { color: #dc3545; }
+        .no-attendance-message { text-align: center; padding: 20px; background: #fff3cd; border-radius: 10px; color: #856404; margin-top: 15px; display: block !important; }
 
-        .no-attendance-message {
-            text-align: center;
-            padding: 20px;
-            background: #fff3cd;
-            border-radius: 10px;
-            color: #856404;
-            margin-top: 15px;
-            display: block !important;
-        }
+        .field-error { border-color: #ff4757 !important; animation: shake 0.5s ease-in-out; box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.2) !important; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .pointing { animation: point 0.5s ease; }
+        @keyframes point { 0% { transform: rotate(0deg); } 50% { transform: rotate(-40deg); } 100% { transform: rotate(0deg); } }
 
-        .field-error {
-            border-color: #ff4757 !important;
-            animation: shake 0.5s ease-in-out;
-            box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.2) !important;
-        }
+        .guide-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 99999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .guide-overlay.show { display: flex; }
+        .guide-card { background: white; border-radius: 28px; max-width: 480px; width: 92%; padding: 35px 30px; text-align: center; box-shadow: 0 30px 60px rgba(0,0,0,0.4); border: 2px solid #d4af37; }
+        .guide-icon { width: 80px; height: 80px; background: linear-gradient(135deg, #1a2526, #2f3b3c); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; border: 3px solid #d4af37; }
+        .guide-icon i { font-size: 2.8rem; color: #d4af37; }
+        .guide-card h2 { color: #1a2526; font-size: 1.5rem; margin-bottom: 10px; font-weight: 700; }
+        .guide-card p { color: #475569; font-size: 1rem; line-height: 1.8; margin-bottom: 15px; }
+        .guide-actions { display: flex; gap: 12px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+        .guide-btn { padding: 10px 28px; border: none; border-radius: 50px; font-weight: 700; font-size: 0.95rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        .guide-btn-primary { background: linear-gradient(135deg, #d4af37, #c29d45); color: #1a2526; }
+        .guide-btn-secondary { background: #1a2526; color: #d4af37; }
 
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-
-        .pointing {
-            animation: point 0.5s ease;
-        }
-
-        @keyframes point {
-            0% { transform: rotate(0deg); }
-            50% { transform: rotate(-40deg); }
-            100% { transform: rotate(0deg); }
-        }
-
-        /* ===== المرشد الجديد ===== */
-        .guide-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.75);
-            z-index: 99999;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(6px);
-            animation: fadeInGuide 0.5s ease;
-        }
-
-        .guide-overlay.show {
-            display: flex;
-        }
-
-        @keyframes fadeInGuide {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        .guide-card {
-            background: white;
-            border-radius: 28px;
-            max-width: 480px;
-            width: 92%;
-            padding: 35px 30px;
-            text-align: center;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
-            position: relative;
-            overflow: hidden;
-            border: 2px solid #d4af37;
-        }
-
-        .guide-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 5px;
-            background: linear-gradient(90deg, #d4af37, #f0d080, #d4af37);
-        }
-
-        .guide-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #1a2526, #2f3b3c);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            border: 3px solid #d4af37;
-        }
-
-        .guide-icon i {
-            font-size: 2.8rem;
-            color: #d4af37;
-        }
-
-        .guide-card h2 {
-            color: #1a2526;
-            font-size: 1.5rem;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-
-        .guide-card p {
-            color: #475569;
-            font-size: 1rem;
-            line-height: 1.8;
-            margin-bottom: 15px;
-        }
-
-        .guide-card .highlight-box {
-            background: #f8fafc;
-            border-radius: 16px;
-            padding: 15px 20px;
-            margin: 15px 0;
-            border-right: 4px solid #d4af37;
-            text-align: right;
-        }
-
-        .guide-card .highlight-box .year-badge {
-            display: inline-block;
-            background: #1a2526;
-            color: #d4af37;
-            padding: 4px 16px;
-            border-radius: 50px;
-            font-weight: bold;
-            font-size: 0.85rem;
-            margin: 0 5px;
-        }
-
-        .guide-card .highlight-box .arrow-icon {
-            color: #d4af37;
-            font-size: 1.2rem;
-            margin: 0 8px;
-        }
-
-        .guide-timer {
-            display: inline-block;
-            background: #1a2526;
-            color: #d4af37;
-            padding: 4px 18px;
-            border-radius: 50px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            margin-top: 5px;
-        }
-
-        .guide-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .guide-btn {
-            padding: 10px 28px;
-            border: none;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .guide-btn-primary {
-            background: linear-gradient(135deg, #d4af37, #c29d45);
-            color: #1a2526;
-        }
-
-        .guide-btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
-        }
-
-        .guide-btn-secondary {
-            background: #1a2526;
-            color: #d4af37;
-        }
-
-        .guide-btn-secondary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-
-        .guide-btn i {
-            font-size: 1rem;
-        }
-
-        .guide-progress {
-            width: 100%;
-            height: 4px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            margin-top: 20px;
-            overflow: hidden;
-        }
-
-        .guide-progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #d4af37, #f0d080);
-            border-radius: 4px;
-            width: 100%;
-            animation: progressShrink 20s linear forwards;
-        }
-
-        @keyframes progressShrink {
-            from { width: 100%; }
-            to { width: 0%; }
-        }
-
-        /* ===== التوافق مع الشاشات الصغيرة ===== */
-        @media (max-width: 1200px) {
-            .result-form-container {
-                max-width: 1100px;
-            }
-            th, td {
-                font-size: 12px;
-                padding: 10px;
-            }
-            th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 140px; }
-            th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 110px; }
-            th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
-            th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
-
-            .violations-table th,
-            .violations-table td {
-                font-size: 0.65em;
-                padding: 4px;
-            }
-        }
+        #guidedTour { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        #guidedTour > div { background: white; border-radius: 28px; max-width: 400px; width: 90%; padding: 35px; text-align: center; animation: fadeInUp 0.4s ease; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
         @media (max-width: 768px) {
-            .logo {
-                width: 18%;
-                max-width: 70px;
-                min-width: 45px;
-            }
-            .main-header h1 {
-                font-size: 1.1em;
-            }
-            .result-form-container {
-                padding: 12px;
-                max-width: 100%;
-            }
-            .input-group input {
-                font-size: 0.9em;
-            }
-            .submit-btn {
-                font-size: 0.9em;
-                padding: 8px 12px;
-            }
-            th, td {
-                font-size: 10px;
-                padding: 8px;
-            }
-            th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 120px; }
-            th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 100px; }
-            th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; }
-            th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; }
-
-            .main-container {
-                padding-bottom: 100px;
-            }
-
-            .nav-bar {
-                width: 95%;
-                padding: 10px 12px;
-                bottom: 8px;
-                border-radius: 40px;
-                gap: 2px;
-            }
-
-            .nav-bar a {
-                font-size: 0.7em;
-                padding: 4px 8px;
-            }
-
-            .nav-bar a i {
-                font-size: 1.1em;
-            }
-
-            .nav-bar a span {
-                font-size: 0.5em;
-            }
-
-            footer {
-                width: 95%;
-                bottom: 68px;
-                padding: 6px 12px;
-                border-radius: 25px;
-            }
-
-            footer p {
-                font-size: 0.65em;
-            }
-
-            .violations-section h3 {
-                font-size: 0.8em;
-            }
-            .violations-table th,
-            .violations-table td {
-                font-size: 0.6em;
-                padding: 3px;
-            }
-
-            .attendance-stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            .stat-number {
-                font-size: 1.4rem;
-            }
-            .attendance-dates {
-                flex-direction: column;
-            }
-
-            .guide-card {
-                padding: 25px 20px;
-            }
-            .guide-card h2 {
-                font-size: 1.2rem;
-            }
-            .guide-card p {
-                font-size: 0.9rem;
-            }
+            .logo { width: 18%; max-width: 70px; min-width: 45px; }
+            .main-header h1 { font-size: 1.1em; }
+            .result-form-container { padding: 12px; max-width: 100%; }
+            .input-group input { font-size: 0.9em; }
+            .submit-btn { font-size: 0.9em; padding: 8px 12px; }
+            th, td { font-size: 10px; padding: 8px; }
+            .nav-bar { width: 95%; padding: 10px 12px; bottom: 8px; border-radius: 40px; gap: 2px; }
+            .nav-bar a { font-size: 0.7em; padding: 4px 8px; }
+            .nav-bar a i { font-size: 1.1em; }
+            .nav-bar a span { font-size: 0.5em; }
+            footer { width: 95%; bottom: 68px; padding: 6px 12px; border-radius: 25px; }
+            footer p { font-size: 0.65em; }
+            .attendance-stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .stat-number { font-size: 1.4rem; }
+            .attendance-dates { flex-direction: column; }
+            .guide-card { padding: 25px 20px; }
+            .guide-card h2 { font-size: 1.2rem; }
+            .guide-card p { font-size: 0.9rem; }
         }
-
         @media (max-width: 480px) {
-            .logo {
-                width: 22%;
-                max-width: 60px;
-                min-width: 40px;
-            }
-            .main-header h1 {
-                font-size: 0.95em;
-            }
-            .result-form-container {
-                padding: 10px;
-            }
-            .input-group input {
-                font-size: 0.85em;
-            }
-            .submit-btn {
-                font-size: 0.85em;
-                padding: 7px 10px;
-            }
-            th, td {
-                font-size: 9px;
-                padding: 6px;
-            }
-            th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 100px; }
-            th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 80px; }
-            th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 40px; }
-            th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 40px; }
-
-            .main-container {
-                padding-bottom: 100px;
-            }
-
-            .nav-bar {
-                width: 98%;
-                padding: 8px 6px;
-                bottom: 5px;
-                border-radius: 30px;
-                gap: 1px;
-            }
-
-            .nav-bar a {
-                font-size: 0.6em;
-                padding: 3px 5px;
-            }
-
-            .nav-bar a i {
-                font-size: 0.9em;
-            }
-
-            .nav-bar a span {
-                display: none;
-            }
-
-            footer {
-                width: 98%;
-                bottom: 58px;
-                padding: 5px 8px;
-                border-radius: 20px;
-            }
-
-            footer p {
-                font-size: 0.55em;
-            }
-
-            .violations-section h3 {
-                font-size: 0.75em;
-            }
-            .violations-table {
-                overflow-x: auto;
-                white-space: nowrap;
-            }
-            .violations-table table {
-                min-width: 300px;
-            }
-            .violations-table th,
-            .violations-table td {
-                font-size: 0.55em;
-                padding: 2px;
-            }
-
-            .guide-card {
-                padding: 20px 15px;
-            }
-            .guide-card h2 {
-                font-size: 1rem;
-            }
-            .guide-card p {
-                font-size: 0.8rem;
-            }
-            .guide-btn {
-                padding: 8px 18px;
-                font-size: 0.8rem;
-            }
-        }
-
-        /* ===== نافذة المكتبة ===== */
-        #guidedTour {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.85);
-            z-index: 100000;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(5px);
-        }
-
-        #guidedTour > div {
-            background: white;
-            border-radius: 28px;
-            max-width: 400px;
-            width: 90%;
-            padding: 35px;
-            text-align: center;
-            animation: fadeInUp 0.4s ease;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            .logo { width: 22%; max-width: 60px; min-width: 40px; }
+            .main-header h1 { font-size: 0.95em; }
+            .result-form-container { padding: 10px; }
+            .input-group input { font-size: 0.85em; }
+            .submit-btn { font-size: 0.85em; padding: 7px 10px; }
+            th, td { font-size: 9px; padding: 6px; }
+            .nav-bar { width: 98%; padding: 8px 6px; bottom: 5px; border-radius: 30px; gap: 1px; }
+            .nav-bar a { font-size: 0.6em; padding: 3px 5px; }
+            .nav-bar a i { font-size: 0.9em; }
+            .nav-bar a span { display: none; }
+            footer { width: 98%; bottom: 58px; padding: 5px 8px; border-radius: 20px; }
+            footer p { font-size: 0.55em; }
+            .guide-card { padding: 20px 15px; }
+            .guide-card h2 { font-size: 1rem; }
+            .guide-card p { font-size: 0.8rem; }
+            .guide-btn { padding: 8px 18px; font-size: 0.8rem; }
         }
     </style>
 </head>
@@ -1152,97 +588,34 @@
         </div>
     </div>
 
-    <!-- الفوتر -->
     <footer>
         <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
     </footer>
 
-    <!-- الناف بار المحسن -->
     <nav class="nav-bar" id="nav-bar">
-        <a href="#" class="active" data-page="home">
-            <i class="fas fa-home"></i>
-            <span>الرئيسية</span>
-        </a>
-        <a href="#" data-page="results">
-            <i class="fas fa-graduation-cap"></i>
-            <span>النتائج</span>
-        </a>
-        <a href="#" data-page="library">
-            <i class="fas fa-folder-open"></i>
-            <span>المكتبة</span>
-        </a>
-        <a href="#" data-page="attendance">
-            <i class="fas fa-calendar-check"></i>
-            <span>الحضور</span>
-        </a>
-        <a href="#" data-page="profile">
-            <i class="fas fa-user"></i>
-            <span>الملف</span>
-        </a>
+        <a href="#" class="active" data-page="home"><i class="fas fa-home"></i><span>الرئيسية</span></a>
+        <a href="#" data-page="results"><i class="fas fa-graduation-cap"></i><span>النتائج</span></a>
+        <a href="#" data-page="library"><i class="fas fa-folder-open"></i><span>المكتبة</span></a>
+        <a href="#" data-page="attendance"><i class="fas fa-calendar-check"></i><span>الحضور</span></a>
+        <a href="#" data-page="profile"><i class="fas fa-user"></i><span>الملف</span></a>
     </nav>
 
-    <!-- ===== المرشد الجديد ===== -->
     <div class="guide-overlay show" id="guideOverlay">
         <div class="guide-card">
-            <div class="guide-icon">
-                <i class="fas fa-compass"></i>
-            </div>
+            <div class="guide-icon"><i class="fas fa-compass"></i></div>
             <h2>👋 مرحباً بك في صفحة النتائج</h2>
-            <p>
-                هذه الصفحة مخصصة لعرض نتائج <strong>السنة الثانية</strong> فقط
-            </p>
-            <div class="highlight-box">
-                <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px;">
-                    <span>📘 طلاب السنة الأولى</span>
-                    <span class="arrow-icon"><i class="fas fa-arrow-left"></i></span>
-                    <span class="year-badge">السنة الأولى</span>
-                    <span class="arrow-icon"><i class="fas fa-arrow-left"></i></span>
-                    <span style="color: #d4af37; font-weight: bold; cursor: pointer;" id="guideClickHere">اضغط هنا</span>
-                </div>
-                <p style="margin-top: 10px; font-size: 0.9rem; color: #334155;">
-                    <i class="fas fa-hand-point-left" style="color: #d4af37;"></i>
-                    يمكنك التبديل بين صفحات النتائج من خلال <strong>شريط التنقل السفلي</strong>
-                </p>
-            </div>
-            <div>
-                <span class="guide-timer"><i class="fas fa-hourglass-half"></i> سيختفي خلال 20 ثانية</span>
-            </div>
+            <p>هذه الصفحة مخصصة لعرض نتائج <strong>السنة الثانية</strong> فقط</p>
             <div class="guide-actions">
-                <button class="guide-btn guide-btn-primary" id="guideGotIt">
-                    <i class="fas fa-check"></i> فهمت
-                </button>
-                <button class="guide-btn guide-btn-secondary" id="guideFirstYear">
-                    <i class="fas fa-arrow-right"></i> اذهب لنتائج الأولى
-                </button>
-            </div>
-            <div class="guide-progress">
-                <div class="guide-progress-bar" id="guideProgressBar"></div>
+                <button class="guide-btn guide-btn-primary" id="guideGotIt"><i class="fas fa-check"></i> فهمت</button>
+                <button class="guide-btn guide-btn-secondary" id="guideFirstYear"><i class="fas fa-arrow-right"></i> اذهب لنتائج الأولى</button>
             </div>
         </div>
     </div>
 
-    <!-- نافذة المكتبة -->
     <div id="guidedTour" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-        <div style="background: white; border-radius: 28px; max-width: 400px; width: 90%; padding: 35px; text-align: center; animation: fadeInUp 0.4s ease; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
-            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #1e3c4a, #0f2c38); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                <i class="fas fa-folder-open" style="font-size: 2.5rem; color: #d4af37;"></i>
-            </div>
-            <h3 style="color: #1a2e36; margin-bottom: 10px; font-size: 1.4rem;">📚 مكتبة الملفات التعليمية</h3>
-            <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6;">
-                تم إضافة <strong style="color: #d4af37;">مكتبة متكاملة</strong> جديدة تحتوي على جميع المذكرات والكتب والملفات التعليمية!
-            </p>
-            <div style="background: #f8fafc; border-radius: 20px; padding: 20px; margin: 20px 0;">
-                <div style="background: #1e3c4a; border-radius: 50px; padding: 12px; margin-bottom: 15px;">
-                    <i class="fas fa-folder-open" style="color: #d4af37; font-size: 1.2rem;"></i>
-                    <span style="color: white; margin-right: 10px;">أيقونة المكتبة في شريط التنقل</span>
-                </div>
-                <p style="font-size: 0.85rem; color: #1a2e36;">
-                    يمكنك الوصول إليها من خلال أيقونة <strong><i class="fas fa-folder-open"></i> "المكتبة"</strong> في شريط التنقل السفلي
-                </p>
-            </div>
-            <div style="background: #f0fdf4; border-radius: 16px; padding: 12px; margin: 15px 0;">
-                <p style="font-size: 0.85rem; color: #2d6a4f;">📖 تحتوي المكتبة على مذكرات وملفات لكل الصفوف (الأول والثاني والثالث)</p>
-            </div>
+        <div style="background: white; border-radius: 28px; max-width: 400px; width: 90%; padding: 35px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+            <h3>📚 مكتبة الملفات التعليمية</h3>
+            <p>تم إضافة مكتبة متكاملة جديدة تحتوي على جميع المذكرات والكتب والملفات التعليمية!</p>
             <div style="display: flex; gap: 12px; margin-top: 20px;">
                 <button id="closeTourBtn" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #d4af37, #c29d45); border: none; border-radius: 50px; color: #1a2e36; font-weight: 700; cursor: pointer;">حسناً، فهمت</button>
                 <button id="gotoLibraryBtn" style="flex: 1; padding: 12px; background: #1e3c4a; border: none; border-radius: 50px; color: #d4af37; font-weight: 700; cursor: pointer;">اذهب إلى المكتبة</button>
@@ -1252,55 +625,16 @@
     </div>
 
     <script>
-        // ===== المرشد =====
         document.addEventListener('DOMContentLoaded', function() {
             const guideOverlay = document.getElementById('guideOverlay');
             const guideGotIt = document.getElementById('guideGotIt');
             const guideFirstYear = document.getElementById('guideFirstYear');
-            const guideClickHere = document.getElementById('guideClickHere');
-            const guideProgressBar = document.getElementById('guideProgressBar');
             let guideTimeout = null;
-
-            // إظهار المرشد
             guideOverlay.classList.add('show');
-
-            // إخفاء بعد 20 ثانية
-            guideTimeout = setTimeout(function() {
-                guideOverlay.classList.remove('show');
-                guideOverlay.style.display = 'none';
-            }, 20000);
-
-            // زر "فهمت"
-            guideGotIt.addEventListener('click', function() {
-                clearTimeout(guideTimeout);
-                guideOverlay.classList.remove('show');
-                guideOverlay.style.display = 'none';
-            });
-
-            // زر "اذهب لنتائج الأولى"
-            guideFirstYear.addEventListener('click', function() {
-                clearTimeout(guideTimeout);
-                guideOverlay.classList.remove('show');
-                guideOverlay.style.display = 'none';
-                window.location.href = 'First-Gards.html';
-            });
-
-            // النص "اضغط هنا"
-            guideClickHere.addEventListener('click', function() {
-                clearTimeout(guideTimeout);
-                guideOverlay.classList.remove('show');
-                guideOverlay.style.display = 'none';
-                window.location.href = 'First-Gards.html';
-            });
-
-            // إيقاف المؤقت إذا تم الضغط على أي مكان خارج البطاقة
-            guideOverlay.addEventListener('click', function(e) {
-                if (e.target === guideOverlay) {
-                    clearTimeout(guideTimeout);
-                    guideOverlay.classList.remove('show');
-                    guideOverlay.style.display = 'none';
-                }
-            });
+            guideTimeout = setTimeout(function() { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; }, 20000);
+            guideGotIt.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
+            guideFirstYear.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
+            guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; } });
         });
     </script>
     <script src="Home.js"></script>
