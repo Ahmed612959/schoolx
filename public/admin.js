@@ -365,7 +365,7 @@ async function loadInitialData() {
     showToast('جاري تحميل البيانات...', 'info');
     allStudents = await getFromServer('/api/admin/students');
     admins = await getFromServer('/api/admins');
-    violations = await getFromServer('/api/admin/violations');
+  violations = await getFromServer('/api/violations');
     await loadNotifications();
     studentsWithGrades = getStudentsWithGrades(allStudents);
     renderAdmins();
