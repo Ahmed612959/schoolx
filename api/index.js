@@ -1900,6 +1900,107 @@ app.get('*', (req, res) => {
         endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
     });
 });
+
+
+// ====================== ✅ رفع الدرجات من Excel ======================
+app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { students } = req.body;
+        
+        if (!students || !Array.isArray(students) || students.length === 0) {
+            return res.status(400).json({ error: 'لا توجد بيانات صالحة للرفع' });
+        }
+        
+        let updatedCount = 0;
+        let addedCount = 0;
+        const errors = [];
+        
+        for (const studentData of students) {
+            try {
+                const { studentCode, fullName, subjects, grade, semester } = studentData;
+                
+                if (!studentCode || !fullName) {
+                    errors.push(`تخطي صف: بيانات غير مكتملة`);
+                    continue;
+                }
+                
+                let student = await Student.findOne({ studentCode });
+                
+                if (student) {
+                    // تحديث الطالب الموجود
+                    await Student.updateOne(
+                        { studentCode },
+                        { 
+                            $set: { 
+                                fullName, 
+                                subjects: subjects || [], 
+                                grade: grade || student.grade || 'first',
+                                semester: semester || student.semester || 'first'
+                            } 
+                        }
+                    );
+                    updatedCount++;
+                } else {
+                    // إنشاء طالب جديد
+                    const defaultPassword = await hashPassword('123456');
+                    const newStudent = new Student({
+                        fullName,
+                        studentCode,
+                        username: studentCode,
+                        password: defaultPassword,
+                        grade: grade || 'first',
+                        semester: semester || 'first',
+                        subjects: subjects || [],
+                        role: 'student'
+                    });
+                    await newStudent.save();
+                    addedCount++;
+                }
+            } catch (err) {
+                errors.push(`خطأ في معالجة الطالب ${studentData.studentCode}: ${err.message}`);
+                console.error(`❌ خطأ في طالب ${studentData.studentCode}:`, err.message);
+            }
+        }
+        
+        res.json({ 
+            success: true, 
+            message: `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد`,
+            updated: updatedCount,
+            added: addedCount,
+            errors: errors.length > 0 ? errors : undefined
+        });
+        
+    } catch (error) {
+        console.error('❌ Upload grades error:', error);
+        res.status(500).json({ error: 'خطأ في رفع الدرجات: ' + error.message });
+    }
+});
+
+// ====================== ✅ جلب مخالفات طالب محدد ======================
+app.get('/api/violations/student/:studentId', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { studentId } = req.params;
+        
+        // الطالب يشوف مخالفاته هو بس
+        if (req.user.type === 'student' && req.user.studentCode !== studentId) {
+            return res.status(403).json({ error: 'لا يمكنك عرض مخالفات طالب آخر' });
+        }
+        
+        const violations = await Violation.find({ studentId }).sort({ createdAt: -1 });
+        res.json(violations);
+    } catch (error) {
+        console.error('❌ خطأ في جلب مخالفات الطالب:', error);
+        res.status(500).json({ error: 'خطأ في جلب المخالفات' });
+    }
+});
+
+
+
+
+
+
 // ====================== Error Handling ======================
 app.use((err, req, res, next) => {
     console.error('❌ Unhandled Error:', err);
