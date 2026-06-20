@@ -1,4 +1,4 @@
-// admin.js - النسخة الكاملة المعدلة (الترمين معًا)
+// admin.js - النسخة الكاملة النهائية مع جميع التصليحات
 
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://localhost:3000' 
@@ -163,6 +163,28 @@ const ORDERED_SUBJECTS_SECOND = [
     "الإحصاء"
 ];
 
+// ✅ دالة توحيد أسماء المواد (تحويل الأسماء القديمة للجديدة)
+function normalizeSubjectName(name) {
+    if (!name) return '';
+    const mapping = {
+        'التربية الدينية': 'الدين',
+        'تربية دينية': 'الدين',
+        'دين': 'الدين',
+        'الكمبيوتر': 'حاسب آلي',
+        'كمبيوتر': 'حاسب آلي',
+        'الحاسب الآلي': 'حاسب آلي',
+        'الفيزياء': 'فيزياء',
+        'الكيمياء': 'كيمياء',
+        'التمريض الباطني الجراحي': 'تمريض باطني جراحي',
+        'تمريض باطنى جراحي': 'تمريض باطني جراحي',
+        'الطب الباطنة': 'طب باطنة',
+        'العلوم التطبيقية': 'علوم تطبيقية',
+        'الصحة المجتمع': 'صحة مجتمع',
+        'الجراحة العامة': 'جراحة عامة'
+    };
+    return mapping[name.trim()] || name.trim();
+}
+
 // دوال مساعدة للحصول على التكوين المناسب حسب الترم
 function getSubjectConfig(semester) {
     return semester === 'first' ? SUBJECTS_CONFIG_FIRST : SUBJECTS_CONFIG_SECOND;
@@ -181,7 +203,8 @@ function calculateStudentTotal(student) {
     const config = getSubjectConfig(student.semester || 'first');
     let t = 0; 
     student.subjects.forEach(s => { 
-        const c = config[s.name]; 
+        const normalizedName = normalizeSubjectName(s.name);
+        const c = config[normalizedName]; 
         if (c && !c.isExtra) t += s.grade || 0; 
     }); 
     return t; 
@@ -190,7 +213,7 @@ function calculateStudentTotal(student) {
 function calculateStudentPercentage(student) { 
     const total = calculateStudentTotal(student);
     const possible = getTotalPossible(student.semester || 'first');
-    return (total / possible) * 100; 
+    return possible > 0 ? (total / possible) * 100 : 0;
 }
 
 function getStudentFormattedGrades(student) { 
@@ -200,8 +223,13 @@ function getStudentFormattedGrades(student) {
     let g = {}; 
     orderedSubjects.forEach(n => { 
         const c = config[n]; 
-        const sub = student.subjects?.find(s => s.name === n); 
-        g[n] = { grade: sub?.grade || 0, max: c.max, isExtra: c.isExtra || false }; 
+        // ✅ البحث بالاسم الموحد
+        const sub = student.subjects?.find(s => normalizeSubjectName(s.name) === n); 
+        g[n] = { 
+            grade: sub?.grade || 0, 
+            max: c.max, 
+            isExtra: c.isExtra || false 
+        }; 
     }); 
     return g; 
 }
@@ -401,8 +429,13 @@ function renderResults(filter = '') {
         let subjectsHtml = '<div class="subjects-container">';
         for (let n of orderedSubjects) {
             let gi = grades[n];
-            if (gi.isExtra) subjectsHtml += `<div class="extra-subject">📖 ${n}: <strong>${gi.grade}</strong> / ${gi.max} <small>(خارج المجموع)</small></div>`;
-            else subjectsHtml += `<div class="subject-row"><span class="subject-name"><i class="fas fa-book"></i> ${n}</span><span class="subject-grade">${gi.grade} / ${gi.max}</span></div>`;
+            if (gi) {
+                if (gi.isExtra) {
+                    subjectsHtml += `<div class="extra-subject">📖 ${n}: <strong>${gi.grade}</strong> / ${gi.max} <small>(خارج المجموع)</small></div>`;
+                } else {
+                    subjectsHtml += `<div class="subject-row"><span class="subject-name"><i class="fas fa-book"></i> ${n}</span><span class="subject-grade">${gi.grade} / ${gi.max}</span></div>`;
+                }
+            }
         }
         subjectsHtml += '</div>';
         let pClass = percentage >= 85 ? 'excellent' : (percentage >= 75 ? 'very-good' : (percentage >= 65 ? 'good' : (percentage >= 60 ? 'pass' : 'fail')));
@@ -458,23 +491,58 @@ window.editStudent = (code) => {
         document.getElementById('student-name').value = s.fullName; 
         document.getElementById('student-id').value = s.studentCode; 
         document.getElementById('semester').value = s.semester || 'first';
-        // تصفير كل الحقول
-        for (let i = 1; i <= 8; i++) document.getElementById(`subject${i}`).value = 0; 
-        document.getElementById('subject9').value = 0; 
-        document.getElementById('subject10').value = 0; 
-        s.subjects?.forEach(sub => { 
-            if (sub.name === 'مبادئ وأسس تمريض') document.getElementById('subject1').value = sub.grade;
-            else if (sub.name === 'اللغة العربية') document.getElementById('subject2').value = sub.grade;
-            else if (sub.name === 'اللغة الإنجليزية') document.getElementById('subject3').value = sub.grade;
-            else if (sub.name === 'الفيزياء') document.getElementById('subject4').value = sub.grade;
-            else if (sub.name === 'الكيمياء') document.getElementById('subject5').value = sub.grade;
-            else if (sub.name === 'التشريح / علم وظائف الأعضاء') document.getElementById('subject6').value = sub.grade;
-            else if (sub.name === 'التربية الدينية' || sub.name === 'الدين') document.getElementById('subject7').value = sub.grade;
-            else if (sub.name === 'الكمبيوتر') document.getElementById('subject8').value = sub.grade;
-            else if (sub.name === 'التاريخ') document.getElementById('subject9').value = sub.grade;
-            else if (sub.name === 'الجغرافيا') document.getElementById('subject10').value = sub.grade;
-        }); 
+        
+        // تصفير كل الحقول أولاً
+        const allInputs = document.querySelectorAll('#add-result-form input[type="number"]');
+        allInputs.forEach(input => input.value = 0);
+        
+        // تبديل الحقول حسب الترم
         window.toggleSubjects();
+        
+        s.subjects?.forEach(sub => {
+            const normalizedName = normalizeSubjectName(sub.name);
+            const semester = s.semester || 'first';
+            
+            if (semester === 'first') {
+                switch(normalizedName) {
+                    case 'اللغة العربية': document.getElementById('subject2').value = sub.grade; break;
+                    case 'اللغة الإنجليزية': document.getElementById('subject3').value = sub.grade; break;
+                    case 'علوم تطبيقية': document.getElementById('subject4').value = sub.grade; break;
+                    case 'طب باطنة': document.getElementById('subject5').value = sub.grade; break;
+                    case 'تمريض باطني جراحي': document.getElementById('subject6').value = sub.grade; break;
+                    case 'حاسب آلي': document.getElementById('subject8').value = sub.grade; break;
+                    case 'الدين': document.getElementById('subject7').value = sub.grade; break;
+                }
+            } else {
+                switch(normalizedName) {
+                    case 'اللغة العربية': 
+                        const arabicSecond = document.getElementById('subject2-second');
+                        if (arabicSecond) arabicSecond.value = sub.grade;
+                        break;
+                    case 'اللغة الإنجليزية': 
+                        const englishSecond = document.getElementById('subject3-second');
+                        if (englishSecond) englishSecond.value = sub.grade;
+                        break;
+                    case 'تمريض باطني جراحي': 
+                        const nursingSecond = document.getElementById('subject6-second');
+                        if (nursingSecond) nursingSecond.value = sub.grade;
+                        break;
+                    case 'صحة مجتمع': document.getElementById('subject1').value = sub.grade; break;
+                    case 'جراحة عامة': 
+                        const surgerySecond = document.getElementById('subject4-second');
+                        if (surgerySecond) surgerySecond.value = sub.grade;
+                        break;
+                    case 'حاسب آلي': 
+                        const computerSecond = document.getElementById('subject8-second');
+                        if (computerSecond) computerSecond.value = sub.grade;
+                        break;
+                    case 'الإحصاء': 
+                        const statsSecond = document.getElementById('subject5-second');
+                        if (statsSecond) statsSecond.value = sub.grade;
+                        break;
+                }
+            }
+        }); 
         showToast('✏️ قم بتعديل البيانات ثم اضغط حفظ', 'info'); 
         window.scrollTo(0, 0); 
     } 
@@ -487,10 +555,10 @@ document.getElementById('add-result-form')?.addEventListener('submit', async (e)
         code = document.getElementById('student-id').value.trim(), 
         sem = document.getElementById('semester').value; 
     
-    // المواد الأساسية للترمين
     let subjects = [];
     
     if (sem === 'first') {
+        // الترم الأول
         subjects = [
             { name: "اللغة العربية", grade: parseInt(document.getElementById('subject2').value) || 0 },
             { name: "اللغة الإنجليزية", grade: parseInt(document.getElementById('subject3').value) || 0 },
@@ -501,26 +569,41 @@ document.getElementById('add-result-form')?.addEventListener('submit', async (e)
             { name: "الدين", grade: parseInt(document.getElementById('subject7').value) || 0 }
         ];
     } else {
+        // الترم الثاني
+        const subject2 = document.getElementById('subject2-second');
+        const subject3 = document.getElementById('subject3-second');
+        const subject6 = document.getElementById('subject6-second');
+        const subject4 = document.getElementById('subject4-second');
+        const subject8 = document.getElementById('subject8-second');
+        const subject5 = document.getElementById('subject5-second');
+        
         subjects = [
-            { name: "اللغة العربية", grade: parseInt(document.getElementById('subject2').value) || 0 },
-            { name: "اللغة الإنجليزية", grade: parseInt(document.getElementById('subject3').value) || 0 },
-            { name: "تمريض باطني جراحي", grade: parseInt(document.getElementById('subject6').value) || 0 },
+            { name: "اللغة العربية", grade: subject2 ? parseInt(subject2.value) || 0 : 0 },
+            { name: "اللغة الإنجليزية", grade: subject3 ? parseInt(subject3.value) || 0 : 0 },
+            { name: "تمريض باطني جراحي", grade: subject6 ? parseInt(subject6.value) || 0 : 0 },
             { name: "صحة مجتمع", grade: parseInt(document.getElementById('subject1').value) || 0 },
-            { name: "جراحة عامة", grade: parseInt(document.getElementById('subject4').value) || 0 },
-            { name: "حاسب آلي", grade: parseInt(document.getElementById('subject8').value) || 0 },
-            { name: "الإحصاء", grade: parseInt(document.getElementById('subject5').value) || 0 }
+            { name: "جراحة عامة", grade: subject4 ? parseInt(subject4.value) || 0 : 0 },
+            { name: "حاسب آلي", grade: subject8 ? parseInt(subject8.value) || 0 : 0 },
+            { name: "الإحصاء", grade: subject5 ? parseInt(subject5.value) || 0 : 0 }
         ];
     }
     
     if (!fn || !code) return showToast('اسم الطالب ورقم الجلوس مطلوبان', 'error'); 
+    
     let existing = allStudents.find(s => s.studentCode === code); 
-    if (existing) await saveToServer(`/api/students/${code}`, { subjects, semester: sem }, 'PUT'); 
-    else await saveToServer('/api/students', { fullName: fn, id: code, subjects, semester: sem }); 
+    if (existing) {
+        await saveToServer(`/api/students/${code}`, { subjects, semester: sem }, 'PUT'); 
+    } else {
+        await saveToServer('/api/students', { fullName: fn, id: code, subjects, semester: sem }); 
+    }
+    
     allStudents = await getFromServer('/api/admin/students'); 
     studentsWithGrades = getStudentsWithGrades(allStudents); 
     renderResults(); 
     renderStats(); 
     e.target.reset(); 
+    document.getElementById('semester').value = 'first';
+    window.toggleSubjects();
     showToast(`✅ ${existing ? 'تم تحديث' : 'تم إضافة'} ${fn}`, 'success'); 
 });
 
@@ -1019,7 +1102,6 @@ window.analyzeExcel = async () => {
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
     
-    // الحصول على الصف المختار
     let gradeSelect = document.getElementById('upload-grade');
     let selectedGrade = gradeSelect ? gradeSelect.value : 'first';
     if (!selectedGrade) selectedGrade = 'first';
@@ -1031,19 +1113,18 @@ window.analyzeExcel = async () => {
                 wb = XLSX.read(data, { type: 'array' }), 
                 rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }); 
             
-            // تجميع بيانات الطلاب لإرسالها دفعة واحدة
             let studentsData = [];
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
                 if (row[0] && row[1]) { 
                     let subjects = []; 
-                    if (row[2]) subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) });
-                    if (row[3]) subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) });
-                    if (row[4]) subjects.push({ name: "علوم تطبيقية", grade: parseFloat(row[4]) });
-                    if (row[5]) subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) });
-                    if (row[6]) subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) });
-                    if (row[7]) subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) });
-                    if (row[8]) subjects.push({ name: "الدين", grade: parseFloat(row[8]) });
+                    if (row[2] !== undefined) subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) || 0 });
+                    if (row[3] !== undefined) subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) || 0 });
+                    if (row[4] !== undefined) subjects.push({ name: "علوم تطبيقية", grade: parseFloat(row[4]) || 0 });
+                    if (row[5] !== undefined) subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) || 0 });
+                    if (row[6] !== undefined) subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) || 0 });
+                    if (row[7] !== undefined) subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) || 0 });
+                    if (row[8] !== undefined) subjects.push({ name: "الدين", grade: parseFloat(row[8]) || 0 });
                     
                     studentsData.push({
                         studentCode: row[0].toString(),
@@ -1060,7 +1141,6 @@ window.analyzeExcel = async () => {
                 return;
             }
             
-            // إرسال البيانات إلى الخادم
             const csrfToken = getCsrfToken();
             const response = await fetch(`${BASE_URL}/api/upload-grades`, {
                 method: 'POST',
@@ -1075,7 +1155,6 @@ window.analyzeExcel = async () => {
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'فشل الرفع');
             
-            // إعادة تحميل البيانات
             allStudents = await getFromServer('/api/admin/students'); 
             studentsWithGrades = getStudentsWithGrades(allStudents); 
             renderResults(); 
@@ -1154,28 +1233,17 @@ function renderNavbar() {
 }
 
 window.toggleSubjects = function() { 
-    let sem = document.getElementById('semester')?.value, 
-        hg = document.getElementById('history-group'), 
-        gg = document.getElementById('geography-group'); 
-    if (hg && gg) { 
-        hg.style.display = sem === 'first' ? 'block' : 'none'; 
-        gg.style.display = sem === 'first' ? 'none' : 'block'; 
-    }
+    const semester = document.getElementById('semester')?.value;
+    const firstFields = document.querySelector('.semester-first-fields');
+    const secondFields = document.querySelector('.semester-second-fields');
     
-    // تحديث أسماء الحقول حسب الترم
-    const labels = {
-        'subject1': sem === 'first' ? '📖 مبادئ وأسس تمريض' : '🏥 صحة مجتمع',
-        'subject4': sem === 'first' ? '⚡ الفيزياء' : '🔪 جراحة عامة',
-        'subject5': sem === 'first' ? '🧪 الكيمياء' : '📊 الإحصاء'
-    };
-    
-    for (const [id, label] of Object.entries(labels)) {
-        const element = document.getElementById(id);
-        if (element) {
-            const labelEl = element.previousElementSibling;
-            if (labelEl && labelEl.tagName === 'LABEL') {
-                labelEl.textContent = label;
-            }
+    if (firstFields && secondFields) {
+        if (semester === 'first') {
+            firstFields.style.display = 'block';
+            secondFields.style.display = 'none';
+        } else {
+            firstFields.style.display = 'none';
+            secondFields.style.display = 'block';
         }
     }
 };
@@ -1185,7 +1253,6 @@ window.toggleSubjects = function() {
 let topStudentsList = [];
 let currentCertificateStudent = null;
 
-// حساب العشرة الأوائل بناءً على النسبة المئوية
 function calculateTopStudents() {
     const studentsWithScores = studentsWithGrades.map(student => ({
         ...student,
@@ -1193,14 +1260,10 @@ function calculateTopStudents() {
         percentage: calculateStudentPercentage(student)
     }));
     
-    // ترتيب تنازلي حسب النسبة
     studentsWithScores.sort((a, b) => b.percentage - a.percentage);
-    
-    // أخذ العشرة الأوائل فقط
     return studentsWithScores.slice(0, 10);
 }
 
-// عرض العشرة الأوائل في واجهة المستخدم
 function renderTopStudents() {
     const container = document.getElementById('top-students-grid');
     if (!container) return;
@@ -1225,7 +1288,7 @@ function renderTopStudents() {
         else if (student.percentage >= 75) percentageClass = 'good';
         
         return `
-            <div class="top-student-card ${rankClass}" data-student='${JSON.stringify(student)}'>
+            <div class="top-student-card ${rankClass}" data-student='${JSON.stringify(student).replace(/'/g, "&#39;")}'>
                 <div class="top-student-rank">${medal} ${rank}</div>
                 <div class="top-student-avatar">
                     <i class="fas fa-user-graduate"></i>
@@ -1246,14 +1309,12 @@ function renderTopStudents() {
     }).join('');
 }
 
-// تحديث قائمة الأوائل
 window.refreshTopStudents = function() {
     showToast('جاري تحديث قائمة الأوائل...', 'info');
     renderTopStudents();
     showToast('✅ تم تحديث قائمة العشرة الأوائل', 'success');
 };
 
-// عرض شهادة تقدير لطالب معين
 window.showCertificate = function(student) {
     currentCertificateStudent = student;
     const container = document.getElementById('certificate-container');
@@ -1320,7 +1381,6 @@ window.showCertificate = function(student) {
     modal.classList.add('show');
 };
 
-// الحصول على النص المناسب للترتيب
 function getRankText(rank) {
     switch(rank) {
         case 1: return 'المركز الأول 🥇';
@@ -1330,14 +1390,12 @@ function getRankText(rank) {
     }
 }
 
-// إغلاق مودال الشهادة
 window.closeCertificateModal = function() {
     const modal = document.getElementById('certificate-modal');
     if (modal) modal.classList.remove('show');
     currentCertificateStudent = null;
 };
 
-// طباعة الشهادة الحالية
 window.printCurrentCertificate = function() {
     const certificateContent = document.getElementById('certificate-to-print');
     if (!certificateContent) return;
@@ -1351,121 +1409,33 @@ window.printCurrentCertificate = function() {
             <title>شهادة تقدير - ${currentCertificateStudent?.fullName || 'طالب'}</title>
             <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
             <style>
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }
-                body {
-                    font-family: 'Tajawal', sans-serif;
-                    background: white;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    padding: 20px;
-                }
-                .certificate {
-                    background: linear-gradient(135deg, #fff 0%, #fdf8ed 100%);
-                    padding: 40px;
-                    margin: 20px;
-                    border: 20px double #c4a35a;
-                    border-radius: 28px;
-                    text-align: center;
-                    position: relative;
-                    max-width: 800px;
-                    width: 100%;
-                }
-                .certificate-logo img {
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 50%;
-                    border: 3px solid #c4a35a;
-                }
-                .certificate-title {
-                    font-size: 2rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 20px 0;
-                }
-                .certificate-subtitle {
-                    font-size: 1rem;
-                    color: #64748b;
-                    margin-bottom: 30px;
-                    border-bottom: 2px solid #c4a35a;
-                    display: inline-block;
-                    padding-bottom: 5px;
-                }
-                .certificate-student-name {
-                    font-size: 1.8rem;
-                    font-weight: 800;
-                    background: linear-gradient(135deg, #c4a35a, #a07d3a);
-                    background-clip: text;
-                    -webkit-background-clip: text;
-                    color: transparent;
-                    margin: 20px 0;
-                }
-                .certificate-rank span {
-                    font-size: 1.5rem;
-                    font-weight: 800;
-                    color: gold;
-                }
-                .certificate-percentage {
-                    font-size: 1.4rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 15px 0;
-                }
-                .certificate-date {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 1px dashed #cbd5e1;
-                }
-                .certificate-signature {
-                    margin-top: 30px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 0 20px;
-                }
-                .certificate-signature hr {
-                    width: 150px;
-                    margin: 5px 0;
-                    border: 1px solid #cbd5e1;
-                }
-                @media print {
-                    body {
-                        padding: 0;
-                        margin: 0;
-                    }
-                    .certificate {
-                        margin: 0;
-                        page-break-inside: avoid;
-                    }
-                }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Tajawal', sans-serif; background: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+                .certificate { background: linear-gradient(135deg, #fff 0%, #fdf8ed 100%); padding: 40px; margin: 20px; border: 20px double #c4a35a; border-radius: 28px; text-align: center; position: relative; max-width: 800px; width: 100%; }
+                .certificate-logo img { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #c4a35a; }
+                .certificate-title { font-size: 2rem; font-weight: 800; color: #1a4f6e; margin: 20px 0; }
+                .certificate-subtitle { font-size: 1rem; color: #64748b; margin-bottom: 30px; border-bottom: 2px solid #c4a35a; display: inline-block; padding-bottom: 5px; }
+                .certificate-student-name { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, #c4a35a, #a07d3a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 20px 0; }
+                .certificate-rank span { font-size: 1.5rem; font-weight: 800; color: gold; }
+                .certificate-percentage { font-size: 1.4rem; font-weight: 800; color: #1a4f6e; margin: 15px 0; }
+                .certificate-date { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #cbd5e1; }
+                .certificate-signature { margin-top: 30px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
+                .certificate-signature hr { width: 150px; margin: 5px 0; border: 1px solid #cbd5e1; }
+                @media print { body { padding: 0; margin: 0; } .certificate { margin: 0; page-break-inside: avoid; } }
             </style>
         </head>
         <body>
             ${certificateContent.outerHTML}
-            <script>
-                window.onload = () => {
-                    window.print();
-                    window.onafterprint = () => window.close();
-                };
-            <\/script>
+            <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();};<\/script>
         </body>
         </html>
     `);
     printWindow.document.close();
 };
 
-// تحميل الشهادة كـ PDF
 window.downloadCurrentCertificate = async function() {
     if (!currentCertificateStudent) return;
-    
     showToast('جاري إنشاء ملف PDF...', 'info');
-    
-    // استخدام html2pdf إذا كان متاحاً
     if (typeof html2pdf !== 'undefined') {
         const element = document.getElementById('certificate-to-print');
         const opt = {
@@ -1483,7 +1453,6 @@ window.downloadCurrentCertificate = async function() {
     }
 };
 
-// طباعة جميع الشهادات للأوائل
 window.printAllCertificates = function() {
     if (topStudentsList.length === 0) {
         showToast('لا توجد بيانات لعرض شهادات الأوائل', 'error');
@@ -1491,110 +1460,26 @@ window.printAllCertificates = function() {
     }
     
     const printWindow = window.open('', '_blank');
-    const currentDate = new Date().toLocaleDateString('ar-EG', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
+    const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
     
     let allCertificatesHtml = `
-        <!DOCTYPE html>
-        <html dir="rtl">
-        <head>
-            <meta charset="UTF-8">
-            <title>شهادات تكريم العشرة الأوائل</title>
-            <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                    font-family: 'Tajawal', sans-serif;
-                    background: white;
-                    padding: 20px;
-                }
-                .certificate-page {
-                    page-break-after: always;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                }
-                .certificate {
-                    background: linear-gradient(135deg, #fff 0%, #fdf8ed 100%);
-                    padding: 40px;
-                    margin: 20px;
-                    border: 20px double #c4a35a;
-                    border-radius: 28px;
-                    text-align: center;
-                    position: relative;
-                    max-width: 800px;
-                    width: 100%;
-                }
-                .certificate-logo img {
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 50%;
-                    border: 3px solid #c4a35a;
-                }
-                .certificate-title {
-                    font-size: 2rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 20px 0;
-                }
-                .certificate-subtitle {
-                    font-size: 1rem;
-                    color: #64748b;
-                    margin-bottom: 30px;
-                    border-bottom: 2px solid #c4a35a;
-                    display: inline-block;
-                    padding-bottom: 5px;
-                }
-                .certificate-student-name {
-                    font-size: 1.8rem;
-                    font-weight: 800;
-                    background: linear-gradient(135deg, #c4a35a, #a07d3a);
-                    background-clip: text;
-                    -webkit-background-clip: text;
-                    color: transparent;
-                    margin: 20px 0;
-                }
-                .certificate-rank span {
-                    font-size: 1.5rem;
-                    font-weight: 800;
-                    color: gold;
-                }
-                .certificate-percentage {
-                    font-size: 1.4rem;
-                    font-weight: 800;
-                    color: #1a4f6e;
-                    margin: 15px 0;
-                }
-                .certificate-date {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 1px dashed #cbd5e1;
-                }
-                .certificate-signature {
-                    margin-top: 30px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 0 20px;
-                }
-                .certificate-signature hr {
-                    width: 150px;
-                    margin: 5px 0;
-                    border: 1px solid #cbd5e1;
-                }
-                @media print {
-                    .certificate-page {
-                        page-break-after: always;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-    `;
+        <!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>شهادات تكريم العشرة الأوائل</title>
+        <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+        <style>
+            *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Tajawal',sans-serif;background:#fff;padding:20px}
+            .certificate-page{page-break-after:always;display:flex;justify-content:center;align-items:center;min-height:100vh}
+            .certificate{background:linear-gradient(135deg,#fff 0%,#fdf8ed 100%);padding:40px;margin:20px;border:20px double #c4a35a;border-radius:28px;text-align:center;max-width:800px;width:100%}
+            .certificate-logo img{width:80px;height:80px;border-radius:50%;border:3px solid #c4a35a}
+            .certificate-title{font-size:2rem;font-weight:800;color:#1a4f6e;margin:20px 0}
+            .certificate-subtitle{font-size:1rem;color:#64748b;margin-bottom:30px;border-bottom:2px solid #c4a35a;display:inline-block;padding-bottom:5px}
+            .certificate-student-name{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#c4a35a,#a07d3a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:20px 0}
+            .certificate-rank span{font-size:1.5rem;font-weight:800;color:gold}
+            .certificate-percentage{font-size:1.4rem;font-weight:800;color:#1a4f6e;margin:15px 0}
+            .certificate-date{margin-top:30px;padding-top:20px;border-top:1px dashed #cbd5e1}
+            .certificate-signature{margin-top:30px;display:flex;justify-content:space-between;align-items:center;padding:0 20px}
+            .certificate-signature hr{width:150px;margin:5px 0;border:1px solid #cbd5e1}
+            @media print{.certificate-page{page-break-after:always}}
+        </style></head><body>`;
     
     topStudentsList.forEach((student, index) => {
         const rank = index + 1;
@@ -1603,63 +1488,29 @@ window.printAllCertificates = function() {
         const totalPossible = getTotalPossible(semester);
         
         allCertificatesHtml += `
-            <div class="certificate-page">
-                <div class="certificate">
-                    <div class="certificate-logo">
-                        <img src="logo.png" alt="شعار المعهد" onerror="this.style.display='none'">
-                    </div>
-                    <div class="certificate-title">
-                        <i class="fas fa-award"></i> شهادة تقدير
-                    </div>
-                    <div class="certificate-subtitle">
-                        معهد رعاية الضبعية الفني للتمريض
-                    </div>
-                    <div class="certificate-body">
-                        <p>تُمنح هذه الشهادة للطالب/ة</p>
-                        <div class="certificate-student-name">
-                            ${escapeHtml(student.fullName)}
-                        </div>
-                        <p>رقم الجلوس: <strong>${student.studentCode}</strong></p>
-                        <div class="certificate-rank">
-                            🏆 <span>${rankText}</span> 🏆
-                        </div>
-                        <div class="certificate-percentage">
-                            ⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐
-                        </div>
-                        <p>📊 المجموع الكلي: ${student.total} / ${totalPossible}</p>
-                        <p style="margin-top: 15px; color: #666;">
-                            وذلك تقديراً لتفوقه وجهده المتميز خلال الفصل الدراسي،
-                            <br>ونتمنى له دوام النجاح والتفوق.
-                        </p>
-                    </div>
-                    <div class="certificate-date">
-                        <i class="far fa-calendar-alt"></i> التاريخ: ${currentDate}
-                    </div>
-                    <div class="certificate-signature">
-                        <div><hr><p>مدير المعهد</p></div>
-                        <div><hr><p>وكيل المعهد</p></div>
-                    </div>
+            <div class="certificate-page"><div class="certificate">
+                <div class="certificate-logo"><img src="logo.png" alt="شعار المعهد" onerror="this.style.display='none'"></div>
+                <div class="certificate-title"><i class="fas fa-award"></i> شهادة تقدير</div>
+                <div class="certificate-subtitle">معهد رعاية الضبعية الفني للتمريض</div>
+                <div class="certificate-body">
+                    <p>تُمنح هذه الشهادة للطالب/ة</p>
+                    <div class="certificate-student-name">${escapeHtml(student.fullName)}</div>
+                    <p>رقم الجلوس: <strong>${student.studentCode}</strong></p>
+                    <div class="certificate-rank">🏆 <span>${rankText}</span> 🏆</div>
+                    <div class="certificate-percentage">⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐</div>
+                    <p>📊 المجموع الكلي: ${student.total} / ${totalPossible}</p>
+                    <p style="margin-top:15px;color:#666;">وذلك تقديراً لتفوقه وجهده المتميز خلال الفصل الدراسي،<br>ونتمنى له دوام النجاح والتفوق.</p>
                 </div>
-            </div>
-        `;
+                <div class="certificate-date"><i class="far fa-calendar-alt"></i> التاريخ: ${currentDate}</div>
+                <div class="certificate-signature"><div><hr><p>مدير المعهد</p></div><div><hr><p>وكيل المعهد</p></div></div>
+            </div></div>`;
     });
     
-    allCertificatesHtml += `
-            <script>
-                window.onload = () => {
-                    window.print();
-                    window.onafterprint = () => window.close();
-                };
-            <\/script>
-        </body>
-        </html>
-    `;
-    
+    allCertificatesHtml += `<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()};<\/script></body></html>`;
     printWindow.document.write(allCertificatesHtml);
     printWindow.document.close();
 };
 
-// تحديث العشرة الأوائل عند تحميل/تحديث البيانات
 function updateTopStudentsAfterDataChange() {
     renderTopStudents();
 }
