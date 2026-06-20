@@ -1,8 +1,9 @@
-// admin.js - النسخة الكاملة النهائية (جميع الوظائف شغالة)
+// admin.js - النسخة الكاملة المعدلة (الترمين معًا)
 
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://localhost:3000' 
     : '';
+
 // ====================== دوال الأمان الأساسية ======================
 function getCsrfToken() { 
     return sessionStorage.getItem('csrfToken'); 
@@ -118,37 +119,87 @@ window.logout = async () => {
     window.onpopstate = () => window.history.pushState(null, '', window.location.href); 
 })();
 
-// ====================== تعريف الدرجات ======================
-const SUBJECTS_CONFIG = { 
+// ====================== تعريف الدرجات - الترمين ======================
+const SUBJECTS_CONFIG_FIRST = { 
     "اللغة العربية": { max: 20 }, 
     "اللغة الإنجليزية": { max: 20 }, 
-    "علوم تطبيقية": { max: 40 }, 
-    "طب باطنة": { max: 20 }, 
-    "تمريض باطني جراحي": { max: 24 }, 
-    "حاسب آلي": { max: 20 }, 
-    "الدين": { max: 32, isExtra: true } 
+    "علوم تطبيقية": { max: 40 },       
+    "طب باطنة": { max: 20 },          
+    "تمريض باطني جراحي": { max: 24 },  
+    "حاسب آلي": { max: 20 },        
+    "الدين": { max: 32, isExtra: true }
 };
-const TOTAL_POSSIBLE = 144;
-const ORDERED_SUBJECTS = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي", "الدين"];
+
+const SUBJECTS_CONFIG_SECOND = { 
+    "اللغة العربية": { max: 20 }, 
+    "اللغة الإنجليزية": { max: 20 }, 
+    "تمريض باطني جراحي": { max: 24 },  
+    "صحة مجتمع": { max: 20 },          
+    "جراحة عامة": { max: 20 },         
+    "حاسب آلي": { max: 20 },           
+    "الإحصاء": { max: 20 }             
+};
+
+const TOTAL_POSSIBLE_FIRST = 144;  // 20+20+40+20+24+20 = 144
+const TOTAL_POSSIBLE_SECOND = 144; // 20+20+24+20+20+20+20 = 144
+
+const ORDERED_SUBJECTS_FIRST = [
+    "اللغة العربية", 
+    "اللغة الإنجليزية", 
+    "علوم تطبيقية", 
+    "طب باطنة", 
+    "تمريض باطني جراحي", 
+    "حاسب آلي", 
+    "الدين"
+];
+
+const ORDERED_SUBJECTS_SECOND = [
+    "اللغة العربية", 
+    "اللغة الإنجليزية", 
+    "تمريض باطني جراحي", 
+    "صحة مجتمع", 
+    "جراحة عامة", 
+    "حاسب آلي", 
+    "الإحصاء"
+];
+
+// دوال مساعدة للحصول على التكوين المناسب حسب الترم
+function getSubjectConfig(semester) {
+    return semester === 'first' ? SUBJECTS_CONFIG_FIRST : SUBJECTS_CONFIG_SECOND;
+}
+
+function getOrderedSubjects(semester) {
+    return semester === 'first' ? ORDERED_SUBJECTS_FIRST : ORDERED_SUBJECTS_SECOND;
+}
+
+function getTotalPossible(semester) {
+    return semester === 'first' ? TOTAL_POSSIBLE_FIRST : TOTAL_POSSIBLE_SECOND;
+}
 
 function calculateStudentTotal(student) { 
     if (!student.subjects) return 0; 
+    const config = getSubjectConfig(student.semester || 'first');
     let t = 0; 
     student.subjects.forEach(s => { 
-        const c = SUBJECTS_CONFIG[s.name]; 
+        const c = config[s.name]; 
         if (c && !c.isExtra) t += s.grade || 0; 
     }); 
     return t; 
 }
 
 function calculateStudentPercentage(student) { 
-    return (calculateStudentTotal(student) / TOTAL_POSSIBLE) * 100; 
+    const total = calculateStudentTotal(student);
+    const possible = getTotalPossible(student.semester || 'first');
+    return (total / possible) * 100; 
 }
 
 function getStudentFormattedGrades(student) { 
+    const semester = student.semester || 'first';
+    const config = getSubjectConfig(semester);
+    const orderedSubjects = getOrderedSubjects(semester);
     let g = {}; 
-    ORDERED_SUBJECTS.forEach(n => { 
-        const c = SUBJECTS_CONFIG[n]; 
+    orderedSubjects.forEach(n => { 
+        const c = config[n]; 
         const sub = student.subjects?.find(s => s.name === n); 
         g[n] = { grade: sub?.grade || 0, max: c.max, isExtra: c.isExtra || false }; 
     }); 
@@ -292,8 +343,7 @@ async function loadInitialData() {
     renderAdmins();
     renderResults();
     renderStats();
-    // في نهاية دالة loadInitialData، بعد renderStats()
-renderTopStudents();
+    renderTopStudents();
     renderViolations();
     showToast(`✅ تم التحميل: ${allStudents.length} طالب`, 'success');
 }
@@ -315,6 +365,9 @@ function renderStats() {
     });
     let avg = (sumPct / total).toFixed(1);
     let passed = studentsWithGrades.filter(s => calculateStudentPercentage(s) >= 60).length;
+    const semester = topStd?.semester || 'first';
+    const totalPossible = getTotalPossible(semester);
+    
     sec.innerHTML = `
         <div class="stats-grid">
             <div class="stat-item"><i class="fas fa-users"></i> عدد الطلاب: ${total}</div>
@@ -322,7 +375,7 @@ function renderStats() {
             <div class="stat-item"><i class="fas fa-check-circle"></i> الناجحين: ${passed}</div>
             <div class="stat-item"><i class="fas fa-times-circle"></i> الراسبين: ${total - passed}</div>
         </div>
-        ${topStd ? `<div class="stats-grid" style="margin-top:15px; background:linear-gradient(135deg,#C7A252,#A07D3A); border-radius:15px; padding:15px;"><div class="stat-item" style="text-align:center; background:none;"><i class="fas fa-trophy" style="font-size:2rem; color:#fff;"></i><p style="font-weight:bold;">🏆 أعلى طالب</p><p style="font-size:1.2rem; font-weight:bold;">${escapeHtml(topStd.fullName)}</p><p>رقم الجلوس: ${topStd.studentCode}</p><p>المجموع: ${calculateStudentTotal(topStd)} / ${TOTAL_POSSIBLE}</p><p>النسبة: ${topPct.toFixed(1)}%</p></div></div>` : ''}
+        ${topStd ? `<div class="stats-grid" style="margin-top:15px; background:linear-gradient(135deg,#C7A252,#A07D3A); border-radius:15px; padding:15px;"><div class="stat-item" style="text-align:center; background:none;"><i class="fas fa-trophy" style="font-size:2rem; color:#fff;"></i><p style="font-weight:bold;">🏆 أعلى طالب</p><p style="font-size:1.2rem; font-weight:bold;">${escapeHtml(topStd.fullName)}</p><p>رقم الجلوس: ${topStd.studentCode}</p><p>المجموع: ${calculateStudentTotal(topStd)} / ${totalPossible}</p><p>النسبة: ${topPct.toFixed(1)}%</p></div></div>` : ''}
     `;
 }
 
@@ -338,9 +391,15 @@ function renderResults(filter = '') {
         return; 
     }
     filtered.forEach(student => {
-        let total = calculateStudentTotal(student), percentage = calculateStudentPercentage(student), grades = getStudentFormattedGrades(student);
+        const semester = student.semester || 'first';
+        const total = calculateStudentTotal(student);
+        const percentage = calculateStudentPercentage(student);
+        const grades = getStudentFormattedGrades(student);
+        const orderedSubjects = getOrderedSubjects(semester);
+        const totalPossible = getTotalPossible(semester);
+        
         let subjectsHtml = '<div class="subjects-container">';
-        for (let n of ORDERED_SUBJECTS) {
+        for (let n of orderedSubjects) {
             let gi = grades[n];
             if (gi.isExtra) subjectsHtml += `<div class="extra-subject">📖 ${n}: <strong>${gi.grade}</strong> / ${gi.max} <small>(خارج المجموع)</small></div>`;
             else subjectsHtml += `<div class="subject-row"><span class="subject-name"><i class="fas fa-book"></i> ${n}</span><span class="subject-grade">${gi.grade} / ${gi.max}</span></div>`;
@@ -349,7 +408,7 @@ function renderResults(filter = '') {
         let pClass = percentage >= 85 ? 'excellent' : (percentage >= 75 ? 'very-good' : (percentage >= 65 ? 'good' : (percentage >= 60 ? 'pass' : 'fail')));
         let pText = { excellent: 'ممتاز', 'very-good': 'جيد جداً', good: 'جيد', pass: 'ناجح', fail: 'راسب' }[pClass];
         let row = tbody.insertRow();
-        row.innerHTML = `<td style="text-align:right;"><strong>${escapeHtml(student.fullName)}</strong><br><small>رقم الجلوس: ${student.studentCode}</small></td><td style="text-align:right;">${subjectsHtml}</td><td style="text-align:center;"><span class="total-cell">${total} / ${TOTAL_POSSIBLE}</span></td><td style="text-align:center;"><span class="percentage-cell ${pClass}">${percentage.toFixed(1)}% (${pText})</span></td><td style="text-align:center;"><button class="table-action-btn edit-action" onclick="editStudent('${student.studentCode}')" title="تعديل"><i class="fas fa-edit"></i></button><button class="table-action-btn delete-action" onclick="deleteStudent('${student.studentCode}')" title="حذف"><i class="fas fa-trash"></i></button></td>`;
+        row.innerHTML = `<td style="text-align:right;"><strong>${escapeHtml(student.fullName)}</strong><br><small>رقم الجلوس: ${student.studentCode}</small><br><small>الترم: ${semester === 'first' ? 'الأول' : 'الثاني'}</small></td><td style="text-align:right;">${subjectsHtml}</td><td style="text-align:center;"><span class="total-cell">${total} / ${totalPossible}</span></td><td style="text-align:center;"><span class="percentage-cell ${pClass}">${percentage.toFixed(1)}% (${pText})</span></td><td style="text-align:center;"><button class="table-action-btn edit-action" onclick="editStudent('${student.studentCode}')" title="تعديل"><i class="fas fa-edit"></i></button><button class="table-action-btn delete-action" onclick="deleteStudent('${student.studentCode}')" title="حذف"><i class="fas fa-trash"></i></button></td>`;
         updateTopStudentsAfterDataChange();
     });
 }
@@ -398,6 +457,8 @@ window.editStudent = (code) => {
     if (s) { 
         document.getElementById('student-name').value = s.fullName; 
         document.getElementById('student-id').value = s.studentCode; 
+        document.getElementById('semester').value = s.semester || 'first';
+        // تصفير كل الحقول
         for (let i = 1; i <= 8; i++) document.getElementById(`subject${i}`).value = 0; 
         document.getElementById('subject9').value = 0; 
         document.getElementById('subject10').value = 0; 
@@ -408,37 +469,49 @@ window.editStudent = (code) => {
             else if (sub.name === 'الفيزياء') document.getElementById('subject4').value = sub.grade;
             else if (sub.name === 'الكيمياء') document.getElementById('subject5').value = sub.grade;
             else if (sub.name === 'التشريح / علم وظائف الأعضاء') document.getElementById('subject6').value = sub.grade;
-            else if (sub.name === 'التربية الدينية') document.getElementById('subject7').value = sub.grade;
+            else if (sub.name === 'التربية الدينية' || sub.name === 'الدين') document.getElementById('subject7').value = sub.grade;
             else if (sub.name === 'الكمبيوتر') document.getElementById('subject8').value = sub.grade;
             else if (sub.name === 'التاريخ') document.getElementById('subject9').value = sub.grade;
             else if (sub.name === 'الجغرافيا') document.getElementById('subject10').value = sub.grade;
         }); 
+        window.toggleSubjects();
         showToast('✏️ قم بتعديل البيانات ثم اضغط حفظ', 'info'); 
         window.scrollTo(0, 0); 
     } 
 };
 
+// ====================== إضافة / تعديل نتيجة طالب ======================
 document.getElementById('add-result-form')?.addEventListener('submit', async (e) => { 
     e.preventDefault(); 
-    let fn = document.getElementById('student-name').value.trim(), code = document.getElementById('student-id').value.trim(), sem = document.getElementById('semester').value; 
-    let subjects = [
-        { name: "مبادئ وأسس تمريض", grade: parseInt(document.getElementById('subject1').value) || 0 },
-        { name: "اللغة العربية", grade: parseInt(document.getElementById('subject2').value) || 0 },
-        { name: "اللغة الإنجليزية", grade: parseInt(document.getElementById('subject3').value) || 0 },
-        { name: "الفيزياء", grade: parseInt(document.getElementById('subject4').value) || 0 },
-        { name: "الكيمياء", grade: parseInt(document.getElementById('subject5').value) || 0 },
-        { name: "التشريح / علم وظائف الأعضاء", grade: parseInt(document.getElementById('subject6').value) || 0 },
-        { name: "التربية الدينية", grade: parseInt(document.getElementById('subject7').value) || 0 },
-        { name: "الكمبيوتر", grade: parseInt(document.getElementById('subject8').value) || 0 },
-        { name: "الدين", grade: parseInt(document.getElementById('subject7').value) || 0 }
-    ]; 
-    if (sem === 'first') { 
-        let hg = parseInt(document.getElementById('subject9').value) || 0; 
-        if (hg > 0) subjects.push({ name: "التاريخ", grade: hg }); 
-    } else { 
-        let gg = parseInt(document.getElementById('subject10').value) || 0; 
-        if (gg > 0) subjects.push({ name: "الجغرافيا", grade: gg }); 
-    } 
+    let fn = document.getElementById('student-name').value.trim(), 
+        code = document.getElementById('student-id').value.trim(), 
+        sem = document.getElementById('semester').value; 
+    
+    // المواد الأساسية للترمين
+    let subjects = [];
+    
+    if (sem === 'first') {
+        subjects = [
+            { name: "اللغة العربية", grade: parseInt(document.getElementById('subject2').value) || 0 },
+            { name: "اللغة الإنجليزية", grade: parseInt(document.getElementById('subject3').value) || 0 },
+            { name: "علوم تطبيقية", grade: parseInt(document.getElementById('subject4').value) || 0 },
+            { name: "طب باطنة", grade: parseInt(document.getElementById('subject5').value) || 0 },
+            { name: "تمريض باطني جراحي", grade: parseInt(document.getElementById('subject6').value) || 0 },
+            { name: "حاسب آلي", grade: parseInt(document.getElementById('subject8').value) || 0 },
+            { name: "الدين", grade: parseInt(document.getElementById('subject7').value) || 0 }
+        ];
+    } else {
+        subjects = [
+            { name: "اللغة العربية", grade: parseInt(document.getElementById('subject2').value) || 0 },
+            { name: "اللغة الإنجليزية", grade: parseInt(document.getElementById('subject3').value) || 0 },
+            { name: "تمريض باطني جراحي", grade: parseInt(document.getElementById('subject6').value) || 0 },
+            { name: "صحة مجتمع", grade: parseInt(document.getElementById('subject1').value) || 0 },
+            { name: "جراحة عامة", grade: parseInt(document.getElementById('subject4').value) || 0 },
+            { name: "حاسب آلي", grade: parseInt(document.getElementById('subject8').value) || 0 },
+            { name: "الإحصاء", grade: parseInt(document.getElementById('subject5').value) || 0 }
+        ];
+    }
+    
     if (!fn || !code) return showToast('اسم الطالب ورقم الجلوس مطلوبان', 'error'); 
     let existing = allStudents.find(s => s.studentCode === code); 
     if (existing) await saveToServer(`/api/students/${code}`, { subjects, semester: sem }, 'PUT'); 
@@ -511,7 +584,12 @@ async function sendWhatsApp(phone, studentName, type, reason, penalty) {
 
 document.getElementById('add-violation-form')?.addEventListener('submit', async (e) => { 
     e.preventDefault(); 
-    let sid = document.getElementById('violation-student-id').value.trim(), typ = document.getElementById('violation-type').value, rsn = document.getElementById('violation-reason').value.trim(), pnl = document.getElementById('violation-penalty').value.trim(), ps = document.getElementById('parent-summons').checked, pPhone = document.getElementById('parent-phone')?.value.trim(); 
+    let sid = document.getElementById('violation-student-id').value.trim(), 
+        typ = document.getElementById('violation-type').value, 
+        rsn = document.getElementById('violation-reason').value.trim(), 
+        pnl = document.getElementById('violation-penalty').value.trim(), 
+        ps = document.getElementById('parent-summons').checked, 
+        pPhone = document.getElementById('parent-phone')?.value.trim(); 
     if (!sid || !rsn || !pnl) return showToast('املأ الحقول المطلوبة', 'error'); 
     let student = allStudents.find(s => s.studentCode === sid); 
     if (!student) return showToast('رقم الجلوس غير موجود', 'error'); 
@@ -965,6 +1043,7 @@ window.analyzeExcel = async () => {
                     if (row[5]) subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) });
                     if (row[6]) subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) });
                     if (row[7]) subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) });
+                    if (row[8]) subjects.push({ name: "الدين", grade: parseFloat(row[8]) });
                     
                     studentsData.push({
                         studentCode: row[0].toString(),
@@ -1009,6 +1088,45 @@ window.analyzeExcel = async () => {
     }; 
     reader.readAsArrayBuffer(file); 
 };
+
+// ====================== تصدير Excel ======================
+function exportToExcel() {
+    if (studentsWithGrades.length === 0) {
+        showToast('لا توجد بيانات للتصدير', 'error');
+        return;
+    }
+    
+    const data = studentsWithGrades.map(student => {
+        const grades = getStudentFormattedGrades(student);
+        const semester = student.semester || 'first';
+        const orderedSubjects = getOrderedSubjects(semester);
+        const row = {
+            'رقم الجلوس': student.studentCode,
+            'اسم الطالب': student.fullName,
+            'الترم': semester === 'first' ? 'الأول' : 'الثاني'
+        };
+        
+        orderedSubjects.forEach(subject => {
+            const gradeInfo = grades[subject];
+            if (gradeInfo) {
+                row[subject] = gradeInfo.grade;
+            }
+        });
+        
+        row['المجموع'] = calculateStudentTotal(student);
+        row['النسبة المئوية'] = calculateStudentPercentage(student).toFixed(1) + '%';
+        
+        return row;
+    });
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'النتائج');
+    XLSX.writeFile(wb, 'نتائج_الطلاب.xlsx');
+    
+    showToast('✅ تم تصدير النتائج بنجاح', 'success');
+}
+
 // ====================== بحث وتصفية ======================
 document.getElementById('search-input')?.addEventListener('input', e => renderResults(e.target.value));
 document.getElementById('filter-select')?.addEventListener('change', e => { 
@@ -1036,11 +1154,30 @@ function renderNavbar() {
 }
 
 window.toggleSubjects = function() { 
-    let sem = document.getElementById('semester')?.value, hg = document.getElementById('history-group'), gg = document.getElementById('geography-group'); 
+    let sem = document.getElementById('semester')?.value, 
+        hg = document.getElementById('history-group'), 
+        gg = document.getElementById('geography-group'); 
     if (hg && gg) { 
         hg.style.display = sem === 'first' ? 'block' : 'none'; 
         gg.style.display = sem === 'first' ? 'none' : 'block'; 
-    } 
+    }
+    
+    // تحديث أسماء الحقول حسب الترم
+    const labels = {
+        'subject1': sem === 'first' ? '📖 مبادئ وأسس تمريض' : '🏥 صحة مجتمع',
+        'subject4': sem === 'first' ? '⚡ الفيزياء' : '🔪 جراحة عامة',
+        'subject5': sem === 'first' ? '🧪 الكيمياء' : '📊 الإحصاء'
+    };
+    
+    for (const [id, label] of Object.entries(labels)) {
+        const element = document.getElementById(id);
+        if (element) {
+            const labelEl = element.previousElementSibling;
+            if (labelEl && labelEl.tagName === 'LABEL') {
+                labelEl.textContent = label;
+            }
+        }
+    }
 };
 
 // ====================== نظام العشرة الأوائل وشهادات التقدير ======================
@@ -1099,7 +1236,7 @@ function renderTopStudents() {
                     <span class="percentage-cell ${percentageClass}">${student.percentage.toFixed(1)}%</span>
                 </div>
                 <div class="top-student-total">
-                    📊 المجموع: ${student.total} / ${TOTAL_POSSIBLE}
+                    📊 المجموع: ${student.total} / ${getTotalPossible(student.semester || 'first')}
                 </div>
                 <button class="certificate-btn" style="margin-top:15px; padding:8px 20px; font-size:0.8rem;" onclick='showCertificate(${JSON.stringify(student).replace(/'/g, "&#39;")})'>
                     <i class="fas fa-award"></i> شهادة تقدير
@@ -1132,6 +1269,8 @@ window.showCertificate = function(student) {
     
     const rank = topStudentsList.findIndex(s => s.studentCode === student.studentCode) + 1;
     const rankText = getRankText(rank);
+    const semester = student.semester || 'first';
+    const totalPossible = getTotalPossible(semester);
     
     container.innerHTML = `
         <div class="certificate" id="certificate-to-print">
@@ -1156,7 +1295,7 @@ window.showCertificate = function(student) {
                 <div class="certificate-percentage">
                     ⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐
                 </div>
-                <p>📊 المجموع الكلي: ${student.total} / ${TOTAL_POSSIBLE}</p>
+                <p>📊 المجموع الكلي: ${student.total} / ${totalPossible}</p>
                 <p style="margin-top: 15px; color: #666;">
                     وذلك تقديراً لتفوقه وجهده المتميز خلال الفصل الدراسي،
                     <br>ونتمنى له دوام النجاح والتفوق.
@@ -1460,6 +1599,8 @@ window.printAllCertificates = function() {
     topStudentsList.forEach((student, index) => {
         const rank = index + 1;
         const rankText = getRankText(rank);
+        const semester = student.semester || 'first';
+        const totalPossible = getTotalPossible(semester);
         
         allCertificatesHtml += `
             <div class="certificate-page">
@@ -1485,7 +1626,7 @@ window.printAllCertificates = function() {
                         <div class="certificate-percentage">
                             ⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐
                         </div>
-                        <p>📊 المجموع الكلي: ${student.total} / ${TOTAL_POSSIBLE}</p>
+                        <p>📊 المجموع الكلي: ${student.total} / ${totalPossible}</p>
                         <p style="margin-top: 15px; color: #666;">
                             وذلك تقديراً لتفوقه وجهده المتميز خلال الفصل الدراسي،
                             <br>ونتمنى له دوام النجاح والتفوق.
@@ -1519,13 +1660,9 @@ window.printAllCertificates = function() {
 };
 
 // تحديث العشرة الأوائل عند تحميل/تحديث البيانات
-// أضف هذا داخل دالة renderResults و loadInitialData
 function updateTopStudentsAfterDataChange() {
     renderTopStudents();
 }
-
-// استدعاء التحديث بعد حفظ/حذف/تعديل البيانات
-// قم بإضافة هذا السطر في نهاية دوال: renderResults, deleteStudent, saveToServer المتعلقة بالطلاب
 
 // ====================== بدء التشغيل ======================
 (async function init() { 
@@ -1535,6 +1672,18 @@ function updateTopStudentsAfterDataChange() {
         await loadInitialData(); 
         await loadExamsList(); 
         renderQuestionInputs(); 
-        window.toggleSubjects(); 
+        window.toggleSubjects();
+        
+        // ربط زر تحليل Excel
+        const analyzeBtn = document.getElementById('analyze-excel');
+        if (analyzeBtn) {
+            analyzeBtn.addEventListener('click', window.analyzeExcel);
+        }
+        
+        // ربط زر تصدير Excel
+        const exportBtn = document.getElementById('export-excel');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', exportToExcel);
+        }
     } 
 })();
