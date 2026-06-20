@@ -331,10 +331,10 @@ async function loadNotifications() {
     }
 }
 
-// ====================== ✅ الحضور - من الكود القديم (شغال تمام) ======================
+// ====================== ✅ الحضور - الإصدار النهائي المتوافق مع السيرفر ======================
 let attendanceStats = null;
 let lastAttendanceFetch = 0;
-const ATTENDANCE_FETCH_INTERVAL = 5000; // 5 ثواني
+const ATTENDANCE_FETCH_INTERVAL = 5000;
 
 async function fetchAttendanceStats(studentCode, force = false) {
     const now = Date.now();
@@ -348,46 +348,40 @@ async function fetchAttendanceStats(studentCode, force = false) {
             const data = await response.json();
             lastAttendanceFetch = now;
             
-            // ====== التحقق من صيغة البيانات ======
+            // ✅ السيرفر دايمًا بيرجع object بالشكل: { records, present, absent, late, total, percentage }
+            // مش بيرجع array مباشر
+            let present = 0, absent = 0, late = 0, total = 0, percentage = 0;
             let attendanceRecords = [];
             
-            if (Array.isArray(data)) {
+            if (data && typeof data === 'object' && !Array.isArray(data)) {
+                // الصيغة الصحيحة من السيرفر
+                present = data.present || 0;
+                absent = data.absent || 0;
+                late = data.late || 0;
+                total = data.total || 0;
+                percentage = data.percentage || 0;
+                attendanceRecords = Array.isArray(data.records) ? data.records : [];
+            } else if (Array.isArray(data)) {
+                // احتياطي لو السيرفر رجع array
                 attendanceRecords = data;
-            } else if (data && typeof data === 'object') {
-                if (Array.isArray(data.records)) {
-                    attendanceRecords = data.records;
-                } else if (Array.isArray(data.results)) {
-                    attendanceRecords = data.results;
-                } else if (Array.isArray(data.data)) {
-                    attendanceRecords = data.data;
-                } else {
-                    const keys = Object.keys(data);
-                    if (keys.length > 0 && !isNaN(keys[0])) {
-                        attendanceRecords = Object.values(data);
-                    } else {
-                        attendanceRecords = [];
-                    }
-                }
+                present = attendanceRecords.filter(a => a.status === 'present').length;
+                absent = attendanceRecords.filter(a => a.status === 'absent').length;
+                late = attendanceRecords.filter(a => a.status === 'late').length;
+                total = attendanceRecords.length;
+                percentage = total > 0 ? ((present / total) * 100).toFixed(1) : 0;
             }
             
-            if (!Array.isArray(attendanceRecords)) {
-                console.warn('⚠️ attendanceRecords ليس مصفوفة، تحويل إلى مصفوفة فارغة');
-                attendanceRecords = [];
-            }
-            
-            // ====== حساب الإحصائيات ======
-            const present = attendanceRecords.filter(a => a.status === 'present').length;
-            const absent = attendanceRecords.filter(a => a.status === 'absent').length;
-            const late = attendanceRecords.filter(a => a.status === 'late').length;
-            const total = attendanceRecords.length;
-            const percentage = total > 0 ? (present / total) * 100 : 0;
-            
-            const presentRecords = attendanceRecords.filter(a => a.status === 'present').sort((a, b) => new Date(b.date) - new Date(a.date));
-            const absentRecords = attendanceRecords.filter(a => a.status === 'absent').sort((a, b) => new Date(b.date) - new Date(a.date));
+            // ترتيب السجلات حسب التاريخ (الأحدث أولاً)
+            const presentRecords = attendanceRecords
+                .filter(a => a.status === 'present')
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            const absentRecords = attendanceRecords
+                .filter(a => a.status === 'absent')
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
             
             const newStats = {
                 present, absent, late, total,
-                percentage: percentage.toFixed(1),
+                percentage: typeof percentage === 'string' ? percentage : percentage.toFixed(1),
                 lastPresentDate: presentRecords.length > 0 ? formatDate(presentRecords[0].date) : null,
                 lastAbsentDate: absentRecords.length > 0 ? formatDate(absentRecords[0].date) : null,
                 records: attendanceRecords,
@@ -402,13 +396,12 @@ async function fetchAttendanceStats(studentCode, force = false) {
             
             attendanceStats = newStats;
             
-            // ====== تحديث واجهة المستخدم ======
+            // تحديث واجهة المستخدم فوراً
             renderAttendanceStats();
             
-            if (hasChanged && attendanceStats.total > 0) {
-                if (lastAttendanceFetch > 1000) {
-                    showToast(`📊 تم تحديث الحضور: ${attendanceStats.present} حاضر، ${attendanceStats.absent} غائب، ${attendanceStats.late} متأخر`, 'info');
-                }
+            // إشعار فقط لو في تغيير فعلي ومش أول تحميل
+            if (hasChanged && attendanceStats.total > 0 && lastAttendanceFetch > 1000) {
+                showToast(`📊 الحضور: ${attendanceStats.present} حاضر، ${attendanceStats.absent} غائب، ${attendanceStats.late} متأخر`, 'info');
             }
             
             return attendanceStats;
@@ -418,7 +411,7 @@ async function fetchAttendanceStats(studentCode, force = false) {
         console.error('❌ خطأ في جلب إحصائيات الحضور:', error.message);
         return attendanceStats || {
             present: 0, absent: 0, late: 0, total: 0,
-            percentage: 0, lastPresentDate: null, lastAbsentDate: null,
+            percentage: '0', lastPresentDate: null, lastAbsentDate: null,
             records: [], hasRecords: false
         };
     }
