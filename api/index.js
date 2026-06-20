@@ -7,7 +7,6 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-
 const app = express();
 // ====================== إعدادات Vercel ======================
 app.set('trust proxy', 1);
