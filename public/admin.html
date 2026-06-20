@@ -65,33 +65,36 @@
             </table>
         </div>
     </div>
-<!-- ====================== أزرار تسجيل الحضور ====================== -->
-<h2><i class="fas fa-calendar-alt"></i> تسجيل الحضور والغياب</h2>
-<div class="grade-buttons" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0;">
-    <a href="attendance-first.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
-        <i class="fas fa-calendar-check"></i> 🎓 الصف الأول
-    </a>
-    <a href="attendance-second.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
-        <i class="fas fa-calendar-check"></i> 📚 الصف الثاني
-    </a>
-    <a href="attendance-third.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
-        <i class="fas fa-calendar-check"></i> 📖 الصف الثالث
-    </a>
-</div>
-    <!-- ====================== رفع Excel ====================== -->
-<div class="excel-upload-section">
-    <input type="file" id="excel-upload" accept=".xlsx, .xls">
-    <div class="input-group" style="min-width: 150px;">
-        <label for="upload-grade"><i class="fas fa-graduation-cap"></i> الصف الدراسي</label>
-        <select id="upload-grade" required>
-            <option value="first">🎓 الصف الأول</option>
-            <option value="second">📚 الصف الثاني</option>
-            <option value="third">📖 الصف الثالث</option>
-        </select>
+
+    <!-- ====================== أزرار تسجيل الحضور ====================== -->
+    <h2><i class="fas fa-calendar-alt"></i> تسجيل الحضور والغياب</h2>
+    <div class="grade-buttons" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0;">
+        <a href="attendance-first.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
+            <i class="fas fa-calendar-check"></i> 🎓 الصف الأول
+        </a>
+        <a href="attendance-second.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
+            <i class="fas fa-calendar-check"></i> 📚 الصف الثاني
+        </a>
+        <a href="attendance-third.html" class="class-btn" style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; text-decoration: none; padding: 12px 28px; border-radius: 50px; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s;">
+            <i class="fas fa-calendar-check"></i> 📖 الصف الثالث
+        </a>
     </div>
-    <button id="analyze-excel" class="submit-btn"><i class="fas fa-file-excel"></i> تحليل ورفع Excel</button>
-    <div id="upload-progress" style="margin-top:10px; font-size:0.8rem; color:#1a4f6e;"></div>
-</div>
+
+    <!-- ====================== رفع Excel ====================== -->
+    <div class="excel-upload-section">
+        <input type="file" id="excel-upload" accept=".xlsx, .xls">
+        <div class="input-group" style="min-width: 150px;">
+            <label for="upload-grade"><i class="fas fa-graduation-cap"></i> الصف الدراسي</label>
+            <select id="upload-grade" required>
+                <option value="first">🎓 الصف الأول</option>
+                <option value="second">📚 الصف الثاني</option>
+                <option value="third">📖 الصف الثالث</option>
+            </select>
+        </div>
+        <button id="analyze-excel" class="submit-btn"><i class="fas fa-file-excel"></i> تحليل ورفع Excel</button>
+        <div id="upload-progress" style="margin-top:10px; font-size:0.8rem; color:#1a4f6e;"></div>
+    </div>
+
     <!-- ====================== إضافة نتيجة طالب ====================== -->
     <h2><i class="fas fa-edit"></i> إضافة / تعديل نتيجة طالب</h2>
     <div class="add-result-section">
@@ -111,16 +114,29 @@
                     <option value="second">الترم الثاني</option>
                 </select>
             </div>
-            <div class="input-group"><label>📖 مبادئ وأسس تمريض</label><input type="number" id="subject1" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group"><label>📚 اللغة العربية</label><input type="number" id="subject2" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group"><label>🇬🇧 اللغة الإنجليزية</label><input type="number" id="subject3" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group"><label>⚡ الفيزياء</label><input type="number" id="subject4" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group"><label>🧪 الكيمياء</label><input type="number" id="subject5" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group"><label>🩺 التشريح / علم وظائف الأعضاء</label><input type="number" id="subject6" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group"><label>🕌 التربية الدينية</label><input type="number" id="subject7" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group"><label>💻 الكمبيوتر</label><input type="number" id="subject8" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group" id="history-group"><label>📜 التاريخ</label><input type="number" id="subject9" min="0" max="100" placeholder="0-100"></div>
-            <div class="input-group" id="geography-group" style="display:none;"><label>🌍 الجغرافيا</label><input type="number" id="subject10" min="0" max="100" placeholder="0-100"></div>
+            
+            <!-- ========== حقول الترم الأول ========== -->
+            <div class="semester-first-fields">
+                <div class="input-group"><label>📚 اللغة العربية</label><input type="number" id="subject2" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>🇬🇧 اللغة الإنجليزية</label><input type="number" id="subject3" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group" id="subject4-group-first"><label>🔬 علوم تطبيقية</label><input type="number" id="subject4" min="0" max="40" placeholder="0-40"></div>
+                <div class="input-group" id="subject5-group-first"><label>🩺 طب باطنة</label><input type="number" id="subject5" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>💉 تمريض باطني جراحي</label><input type="number" id="subject6" min="0" max="24" placeholder="0-24"></div>
+                <div class="input-group"><label>💻 حاسب آلي</label><input type="number" id="subject8" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>🕌 الدين (خارج المجموع)</label><input type="number" id="subject7" min="0" max="32" placeholder="0-32"></div>
+            </div>
+            
+            <!-- ========== حقول الترم الثاني (مخفية افتراضياً) ========== -->
+            <div class="semester-second-fields" style="display:none;">
+                <div class="input-group"><label>📚 اللغة العربية</label><input type="number" id="subject2-second" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>🇬🇧 اللغة الإنجليزية</label><input type="number" id="subject3-second" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>💉 تمريض باطني جراحي</label><input type="number" id="subject6-second" min="0" max="24" placeholder="0-24"></div>
+                <div class="input-group"><label>🏥 صحة مجتمع</label><input type="number" id="subject1" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>🔪 جراحة عامة</label><input type="number" id="subject4-second" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>💻 حاسب آلي</label><input type="number" id="subject8-second" min="0" max="20" placeholder="0-20"></div>
+                <div class="input-group"><label>📊 الإحصاء</label><input type="number" id="subject5-second" min="0" max="20" placeholder="0-20"></div>
+            </div>
+            
             <button type="submit" class="submit-btn"><i class="fas fa-save"></i> حفظ النتيجة</button>
         </form>
     </div>
@@ -195,7 +211,7 @@
                     </tr>
                 </thead>
                 <tbody id="violations-table-body">
-                    <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل البيانات...<\/td></tr>
+                    <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل البيانات...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -205,8 +221,7 @@
     <h2><i class="fas fa-chart-bar"></i> إحصائيات سريعة</h2>
     <div class="stats-section" id="stats-section"></div>
 
-
-        <!-- ====================== العشرة الأوائل وشهادات التقدير ====================== -->
+    <!-- ====================== العشرة الأوائل وشهادات التقدير ====================== -->
     <h2><i class="fas fa-trophy"></i> العشرة الأوائل - شهادات التقدير</h2>
     <div class="top-students-section" id="top-students-section">
         <div class="top-students-header">
@@ -241,7 +256,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- ====================== إدارة الإشعارات ====================== -->
     <h2><i class="fas fa-bell"></i> إدارة الإشعارات العامة</h2>
@@ -288,28 +302,28 @@
     <div class="input-group"><label for="results-exam-code">كود الاختبار</label><input type="text" id="results-exam-code" placeholder="أدخل كود الاختبار"></div>
     <button id="fetch-results" class="submit-btn"><i class="fas fa-search"></i> عرض النتائج</button>
     <div id="exam-results-list" class="test-results-table"></div>
-</div>
 
-<!-- ====================== قائمة الاختبارات ====================== -->
-<h2><i class="fas fa-list-alt"></i> قائمة الاختبارات</h2>
-<div class="exams-list-section">
-    <div class="table-wrapper">
-        <table id="exams-list-table">
-            <thead>
-                <tr>
-                    <th>اسم الاختبار</th>
-                    <th>كود الاختبار</th>
-                    <th>المرحلة</th>
-                    <th>المدة (دقائق)</th>
-                    <th>عدد الأسئلة</th>
-                    <th>تاريخ الإنشاء</th>
-                    <th>الإجراءات</th>
-                </tr>
-            </thead>
-            <tbody id="exams-list-body">
-                <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل الاختبارات...<\/td></tr>
-            </tbody>
-        </table>
+    <!-- ====================== قائمة الاختبارات ====================== -->
+    <h2><i class="fas fa-list-alt"></i> قائمة الاختبارات</h2>
+    <div class="exams-list-section">
+        <div class="table-wrapper">
+            <table id="exams-list-table">
+                <thead>
+                    <tr>
+                        <th>اسم الاختبار</th>
+                        <th>كود الاختبار</th>
+                        <th>المرحلة</th>
+                        <th>المدة (دقائق)</th>
+                        <th>عدد الأسئلة</th>
+                        <th>تاريخ الإنشاء</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="exams-list-body">
+                    <tr><td colspan="7" style="text-align:center;">⏳ جاري تحميل الاختبارات...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -340,15 +354,24 @@
     window.scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
     window.scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     
+    // دالة تبديل الحقول حسب الترم المختار
     window.toggleSubjects = function() {
         const semester = document.getElementById('semester')?.value;
-        const historyGroup = document.getElementById('history-group');
-        const geographyGroup = document.getElementById('geography-group');
-        if (historyGroup && geographyGroup) {
-            historyGroup.style.display = semester === 'first' ? 'block' : 'none';
-            geographyGroup.style.display = semester === 'first' ? 'none' : 'block';
+        const firstFields = document.querySelector('.semester-first-fields');
+        const secondFields = document.querySelector('.semester-second-fields');
+        
+        if (firstFields && secondFields) {
+            if (semester === 'first') {
+                firstFields.style.display = 'block';
+                secondFields.style.display = 'none';
+            } else {
+                firstFields.style.display = 'none';
+                secondFields.style.display = 'block';
+            }
         }
     };
+    
+    // استدعاء الدالة عند تحميل الصفحة
     toggleSubjects();
 </script>
 </body>
