@@ -11,7 +11,6 @@ const cookieParser = require('cookie-parser');
 const app = express();
 // ====================== إعدادات Vercel ======================
 app.set('trust proxy', 1);
-
 // ====================== MIDDLEWARE الأساسي ======================
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
