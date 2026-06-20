@@ -851,6 +851,88 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
     } catch (error) { res.status(500).json({ error: 'خطأ في تحديث البيانات' }); }
 });
 
+
+
+// ====================== ✅ بحث الطلاب (للطلاب العاديين) ======================
+app.get('/api/students/search', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { name, studentCode } = req.query;
+        
+        console.log(`🔍 بحث طالب: name="${name}", code="${studentCode}"`);
+        
+        let query = {};
+        
+        // البحث برقم الجلوس
+        if (studentCode) {
+            query.studentCode = studentCode;
+        }
+        
+        // البحث بالاسم (بحث تقريبي)
+        if (name) {
+            // استخدام regex للبحث الجزئي
+            const nameRegex = new RegExp(name.replace(/\s+/g, '.*'), 'i');
+            query.fullName = { $regex: nameRegex };
+        }
+        
+        if (Object.keys(query).length === 0) {
+            return res.status(400).json({ error: 'يرجى إدخال الاسم أو رقم الجلوس' });
+        }
+        
+        const students = await Student.find(query)
+            .select('-password -refreshToken')
+            .limit(20);
+        
+        console.log(`✅ وجد ${students.length} طالب`);
+        res.json(students);
+        
+    } catch (error) {
+        console.error('❌ خطأ في البحث:', error);
+        res.status(500).json({ error: 'خطأ في البحث عن الطلاب' });
+    }
+});
+
+// ====================== ✅ جلب جميع الطلاب (متاح للجميع) ======================
+app.get('/api/students/all', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const students = await Student.find()
+            .select('-password -refreshToken')
+            .sort({ fullName: 1 });
+        console.log(`📚 تم جلب ${students.length} طالب`);
+        res.json(students);
+    } catch (error) {
+        console.error('❌ خطأ في جلب الطلاب:', error);
+        res.status(500).json({ error: 'خطأ في جلب الطلاب' });
+    }
+});
+
+// ====================== ✅ جلب نتيجة طالب (للطالب نفسه) ======================
+app.get('/api/students/result/:studentCode', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { studentCode } = req.params;
+        
+        // الطالب يقدر يشوف نتيجته هو بس (أو الأدمن)
+        if (req.user.type === 'student' && req.user.studentCode !== studentCode) {
+            return res.status(403).json({ error: 'لا يمكنك عرض نتيجة طالب آخر' });
+        }
+        
+        const student = await Student.findOne({ studentCode })
+            .select('-password -refreshToken');
+        
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        
+        res.json(student);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب نتيجة الطالب' });
+    }
+});
+
+
+
+
+
 // ====================== تحديث بروفايل الطالب (للطالب نفسه) ======================
 app.put('/api/student/profile', verifyToken, async (req, res) => {
     try {
