@@ -1987,16 +1987,17 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
                     updatedCount++;
                     console.log(`🔄 تحديث: ${fullName} (${studentCode})`);
                 } else {
-                    // ✅ إضافة طالب جديد بدون حساب
-                    await Student.create({
-                        fullName,
-                        studentCode,
-                        grade: grade || 'first',
-                        semester: semester || 'first',
-                        subjects: subjects || [],
-                        role: 'student'
-                        // ❌ بدون username و password - لا يمكنه تسجيل الدخول
-                    });
+                    // ✅ الجديد (مع username = studentCode عشان ميحصلش duplicate null)
+await Student.create({
+    fullName,
+    studentCode,
+    username: studentCode,  // ✅ اسم المستخدم = رقم الجلوس
+    password: await hashPassword('123456'),  // ✅ كلمة مرور افتراضية
+    grade: grade || 'first',
+    semester: semester || 'first',
+    subjects: subjects || [],
+    role: 'student'
+});
                     addedCount++;
                     console.log(`➕ إضافة (بدون حساب): ${fullName} (${studentCode})`);
                 }
