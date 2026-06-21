@@ -112,33 +112,7 @@ function clearSession() {
         }
     });
     
-  // ✅ بدل الجزء المحذوف، حط الكود ده:
-if (typeof console !== 'undefined') {
-    const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    
-    if (!isDev) {
-        // في الإنتاج: منع console.log فقط، لكن اسمح بـ console.error للتصحيح
-        const noop = function() {};
-        console.log = noop;
-        console.info = noop;
-        console.debug = noop;
-        console.table = noop;
-        console.group = noop;
-        console.groupEnd = noop;
-        console.groupCollapsed = noop;
-        console.trace = noop;
-        console.dir = noop;
-        console.dirxml = noop;
-        console.time = noop;
-        console.timeEnd = noop;
-        console.timeStamp = noop;
-        console.clear = noop;
-        console.count = noop;
-        console.countReset = noop;
-        // console.warn = noop;  // ✅ اسمح بـ warnings
-        // console.error = noop; // ✅ اسمح بـ errors عشان تشوف المشاكل
-    }
-}
+
     
     // كشف فتح أدوات المطور
     let devToolsOpenCount = 0;
