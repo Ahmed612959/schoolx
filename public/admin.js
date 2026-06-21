@@ -1,4 +1,4 @@
-// admin.js - النسخة الكاملة النهائية (جميع الوظائف + تحليل Excel مضمون + CSRF auto-renew)
+// admin.js - النسخة الكاملة النهائية (جميع الوظائف + تحليل Excel + عرض نتائج صحيح)
 
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://localhost:3000' 
@@ -10,12 +10,8 @@ async function getCsrfToken() {
     if (!token) {
         try {
             const res = await fetch(`${BASE_URL}/api/csrf-token`, { credentials: 'include' });
-            if (res.ok) {
-                const data = await res.json();
-                token = data.csrfToken;
-                sessionStorage.setItem('csrfToken', token);
-            }
-        } catch (e) { console.warn('⚠️ فشل جلب CSRF Token'); }
+            if (res.ok) { const data = await res.json(); token = data.csrfToken; sessionStorage.setItem('csrfToken', token); }
+        } catch (e) {}
     }
     return token;
 }
@@ -31,36 +27,24 @@ function showToast(message, type = 'success') {
 
 function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
 
-// ====================== API Request (مع تجديد تلقائي للـ CSRF Token) ======================
+// ====================== API Request ======================
 async function apiRequest(endpoint, options = {}) {
     let csrfToken = await getCsrfToken();
     const headers = { 'Content-Type': 'application/json', ...options.headers };
     if (csrfToken && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method)) {
         headers['X-CSRF-Token'] = csrfToken;
     }
-    
     let response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers, credentials: 'include' });
-    
-    // ✅ لو رجع 403 (توكين مرفوض)، نجيب واحد جديد ونحاول تاني
     if (response.status === 403) {
-        console.warn('⚠️ CSRF Token مرفوض، جاري تجديده...');
         try {
             const tokenRes = await fetch(`${BASE_URL}/api/csrf-token`, { credentials: 'include' });
-            if (tokenRes.ok) {
-                const tokenData = await tokenRes.json();
-                csrfToken = tokenData.csrfToken;
-                sessionStorage.setItem('csrfToken', csrfToken);
-                headers['X-CSRF-Token'] = csrfToken;
-                response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers, credentials: 'include' });
-            }
-        } catch (e) { console.error('❌ فشل تجديد CSRF Token:', e); }
+            if (tokenRes.ok) { const tokenData = await tokenRes.json(); csrfToken = tokenData.csrfToken; sessionStorage.setItem('csrfToken', csrfToken); headers['X-CSRF-Token'] = csrfToken; response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers, credentials: 'include' }); }
+        } catch (e) {}
     }
-    
     if (response.status === 401) { sessionStorage.clear(); window.location.href = '/login.html'; throw new Error('انتهت الجلسة'); }
     if (response.status === 403) { showToast('طلب غير مصرح به، يرجى تحديث الصفحة', 'error'); throw new Error('CSRF token mismatch'); }
     return response;
 }
-
 async function getFromServer(endpoint) { try { const r = await apiRequest(endpoint); return r.ok ? await r.json() : []; } catch (e) { console.error('Error:', e); return []; } }
 async function saveToServer(endpoint, data, method = 'POST') { const r = await apiRequest(endpoint, { method, body: JSON.stringify(data) }); if (!r.ok) throw new Error((await r.json()).error || 'فشل الحفظ'); return r.json(); }
 
@@ -73,11 +57,40 @@ window.logout = async () => { if (confirm('تسجيل الخروج؟')) { try { 
 (function preventBack() { window.history.pushState(null, '', window.location.href); window.onpopstate = () => window.history.pushState(null, '', window.location.href); })();
 
 // ====================== تعريف الدرجات - الترم الأول ======================
-const SUBJECTS_CONFIG_FIRST = { "اللغة العربية": { max: 20 }, "اللغة الإنجليزية": { max: 20 }, "علوم تطبيقية": { max: 40 }, "طب باطنة": { max: 20 }, "تمريض باطني جراحي": { max: 24 }, "حاسب آلي": { max: 20 }, "الدين": { max: 32, isExtra: true } };
+const SUBJECTS_CONFIG_FIRST = { 
+    "اللغة العربية": { max: 20 }, 
+    "اللغة الإنجليزية": { max: 20 }, 
+    "علوم تطبيقية": { max: 40 },       
+    "طب باطنة": { max: 20 },          
+    "تمريض باطني جراحي": { max: 24 },  
+    "حاسب آلي": { max: 20 },        
+    "الدين": { max: 32, isExtra: true }
+};
 const TOTAL_POSSIBLE_FIRST = 144;
 const ORDERED_SUBJECTS_FIRST = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي", "الدين"];
 
-function normalizeSubjectName(name) { if (!name) return ''; const m = { 'التربية الدينية': 'الدين', 'تربية دينية': 'الدين', 'دين': 'الدين', 'الكمبيوتر': 'حاسب آلي', 'كمبيوتر': 'حاسب آلي', 'الحاسب الآلي': 'حاسب آلي', 'الفيزياء': 'فيزياء', 'الكيمياء': 'كيمياء', 'التمريض الباطني الجراحي': 'تمريض باطني جراحي', 'تمريض باطنى جراحي': 'تمريض باطني جراحي', 'الطب الباطنة': 'طب باطنة', 'العلوم التطبيقية': 'علوم تطبيقية' }; return m[name.trim()] || name.trim(); }
+// ✅ دالة توحيد أسماء المواد (شاملة كل الاحتمالات)
+function normalizeSubjectName(name) {
+    if (!name) return '';
+    const m = { 
+        'التربية الدينية': 'الدين', 'تربية دينية': 'الدين', 'دين': 'الدين',
+        'الكمبيوتر': 'حاسب آلي', 'كمبيوتر': 'حاسب آلي', 'الحاسب الآلي': 'حاسب آلي', 'الحاسب': 'حاسب آلي', 'حاسب': 'حاسب آلي',
+        'الفيزياء': 'فيزياء', 'الكيمياء': 'كيمياء',
+        'التمريض الباطني الجراحي': 'تمريض باطني جراحي', 'تمريض باطنى جراحي': 'تمريض باطني جراحي', 'التمريض': 'تمريض باطني جراحي',
+        'الطب الباطنة': 'طب باطنة', 'الباطنة': 'طب باطنة',
+        'العلوم التطبيقية': 'علوم تطبيقية', 'العلوم': 'علوم تطبيقية',
+        'العربي': 'اللغة العربية', 'العربية': 'اللغة العربية',
+        'الانجليزي': 'اللغة الإنجليزية', 'english': 'اللغة الإنجليزية', 'انجليزي': 'اللغة الإنجليزية',
+        'اللغة العربيه': 'اللغة العربية', 'اللغه العربيه': 'اللغة العربية',
+        'اللغة الانجليزيه': 'اللغة الإنجليزية', 'اللغه الانجليزيه': 'اللغة الإنجليزية',
+        'علوم تطبيقيه': 'علوم تطبيقية',
+        'طب باطني': 'طب باطنة',
+        'تمريض': 'تمريض باطني جراحي',
+        'حاسوب': 'حاسب آلي', 'حاسب الي': 'حاسب آلي', 'حاسب الى': 'حاسب آلي'
+    };
+    return m[name.trim()] || name.trim();
+}
+
 function calculateStudentTotal(st) { if (!st.subjects) return 0; let t = 0; st.subjects.forEach(s => { const n = normalizeSubjectName(s.name); const c = SUBJECTS_CONFIG_FIRST[n]; if (c && !c.isExtra) t += s.grade || 0; }); return t; }
 function calculateStudentPercentage(st) { const t = calculateStudentTotal(st); return (t / TOTAL_POSSIBLE_FIRST) * 100; }
 function getStudentFormattedGrades(st) { let g = {}; ORDERED_SUBJECTS_FIRST.forEach(n => { const c = SUBJECTS_CONFIG_FIRST[n]; const sub = st.subjects?.find(s => normalizeSubjectName(s.name) === n); g[n] = { grade: sub?.grade || 0, max: c.max, isExtra: c.isExtra || false }; }); return g; }
@@ -181,7 +194,6 @@ window.analyzeExcel = async () => {
             const totalRows = rows.length - 1;
             console.log(`📊 تم قراءة ${totalRows} صف من Excel`);
             
-            // ✅ تجميع كل الطلاب في مصفوفة واحدة
             let studentsData = [];
             let skippedCount = 0;
             
@@ -195,10 +207,9 @@ window.analyzeExcel = async () => {
                 if (!studentCode || studentCode === '0' || studentCode === 'NaN') { skippedCount++; continue; }
                 
                 let studentName = String(row[1]).trim();
-                if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentName === 'اسم' || studentName.includes('الكود') || studentName.includes('رقم الجلوس')) { 
-                    skippedCount++; continue; 
-                }
+                if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentName === 'اسم' || studentName.includes('الكود') || studentName.includes('رقم الجلوس')) { skippedCount++; continue; }
                 
+                // A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم, F=طب باطنة, G=تمريض, H=حاسب, I=تربية دينية
                 let subjects = [];
                 if (row[2] !== undefined && row[2] !== '') subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) || 0 });
                 if (row[3] !== undefined && row[3] !== '') subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) || 0 });
@@ -208,58 +219,32 @@ window.analyzeExcel = async () => {
                 if (row[7] !== undefined && row[7] !== '') subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) || 0 });
                 if (row[8] !== undefined && row[8] !== '') subjects.push({ name: "الدين", grade: parseFloat(row[8]) || 0 });
                 
-                studentsData.push({
-                    studentCode: studentCode,
-                    fullName: studentName,
-                    subjects: subjects,
-                    grade: 'first',
-                    semester: 'first'
-                });
+                studentsData.push({ studentCode, fullName: studentName, subjects, grade: 'first', semester: 'first' });
             }
             
             console.log(`📦 تم تجميع ${studentsData.length} طالب للإرسال`);
             
-            // ✅ إرسال كل البيانات في طلب واحد
-            progressContainer.innerHTML = `
-                <div style="text-align:center;color:#1a4f6e;padding:20px;">
-                    <i class="fas fa-paper-plane" style="font-size:2rem;"></i><br>
-                    ⏳ جاري إرسال ${studentsData.length} طالب إلى السيرفر...
-                </div>`;
+            progressContainer.innerHTML = `<div style="text-align:center;color:#1a4f6e;padding:20px;"><i class="fas fa-paper-plane" style="font-size:2rem;"></i><br>⏳ جاري إرسال ${studentsData.length} طالب إلى السيرفر...</div>`;
             
             if (studentsData.length > 0) {
                 try {
                     const response = await fetch(`${BASE_URL}/api/upload-grades`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
                         body: JSON.stringify({ students: studentsData })
                     });
-                    
                     const result = await response.json();
                     console.log('📨 رد السيرفر:', result);
                     
                     if (response.ok) {
                         let msg = `✅ ${result.message || 'تم الرفع بنجاح'}`;
                         if (skippedCount > 0) msg += ` | ⏭️ تخطي ${skippedCount} صف`;
-                        
-                        progressContainer.innerHTML = `
-                            <div style="text-align:center;color:#27ae60;padding:20px;">
-                                <i class="fas fa-check-circle" style="font-size:3rem;"></i><br>
-                                <strong>${msg}</strong>
-                            </div>`;
-                        
+                        progressContainer.innerHTML = `<div style="text-align:center;color:#27ae60;padding:20px;"><i class="fas fa-check-circle" style="font-size:3rem;"></i><br><strong>${msg}</strong></div>`;
                         showToast(msg, 'success');
                         
-                        // إعادة تحميل البيانات
                         try {
                             const res = await fetch(`${BASE_URL}/api/admin/students`, { credentials: 'include' });
-                            if (res.ok) { 
-                                allStudents = await res.json(); 
-                                studentsWithGrades = getStudentsWithGrades(allStudents); 
-                                renderResults(); renderStats(); renderTopStudents(); 
-                            }
+                            if (res.ok) { allStudents = await res.json(); studentsWithGrades = getStudentsWithGrades(allStudents); renderResults(); renderStats(); renderTopStudents(); }
                         } catch (e) { console.error('❌ فشل إعادة التحميل:', e); }
-                        
                     } else {
                         throw new Error(result.error || 'فشل الرفع');
                     }
@@ -272,7 +257,6 @@ window.analyzeExcel = async () => {
                 progressContainer.innerHTML = '<div style="text-align:center;color:#f39c12;padding:20px;">⚠️ لا توجد بيانات صالحة للرفع</div>';
                 showToast('⚠️ لا توجد بيانات صالحة', 'warning');
             }
-            
         } catch (err) {
             console.error('❌ خطأ:', err);
             progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}</div>`;
@@ -282,6 +266,7 @@ window.analyzeExcel = async () => {
     reader.onerror = () => { progressContainer.innerHTML = '<div style="text-align:center;color:#e74c3c;">❌ خطأ في قراءة الملف</div>'; showToast('❌ خطأ في قراءة الملف', 'error'); };
     reader.readAsArrayBuffer(file); 
 };
+
 // ====================== تصدير Excel ======================
 function exportToExcel() { if(!studentsWithGrades.length){ showToast('لا توجد بيانات','error'); return; } const data=studentsWithGrades.map(st=>{ const grades=getStudentFormattedGrades(st); const row={'رقم الجلوس':st.studentCode,'اسم الطالب':st.fullName}; ORDERED_SUBJECTS_FIRST.forEach(s=>{ const gi=grades[s]; if(gi) row[s]=gi.grade; }); row['المجموع']=calculateStudentTotal(st); row['النسبة']=calculateStudentPercentage(st).toFixed(1)+'%'; return row; }); const ws=XLSX.utils.json_to_sheet(data), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'النتائج'); XLSX.writeFile(wb,'نتائج_الطلاب.xlsx'); showToast('✅ تم التصدير','success'); }
 
