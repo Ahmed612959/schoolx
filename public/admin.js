@@ -165,7 +165,7 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (حل مضمون 100%) ======================
+// ====================== ✅ تحليل Excel (دفعة واحدة - مضمون 100%) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
@@ -179,104 +179,102 @@ window.analyzeExcel = async () => {
         try {
             let data = new Uint8Array(e.target.result), wb = XLSX.read(data, { type: 'array' }), rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }); 
             const totalRows = rows.length - 1;
-            let successCount = 0, skippedCount = 0, errorCount = 0;
+            console.log(`📊 تم قراءة ${totalRows} صف من Excel`);
             
-            progressContainer.innerHTML = `
-                <div style="margin-bottom:10px;text-align:center;font-weight:bold;color:#1a4f6e;">📊 إجمالي الصفوف: <span style="color:#c4a35a;">${totalRows}</span></div>
-                <div style="background:#e9ecef;border-radius:10px;height:20px;margin-bottom:10px;overflow:hidden;"><div id="progress-bar-fill" style="background:linear-gradient(90deg,#c4a35a,#1a4f6e);height:100%;width:0%;border-radius:10px;transition:width 0.3s;"></div></div>
-                <div id="progress-text" style="text-align:center;margin-bottom:10px;">⏳ جاري التحليل... 0/${totalRows}</div>
-                <div id="progress-stats" style="text-align:center;margin-bottom:10px;font-weight:bold;">✅ ناجح: <span style="color:#27ae60;">0</span> | ⏭️ تخطي: <span style="color:#f39c12;">0</span> | ❌ خطأ: <span style="color:#e74c3c;">0</span></div>
-                <div id="live-log" style="max-height:200px;overflow-y:auto;font-size:0.8rem;background:#fff;padding:10px;border-radius:8px;border:1px solid #eee;"></div>`;
-            
-            const pb = document.getElementById('progress-bar-fill'), pt = document.getElementById('progress-text'), pst = document.getElementById('progress-stats'), ll = document.getElementById('live-log');
-            function up(c, t) { const p = Math.round((c/t)*100); if(pb) pb.style.width = p+'%'; if(pt) pt.innerHTML = `⏳ جاري التحليل... ${c}/${t} (${p}%)`; if(pst) pst.innerHTML = `✅ ناجح: <span style="color:#27ae60;">${successCount}</span> | ⏭️ تخطي: <span style="color:#f39c12;">${skippedCount}</span> | ❌ خطأ: <span style="color:#e74c3c;">${errorCount}</span>`; }
-            function log(msg, type) { const colors = { success: '#27ae60', warning: '#f39c12', error: '#e74c3c' }, icons = { success: '✅', warning: '⏭️', error: '❌' }; const time = new Date().toLocaleTimeString('ar-EG'); if(ll) { const div = document.createElement('div'); div.style.cssText = `padding:2px 0;border-bottom:1px solid #f0f0f0;color:${colors[type]};font-size:0.75rem;`; div.innerHTML = `<small>${time}</small> ${icons[type]} ${msg}`; ll.insertBefore(div, ll.firstChild); if(ll.children.length > 50) ll.removeChild(ll.lastChild); } }
-            
-            let processedCount = 0;
+            // ✅ تجميع كل الطلاب في مصفوفة واحدة
+            let studentsData = [];
+            let skippedCount = 0;
             
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
                 
-                if (!row[0] || !row[1]) { skippedCount++; log(`تخطي صف ${i}: بيانات غير مكتملة`, 'warning'); up(processedCount, totalRows); continue; }
+                if (!row[0] || !row[1]) { skippedCount++; continue; }
                 
                 let studentCode = String(row[0]).trim();
                 if (studentCode.includes('.')) studentCode = studentCode.split('.')[0];
-                if (!studentCode || studentCode === '0' || studentCode === 'NaN') { skippedCount++; log(`تخطي صف ${i}: رقم جلوس غير صالح`, 'warning'); up(processedCount, totalRows); continue; }
+                if (!studentCode || studentCode === '0' || studentCode === 'NaN') { skippedCount++; continue; }
                 
                 let studentName = String(row[1]).trim();
                 if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentName === 'اسم' || studentName.includes('الكود') || studentName.includes('رقم الجلوس')) { 
-                    skippedCount++; log(`تخطي صف ${i}: صف عنوان`, 'warning'); up(processedCount, totalRows); continue; 
+                    skippedCount++; continue; 
                 }
                 
-                let subjects = [
-                    { name: "اللغة العربية", grade: (row[2] !== undefined && row[2] !== '') ? (parseFloat(row[2]) || 0) : 0 },
-                    { name: "اللغة الإنجليزية", grade: (row[3] !== undefined && row[3] !== '') ? (parseFloat(row[3]) || 0) : 0 },
-                    { name: "علوم تطبيقية", grade: (row[4] !== undefined && row[4] !== '') ? (parseFloat(row[4]) || 0) : 0 },
-                    { name: "طب باطنة", grade: (row[5] !== undefined && row[5] !== '') ? (parseFloat(row[5]) || 0) : 0 },
-                    { name: "تمريض باطني جراحي", grade: (row[6] !== undefined && row[6] !== '') ? (parseFloat(row[6]) || 0) : 0 },
-                    { name: "حاسب آلي", grade: (row[7] !== undefined && row[7] !== '') ? (parseFloat(row[7]) || 0) : 0 },
-                    { name: "الدين", grade: (row[8] !== undefined && row[8] !== '') ? (parseFloat(row[8]) || 0) : 0 }
-                ];
+                let subjects = [];
+                if (row[2] !== undefined && row[2] !== '') subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) || 0 });
+                if (row[3] !== undefined && row[3] !== '') subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) || 0 });
+                if (row[4] !== undefined && row[4] !== '') subjects.push({ name: "علوم تطبيقية", grade: parseFloat(row[4]) || 0 });
+                if (row[5] !== undefined && row[5] !== '') subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) || 0 });
+                if (row[6] !== undefined && row[6] !== '') subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) || 0 });
+                if (row[7] !== undefined && row[7] !== '') subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) || 0 });
+                if (row[8] !== undefined && row[8] !== '') subjects.push({ name: "الدين", grade: parseFloat(row[8]) || 0 });
                 
-                // ✅ طباعة للتأكيد
-                console.log(`📝 [${i}] ${studentName} (${studentCode}) - ${subjects.filter(s=>s.grade>0).length} مواد`);
-                
-                try {
-                    let existing = allStudents.find(s => s.studentCode == studentCode);
-                    let response;
-                    
-                    if (existing) {
-                        // تحديث طالب موجود
-                        response = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
-                            body: JSON.stringify({ fullName: studentName, subjects, grade: 'first', semester: 'first' })
-                        });
-                    } else {
-                        // إضافة طالب جديد
-                        response = await fetch(`${BASE_URL}/api/students`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
-                            body: JSON.stringify({ fullName: studentName, id: studentCode, subjects, grade: 'first', semester: 'first' })
-                        });
-                    }
-                    
-                    if (response.ok) {
-                        successCount++;
-                        log(`${existing ? '🔄' : '➕'} ${studentName} (${studentCode})`, 'success');
-                    } else {
-                        const errText = await response.text();
-                        throw new Error(`Status ${response.status}: ${errText.substring(0, 80)}`);
-                    }
-                } catch (err) {
-                    errorCount++;
-                    log(`❌ ${studentName} (${studentCode}): ${err.message}`, 'error');
-                }
-                
-                processedCount++;
-                up(processedCount, totalRows);
-                await new Promise(r => setTimeout(r, 50));
+                studentsData.push({
+                    studentCode: studentCode,
+                    fullName: studentName,
+                    subjects: subjects,
+                    grade: 'first',
+                    semester: 'first'
+                });
             }
             
-            up(processedCount, totalRows);
-            if (pb) { pb.style.width = '100%'; pb.style.background = 'linear-gradient(90deg,#27ae60,#2ecc71)'; }
+            console.log(`📦 تم تجميع ${studentsData.length} طالب للإرسال`);
             
-            // إعادة تحميل البيانات
-            try {
-                const res = await fetch(`${BASE_URL}/api/admin/students`, { credentials: 'include' });
-                if (res.ok) { allStudents = await res.json(); studentsWithGrades = getStudentsWithGrades(allStudents); renderResults(); renderStats(); renderTopStudents(); }
-            } catch (e) { console.error('❌ فشل إعادة التحميل:', e); }
+            // ✅ إرسال كل البيانات في طلب واحد
+            progressContainer.innerHTML = `
+                <div style="text-align:center;color:#1a4f6e;padding:20px;">
+                    <i class="fas fa-paper-plane" style="font-size:2rem;"></i><br>
+                    ⏳ جاري إرسال ${studentsData.length} طالب إلى السيرفر...
+                </div>`;
             
-            let msg = `✅ تم معالجة ${successCount} طالب بنجاح`;
-            if (skippedCount > 0) msg += ` | ⏭️ تخطي ${skippedCount}`;
-            if (errorCount > 0) msg += ` | ❌ فشل ${errorCount}`;
-            
-            if (pt) { pt.innerHTML = msg; pt.style.color = errorCount > 0 ? '#f39c12' : '#27ae60'; pt.style.fontWeight = 'bold'; }
-            showToast(msg, errorCount > 0 ? 'warning' : 'success');
+            if (studentsData.length > 0) {
+                try {
+                    const response = await fetch(`${BASE_URL}/api/upload-grades`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ students: studentsData })
+                    });
+                    
+                    const result = await response.json();
+                    console.log('📨 رد السيرفر:', result);
+                    
+                    if (response.ok) {
+                        let msg = `✅ ${result.message || 'تم الرفع بنجاح'}`;
+                        if (skippedCount > 0) msg += ` | ⏭️ تخطي ${skippedCount} صف`;
+                        
+                        progressContainer.innerHTML = `
+                            <div style="text-align:center;color:#27ae60;padding:20px;">
+                                <i class="fas fa-check-circle" style="font-size:3rem;"></i><br>
+                                <strong>${msg}</strong>
+                            </div>`;
+                        
+                        showToast(msg, 'success');
+                        
+                        // إعادة تحميل البيانات
+                        try {
+                            const res = await fetch(`${BASE_URL}/api/admin/students`, { credentials: 'include' });
+                            if (res.ok) { 
+                                allStudents = await res.json(); 
+                                studentsWithGrades = getStudentsWithGrades(allStudents); 
+                                renderResults(); renderStats(); renderTopStudents(); 
+                            }
+                        } catch (e) { console.error('❌ فشل إعادة التحميل:', e); }
+                        
+                    } else {
+                        throw new Error(result.error || 'فشل الرفع');
+                    }
+                } catch (err) {
+                    console.error('❌ فشل الإرسال:', err);
+                    progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}</div>`;
+                    showToast('❌ فشل: ' + err.message, 'error');
+                }
+            } else {
+                progressContainer.innerHTML = '<div style="text-align:center;color:#f39c12;padding:20px;">⚠️ لا توجد بيانات صالحة للرفع</div>';
+                showToast('⚠️ لا توجد بيانات صالحة', 'warning');
+            }
             
         } catch (err) {
+            console.error('❌ خطأ:', err);
             progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}</div>`;
             showToast('❌ خطأ: ' + err.message, 'error');
         }
@@ -284,7 +282,6 @@ window.analyzeExcel = async () => {
     reader.onerror = () => { progressContainer.innerHTML = '<div style="text-align:center;color:#e74c3c;">❌ خطأ في قراءة الملف</div>'; showToast('❌ خطأ في قراءة الملف', 'error'); };
     reader.readAsArrayBuffer(file); 
 };
-
 // ====================== تصدير Excel ======================
 function exportToExcel() { if(!studentsWithGrades.length){ showToast('لا توجد بيانات','error'); return; } const data=studentsWithGrades.map(st=>{ const grades=getStudentFormattedGrades(st); const row={'رقم الجلوس':st.studentCode,'اسم الطالب':st.fullName}; ORDERED_SUBJECTS_FIRST.forEach(s=>{ const gi=grades[s]; if(gi) row[s]=gi.grade; }); row['المجموع']=calculateStudentTotal(st); row['النسبة']=calculateStudentPercentage(st).toFixed(1)+'%'; return row; }); const ws=XLSX.utils.json_to_sheet(data), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'النتائج'); XLSX.writeFile(wb,'نتائج_الطلاب.xlsx'); showToast('✅ تم التصدير','success'); }
 
