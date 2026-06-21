@@ -1,11 +1,25 @@
-// admin.js - النسخة الكاملة النهائية (جميع الوظائف + تحليل Excel + عرض نتائج صحيح)
+// admin.js - النسخة الكاملة النهائية (جميع الوظائف + تحليل Excel مضمون + CSRF auto-renew)
 
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://localhost:3000' 
     : '';
 
 // ====================== دوال الأمان الأساسية ======================
-function getCsrfToken() { return sessionStorage.getItem('csrfToken'); }
+async function getCsrfToken() {
+    let token = sessionStorage.getItem('csrfToken');
+    if (!token) {
+        try {
+            const res = await fetch(`${BASE_URL}/api/csrf-token`, { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                token = data.csrfToken;
+                sessionStorage.setItem('csrfToken', token);
+            }
+        } catch (e) { console.warn('⚠️ فشل جلب CSRF Token'); }
+    }
+    return token;
+}
+
 function getLoggedInUser() { const u = sessionStorage.getItem('userData'); return u ? JSON.parse(u) : null; }
 
 function showToast(message, type = 'success') {
@@ -17,16 +31,37 @@ function showToast(message, type = 'success') {
 
 function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
 
-// ====================== API Request ======================
+// ====================== API Request (مع تجديد تلقائي للـ CSRF Token) ======================
 async function apiRequest(endpoint, options = {}) {
-    const csrfToken = getCsrfToken(); const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (csrfToken && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method)) headers['X-CSRF-Token'] = csrfToken;
-    const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers, credentials: 'include' });
+    let csrfToken = await getCsrfToken();
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (csrfToken && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method)) {
+        headers['X-CSRF-Token'] = csrfToken;
+    }
+    
+    let response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers, credentials: 'include' });
+    
+    // ✅ لو رجع 403 (توكين مرفوض)، نجيب واحد جديد ونحاول تاني
+    if (response.status === 403) {
+        console.warn('⚠️ CSRF Token مرفوض، جاري تجديده...');
+        try {
+            const tokenRes = await fetch(`${BASE_URL}/api/csrf-token`, { credentials: 'include' });
+            if (tokenRes.ok) {
+                const tokenData = await tokenRes.json();
+                csrfToken = tokenData.csrfToken;
+                sessionStorage.setItem('csrfToken', csrfToken);
+                headers['X-CSRF-Token'] = csrfToken;
+                response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers, credentials: 'include' });
+            }
+        } catch (e) { console.error('❌ فشل تجديد CSRF Token:', e); }
+    }
+    
     if (response.status === 401) { sessionStorage.clear(); window.location.href = '/login.html'; throw new Error('انتهت الجلسة'); }
     if (response.status === 403) { showToast('طلب غير مصرح به، يرجى تحديث الصفحة', 'error'); throw new Error('CSRF token mismatch'); }
     return response;
 }
-async function getFromServer(endpoint) { try { const r = await apiRequest(endpoint); return r.ok ? await r.json() : []; } catch (e) { console.error(e); return []; } }
+
+async function getFromServer(endpoint) { try { const r = await apiRequest(endpoint); return r.ok ? await r.json() : []; } catch (e) { console.error('Error:', e); return []; } }
 async function saveToServer(endpoint, data, method = 'POST') { const r = await apiRequest(endpoint, { method, body: JSON.stringify(data) }); if (!r.ok) throw new Error((await r.json()).error || 'فشل الحفظ'); return r.json(); }
 
 // ====================== التحقق من صلاحية الأدمن ======================
@@ -37,30 +72,12 @@ async function verifyAdminAccess() {
 window.logout = async () => { if (confirm('تسجيل الخروج؟')) { try { await fetch(`${BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' }); } catch (e) {} sessionStorage.clear(); window.location.href = 'login.html'; } };
 (function preventBack() { window.history.pushState(null, '', window.location.href); window.onpopstate = () => window.history.pushState(null, '', window.location.href); })();
 
-// ====================== تعريف الدرجات - الترم الأول فقط ======================
-const SUBJECTS_CONFIG_FIRST = { 
-    "اللغة العربية": { max: 20 }, 
-    "اللغة الإنجليزية": { max: 20 }, 
-    "علوم تطبيقية": { max: 40 },       
-    "طب باطنة": { max: 20 },          
-    "تمريض باطني جراحي": { max: 24 },  
-    "حاسب آلي": { max: 20 },        
-    "الدين": { max: 32, isExtra: true }
-};
-
+// ====================== تعريف الدرجات - الترم الأول ======================
+const SUBJECTS_CONFIG_FIRST = { "اللغة العربية": { max: 20 }, "اللغة الإنجليزية": { max: 20 }, "علوم تطبيقية": { max: 40 }, "طب باطنة": { max: 20 }, "تمريض باطني جراحي": { max: 24 }, "حاسب آلي": { max: 20 }, "الدين": { max: 32, isExtra: true } };
 const TOTAL_POSSIBLE_FIRST = 144;
+const ORDERED_SUBJECTS_FIRST = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي", "الدين"];
 
-const ORDERED_SUBJECTS_FIRST = [
-    "اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", 
-    "طب باطنة", "تمريض باطني جراحي", "حاسب آلي", "الدين"
-];
-
-function normalizeSubjectName(name) {
-    if (!name) return '';
-    const m = { 'التربية الدينية': 'الدين', 'تربية دينية': 'الدين', 'دين': 'الدين', 'الكمبيوتر': 'حاسب آلي', 'كمبيوتر': 'حاسب آلي', 'الحاسب الآلي': 'حاسب آلي', 'الفيزياء': 'فيزياء', 'الكيمياء': 'كيمياء', 'التمريض الباطني الجراحي': 'تمريض باطني جراحي', 'تمريض باطنى جراحي': 'تمريض باطني جراحي', 'الطب الباطنة': 'طب باطنة', 'العلوم التطبيقية': 'علوم تطبيقية' };
-    return m[name.trim()] || name.trim();
-}
-
+function normalizeSubjectName(name) { if (!name) return ''; const m = { 'التربية الدينية': 'الدين', 'تربية دينية': 'الدين', 'دين': 'الدين', 'الكمبيوتر': 'حاسب آلي', 'كمبيوتر': 'حاسب آلي', 'الحاسب الآلي': 'حاسب آلي', 'الفيزياء': 'فيزياء', 'الكيمياء': 'كيمياء', 'التمريض الباطني الجراحي': 'تمريض باطني جراحي', 'تمريض باطنى جراحي': 'تمريض باطني جراحي', 'الطب الباطنة': 'طب باطنة', 'العلوم التطبيقية': 'علوم تطبيقية' }; return m[name.trim()] || name.trim(); }
 function calculateStudentTotal(st) { if (!st.subjects) return 0; let t = 0; st.subjects.forEach(s => { const n = normalizeSubjectName(s.name); const c = SUBJECTS_CONFIG_FIRST[n]; if (c && !c.isExtra) t += s.grade || 0; }); return t; }
 function calculateStudentPercentage(st) { const t = calculateStudentTotal(st); return (t / TOTAL_POSSIBLE_FIRST) * 100; }
 function getStudentFormattedGrades(st) { let g = {}; ORDERED_SUBJECTS_FIRST.forEach(n => { const c = SUBJECTS_CONFIG_FIRST[n]; const sub = st.subjects?.find(s => normalizeSubjectName(s.name) === n); g[n] = { grade: sub?.grade || 0, max: c.max, isExtra: c.isExtra || false }; }); return g; }
@@ -72,8 +89,8 @@ let allStudents = [], studentsWithGrades = [], admins = [], violations = [], not
 // ====================== الإشعارات ======================
 async function loadNotifications() { try { const r = await fetch(`${BASE_URL}/api/notifications`, { credentials: 'include' }); if (r.ok) { notifications = await r.json(); renderNotifications(); } else { notifications = []; renderNotifications(); } } catch (e) { notifications = []; renderNotifications(); } }
 function renderNotifications() { const tb = document.getElementById('notifications-table-body'); if (!tb) return; if (!notifications || !notifications.length) { tb.innerHTML = '<tr><td colspan="3">📭 لا توجد إشعارات</td></tr>'; return; } tb.innerHTML = notifications.map(n => `<tr><td style="text-align:right;">${escapeHtml(n.text)}</td><td style="text-align:center;">${n.date||'-'}</td><td style="text-align:center;"><button class="delete-btn" onclick="deleteNotification('${n._id}')"><i class="fas fa-trash"></i> حذف</button></td></tr>`).join(''); }
-window.addNotification = async function() { const text = document.getElementById('notification-text')?.value.trim(); if (!text) { showToast('يرجى إدخال نص الإشعار!', 'error'); return; } const date = new Date().toLocaleString('ar-EG'); try { const csrfToken = getCsrfToken(); const r = await fetch(`${BASE_URL}/api/notifications`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, credentials: 'include', body: JSON.stringify({ text, date }) }); const d = await r.json(); if (r.ok && d.success) { await loadNotifications(); document.getElementById('notification-text').value = ''; showToast('✅ تم إضافة الإشعار بنجاح!', 'success'); } else { showToast(d.error || 'فشل إضافة الإشعار', 'error'); } } catch (er) { showToast('حدث خطأ', 'error'); } };
-window.deleteNotification = async function(id) { const res = await Swal.fire({ title: '⚠️ تأكيد الحذف', text: 'هل أنت متأكد من حذف هذا الإشعار؟', icon: 'warning', showCancelButton: true, confirmButtonText: 'نعم، احذف', cancelButtonText: 'إلغاء', confirmButtonColor: '#E74C3C' }); if (res.isConfirmed) { try { const csrfToken = getCsrfToken(); const r = await fetch(`${BASE_URL}/api/notifications/${id}`, { method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' }, credentials: 'include' }); const d = await r.json(); if (r.ok && d.success) { await loadNotifications(); showToast('🗑️ تم حذف الإشعار بنجاح.', 'success'); } else { showToast(d.error || '❌ فشل حذف الإشعار', 'error'); } } catch (er) { showToast('حدث خطأ', 'error'); } } };
+window.addNotification = async function() { const text = document.getElementById('notification-text')?.value.trim(); if (!text) { showToast('يرجى إدخال نص الإشعار!', 'error'); return; } const date = new Date().toLocaleString('ar-EG'); try { const csrfToken = await getCsrfToken(); const r = await fetch(`${BASE_URL}/api/notifications`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, credentials: 'include', body: JSON.stringify({ text, date }) }); const d = await r.json(); if (r.ok && d.success) { await loadNotifications(); document.getElementById('notification-text').value = ''; showToast('✅ تم إضافة الإشعار بنجاح!', 'success'); } else { showToast(d.error || 'فشل إضافة الإشعار', 'error'); } } catch (er) { showToast('حدث خطأ', 'error'); } };
+window.deleteNotification = async function(id) { const res = await Swal.fire({ title: '⚠️ تأكيد الحذف', text: 'هل أنت متأكد من حذف هذا الإشعار؟', icon: 'warning', showCancelButton: true, confirmButtonText: 'نعم، احذف', cancelButtonText: 'إلغاء', confirmButtonColor: '#E74C3C' }); if (res.isConfirmed) { try { const csrfToken = await getCsrfToken(); const r = await fetch(`${BASE_URL}/api/notifications/${id}`, { method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' }, credentials: 'include' }); const d = await r.json(); if (r.ok && d.success) { await loadNotifications(); showToast('🗑️ تم حذف الإشعار بنجاح.', 'success'); } else { showToast(d.error || '❌ فشل حذف الإشعار', 'error'); } } catch (er) { showToast('حدث خطأ', 'error'); } } };
 
 // ====================== تحميل البيانات الأساسية ======================
 async function loadInitialData() {
@@ -139,30 +156,23 @@ let questionsList = [];
 function renderQuestionInputs() { let type=document.getElementById('question-type')?.value, cont=document.getElementById('question-inputs'); if(!cont) return; if(type==='multiple'){ cont.innerHTML=`<div class="form-group"><label>📝 نص السؤال</label><input type="text" id="qText" class="form-control" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;"></div><div class="form-group"><label>🔘 الخيارات</label><div id="optionsArea"><input type="text" class="opt" placeholder="خيار 1" style="width:48%;margin:5px;padding:8px;border-radius:8px;border:1px solid #ddd;"><input type="text" class="opt" placeholder="خيار 2" style="width:48%;margin:5px;padding:8px;border-radius:8px;border:1px solid #ddd;"><br><input type="text" class="opt" placeholder="خيار 3" style="width:48%;margin:5px;padding:8px;border-radius:8px;border:1px solid #ddd;"><input type="text" class="opt" placeholder="خيار 4" style="width:48%;margin:5px;padding:8px;border-radius:8px;border:1px solid #ddd;"></div></div><div class="form-group"><label>✅ الإجابة الصحيحة</label><select id="correctOpt" class="form-control" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;"></select></div>`; let update=()=>{ let opts=[...document.querySelectorAll('.opt')].map(i=>i.value.trim()).filter(v=>v); let sel=document.getElementById('correctOpt'); sel.innerHTML='<option value="">اختر الإجابة</option>'+opts.map(o=>`<option value="${o}">${o}</option>`).join(''); }; document.querySelectorAll('.opt').forEach(i=>i.addEventListener('input',update)); setTimeout(update,100); } else if(type==='essay'){ cont.innerHTML=`<div class="form-group"><label>📝 نص السؤال</label><input type="text" id="qText" class="form-control" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;"></div><div class="form-group"><label>📄 الإجابة النموذجية</label><textarea id="essayAnswer" rows="3" class="form-control" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;"></textarea></div>`; } else if(type==='truefalse'){ cont.innerHTML=`<div class="form-group"><label>📝 نص السؤال</label><input type="text" id="qText" class="form-control" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;"></div><div class="form-group"><label>✅ الإجابة الصحيحة</label><select id="tfAnswer" class="form-control" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;"><option value="true">✔️ صح</option><option value="false">❌ خطأ</option></select></div>`; } }
 window.addQuestion = function() { let type=document.getElementById('question-type').value, text=document.getElementById('qText')?.value.trim(); if(!text){ showToast('أدخل نص السؤال أولاً!','error'); return; } let q={type,text}; if(type==='multiple'){ let opts=[...document.querySelectorAll('.opt')].map(i=>i.value.trim()).filter(v=>v), cor=document.getElementById('correctOpt').value; if(opts.length<2){ showToast('أضف خيارين على الأقل!','error'); return; } if(!cor){ showToast('اختر الإجابة الصحيحة!','error'); return; } q.options=opts; q.correctAnswer=cor; } else if(type==='essay'){ let ans=document.getElementById('essayAnswer')?.value.trim(); if(!ans){ showToast('أدخل الإجابة النموذجية!','error'); return; } q.correctAnswer=ans; } else if(type==='truefalse'){ q.correctAnswer=document.getElementById('tfAnswer').value; } questionsList.push(q); const qc=document.getElementById('questions-list'); if(qc) qc.innerHTML=questionsList.map((qq,idx)=>`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:12px;border-right:3px solid #C7A252;"><strong>سؤال ${idx+1}:</strong> ${escapeHtml(qq.text)}<br>${qq.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${qq.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${qq.correctAnswer}</span>`:''}${qq.correctAnswer&&!qq.options?`<span style="color:#C7A252;">✅ الإجابة: ${qq.correctAnswer}</span>`:''}<button onclick="removeQuestion(${idx})" style="background:#E74C3C;color:white;border:none;padding:5px 12px;border-radius:20px;margin-top:10px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></div>`).join(''); document.getElementById('question-inputs').innerHTML=''; document.getElementById('qText').value=''; showToast('✅ تم إضافة السؤال بنجاح','success'); };
 window.removeQuestion = function(idx) { questionsList.splice(idx,1); const qc=document.getElementById('questions-list'); if(qc) qc.innerHTML=questionsList.map((qq,i)=>`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:12px;border-right:3px solid #C7A252;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(qq.text)}<br>${qq.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${qq.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${qq.correctAnswer}</span>`:''}${qq.correctAnswer&&!qq.options?`<span style="color:#C7A252;">✅ الإجابة: ${qq.correctAnswer}</span>`:''}<button onclick="removeQuestion(${i})" style="background:#E74C3C;color:white;border:none;padding:5px 12px;border-radius:20px;margin-top:10px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></div>`).join(''); showToast('✅ تم حذف السؤال','success'); };
-window.saveExam = async function() { const name=document.getElementById('exam-name')?.value.trim(), code=document.getElementById('exam-code')?.value.trim(), stage=document.getElementById('exam-stage')?.value, duration=parseInt(document.getElementById('exam-duration')?.value); if(!name){ showToast('يرجى إدخال اسم الاختبار!','error'); return; } if(!code){ showToast('يرجى إدخال كود الاختبار!','error'); return; } if(!duration||duration<1){ showToast('يرجى إدخال مدة الاختبار بالدقائق!','error'); return; } if(questionsList.length===0){ showToast('يرجى إضافة سؤال واحد على الأقل!','error'); return; } const csrfToken=getCsrfToken(); showToast('جاري حفظ الاختبار...','info'); try { const r=await fetch(`${BASE_URL}/api/exams`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},credentials:'include',body:JSON.stringify({name,code,stage,duration,questions:questionsList})}); const d=await r.json(); if(r.ok&&d.success){ showToast('✅ تم حفظ الاختبار بنجاح!','success'); questionsList=[]; document.getElementById('questions-list').innerHTML=''; document.getElementById('exam-name').value=''; document.getElementById('exam-code').value=''; document.getElementById('exam-duration').value=''; document.getElementById('exam-stage').value='first'; document.getElementById('question-inputs').innerHTML=''; await loadExamsList(); } else { showToast(d.error||'❌ فشل حفظ الاختبار','error'); } } catch(er){ showToast('❌ خطأ في الاتصال بالسيرفر','error'); } };
-async function loadExamsList() { try { const r=await fetch(`${BASE_URL}/api/exams`,{credentials:'include'}); if(!r.ok) throw new Error('فشل جلب الاختبارات'); const exams=await r.json(); const tbody=document.getElementById('exams-list-body'); if(!tbody) return; if(!exams||exams.length===0){ tbody.innerHTML='<tr><td colspan="7">📭 لا توجد اختبارات مسجلة</td></tr>'; return; } tbody.innerHTML=exams.map(ex=>`<tr><td>${escapeHtml(ex.name)}</td><td><strong style="color:#0F2B3D;">${escapeHtml(ex.code)}</strong></td><td>${ex.stage==='first'?'الأولى ثانوي':'الثانية ثانوي'}</td><td>${ex.duration} دقيقة</td><td>${ex.questions?.length||0}</td><td>${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td><td><button class="edit-btn" onclick="viewExam('${ex.code}')" style="background:#3498DB;color:white;border:none;padding:6px 12px;border-radius:20px;margin:2px;cursor:pointer;"><i class="fas fa-eye"></i> عرض</button> <button class="delete-btn" onclick="deleteExam('${ex.code}')" style="background:#E74C3C;color:white;border:none;padding:6px 12px;border-radius:20px;margin:2px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></td></tr>`).join(''); } catch(er){ const tbody=document.getElementById('exams-list-body'); if(tbody) tbody.innerHTML='<tr><td colspan="7">❌ فشل تحميل الاختبارات</td></tr>'; } }
-window.viewExam = async function(code) { try { const r=await fetch(`${BASE_URL}/api/exams/${encodeURIComponent(code)}`,{credentials:'include'}); if(!r.ok) throw new Error('فشل'); const exam=await r.json(); let qh='<div style="max-height:400px;overflow-y:auto;text-align:right;">'; exam.questions.forEach((q,i)=>{ qh+=`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:15px;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(q.text)}<br>${q.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${q.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${q.correctAnswer==='true'?'صح':(q.correctAnswer==='false'?'خطأ':q.correctAnswer)}</span>`:''}${q.correctAnswer&&!q.options?`<span style="color:#C7A252;">✅ الإجابة: ${escapeHtml(q.correctAnswer)}</span>`:''}</div>`; }); qh+='</div>'; Swal.fire({title:exam.name,html:`<div><p><strong>🔑 كود:</strong> ${exam.code}</p><p><strong>📚 المرحلة:</strong> ${exam.stage==='first'?'الأولى':'الثانية'}</p><p><strong>⏱️ المدة:</strong> ${exam.duration} دقيقة</p><hr><h4>📝 الأسئلة:</h4>${qh}</div>`,icon:'info',confirmButtonText:'إغلاق',confirmButtonColor:'#C7A252',width:'700px'}); } catch(er){ showToast('خطأ في عرض بيانات الاختبار','error'); } };
-window.deleteExam = async function(code) { const res=await Swal.fire({title:'⚠️ تأكيد الحذف',text:`هل أنت متأكد من حذف الاختبار "${code}"؟`,icon:'warning',showCancelButton:true,confirmButtonText:'نعم',cancelButtonText:'إلغاء',confirmButtonColor:'#E74C3C'}); if(res.isConfirmed){ const csrfToken=getCsrfToken(); try { const r=await fetch(`${BASE_URL}/api/exams/${encodeURIComponent(code)}`,{method:'DELETE',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},credentials:'include'}); const d=await r.json(); if(r.ok&&d.success){ showToast('✅ تم حذف الاختبار','success'); await loadExamsList(); } else { showToast(d.error||'❌ فشل','error'); } } catch(er){ showToast('❌ خطأ','error'); } } };
-document.getElementById('fetch-results')?.addEventListener('click', async () => { const code=document.getElementById('results-exam-code')?.value.trim(); if(!code){ showToast('أدخل كود الاختبار أولاً!','error'); return; } try { const r=await fetch(`${BASE_URL}/api/exams/${encodeURIComponent(code)}/results`,{credentials:'include'}); if(!r.ok) throw new Error('فشل'); const results=await r.json(); const c=document.getElementById('exam-results-list'); if(!results||results.length===0){ c.innerHTML='<p>📭 لا توجد نتائج</p>'; return; } c.innerHTML=`<div class="table-wrapper"><table><thead><tr style="background:#1e3c4a;color:#d4af5a;"><th>👨‍🎓 الطالب</th><th>📊 النتيجة</th><th>📅 التاريخ</th></tr></thead><tbody>${results.map(r=>`<tr><td>${escapeHtml(r.studentId)}</td><td><strong style="color:#27AE60;">${r.score.toFixed(1)}%</strong></td><td>${new Date(r.completionTime).toLocaleString('ar-EG')}</td></tr>`).join('')}</tbody></table></div>`; } catch(er){ showToast('❌ خطأ','error'); } });
+window.saveExam = async function() { const name=document.getElementById('exam-name')?.value.trim(), code=document.getElementById('exam-code')?.value.trim(), stage=document.getElementById('exam-stage')?.value, duration=parseInt(document.getElementById('exam-duration')?.value); if(!name){ showToast('يرجى إدخال اسم الاختبار!','error'); return; } if(!code){ showToast('يرجى إدخال كود الاختبار!','error'); return; } if(!duration||duration<1){ showToast('يرجى إدخال مدة الاختبار بالدقائق!','error'); return; } if(questionsList.length===0){ showToast('يرجى إضافة سؤال واحد على الأقل!','error'); return; } try { await saveToServer('/api/exams',{name,code,stage,duration,questions:questionsList}); showToast('✅ تم حفظ الاختبار بنجاح!','success'); questionsList=[]; document.getElementById('questions-list').innerHTML=''; document.getElementById('exam-name').value=''; document.getElementById('exam-code').value=''; document.getElementById('exam-duration').value=''; document.getElementById('exam-stage').value='first'; document.getElementById('question-inputs').innerHTML=''; await loadExamsList(); } catch(er){ showToast('❌ فشل حفظ الاختبار','error'); } };
+async function loadExamsList() { try { const exams=await getFromServer('/api/exams'); const tbody=document.getElementById('exams-list-body'); if(!tbody) return; if(!exams||exams.length===0){ tbody.innerHTML='<tr><td colspan="7">📭 لا توجد اختبارات مسجلة</td></tr>'; return; } tbody.innerHTML=exams.map(ex=>`<tr><td>${escapeHtml(ex.name)}</td><td><strong style="color:#0F2B3D;">${escapeHtml(ex.code)}</strong></td><td>${ex.stage==='first'?'الأولى ثانوي':'الثانية ثانوي'}</td><td>${ex.duration} دقيقة</td><td>${ex.questions?.length||0}</td><td>${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td><td><button class="edit-btn" onclick="viewExam('${ex.code}')" style="background:#3498DB;color:white;border:none;padding:6px 12px;border-radius:20px;margin:2px;cursor:pointer;"><i class="fas fa-eye"></i> عرض</button> <button class="delete-btn" onclick="deleteExam('${ex.code}')" style="background:#E74C3C;color:white;border:none;padding:6px 12px;border-radius:20px;margin:2px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></td></tr>`).join(''); } catch(er){ const tbody=document.getElementById('exams-list-body'); if(tbody) tbody.innerHTML='<tr><td colspan="7">❌ فشل تحميل الاختبارات</td></tr>'; } }
+window.viewExam = async function(code) { try { const exam=await getFromServer(`/api/exams/${encodeURIComponent(code)}`); if(!exam) throw new Error('فشل'); let qh='<div style="max-height:400px;overflow-y:auto;text-align:right;">'; exam.questions.forEach((q,i)=>{ qh+=`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:15px;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(q.text)}<br>${q.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${q.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${q.correctAnswer==='true'?'صح':(q.correctAnswer==='false'?'خطأ':q.correctAnswer)}</span>`:''}${q.correctAnswer&&!q.options?`<span style="color:#C7A252;">✅ الإجابة: ${escapeHtml(q.correctAnswer)}</span>`:''}</div>`; }); qh+='</div>'; Swal.fire({title:exam.name,html:`<div><p><strong>🔑 كود:</strong> ${exam.code}</p><p><strong>📚 المرحلة:</strong> ${exam.stage==='first'?'الأولى':'الثانية'}</p><p><strong>⏱️ المدة:</strong> ${exam.duration} دقيقة</p><hr><h4>📝 الأسئلة:</h4>${qh}</div>`,icon:'info',confirmButtonText:'إغلاق',confirmButtonColor:'#C7A252',width:'700px'}); } catch(er){ showToast('خطأ في عرض بيانات الاختبار','error'); } };
+window.deleteExam = async function(code) { const res=await Swal.fire({title:'⚠️ تأكيد الحذف',text:`هل أنت متأكد من حذف الاختبار "${code}"؟`,icon:'warning',showCancelButton:true,confirmButtonText:'نعم',cancelButtonText:'إلغاء',confirmButtonColor:'#E74C3C'}); if(res.isConfirmed){ try { await saveToServer(`/api/exams/${encodeURIComponent(code)}`,{},'DELETE'); showToast('✅ تم حذف الاختبار','success'); await loadExamsList(); } catch(er){ showToast('❌ فشل','error'); } } };
+document.getElementById('fetch-results')?.addEventListener('click', async () => { const code=document.getElementById('results-exam-code')?.value.trim(); if(!code){ showToast('أدخل كود الاختبار أولاً!','error'); return; } try { const results=await getFromServer(`/api/exams/${encodeURIComponent(code)}/results`); const c=document.getElementById('exam-results-list'); if(!results||results.length===0){ c.innerHTML='<p>📭 لا توجد نتائج</p>'; return; } c.innerHTML=`<div class="table-wrapper"><table><thead><tr style="background:#1e3c4a;color:#d4af5a;"><th>👨‍🎓 الطالب</th><th>📊 النتيجة</th><th>📅 التاريخ</th></tr></thead><tbody>${results.map(r=>`<tr><td>${escapeHtml(r.studentId)}</td><td><strong style="color:#27AE60;">${r.score.toFixed(1)}%</strong></td><td>${new Date(r.completionTime).toLocaleString('ar-EG')}</td></tr>`).join('')}</tbody></table></div>`; } catch(er){ showToast('❌ خطأ','error'); } });
 document.getElementById('question-type')?.addEventListener('change', renderQuestionInputs);
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (حل مضمون 100% - يستخدم نفس وظائف الإضافة اليدوية) ======================
+// ====================== ✅ تحليل Excel (حل مضمون 100% - CSRF auto-renew) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
     
-    // ✅ إنشاء نافذة التتبع
     let progressContainer = document.getElementById('upload-progress');
-    if (!progressContainer) {
-        const div = document.createElement('div'); div.id = 'upload-progress';
-        div.style.cssText = 'margin-top:15px;padding:15px;background:#f8f9fa;border-radius:12px;max-height:350px;overflow-y:auto;font-size:0.85rem;border:2px solid #c4a35a;';
-        document.querySelector('.excel-upload-section')?.appendChild(div);
-        progressContainer = div;
-    }
-    progressContainer.innerHTML = '<div style="text-align:center;color:#1a4f6e;"><i class="fas fa-spinner fa-pulse"></i> ⏳ جاري قراءة الملف...</div>';
-    progressContainer.style.display = 'block';
+    if (!progressContainer) { const div=document.createElement('div'); div.id='upload-progress'; div.style.cssText='margin-top:15px;padding:15px;background:#f8f9fa;border-radius:12px;max-height:350px;overflow-y:auto;font-size:0.85rem;border:2px solid #c4a35a;'; document.querySelector('.excel-upload-section')?.appendChild(div); progressContainer=div; }
+    progressContainer.innerHTML='<div style="text-align:center;color:#1a4f6e;"><i class="fas fa-spinner fa-pulse"></i> ⏳ جاري قراءة الملف...</div>'; progressContainer.style.display='block';
     
     let reader = new FileReader(); 
     reader.onload = async (e) => { 
@@ -175,7 +185,7 @@ window.analyzeExcel = async () => {
             let liveLog = [];
             
             progressContainer.innerHTML = `
-                <div style="margin-bottom:10px;text-align:center;font-weight:bold;color:#1a4f6e;">📊 إجمالي الصفوف: <span style="color:#c4a35a;">${totalRows}</span></div>
+                <div style="margin-bottom:10px;text-align:center;font-weight:bold;color:#1a4f6e;">📊 إجمالي الصفوف: <span style="color:#c4a35a;">${totalRows}</span> | 📚 الترم: <span style="color:#c4a35a;">الأول</span></div>
                 <div style="background:#e9ecef;border-radius:10px;height:20px;margin-bottom:10px;overflow:hidden;"><div id="progress-bar-fill" style="background:linear-gradient(90deg,#c4a35a,#1a4f6e);height:100%;width:0%;border-radius:10px;transition:width 0.3s;"></div></div>
                 <div id="progress-text" style="text-align:center;margin-bottom:10px;color:#666;">⏳ جاري التحليل... 0/${totalRows}</div>
                 <div id="progress-stats" style="text-align:center;margin-bottom:10px;font-weight:bold;">✅ ناجح: <span style="color:#27ae60;">0</span> | ⏭️ تخطي: <span style="color:#f39c12;">0</span> | ❌ خطأ: <span style="color:#e74c3c;">0</span></div>
@@ -190,7 +200,6 @@ window.analyzeExcel = async () => {
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
                 
-                // ✅ تخطي الصفوف الفارغة أو العناوين
                 if (!row[0] || !row[1]) { skippedCount++; log(`تخطي صف ${i}: بيانات غير مكتملة`, 'warning'); up(processedCount, totalRows); continue; }
                 
                 let studentCode = String(row[0]).trim();
@@ -202,7 +211,6 @@ window.analyzeExcel = async () => {
                     skippedCount++; log(`تخطي صف ${i}: صف عنوان`, 'warning'); up(processedCount, totalRows); continue; 
                 }
                 
-                // ✅ بناء المواد بنفس ترتيب SUBJECTS_CONFIG_FIRST
                 let subjects = [
                     { name: "اللغة العربية", grade: (row[2] !== undefined && row[2] !== '') ? (parseFloat(row[2]) || 0) : 0 },
                     { name: "اللغة الإنجليزية", grade: (row[3] !== undefined && row[3] !== '') ? (parseFloat(row[3]) || 0) : 0 },
@@ -213,27 +221,19 @@ window.analyzeExcel = async () => {
                     { name: "الدين", grade: (row[8] !== undefined && row[8] !== '') ? (parseFloat(row[8]) || 0) : 0 }
                 ];
                 
-                // ✅ استخدام saveToServer مباشرة (نفس وظيفة الإضافة اليدوية)
+                console.log(`📝 [${i}] ${studentName} (${studentCode}) - ${subjects.filter(s=>s.grade>0).length} مواد`);
+                
                 try {
                     let existing = allStudents.find(s => s.studentCode == studentCode);
                     
                     if (existing) {
-                        // تحديث طالب موجود
                         await saveToServer(`/api/students/${encodeURIComponent(studentCode)}`, {
-                            fullName: studentName,
-                            subjects: subjects,
-                            grade: 'first',
-                            semester: 'first'
+                            fullName: studentName, subjects, grade: 'first', semester: 'first'
                         }, 'PUT');
                         log(`🔄 ${studentName} (${studentCode})`, 'success');
                     } else {
-                        // إضافة طالب جديد
                         await saveToServer('/api/students', {
-                            fullName: studentName,
-                            id: studentCode,
-                            subjects: subjects,
-                            grade: 'first',
-                            semester: 'first'
+                            fullName: studentName, id: studentCode, subjects, grade: 'first', semester: 'first'
                         });
                         log(`➕ ${studentName} (${studentCode})`, 'success');
                     }
@@ -241,29 +241,22 @@ window.analyzeExcel = async () => {
                 } catch (err) {
                     errorCount++;
                     log(`❌ ${studentName}: ${err.message}`, 'error');
-                    console.error(`❌ فشل الطالب ${studentName}:`, err.message);
+                    console.error(`❌ فشل:`, err.message);
                 }
                 
                 processedCount++;
                 up(processedCount, totalRows);
-                
-                // ✅ تأخير 50ms بين كل طالب والتاني (يمنع rate limiting)
                 await new Promise(r => setTimeout(r, 50));
             }
             
-            // ✅ تم الانتهاء - إعادة تحميل البيانات
             up(processedCount, totalRows);
             if (pb) { pb.style.width = '100%'; pb.style.background = 'linear-gradient(90deg,#27ae60,#2ecc71)'; }
             
             try {
                 allStudents = await getFromServer('/api/admin/students'); 
                 studentsWithGrades = getStudentsWithGrades(allStudents); 
-                renderResults(); 
-                renderStats();
-                renderTopStudents();
-            } catch (e) {
-                console.error('❌ فشل إعادة تحميل البيانات:', e);
-            }
+                renderResults(); renderStats(); renderTopStudents();
+            } catch (e) { console.error('❌ فشل إعادة تحميل البيانات:', e); }
             
             let msg = `✅ تم معالجة ${successCount} طالب بنجاح`;
             if (skippedCount > 0) msg += ` | ⏭️ تخطي ${skippedCount}`;
@@ -275,17 +268,15 @@ window.analyzeExcel = async () => {
             console.log(`📊 النتيجة النهائية: ${successCount} ناجح, ${skippedCount} متخطي, ${errorCount} خطأ`);
             
         } catch (err) {
-            console.error('❌ خطأ عام في التحليل:', err);
+            console.error('❌ خطأ عام:', err);
             progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}<br><button onclick="document.getElementById('upload-progress').style.display='none'" style="background:#e74c3c;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;margin-top:10px;">إغلاق</button></div>`;
             showToast('❌ خطأ: ' + err.message, 'error');
         }
     };
-    reader.onerror = () => { 
-        progressContainer.innerHTML = '<div style="text-align:center;color:#e74c3c;">❌ خطأ في قراءة الملف</div>'; 
-        showToast('❌ خطأ في قراءة الملف', 'error'); 
-    };
+    reader.onerror = () => { progressContainer.innerHTML = '<div style="text-align:center;color:#e74c3c;">❌ خطأ في قراءة الملف</div>'; showToast('❌ خطأ في قراءة الملف', 'error'); };
     reader.readAsArrayBuffer(file); 
 };
+
 // ====================== تصدير Excel ======================
 function exportToExcel() { if(!studentsWithGrades.length){ showToast('لا توجد بيانات','error'); return; } const data=studentsWithGrades.map(st=>{ const grades=getStudentFormattedGrades(st); const row={'رقم الجلوس':st.studentCode,'اسم الطالب':st.fullName}; ORDERED_SUBJECTS_FIRST.forEach(s=>{ const gi=grades[s]; if(gi) row[s]=gi.grade; }); row['المجموع']=calculateStudentTotal(st); row['النسبة']=calculateStudentPercentage(st).toFixed(1)+'%'; return row; }); const ws=XLSX.utils.json_to_sheet(data), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'النتائج'); XLSX.writeFile(wb,'نتائج_الطلاب.xlsx'); showToast('✅ تم التصدير','success'); }
 
