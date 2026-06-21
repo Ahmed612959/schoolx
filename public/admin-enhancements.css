@@ -1,0 +1,434 @@
+/* ============================================
+   admin-enhancements.css
+   تحسينات متقدمة للوحة تحكم الأدمن
+   ============================================ */
+
+/* ========== ١. تأثيرات حركية (Animations) ========== */
+/* تأثير الظهور من أسفل */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* تأثير النبض */
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* تأثير شيمر للتحميل */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* تأثير الدخول من اليمين */
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(50px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* تأثير الطفو */
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* تطبيق animations على الإحصائيات */
+.stats-grid .stat-item {
+    animation: fadeInUp 0.6s ease forwards;
+    opacity: 0;
+}
+.stats-grid .stat-item:nth-child(1) { animation-delay: 0.1s; }
+.stats-grid .stat-item:nth-child(2) { animation-delay: 0.2s; }
+.stats-grid .stat-item:nth-child(3) { animation-delay: 0.3s; }
+.stats-grid .stat-item:nth-child(4) { animation-delay: 0.4s; }
+
+/* تطبيق animations على صفوف الجدول */
+.table-wrapper tbody tr {
+    animation: slideInRight 0.4s ease forwards;
+    opacity: 0;
+}
+.table-wrapper tbody tr:nth-child(1) { animation-delay: 0.05s; }
+.table-wrapper tbody tr:nth-child(2) { animation-delay: 0.1s; }
+.table-wrapper tbody tr:nth-child(3) { animation-delay: 0.15s; }
+.table-wrapper tbody tr:nth-child(4) { animation-delay: 0.2s; }
+.table-wrapper tbody tr:nth-child(5) { animation-delay: 0.25s; }
+
+/* ========== ٢. تأثيرات زجاجية (Glassmorphism) ========== */
+.stat-item {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.notifications-section,
+.violations-section,
+.exam-form-container {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(15px);
+}
+
+/* خلفية متحركة */
+body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+        radial-gradient(circle at 20% 50%, rgba(196, 163, 90, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(26, 79, 110, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 50% 80%, rgba(45, 106, 79, 0.03) 0%, transparent 50%);
+    z-index: -1;
+    animation: float 20s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* ========== ٣. تأثير Ripple على الأزرار ========== */
+.submit-btn,
+.edit-btn,
+.delete-btn,
+.certificate-btn,
+.class-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.submit-btn::after,
+.edit-btn::after,
+.delete-btn::after,
+.certificate-btn::after,
+.class-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+    pointer-events: none;
+}
+
+.submit-btn:active::after,
+.edit-btn:active::after,
+.delete-btn:active::after,
+.certificate-btn:active::after,
+.class-btn:active::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* ========== ٤. تحسينات Hover للكروت ========== */
+.stat-item {
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.stat-item:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.1),
+        0 0 0 2px var(--secondary);
+}
+
+.stat-item:hover i {
+    animation: pulse 0.6s ease infinite;
+}
+
+/* ========== ٥. Badges ========== */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.badge-success { background: var(--success-light); color: var(--success); }
+.badge-danger { background: var(--danger-light); color: var(--danger); }
+.badge-warning { background: var(--warning-light); color: var(--warning); }
+.badge-info { background: var(--info-light); color: var(--info); }
+.badge-secondary { background: var(--secondary-light); color: var(--secondary-dark); }
+
+/* ========== ٦. Skeleton Loading ========== */
+.skeleton {
+    background: linear-gradient(90deg, var(--gray-200) 25%, var(--gray-300) 50%, var(--gray-200) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--radius-md);
+}
+
+.skeleton-text { height: 16px; width: 80%; margin: 10px 0; }
+.skeleton-title { height: 24px; width: 60%; margin: 15px 0; }
+.skeleton-avatar { width: 50px; height: 50px; border-radius: 50%; }
+.skeleton-card { height: 120px; width: 100%; }
+
+/* ========== ٧. Progress Bar ========== */
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--gray-200);
+    border-radius: 9999px;
+    overflow: hidden;
+    margin: 15px 0;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--secondary), var(--primary), var(--success));
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+    border-radius: 9999px;
+    transition: width 0.5s ease;
+}
+
+/* ========== ٨. Empty State ========== */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--gray-400);
+}
+
+.empty-state i {
+    font-size: 5rem;
+    color: var(--secondary);
+    opacity: 0.5;
+    margin-bottom: 20px;
+    display: block;
+}
+
+.empty-state h3 {
+    font-size: 1.3rem;
+    color: var(--gray-600);
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    font-size: 0.9rem;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* ========== ٩. Quick Actions Bar ========== */
+.quick-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 20px 0;
+}
+
+.quick-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    color: var(--gray-600);
+}
+
+.quick-action-btn:hover {
+    background: var(--primary);
+    color: var(--secondary);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.quick-action-btn i {
+    font-size: 1rem;
+}
+
+/* ========== ١٠. Accessibility ========== */
+:focus-visible {
+    outline: 3px solid var(--secondary);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+}
+
+.skip-link {
+    position: absolute;
+    top: -100px;
+    right: 20px;
+    background: var(--secondary);
+    color: var(--primary);
+    padding: 10px 20px;
+    border-radius: 9999px;
+    z-index: 9999;
+    transition: var(--transition);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.skip-link:focus {
+    top: 10px;
+}
+
+/* ========== ١١. Tooltips ========== */
+[data-tooltip] {
+    position: relative;
+    cursor: help;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 120%;
+    right: 50%;
+    transform: translateX(50%);
+    background: var(--gray-800);
+    color: white;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--transition);
+    z-index: 1000;
+    pointer-events: none;
+    font-family: 'Tajawal', sans-serif;
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    bottom: 130%;
+}
+
+/* ========== ١٢. Print Styles ========== */
+@media print {
+    .nav-bar,
+    .scroll-buttons,
+    .header-buttons,
+    .search-section,
+    .filter-section,
+    .excel-upload-section,
+    footer,
+    .submit-btn,
+    .delete-btn,
+    .edit-btn,
+    .table-action-btn,
+    .quick-actions,
+    .grade-buttons,
+    .class-buttons-bar {
+        display: none !important;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    body::before {
+        display: none !important;
+    }
+    
+    .admin-container {
+        max-width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .main-header {
+        position: static;
+        background: white !important;
+        border-bottom: 2px solid black;
+    }
+    
+    .main-header h1 {
+        color: black !important;
+    }
+    
+    table {
+        font-size: 10px;
+        border: 1px solid #ccc;
+    }
+    
+    th {
+        background: #333 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+    }
+    
+    .certificate {
+        border: 5px double #000;
+        page-break-inside: avoid;
+        background: white !important;
+    }
+    
+    .stat-item,
+    .notifications-section,
+    .violations-section {
+        break-inside: avoid;
+        box-shadow: none !important;
+    }
+    
+    @page {
+        margin: 1cm;
+        size: A4;
+    }
+}
+
+/* ========== ١٣. تحسينات للموبايل ========== */
+@media (max-width: 768px) {
+    .stat-item {
+        backdrop-filter: none;
+    }
+    
+    .quick-actions {
+        justify-content: center;
+    }
+    
+    .quick-action-btn {
+        padding: 8px 16px;
+        font-size: 0.75rem;
+    }
+    
+    [data-tooltip]::after {
+        display: none;
+    }
+}
+
+/* ========== ١٤. تأثير نبض للعناصر المهمة ========== */
+.pulse-animation {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* ========== ١٥. تحسين مظهر الـ Scrollbar ========== */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--gray-100);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--secondary), var(--secondary-dark));
+    border-radius: 10px;
+    border: 2px solid var(--gray-100);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--secondary) var(--gray-100);
+}
