@@ -165,7 +165,7 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (حل مضمون 100% - CSRF auto-renew) ======================
+// ====================== ✅ تحليل Excel (حل نهائي للمسارات) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
@@ -196,6 +196,7 @@ window.analyzeExcel = async () => {
             function log(msg, type) { const colors = { success: '#27ae60', warning: '#f39c12', error: '#e74c3c' }, icons = { success: '✅', warning: '⏭️', error: '❌' }; const time = new Date().toLocaleTimeString('ar-EG'); liveLog.unshift({ msg, type, time }); if (liveLog.length > 50) liveLog.pop(); if (ll) ll.innerHTML = liveLog.map(l => `<div style="padding:2px 0;border-bottom:1px solid #f0f0f0;color:${colors[l.type]};font-size:0.75rem;"><small>${l.time}</small> ${icons[l.type]} ${l.msg}</div>`).join(''); }
             
             let processedCount = 0;
+            const csrfToken = await getCsrfToken();
             
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
@@ -221,27 +222,39 @@ window.analyzeExcel = async () => {
                     { name: "الدين", grade: (row[8] !== undefined && row[8] !== '') ? (parseFloat(row[8]) || 0) : 0 }
                 ];
                 
-                console.log(`📝 [${i}] ${studentName} (${studentCode}) - ${subjects.filter(s=>s.grade>0).length} مواد`);
-                
                 try {
                     let existing = allStudents.find(s => s.studentCode == studentCode);
                     
+                    // ✅ استخدام fetch مباشرة مع المسار الكامل
                     if (existing) {
-                        await saveToServer(`/api/students/${encodeURIComponent(studentCode)}`, {
-                            fullName: studentName, subjects, grade: 'first', semester: 'first'
-                        }, 'PUT');
+                        const response = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
+                            credentials: 'include',
+                            body: JSON.stringify({ fullName: studentName, subjects, grade: 'first', semester: 'first' })
+                        });
+                        if (!response.ok) {
+                            const errText = await response.text();
+                            throw new Error(errText.substring(0, 100));
+                        }
                         log(`🔄 ${studentName} (${studentCode})`, 'success');
                     } else {
-                        await saveToServer('/api/students', {
-                            fullName: studentName, id: studentCode, subjects, grade: 'first', semester: 'first'
+                        const response = await fetch(`${BASE_URL}/api/students`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
+                            credentials: 'include',
+                            body: JSON.stringify({ fullName: studentName, id: studentCode, subjects, grade: 'first', semester: 'first' })
                         });
+                        if (!response.ok) {
+                            const errText = await response.text();
+                            throw new Error(errText.substring(0, 100));
+                        }
                         log(`➕ ${studentName} (${studentCode})`, 'success');
                     }
                     successCount++;
                 } catch (err) {
                     errorCount++;
                     log(`❌ ${studentName}: ${err.message}`, 'error');
-                    console.error(`❌ فشل:`, err.message);
                 }
                 
                 processedCount++;
@@ -265,7 +278,6 @@ window.analyzeExcel = async () => {
             if (pt) { pt.innerHTML = msg; pt.style.color = errorCount > 0 ? '#f39c12' : '#27ae60'; pt.style.fontWeight = 'bold'; }
             log(`🎉 ${msg}`, 'success');
             showToast(msg, errorCount > 0 ? 'warning' : 'success');
-            console.log(`📊 النتيجة النهائية: ${successCount} ناجح, ${skippedCount} متخطي, ${errorCount} خطأ`);
             
         } catch (err) {
             console.error('❌ خطأ عام:', err);
