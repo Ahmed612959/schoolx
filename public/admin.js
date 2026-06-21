@@ -1,4 +1,4 @@
-// admin.js - النسخة الكاملة النهائية (جميع الوظائف + تحليل Excel + عرض نتائج صحيح)
+// admin.js - النسخة الكاملة النهائية بالترتيب الصحيح للأعمدة
 
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://localhost:3000' 
@@ -31,9 +31,7 @@ function escapeHtml(text) { if (!text) return ''; const div = document.createEle
 async function apiRequest(endpoint, options = {}) {
     let csrfToken = await getCsrfToken();
     const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (csrfToken && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method)) {
-        headers['X-CSRF-Token'] = csrfToken;
-    }
+    if (csrfToken && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method)) headers['X-CSRF-Token'] = csrfToken;
     let response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers, credentials: 'include' });
     if (response.status === 403) {
         try {
@@ -69,24 +67,16 @@ const SUBJECTS_CONFIG_FIRST = {
 const TOTAL_POSSIBLE_FIRST = 144;
 const ORDERED_SUBJECTS_FIRST = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي", "الدين"];
 
-// ✅ دالة توحيد أسماء المواد (شاملة كل الاحتمالات)
 function normalizeSubjectName(name) {
     if (!name) return '';
     const m = { 
         'التربية الدينية': 'الدين', 'تربية دينية': 'الدين', 'دين': 'الدين',
-        'الكمبيوتر': 'حاسب آلي', 'كمبيوتر': 'حاسب آلي', 'الحاسب الآلي': 'حاسب آلي', 'الحاسب': 'حاسب آلي', 'حاسب': 'حاسب آلي',
-        'الفيزياء': 'فيزياء', 'الكيمياء': 'كيمياء',
-        'التمريض الباطني الجراحي': 'تمريض باطني جراحي', 'تمريض باطنى جراحي': 'تمريض باطني جراحي', 'التمريض': 'تمريض باطني جراحي',
+        'الكمبيوتر': 'حاسب آلي', 'كمبيوتر': 'حاسب آلي', 'الحاسب الآلي': 'حاسب آلي', 'الحاسب': 'حاسب آلي', 'حاسب': 'حاسب آلي', 'حاسب الي': 'حاسب آلي', 'حاسب الى': 'حاسب آلي',
+        'التمريض الباطني الجراحي': 'تمريض باطني جراحي', 'تمريض باطنى جراحي': 'تمريض باطني جراحي', 'التمريض': 'تمريض باطني جراحي', 'تمريض': 'تمريض باطني جراحي',
         'الطب الباطنة': 'طب باطنة', 'الباطنة': 'طب باطنة',
-        'العلوم التطبيقية': 'علوم تطبيقية', 'العلوم': 'علوم تطبيقية',
-        'العربي': 'اللغة العربية', 'العربية': 'اللغة العربية',
-        'الانجليزي': 'اللغة الإنجليزية', 'english': 'اللغة الإنجليزية', 'انجليزي': 'اللغة الإنجليزية',
-        'اللغة العربيه': 'اللغة العربية', 'اللغه العربيه': 'اللغة العربية',
-        'اللغة الانجليزيه': 'اللغة الإنجليزية', 'اللغه الانجليزيه': 'اللغة الإنجليزية',
-        'علوم تطبيقيه': 'علوم تطبيقية',
-        'طب باطني': 'طب باطنة',
-        'تمريض': 'تمريض باطني جراحي',
-        'حاسوب': 'حاسب آلي', 'حاسب الي': 'حاسب آلي', 'حاسب الى': 'حاسب آلي'
+        'العلوم التطبيقية': 'علوم تطبيقية', 'العلوم': 'علوم تطبيقية', 'علوم تطبيقيه': 'علوم تطبيقية',
+        'العربي': 'اللغة العربية', 'العربية': 'اللغة العربية', 'اللغه العربيه': 'اللغة العربية', 'اللغة العربيه': 'اللغة العربية',
+        'الانجليزي': 'اللغة الإنجليزية', 'english': 'اللغة الإنجليزية', 'انجليزي': 'اللغة الإنجليزية', 'اللغه الانجليزيه': 'اللغة الإنجليزية', 'اللغة الانجليزيه': 'اللغة الإنجليزية'
     };
     return m[name.trim()] || name.trim();
 }
@@ -178,7 +168,7 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (دفعة واحدة - مضمون 100%) ======================
+// ====================== ✅ تحليل Excel (بالترتيب الصحيح: A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم, F=طب, G=تمريض, H=حاسب, I=دين, J=مجموع) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
@@ -200,62 +190,83 @@ window.analyzeExcel = async () => {
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
                 
+                // تخطي الصفوف الفارغة
                 if (!row[0] || !row[1]) { skippedCount++; continue; }
                 
+                // ✅ قراءة رقم الجلوس (العمود A)
                 let studentCode = String(row[0]).trim();
                 if (studentCode.includes('.')) studentCode = studentCode.split('.')[0];
                 if (!studentCode || studentCode === '0' || studentCode === 'NaN') { skippedCount++; continue; }
                 
+                // ✅ قراءة الاسم (العمود B)
                 let studentName = String(row[1]).trim();
-                if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentName === 'اسم' || studentName.includes('الكود') || studentName.includes('رقم الجلوس')) { skippedCount++; continue; }
                 
-                // A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم, F=طب باطنة, G=تمريض, H=حاسب, I=تربية دينية
+                // تخطي صفوف العناوين والمجموع
+                if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentName === 'اسم' || 
+                    studentName.includes('الكود') || studentName.includes('رقم الجلوس') || studentName.includes('بيان')) { 
+                    skippedCount++; continue; 
+                }
+                
+                // ✅ طباعة البيانات للتأكيد
+                console.log(`📝 صف ${i}: كود=${studentCode}, اسم=${studentName}`);
+                console.log(`   row[2]=${row[2]}, row[3]=${row[3]}, row[4]=${row[4]}, row[5]=${row[5]}, row[6]=${row[6]}, row[7]=${row[7]}, row[8]=${row[8]}`);
+                
+                // ✅ قراءة المواد بالترتيب الصحيح
+                // A=رقم الجلوس, B=الاسم, C=عربي, D=إنجليزي, E=علوم تطبيقية, F=طب باطنة, G=تمريض باطني جراحي, H=حاسب آلي, I=تربية دينية, J=المجموع
                 let subjects = [];
-                if (row[2] !== undefined && row[2] !== '') subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) || 0 });
-                if (row[3] !== undefined && row[3] !== '') subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) || 0 });
-                if (row[4] !== undefined && row[4] !== '') subjects.push({ name: "علوم تطبيقية", grade: parseFloat(row[4]) || 0 });
-                if (row[5] !== undefined && row[5] !== '') subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) || 0 });
-                if (row[6] !== undefined && row[6] !== '') subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) || 0 });
-                if (row[7] !== undefined && row[7] !== '') subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) || 0 });
-                if (row[8] !== undefined && row[8] !== '') subjects.push({ name: "الدين", grade: parseFloat(row[8]) || 0 });
+                if (row[2] !== undefined && row[2] !== '' && row[2] !== null) subjects.push({ name: "اللغة العربية", grade: Number(row[2]) || 0 });
+                if (row[3] !== undefined && row[3] !== '' && row[3] !== null) subjects.push({ name: "اللغة الإنجليزية", grade: Number(row[3]) || 0 });
+                if (row[4] !== undefined && row[4] !== '' && row[4] !== null) subjects.push({ name: "علوم تطبيقية", grade: Number(row[4]) || 0 });
+                if (row[5] !== undefined && row[5] !== '' && row[5] !== null) subjects.push({ name: "طب باطنة", grade: Number(row[5]) || 0 });
+                if (row[6] !== undefined && row[6] !== '' && row[6] !== null) subjects.push({ name: "تمريض باطني جراحي", grade: Number(row[6]) || 0 });
+                if (row[7] !== undefined && row[7] !== '' && row[7] !== null) subjects.push({ name: "حاسب آلي", grade: Number(row[7]) || 0 });
+                if (row[8] !== undefined && row[8] !== '' && row[8] !== null) subjects.push({ name: "الدين", grade: Number(row[8]) || 0 });
+                // row[9] = المجموع (نتجاهله)
+                
+                console.log(`   ✅ تم قراءة ${subjects.length} مواد: ${subjects.map(s=>`${s.name}=${s.grade}`).join(', ')}`);
                 
                 studentsData.push({ studentCode, fullName: studentName, subjects, grade: 'first', semester: 'first' });
             }
             
             console.log(`📦 تم تجميع ${studentsData.length} طالب للإرسال`);
             
-            progressContainer.innerHTML = `<div style="text-align:center;color:#1a4f6e;padding:20px;"><i class="fas fa-paper-plane" style="font-size:2rem;"></i><br>⏳ جاري إرسال ${studentsData.length} طالب إلى السيرفر...</div>`;
-            
-            if (studentsData.length > 0) {
-                try {
-                    const response = await fetch(`${BASE_URL}/api/upload-grades`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-                        body: JSON.stringify({ students: studentsData })
-                    });
-                    const result = await response.json();
-                    console.log('📨 رد السيرفر:', result);
-                    
-                    if (response.ok) {
-                        let msg = `✅ ${result.message || 'تم الرفع بنجاح'}`;
-                        if (skippedCount > 0) msg += ` | ⏭️ تخطي ${skippedCount} صف`;
-                        progressContainer.innerHTML = `<div style="text-align:center;color:#27ae60;padding:20px;"><i class="fas fa-check-circle" style="font-size:3rem;"></i><br><strong>${msg}</strong></div>`;
-                        showToast(msg, 'success');
-                        
-                        try {
-                            const res = await fetch(`${BASE_URL}/api/admin/students`, { credentials: 'include' });
-                            if (res.ok) { allStudents = await res.json(); studentsWithGrades = getStudentsWithGrades(allStudents); renderResults(); renderStats(); renderTopStudents(); }
-                        } catch (e) { console.error('❌ فشل إعادة التحميل:', e); }
-                    } else {
-                        throw new Error(result.error || 'فشل الرفع');
-                    }
-                } catch (err) {
-                    console.error('❌ فشل الإرسال:', err);
-                    progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}</div>`;
-                    showToast('❌ فشل: ' + err.message, 'error');
-                }
-            } else {
+            if (studentsData.length === 0) {
                 progressContainer.innerHTML = '<div style="text-align:center;color:#f39c12;padding:20px;">⚠️ لا توجد بيانات صالحة للرفع</div>';
                 showToast('⚠️ لا توجد بيانات صالحة', 'warning');
+                return;
+            }
+            
+            // ✅ عرض أول طالب كمثال للتأكيد
+            const firstStudent = studentsData[0];
+            console.log('📋 مثال أول طالب:', JSON.stringify(firstStudent, null, 2));
+            
+            progressContainer.innerHTML = `<div style="text-align:center;color:#1a4f6e;padding:20px;"><i class="fas fa-paper-plane" style="font-size:2rem;"></i><br>⏳ جاري إرسال ${studentsData.length} طالب إلى السيرفر...</div>`;
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/upload-grades`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ students: studentsData })
+                });
+                const result = await response.json();
+                console.log('📨 رد السيرفر:', result);
+                
+                if (response.ok) {
+                    let msg = `✅ ${result.message || 'تم الرفع بنجاح'}`;
+                    if (skippedCount > 0) msg += ` | ⏭️ تخطي ${skippedCount} صف`;
+                    progressContainer.innerHTML = `<div style="text-align:center;color:#27ae60;padding:20px;"><i class="fas fa-check-circle" style="font-size:3rem;"></i><br><strong>${msg}</strong></div>`;
+                    showToast(msg, 'success');
+                    
+                    try {
+                        const res = await fetch(`${BASE_URL}/api/admin/students`, { credentials: 'include' });
+                        if (res.ok) { allStudents = await res.json(); studentsWithGrades = getStudentsWithGrades(allStudents); renderResults(); renderStats(); renderTopStudents(); }
+                    } catch (e) { console.error('❌ فشل إعادة التحميل:', e); }
+                } else {
+                    throw new Error(result.error || 'فشل الرفع');
+                }
+            } catch (err) {
+                console.error('❌ فشل الإرسال:', err);
+                progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}</div>`;
+                showToast('❌ فشل: ' + err.message, 'error');
             }
         } catch (err) {
             console.error('❌ خطأ:', err);
