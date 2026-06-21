@@ -1944,7 +1944,7 @@ app.get('*', (req, res) => {
 });
 
 
-// ====================== ✅ رفع الدرجات من Excel (بدون إنشاء حسابات) ======================
+// ====================== ✅ رفع الدرجات من Excel (مع معالجة duplicate username) ======================
 app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1972,7 +1972,7 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
                 let student = await Student.findOne({ studentCode });
                 
                 if (student) {
-                    // ✅ تحديث الطالب الموجود (بدون تغيير الحساب)
+                    // تحديث الطالب الموجود
                     await Student.updateOne(
                         { studentCode },
                         { 
@@ -1985,29 +1985,53 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
                         }
                     );
                     updatedCount++;
-                    console.log(`🔄 تحديث: ${fullName} (${studentCode})`);
                 } else {
-                    // ✅ الجديد (مع username = studentCode عشان ميحصلش duplicate null)
-await Student.create({
-    fullName,
-    studentCode,
-    username: studentCode,  // ✅ اسم المستخدم = رقم الجلوس
-    password: await hashPassword('123456'),  // ✅ كلمة مرور افتراضية
-    grade: grade || 'first',
-    semester: semester || 'first',
-    subjects: subjects || [],
-    role: 'student'
-});
+                    // ✅ إضافة طالب جديد مع username = studentCode
+                    // ✅ لو username موجود (يعني طالب تاني بنفس الاسم)، نضيف رقم عشوائي
+                    let username = studentCode;
+                    let existingUser = await Student.findOne({ username });
+                    
+                    if (existingUser) {
+                        // اسم المستخدم موجود، نضيف رقم عشوائي
+                        username = studentCode + '_' + Math.floor(Math.random() * 1000);
+                    }
+                    
+                    await Student.create({
+                        fullName,
+                        studentCode,
+                        username: username,
+                        password: await hashPassword('123456'),
+                        grade: grade || 'first',
+                        semester: semester || 'first',
+                        subjects: subjects || [],
+                        role: 'student'
+                    });
                     addedCount++;
-                    console.log(`➕ إضافة (بدون حساب): ${fullName} (${studentCode})`);
                 }
             } catch (err) {
-                errors.push(`خطأ في معالجة الطالب ${studentData.studentCode}: ${err.message}`);
-                console.error(`❌ خطأ في طالب ${studentData.studentCode}:`, err.message);
+                // ✅ لو حصل duplicate، نجرب من غير username
+                if (err.code === 11000) {
+                    try {
+                        await Student.create({
+                            fullName: studentData.fullName,
+                            studentCode: studentData.studentCode,
+                            grade: studentData.grade || 'first',
+                            semester: studentData.semester || 'first',
+                            subjects: studentData.subjects || [],
+                            role: 'student'
+                            // بدون username
+                        });
+                        addedCount++;
+                    } catch (err2) {
+                        errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err2.message}`);
+                    }
+                } else {
+                    errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err.message}`);
+                }
             }
         }
         
-        const message = `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد (بدون حسابات)`;
+        const message = `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد`;
         console.log(message);
         
         res.json({ 
@@ -2015,7 +2039,7 @@ await Student.create({
             message: message,
             updated: updatedCount,
             added: addedCount,
-            errors: errors.length > 0 ? errors : undefined
+            errors: errors.length > 0 ? errors.slice(0, 5) : undefined // أول 5 أخطاء فقط
         });
         
     } catch (error) {
