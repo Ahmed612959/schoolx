@@ -148,7 +148,7 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (بدون صف - تربية دينية - تخطي المجموع) ======================
+// ====================== ✅ تحليل Excel (إرسال فردي مضمون) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
@@ -160,9 +160,8 @@ window.analyzeExcel = async () => {
     let reader = new FileReader(); 
     reader.onload = async (e) => { 
         try {
-            let data = new Uint8Array(e.target.result), wb = XLSX.read(data, { type: 'array' }), rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }); 
+            let data = new Uint8Array(e.target.result), wb = XLSX.read(data, { type: 'array' }), rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }); 
             const totalRows = rows.length - 1;
-            console.log(`📊 تم قراءة ${totalRows} صف`);
             
             let updatedCount = 0, addedCount = 0, skippedCount = 0, errorCount = 0;
             let liveLog = [];
@@ -171,30 +170,35 @@ window.analyzeExcel = async () => {
                 <div style="margin-bottom:10px;text-align:center;font-weight:bold;color:#1a4f6e;">📊 إجمالي الصفوف: <span style="color:#c4a35a;">${totalRows}</span> | 📚 الترم: <span style="color:#c4a35a;">الأول</span></div>
                 <div style="background:#e9ecef;border-radius:10px;height:20px;margin-bottom:10px;overflow:hidden;"><div id="progress-bar-fill" style="background:linear-gradient(90deg,#c4a35a,#1a4f6e);height:100%;width:0%;border-radius:10px;transition:width 0.3s;"></div></div>
                 <div id="progress-text" style="text-align:center;margin-bottom:10px;color:#666;">⏳ جاري التحليل... 0/${totalRows}</div>
-                <div id="progress-stats" style="text-align:center;margin-bottom:10px;font-weight:bold;">🔄 تحديث: <span style="color:#3498db;">0</span> | ➕ جديد: <span style="color:#8e44ad;">0</span> | ⏭️ تخطي: <span style="color:#f39c12;">0</span> | ❌ خطأ: <span style="color:#e74c3c;">0</span></div>
+                <div id="progress-stats" style="text-align:center;margin-bottom:10px;font-weight:bold;">✅ ناجح: <span style="color:#27ae60;">0</span> | ⏭️ تخطي: <span style="color:#f39c12;">0</span> | ❌ خطأ: <span style="color:#e74c3c;">0</span></div>
                 <div id="live-log" style="max-height:200px;overflow-y:auto;font-size:0.8rem;background:#fff;padding:10px;border-radius:8px;border:1px solid #eee;"></div>`;
             
             const pb = document.getElementById('progress-bar-fill'), pt = document.getElementById('progress-text'), pst = document.getElementById('progress-stats'), ll = document.getElementById('live-log');
-            function up(c,t){ const p=Math.round((c/t)*100); if(pb) pb.style.width=p+'%'; if(pt) pt.innerHTML=`⏳ جاري التحليل... ${c}/${t} (${p}%)`; if(pst) pst.innerHTML=`🔄 تحديث: <span style="color:#3498db;">${updatedCount}</span> | ➕ جديد: <span style="color:#8e44ad;">${addedCount}</span> | ⏭️ تخطي: <span style="color:#f39c12;">${skippedCount}</span> | ❌ خطأ: <span style="color:#e74c3c;">${errorCount}</span>`; }
-            function log(msg,type){ const colors={success:'#27ae60',warning:'#f39c12',error:'#e74c3c',add:'#8e44ad',update:'#2980b9'}, icons={success:'✅',warning:'⏭️',error:'❌',add:'➕',update:'🔄'}; const time=new Date().toLocaleTimeString('ar-EG'); liveLog.unshift({msg,type,time}); if(liveLog.length>100) liveLog.pop(); if(ll) ll.innerHTML=liveLog.map(l=>`<div style="padding:3px 0;border-bottom:1px solid #f0f0f0;color:${colors[l.type]};"><small>${l.time}</small> ${icons[l.type]} ${l.msg}</div>`).join(''); }
             
-            let studentsData = [];
+            function up(c, t) { const p = Math.round((c/t)*100); if(pb) pb.style.width = p+'%'; if(pt) pt.innerHTML = `⏳ جاري التحليل... ${c}/${t} (${p}%)`; if(pst) pst.innerHTML = `✅ ناجح: <span style="color:#27ae60;">${updatedCount + addedCount}</span> | ⏭️ تخطي: <span style="color:#f39c12;">${skippedCount}</span> | ❌ خطأ: <span style="color:#e74c3c;">${errorCount}</span>`; }
+            function log(msg, type) { const colors = { success: '#27ae60', warning: '#f39c12', error: '#e74c3c' }, icons = { success: '✅', warning: '⏭️', error: '❌' }; const time = new Date().toLocaleTimeString('ar-EG'); liveLog.unshift({ msg, type, time }); if (liveLog.length > 100) liveLog.pop(); if (ll) ll.innerHTML = liveLog.map(l => `<div style="padding:3px 0;border-bottom:1px solid #f0f0f0;color:${colors[l.type]};"><small>${l.time}</small> ${icons[l.type]} ${l.msg}</div>`).join(''); }
+            
+            const csrfToken = getCsrfToken();
+            let processedCount = 0;
             
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
-                up(i - 1, totalRows);
+                up(processedCount, totalRows);
                 
                 if (!row[0] || !row[1]) { skippedCount++; log(`تخطي صف ${i}: بيانات غير مكتملة`, 'warning'); continue; }
                 
-                let studentCode = row[0].toString().trim();
-                let studentName = row[1].toString().trim();
+                let studentCode = String(row[0]).trim();
+                if (studentCode.includes('.')) studentCode = studentCode.split('.')[0];
+                if (studentCode === 'NaN' || studentCode === 'undefined' || studentCode === '' || studentCode === '0') {
+                    skippedCount++; log(`تخطي صف ${i}: رقم جلوس غير صالح (${studentCode})`, 'warning'); continue;
+                }
                 
-                // تخطي صفوف العناوين والمجموع
+                let studentName = String(row[1]).trim();
+                
                 if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentCode.includes('المجموع') || studentCode.includes('رقم') || studentName === 'اسم') {
                     skippedCount++; log(`تخطي صف ${i}: عنوان/مجموع`, 'warning'); continue;
                 }
                 
-                // A=رقم جلوس, B=اسم, C=عربي, D=إنجليزي, E=علوم تطبيقية, F=طب باطنة, G=تمريض, H=حاسب آلي, I=تربية دينية, J=المجموع
                 let subjects = [];
                 if (row[2] !== undefined && row[2] !== '') subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) || 0 });
                 if (row[3] !== undefined && row[3] !== '') subjects.push({ name: "اللغة الإنجليزية", grade: parseFloat(row[3]) || 0 });
@@ -202,32 +206,72 @@ window.analyzeExcel = async () => {
                 if (row[5] !== undefined && row[5] !== '') subjects.push({ name: "طب باطنة", grade: parseFloat(row[5]) || 0 });
                 if (row[6] !== undefined && row[6] !== '') subjects.push({ name: "تمريض باطني جراحي", grade: parseFloat(row[6]) || 0 });
                 if (row[7] !== undefined && row[7] !== '') subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) || 0 });
-                if (row[8] !== undefined && row[8] !== '') subjects.push({ name: "الدين", grade: parseFloat(row[8]) || 0 }); // I = تربية دينية
-                // row[9] = المجموع ← نتخطاه
+                if (row[8] !== undefined && row[8] !== '') subjects.push({ name: "الدين", grade: parseFloat(row[8]) || 0 });
                 
-                let existing = allStudents.find(s => s.studentCode == studentCode);
-                if (existing) { updatedCount++; log(`تحديث: ${studentName} (${studentCode})`, 'update'); }
-                else { addedCount++; log(`إضافة: ${studentName} (${studentCode})`, 'add'); }
+                console.log(`📝 معالجة: ${studentName} (${studentCode}) - ${subjects.length} مواد`);
                 
-                studentsData.push({ studentCode, fullName: studentName, subjects, grade: 'first', semester: 'first' });
-                if (i % 10 === 0) await new Promise(r => setTimeout(r, 20));
-            }
-            
-            if (studentsData.length > 0) {
                 try {
-                    const csrfToken = getCsrfToken();
-                    const r = await fetch(`${BASE_URL}/api/upload-grades`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, credentials: 'include', body: JSON.stringify({ students: studentsData }) });
-                    const d = await r.json(); if (!r.ok) throw new Error(d.error || 'فشل الرفع');
-                    log(`✅ تم إرسال ${studentsData.length} طالب للسيرفر`, 'success');
-                } catch (err) { errorCount++; log(`❌ فشل: ${err.message}`, 'error'); }
+                    let existingStudent = allStudents.find(s => s.studentCode == studentCode);
+                    
+                    if (existingStudent) {
+                        const updateResponse = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                            credentials: 'include',
+                            body: JSON.stringify({ fullName: studentName, subjects, grade: 'first', semester: 'first' })
+                        });
+                        
+                        if (updateResponse.ok) {
+                            updatedCount++;
+                            log(`✅ تحديث: ${studentName} (${studentCode})`, 'success');
+                        } else {
+                            const errData = await updateResponse.json().catch(() => ({}));
+                            throw new Error(errData.error || 'فشل التحديث');
+                        }
+                    } else {
+                        const addResponse = await fetch(`${BASE_URL}/api/students`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                            credentials: 'include',
+                            body: JSON.stringify({ fullName: studentName, id: studentCode, subjects, grade: 'first', semester: 'first' })
+                        });
+                        
+                        if (addResponse.ok) {
+                            addedCount++;
+                            log(`✅ إضافة: ${studentName} (${studentCode})`, 'success');
+                        } else {
+                            const errData = await addResponse.json().catch(() => ({}));
+                            throw new Error(errData.error || 'فشل الإضافة');
+                        }
+                    }
+                } catch (err) {
+                    errorCount++;
+                    log(`❌ ${studentName} (${studentCode}): ${err.message}`, 'error');
+                    console.error(`❌ خطأ:`, err);
+                }
+                
+                processedCount++;
+                
+                if (i % 5 === 0) await new Promise(r => setTimeout(r, 50));
             }
             
-            up(totalRows, totalRows); if (pb) { pb.style.width = '100%'; pb.style.background = 'linear-gradient(90deg,#27ae60,#2ecc71)'; }
-            allStudents = await getFromServer('/api/admin/students'); studentsWithGrades = getStudentsWithGrades(allStudents); renderResults(); renderStats();
+            up(processedCount, totalRows);
+            if (pb) { pb.style.width = '100%'; pb.style.background = 'linear-gradient(90deg,#27ae60,#2ecc71)'; }
             
-            let msg = ''; if (updatedCount > 0) msg += `🔄 تم تحديث ${updatedCount} طالب. `; if (addedCount > 0) msg += `➕ تم إضافة ${addedCount} طالب جديد. `; if (skippedCount > 0) msg += `⏭️ تخطي ${skippedCount} صف. `; if (errorCount > 0) msg += `❌ فشل ${errorCount}. `;
+            // ✅ إعادة تحميل البيانات
+            allStudents = await getFromServer('/api/admin/students'); 
+            studentsWithGrades = getStudentsWithGrades(allStudents); 
+            renderResults(); renderStats();
+            
+            let msg = '';
+            if (updatedCount > 0) msg += `🔄 تم تحديث ${updatedCount} طالب. `;
+            if (addedCount > 0) msg += `➕ تم إضافة ${addedCount} طالب جديد. `;
+            if (skippedCount > 0) msg += `⏭️ تخطي ${skippedCount} صف. `;
+            if (errorCount > 0) msg += `❌ فشل ${errorCount}. `;
+            
             if (pt) { pt.innerHTML = `✅ ${msg}`; pt.style.color = '#27ae60'; pt.style.fontWeight = 'bold'; }
-            log(`🎉 ${msg}`, 'success'); showToast(msg || '✅ تم الانتهاء', 'success');
+            log(`🎉 ${msg}`, 'success');
+            showToast(msg || '✅ تم الانتهاء', 'success');
             
         } catch (err) {
             progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}<br><button onclick="document.getElementById('upload-progress').style.display='none'" style="background:#e74c3c;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;margin-top:10px;">إغلاق</button></div>`;
@@ -237,7 +281,6 @@ window.analyzeExcel = async () => {
     reader.onerror = () => { progressContainer.innerHTML = '<div style="text-align:center;color:#e74c3c;">❌ خطأ في قراءة الملف</div>'; showToast('❌ خطأ في قراءة الملف', 'error'); };
     reader.readAsArrayBuffer(file); 
 };
-
 // ====================== تصدير Excel ======================
 function exportToExcel() { if(!studentsWithGrades.length){ showToast('لا توجد بيانات','error'); return; } const data=studentsWithGrades.map(st=>{ const grades=getStudentFormattedGrades(st); const row={'رقم الجلوس':st.studentCode,'اسم الطالب':st.fullName}; ORDERED_SUBJECTS_FIRST.forEach(s=>{ const gi=grades[s]; if(gi) row[s]=gi.grade; }); row['المجموع']=calculateStudentTotal(st); row['النسبة']=calculateStudentPercentage(st).toFixed(1)+'%'; return row; }); const ws=XLSX.utils.json_to_sheet(data), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'النتائج'); XLSX.writeFile(wb,'نتائج_الطلاب.xlsx'); showToast('✅ تم التصدير','success'); }
 
