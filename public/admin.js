@@ -628,7 +628,7 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (النسخة المحسنة النهائية) ======================
+// ====================== ✅ تحليل Excel (نسخة لايف تراكينج) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
@@ -637,6 +637,20 @@ window.analyzeExcel = async () => {
     let selectedGrade = gradeSelect ? gradeSelect.value : 'first';
     if (!selectedGrade) selectedGrade = 'first';
     
+    // ✅ إنشاء نافذة التتبع
+    const progressDiv = document.getElementById('upload-progress');
+    if (!progressDiv) {
+        // إنشاء div للتتبع لو مش موجود
+        const div = document.createElement('div');
+        div.id = 'upload-progress';
+        div.style.cssText = 'margin-top:15px; padding:15px; background:#f8f9fa; border-radius:12px; max-height:300px; overflow-y:auto; font-size:0.85rem; border:2px solid #c4a35a;';
+        document.querySelector('.excel-upload-section')?.appendChild(div);
+    }
+    
+    const progressContainer = document.getElementById('upload-progress') || document.createElement('div');
+    progressContainer.innerHTML = '<div style="text-align:center;color:#1a4f6e;"><i class="fas fa-spinner fa-pulse"></i> ⏳ جاري قراءة الملف...</div>';
+    progressContainer.style.display = 'block';
+    
     let reader = new FileReader(); 
     reader.onload = async (e) => { 
         try {
@@ -644,14 +658,76 @@ window.analyzeExcel = async () => {
                 wb = XLSX.read(data, { type: 'array' }), 
                 rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }); 
             
-            console.log(`📊 تم قراءة ${rows.length - 1} صف من Excel`);
+            const totalRows = rows.length - 1; // الصف الأول Header
+            console.log(`📊 تم قراءة ${totalRows} صف من Excel`);
             
-            let updatedCount = 0, addedCount = 0, skippedCount = 0;
+            let updatedCount = 0, addedCount = 0, skippedCount = 0, errorCount = 0;
+            let liveLog = []; // سجل التتبع
             
+            // ✅ عرض شريط التقدم
+            progressContainer.innerHTML = `
+                <div style="margin-bottom:10px; text-align:center; font-weight:bold; color:#1a4f6e;">
+                    📊 إجمالي الصفوف: <span style="color:#c4a35a;">${totalRows}</span>
+                </div>
+                <div style="background:#e9ecef; border-radius:10px; height:20px; margin-bottom:10px; overflow:hidden;">
+                    <div id="progress-bar-fill" style="background:linear-gradient(90deg,#c4a35a,#1a4f6e); height:100%; width:0%; border-radius:10px; transition:width 0.3s;"></div>
+                </div>
+                <div id="progress-text" style="text-align:center; margin-bottom:10px; color:#666;">⏳ جاري التحليل... 0/${totalRows}</div>
+                <div id="progress-stats" style="text-align:center; margin-bottom:10px; font-weight:bold;">
+                    🔄 محدث: <span style="color:#3498db;">0</span> | ➕ جديد: <span style="color:#27ae60;">0</span> | ⏭️ متخطي: <span style="color:#f39c12;">0</span> | ❌ خطأ: <span style="color:#e74c3c;">0</span>
+                </div>
+                <div id="live-log" style="max-height:200px; overflow-y:auto; font-size:0.8rem; background:#fff; padding:10px; border-radius:8px; border:1px solid #eee;"></div>
+            `;
+            
+            const progressBar = document.getElementById('progress-bar-fill');
+            const progressText = document.getElementById('progress-text');
+            const progressStats = document.getElementById('progress-stats');
+            const liveLogDiv = document.getElementById('live-log');
+            
+            function updateProgress(current, total) {
+                const pct = Math.round((current / total) * 100);
+                if (progressBar) progressBar.style.width = pct + '%';
+                if (progressText) progressText.innerHTML = `⏳ جاري التحليل... ${current}/${total} (${pct}%)`;
+                if (progressStats) progressStats.innerHTML = `
+                    🔄 محدث: <span style="color:#3498db;">${updatedCount}</span> | 
+                    ➕ جديد: <span style="color:#27ae60;">${addedCount}</span> | 
+                    ⏭️ متخطي: <span style="color:#f39c12;">${skippedCount}</span> | 
+                    ❌ خطأ: <span style="color:#e74c3c;">${errorCount}</span>
+                `;
+            }
+            
+            function addLog(message, type = 'info') {
+                const colors = { success: '#27ae60', warning: '#f39c12', error: '#e74c3c', info: '#3498db', add: '#8e44ad' };
+                const icons = { success: '✅', warning: '⏭️', error: '❌', info: 'ℹ️', add: '➕' };
+                const time = new Date().toLocaleTimeString('ar-EG');
+                liveLog.unshift({ message, type, time });
+                if (liveLog.length > 100) liveLog.pop(); // نحتفظ بآخر 100 سجل
+                
+                if (liveLogDiv) {
+                    liveLogDiv.innerHTML = liveLog.map(log => 
+                        `<div style="padding:3px 0; border-bottom:1px solid #f0f0f0; color:${colors[log.type]};">
+                            <small>${log.time}</small> ${icons[log.type]} ${log.message}
+                        </div>`
+                    ).join('');
+                }
+            }
+            
+            // ✅ بدء المعالجة
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
                 
-                if (!row[0] || !row[1]) { skippedCount++; continue; }
+                // تحديث التقدم
+                updateProgress(i - 1, totalRows);
+                
+                // تخطي الصفوف الفارغة
+                if (!row[0] || !row[1]) { 
+                    skippedCount++;
+                    addLog(`تخطي صف ${i}: بيانات غير مكتملة`, 'warning');
+                    continue;
+                }
+                
+                let studentCode = row[0].toString().trim();
+                let studentName = row[1].toString().trim();
                 
                 let subjects = []; 
                 if (row[2] !== undefined && row[2] !== '') subjects.push({ name: "اللغة العربية", grade: parseFloat(row[2]) || 0 });
@@ -662,25 +738,38 @@ window.analyzeExcel = async () => {
                 if (row[7] !== undefined && row[7] !== '') subjects.push({ name: "حاسب آلي", grade: parseFloat(row[7]) || 0 });
                 if (row[8] !== undefined && row[8] !== '') subjects.push({ name: "الدين", grade: parseFloat(row[8]) || 0 });
                 
-                // ✅ البحث عن الطالب
-                let existing = allStudents.find(s => s.studentCode == row[0]); 
+                try {
+                    let existing = allStudents.find(s => s.studentCode == studentCode); 
+                    
+                    if (existing) {
+                        await saveToServer(`/api/students/${studentCode}`, { 
+                            fullName: studentName, subjects, grade: selectedGrade, semester: 'first'
+                        }, 'PUT'); 
+                        updatedCount++;
+                        addLog(`تحديث: ${studentName} (${studentCode}) - ${subjects.length} مواد`, 'success');
+                    } else {
+                        await saveToServer('/api/students', { 
+                            fullName: studentName, id: studentCode, subjects, grade: selectedGrade, semester: 'first'
+                        }); 
+                        addedCount++;
+                        addLog(`إضافة جديد: ${studentName} (${studentCode}) - ${subjects.length} مواد`, 'add');
+                    }
+                } catch (err) {
+                    errorCount++;
+                    addLog(`خطأ في ${studentName} (${studentCode}): ${err.message}`, 'error');
+                    console.error(`❌ خطأ في الصف ${i}:`, err);
+                }
                 
-                if (existing) {
-                    // ✅ تحديث طالب موجود
-                    console.log(`🔄 تحديث: ${row[1]} (${row[0]})`);
-                    await saveToServer(`/api/students/${row[0]}`, { 
-                        fullName: row[1], subjects, grade: selectedGrade, semester: 'first'
-                    }, 'PUT'); 
-                    updatedCount++;
-                } else {
-                    // ✅ إضافة طالب جديد
-                    console.log(`➕ إضافة: ${row[1]} (${row[0]})`);
-                    await saveToServer('/api/students', { 
-                        fullName: row[1], id: row[0].toString(), subjects, grade: selectedGrade, semester: 'first'
-                    }); 
-                    addedCount++;
+                // ✅ تأخير بسيط عشان المستخدم يشوف التحديث (اختياري - ممكن تشيله)
+                if (i % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 50));
                 }
             }
+            
+            // ✅ التحديث النهائي
+            updateProgress(totalRows, totalRows);
+            if (progressBar) progressBar.style.width = '100%';
+            if (progressBar) progressBar.style.background = 'linear-gradient(90deg,#27ae60,#2ecc71)';
             
             // ✅ إعادة تحميل البيانات
             allStudents = await getFromServer('/api/admin/students'); 
@@ -688,17 +777,38 @@ window.analyzeExcel = async () => {
             renderResults(); renderStats();
             
             // ✅ رسالة نهائية
-            let message = `✅ تم تحديث ${updatedCount} طالب`;
-            if (addedCount > 0) message += ` وإضافة ${addedCount} طالب جديد`;
-            if (skippedCount > 0) message += ` (تخطي ${skippedCount} صف)`;
-            showToast(message, 'success');
-            console.log(`📊 النتيجة: ${updatedCount} محدث, ${addedCount} جديد, ${skippedCount} متخطي`);
+            let finalMessage = '';
+            if (updatedCount > 0) finalMessage += `🔄 تم تحديث ${updatedCount} طالب. `;
+            if (addedCount > 0) finalMessage += `➕ تم إضافة ${addedCount} طالب جديد. `;
+            if (skippedCount > 0) finalMessage += `⏭️ تم تخطي ${skippedCount} صف. `;
+            if (errorCount > 0) finalMessage += `❌ فشل ${errorCount} صف. `;
+            
+            if (progressText) progressText.innerHTML = `✅ ${finalMessage}`;
+            if (progressText) progressText.style.color = '#27ae60';
+            if (progressText) progressText.style.fontWeight = 'bold';
+            
+            addLog(`🎉 انتهى التحليل: ${finalMessage}`, 'success');
+            
+            showToast(finalMessage || '✅ تم الانتهاء من تحليل الملف', 'success');
+            console.log(`📊 النتيجة النهائية: ${updatedCount} محدث, ${addedCount} جديد, ${skippedCount} متخطي, ${errorCount} خطأ`);
             
         } catch (err) {
             console.error('❌ خطأ في تحليل Excel:', err);
+            progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">
+                <i class="fas fa-exclamation-triangle" style="font-size:2rem;"></i><br>
+                ❌ خطأ في تحليل الملف:<br>
+                <small>${err.message}</small><br><br>
+                <button onclick="document.getElementById('upload-progress').style.display='none'" style="background:#e74c3c;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;">إغلاق</button>
+            </div>`;
             showToast('❌ خطأ في تحليل الملف: ' + err.message, 'error');
         }
     }; 
+    
+    reader.onerror = () => {
+        progressContainer.innerHTML = '<div style="text-align:center;color:#e74c3c;">❌ خطأ في قراءة الملف</div>';
+        showToast('❌ خطأ في قراءة الملف', 'error');
+    };
+    
     reader.readAsArrayBuffer(file); 
 };
 
