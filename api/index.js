@@ -1944,7 +1944,7 @@ app.get('*', (req, res) => {
 });
 
 
-// ====================== ✅ رفع الدرجات من Excel ======================
+// ====================== ✅ رفع الدرجات من Excel (بدون إنشاء حسابات) ======================
 app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -1953,6 +1953,8 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
         if (!students || !Array.isArray(students) || students.length === 0) {
             return res.status(400).json({ error: 'لا توجد بيانات صالحة للرفع' });
         }
+        
+        console.log(`📥 استلام ${students.length} طالب للرفع`);
         
         let updatedCount = 0;
         let addedCount = 0;
@@ -1970,7 +1972,7 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
                 let student = await Student.findOne({ studentCode });
                 
                 if (student) {
-                    // تحديث الطالب الموجود
+                    // ✅ تحديث الطالب الموجود (بدون تغيير الحساب)
                     await Student.updateOne(
                         { studentCode },
                         { 
@@ -1983,21 +1985,20 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
                         }
                     );
                     updatedCount++;
+                    console.log(`🔄 تحديث: ${fullName} (${studentCode})`);
                 } else {
-                    // إنشاء طالب جديد
-                    const defaultPassword = await hashPassword('123456');
-                    const newStudent = new Student({
+                    // ✅ إضافة طالب جديد بدون حساب
+                    await Student.create({
                         fullName,
                         studentCode,
-                        username: studentCode,
-                        password: defaultPassword,
                         grade: grade || 'first',
                         semester: semester || 'first',
                         subjects: subjects || [],
                         role: 'student'
+                        // ❌ بدون username و password - لا يمكنه تسجيل الدخول
                     });
-                    await newStudent.save();
                     addedCount++;
+                    console.log(`➕ إضافة (بدون حساب): ${fullName} (${studentCode})`);
                 }
             } catch (err) {
                 errors.push(`خطأ في معالجة الطالب ${studentData.studentCode}: ${err.message}`);
@@ -2005,9 +2006,12 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
             }
         }
         
+        const message = `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد (بدون حسابات)`;
+        console.log(message);
+        
         res.json({ 
             success: true, 
-            message: `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد`,
+            message: message,
             updated: updatedCount,
             added: addedCount,
             errors: errors.length > 0 ? errors : undefined
