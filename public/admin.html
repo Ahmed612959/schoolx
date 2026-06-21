@@ -341,15 +341,7 @@
 <script src="admin.js"></script>
 
 <script>
-    (function() {
-        document.addEventListener('contextmenu', (e) => e.preventDefault());
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || (e.ctrlKey && e.key === 'U')) {
-                e.preventDefault();
-                return false;
-            }
-        });
-    })();
+    // ✅ تم تعطيل حماية الكونسول بالكامل
     
     window.scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
     window.scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -373,6 +365,8 @@
     
     // استدعاء الدالة عند تحميل الصفحة
     toggleSubjects();
+    
+    console.log('✅ الكونسول مفتوح للتطوير والتتبع');
 </script>
 </body>
 </html>
