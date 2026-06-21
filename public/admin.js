@@ -165,7 +165,7 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (حل نهائي للمسارات) ======================
+// ====================== ✅ تحليل Excel (حل مضمون 100%) ======================
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
@@ -179,24 +179,20 @@ window.analyzeExcel = async () => {
         try {
             let data = new Uint8Array(e.target.result), wb = XLSX.read(data, { type: 'array' }), rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }); 
             const totalRows = rows.length - 1;
-            console.log(`📊 تم قراءة ${totalRows} صف من Excel`);
-            
             let successCount = 0, skippedCount = 0, errorCount = 0;
-            let liveLog = [];
             
             progressContainer.innerHTML = `
-                <div style="margin-bottom:10px;text-align:center;font-weight:bold;color:#1a4f6e;">📊 إجمالي الصفوف: <span style="color:#c4a35a;">${totalRows}</span> | 📚 الترم: <span style="color:#c4a35a;">الأول</span></div>
+                <div style="margin-bottom:10px;text-align:center;font-weight:bold;color:#1a4f6e;">📊 إجمالي الصفوف: <span style="color:#c4a35a;">${totalRows}</span></div>
                 <div style="background:#e9ecef;border-radius:10px;height:20px;margin-bottom:10px;overflow:hidden;"><div id="progress-bar-fill" style="background:linear-gradient(90deg,#c4a35a,#1a4f6e);height:100%;width:0%;border-radius:10px;transition:width 0.3s;"></div></div>
-                <div id="progress-text" style="text-align:center;margin-bottom:10px;color:#666;">⏳ جاري التحليل... 0/${totalRows}</div>
+                <div id="progress-text" style="text-align:center;margin-bottom:10px;">⏳ جاري التحليل... 0/${totalRows}</div>
                 <div id="progress-stats" style="text-align:center;margin-bottom:10px;font-weight:bold;">✅ ناجح: <span style="color:#27ae60;">0</span> | ⏭️ تخطي: <span style="color:#f39c12;">0</span> | ❌ خطأ: <span style="color:#e74c3c;">0</span></div>
                 <div id="live-log" style="max-height:200px;overflow-y:auto;font-size:0.8rem;background:#fff;padding:10px;border-radius:8px;border:1px solid #eee;"></div>`;
             
             const pb = document.getElementById('progress-bar-fill'), pt = document.getElementById('progress-text'), pst = document.getElementById('progress-stats'), ll = document.getElementById('live-log');
             function up(c, t) { const p = Math.round((c/t)*100); if(pb) pb.style.width = p+'%'; if(pt) pt.innerHTML = `⏳ جاري التحليل... ${c}/${t} (${p}%)`; if(pst) pst.innerHTML = `✅ ناجح: <span style="color:#27ae60;">${successCount}</span> | ⏭️ تخطي: <span style="color:#f39c12;">${skippedCount}</span> | ❌ خطأ: <span style="color:#e74c3c;">${errorCount}</span>`; }
-            function log(msg, type) { const colors = { success: '#27ae60', warning: '#f39c12', error: '#e74c3c' }, icons = { success: '✅', warning: '⏭️', error: '❌' }; const time = new Date().toLocaleTimeString('ar-EG'); liveLog.unshift({ msg, type, time }); if (liveLog.length > 50) liveLog.pop(); if (ll) ll.innerHTML = liveLog.map(l => `<div style="padding:2px 0;border-bottom:1px solid #f0f0f0;color:${colors[l.type]};font-size:0.75rem;"><small>${l.time}</small> ${icons[l.type]} ${l.msg}</div>`).join(''); }
+            function log(msg, type) { const colors = { success: '#27ae60', warning: '#f39c12', error: '#e74c3c' }, icons = { success: '✅', warning: '⏭️', error: '❌' }; const time = new Date().toLocaleTimeString('ar-EG'); if(ll) { const div = document.createElement('div'); div.style.cssText = `padding:2px 0;border-bottom:1px solid #f0f0f0;color:${colors[type]};font-size:0.75rem;`; div.innerHTML = `<small>${time}</small> ${icons[type]} ${msg}`; ll.insertBefore(div, ll.firstChild); if(ll.children.length > 50) ll.removeChild(ll.lastChild); } }
             
             let processedCount = 0;
-            const csrfToken = await getCsrfToken();
             
             for (let i = 1; i < rows.length; i++) { 
                 let row = rows[i]; 
@@ -208,7 +204,7 @@ window.analyzeExcel = async () => {
                 if (!studentCode || studentCode === '0' || studentCode === 'NaN') { skippedCount++; log(`تخطي صف ${i}: رقم جلوس غير صالح`, 'warning'); up(processedCount, totalRows); continue; }
                 
                 let studentName = String(row[1]).trim();
-                if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentName === 'اسم' || studentName.includes('الكود')) { 
+                if (studentName.includes('المجموع') || studentName.includes('الاسم') || studentName === 'اسم' || studentName.includes('الكود') || studentName.includes('رقم الجلوس')) { 
                     skippedCount++; log(`تخطي صف ${i}: صف عنوان`, 'warning'); up(processedCount, totalRows); continue; 
                 }
                 
@@ -222,39 +218,41 @@ window.analyzeExcel = async () => {
                     { name: "الدين", grade: (row[8] !== undefined && row[8] !== '') ? (parseFloat(row[8]) || 0) : 0 }
                 ];
                 
+                // ✅ طباعة للتأكيد
+                console.log(`📝 [${i}] ${studentName} (${studentCode}) - ${subjects.filter(s=>s.grade>0).length} مواد`);
+                
                 try {
                     let existing = allStudents.find(s => s.studentCode == studentCode);
+                    let response;
                     
-                    // ✅ استخدام fetch مباشرة مع المسار الكامل
                     if (existing) {
-                        const response = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
+                        // تحديث طالب موجود
+                        response = await fetch(`${BASE_URL}/api/students/${encodeURIComponent(studentCode)}`, {
                             method: 'PUT',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
+                            headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
                             body: JSON.stringify({ fullName: studentName, subjects, grade: 'first', semester: 'first' })
                         });
-                        if (!response.ok) {
-                            const errText = await response.text();
-                            throw new Error(errText.substring(0, 100));
-                        }
-                        log(`🔄 ${studentName} (${studentCode})`, 'success');
                     } else {
-                        const response = await fetch(`${BASE_URL}/api/students`, {
+                        // إضافة طالب جديد
+                        response = await fetch(`${BASE_URL}/api/students`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
+                            headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
                             body: JSON.stringify({ fullName: studentName, id: studentCode, subjects, grade: 'first', semester: 'first' })
                         });
-                        if (!response.ok) {
-                            const errText = await response.text();
-                            throw new Error(errText.substring(0, 100));
-                        }
-                        log(`➕ ${studentName} (${studentCode})`, 'success');
                     }
-                    successCount++;
+                    
+                    if (response.ok) {
+                        successCount++;
+                        log(`${existing ? '🔄' : '➕'} ${studentName} (${studentCode})`, 'success');
+                    } else {
+                        const errText = await response.text();
+                        throw new Error(`Status ${response.status}: ${errText.substring(0, 80)}`);
+                    }
                 } catch (err) {
                     errorCount++;
-                    log(`❌ ${studentName}: ${err.message}`, 'error');
+                    log(`❌ ${studentName} (${studentCode}): ${err.message}`, 'error');
                 }
                 
                 processedCount++;
@@ -265,23 +263,21 @@ window.analyzeExcel = async () => {
             up(processedCount, totalRows);
             if (pb) { pb.style.width = '100%'; pb.style.background = 'linear-gradient(90deg,#27ae60,#2ecc71)'; }
             
+            // إعادة تحميل البيانات
             try {
-                allStudents = await getFromServer('/api/admin/students'); 
-                studentsWithGrades = getStudentsWithGrades(allStudents); 
-                renderResults(); renderStats(); renderTopStudents();
-            } catch (e) { console.error('❌ فشل إعادة تحميل البيانات:', e); }
+                const res = await fetch(`${BASE_URL}/api/admin/students`, { credentials: 'include' });
+                if (res.ok) { allStudents = await res.json(); studentsWithGrades = getStudentsWithGrades(allStudents); renderResults(); renderStats(); renderTopStudents(); }
+            } catch (e) { console.error('❌ فشل إعادة التحميل:', e); }
             
             let msg = `✅ تم معالجة ${successCount} طالب بنجاح`;
             if (skippedCount > 0) msg += ` | ⏭️ تخطي ${skippedCount}`;
             if (errorCount > 0) msg += ` | ❌ فشل ${errorCount}`;
             
             if (pt) { pt.innerHTML = msg; pt.style.color = errorCount > 0 ? '#f39c12' : '#27ae60'; pt.style.fontWeight = 'bold'; }
-            log(`🎉 ${msg}`, 'success');
             showToast(msg, errorCount > 0 ? 'warning' : 'success');
             
         } catch (err) {
-            console.error('❌ خطأ عام:', err);
-            progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}<br><button onclick="document.getElementById('upload-progress').style.display='none'" style="background:#e74c3c;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;margin-top:10px;">إغلاق</button></div>`;
+            progressContainer.innerHTML = `<div style="text-align:center;color:#e74c3c;padding:20px;">❌ خطأ: ${err.message}</div>`;
             showToast('❌ خطأ: ' + err.message, 'error');
         }
     };
