@@ -1,5 +1,5 @@
 /* ============================================
-   admin.css - تصميم طبي محسن
+   admin.css - تصميم طبي محسن بالكامل
    معهد رعاية الضبعية الفني للتمريض
    ============================================ */
 
@@ -57,7 +57,7 @@ body {
 /* ========== الهيدر ========== */
 .main-header {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    padding: 0 36px;
+    padding: 0 32px;
     height: 72px;
     display: flex;
     align-items: center;
@@ -518,35 +518,205 @@ form {
 }
 .certificate-btn:hover { background: var(--gold); color: var(--primary); }
 
-/* ========== مودال الشهادة ========== */
+/* ================================================================ */
+/*                   🎓 تحسينات الشهادة (Certificate)                */
+/* ================================================================ */
 .certificate-modal {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.75);
+    background: rgba(0,0,0,0.8);
     z-index: 2000;
     justify-content: center;
     align-items: center;
+    backdrop-filter: blur(6px);
 }
 .certificate-modal.show { display: flex; }
 .certificate-content {
     background: white;
-    width: 92%;
-    max-width: 750px;
-    border-radius: var(--radius-2xl);
-    max-height: 90vh;
+    width: 95%;
+    max-width: 850px;
+    border-radius: 32px;
+    max-height: 95vh;
     overflow-y: auto;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+    position: relative;
 }
+.close-certificate {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: var(--gray-400);
+    z-index: 10;
+    transition: var(--transition);
+}
+.close-certificate:hover { color: var(--danger); transform: scale(1.1); }
+
 .certificate {
-    background: linear-gradient(135deg, white 0%, #fdf8ed 100%);
-    padding: 36px;
-    margin: 16px;
-    border: 16px double var(--gold);
-    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, #ffffff 0%, #fdf8ed 100%);
+    padding: 50px 40px;
+    margin: 25px;
+    border: 20px double var(--gold);
+    border-radius: 24px;
     text-align: center;
+    position: relative;
+    font-family: 'Tajawal', sans-serif;
+    box-shadow: inset 0 0 30px rgba(196,163,90,0.08);
 }
-.certificate-title { font-size: 1.8rem; font-weight: 800; color: var(--primary); margin: 16px 0; }
-.certificate-student-name { font-size: 1.5rem; font-weight: 800; color: var(--gold-dark); margin: 14px 0; }
+.certificate::before {
+    content: '';
+    position: absolute;
+    top: 15px; left: 15px; right: 15px; bottom: 15px;
+    border: 2px solid rgba(196,163,90,0.2);
+    border-radius: 12px;
+    pointer-events: none;
+}
+.certificate-logo img {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 4px solid var(--gold);
+    padding: 6px;
+    background: white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.certificate-title {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: var(--primary);
+    margin: 20px 0 5px;
+    letter-spacing: -0.5px;
+}
+.certificate-subtitle {
+    font-size: 1rem;
+    color: var(--gray-500);
+    margin-bottom: 25px;
+    border-bottom: 2px solid var(--gold);
+    display: inline-block;
+    padding-bottom: 8px;
+    letter-spacing: 1px;
+}
+.certificate-student-name {
+    font-size: 2.2rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--gold-dark), var(--primary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 20px 0;
+}
+.certificate-rank span {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--gold-dark);
+}
+.certificate-percentage {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--primary);
+    margin: 15px 0;
+}
+.certificate-date {
+    margin-top: 35px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--gray-300);
+    font-size: 0.9rem;
+    color: var(--gray-500);
+}
+.certificate-signature {
+    margin-top: 40px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+.certificate-signature div { text-align: center; }
+.certificate-signature hr {
+    width: 140px;
+    margin: 5px auto;
+    border: 1px solid var(--gray-300);
+}
+.certificate-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px 25px 25px;
+}
+.certificate-actions button {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 50px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.print-certificate { background: var(--primary); color: var(--gold); }
+.print-certificate:hover { background: var(--primary-dark); }
+.download-certificate { background: var(--success); color: white; }
+.download-certificate:hover { filter: brightness(1.1); }
+
+/* ================================================================ */
+/*                📝 تحسينات نموذج الاختبارات                       */
+/* ================================================================ */
+.exam-form-container h2 { margin-top: 0; }
+#exam-name, #exam-code, #exam-duration, #exam-stage {
+    width: 100%;
+}
+.exam-form-container .input-group {
+    margin-bottom: 5px;
+}
+#add-question {
+    background: var(--info);
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+}
+#add-question:hover { background: #0369a1; }
+#save-exam {
+    background: var(--gold);
+    color: var(--primary);
+    border: none;
+    padding: 12px 30px;
+    border-radius: 50px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+    margin-top: 15px;
+}
+#save-exam:hover { background: var(--gold-dark); color: white; }
+
+/* ================================================================ */
+/*                👤 تحسينات نموذج إضافة أدمن                       */
+/* ================================================================ */
+.manage-users-section form {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+}
+.manage-users-section .input-group input {
+    background: white;
+}
+.manage-users-section .submit-btn {
+    background: var(--primary);
+    color: var(--gold);
+}
+.manage-users-section .submit-btn:hover {
+    background: var(--gold);
+    color: var(--primary);
+}
 
 /* ========== الناف بار ========== */
 .nav-bar {
@@ -605,6 +775,9 @@ footer { text-align: center; padding: 20px; font-size: 0.72rem; color: var(--gra
 @media (max-width: 1024px) {
     .add-result-section form { grid-template-columns: repeat(2, 1fr); }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .certificate { padding: 30px 20px; }
+    .certificate-title { font-size: 1.8rem; }
+    .certificate-student-name { font-size: 1.6rem; }
 }
 @media (max-width: 768px) {
     .main-header { padding: 0 16px; height: auto; min-height: 60px; flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
@@ -620,9 +793,14 @@ footer { text-align: center; padding: 20px; font-size: 0.72rem; color: var(--gra
     .excel-upload-section { flex-direction: column; }
     .search-section { flex-direction: column; }
     .table-wrapper { overflow-x: auto; }
+    .certificate { border-width: 12px; }
 }
 @media (max-width: 480px) {
     .stats-grid { grid-template-columns: 1fr; }
     .submit-btn { width: 100%; justify-content: center; }
     .scroll-btn { width: 34px; height: 34px; }
+    .certificate { padding: 20px 15px; margin: 10px; }
+    .certificate-logo img { width: 60px; height: 60px; }
+    .certificate-title { font-size: 1.4rem; }
+    .certificate-student-name { font-size: 1.3rem; }
 }
