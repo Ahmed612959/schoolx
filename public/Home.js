@@ -1,6 +1,7 @@
-// Home.js - النسخة الكاملة النهائية (نظام حضور + بحث متعدد المستويات + دعم الطلاب)
+// Home.js - النسخة الكاملة النهائية (نظام حضور + بحث متعدد المستويات + دعم الطلاب + إخفاء النتائج الفارغة)
 
 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+
 // ====================== دوال مساعدة ======================
 function escapeHtml(text) {
     if (!text) return '';
@@ -89,6 +90,12 @@ function getSubjectConfig(s) { return s === 'first' ? SUBJECTS_CONFIG_FIRST : SU
 function getOrderedSubjects(s) { return s === 'first' ? ORDERED_SUBJECTS_FIRST : ORDERED_SUBJECTS_SECOND; }
 function getTotalPossible(s) { return s === 'first' ? TOTAL_POSSIBLE_FIRST : TOTAL_POSSIBLE_SECOND; }
 function getSemesterName(s) { return s === 'first' ? 'الترم الأول' : 'الترم الثاني'; }
+
+// ✅ دالة للتحقق مما إذا كان الطالب لديه أي درجات حقيقية (غير صفرية)
+function hasAnyGrade(student) {
+    if (!student.subjects || student.subjects.length === 0) return false;
+    return student.subjects.some(s => (s.grade || 0) > 0);
+}
 
 function calculateStudentTotal(student) {
     if (!student.subjects) return 0;
@@ -230,7 +237,7 @@ async function renderDashboard() {
     if (!dashboard || !user || user.type !== 'student') { if (dashboard) dashboard.style.display = 'none'; const as = document.getElementById('attendanceStatsSection'); if (as) as.style.display = 'none'; return; }
     const student = await fetchStudentByCode(user.id); if (!student) { dashboard.style.display = 'none'; return; }
     dashboard.style.display = 'block'; currentStudentCode = student.studentCode;
-    if (student.subjects && student.subjects.length > 0) {
+    if (hasAnyGrade(student)) {
         const percentage = calculateStudentPercentage(student), total = calculateStudentTotal(student);
         const detectedSemester = student.semester || detectSemester(student.subjects) || 'first';
         const totalPossible = getTotalPossible(detectedSemester), semesterName = getSemesterName(detectedSemester);
@@ -251,7 +258,13 @@ async function renderDashboard() {
 
 // ====================== عرض النتيجة ======================
 function renderStudentResult(student, studentViolations, resultBody, violationsBody, searchName = '', searchMethod = '') {
-    if (!student.subjects || student.subjects.length === 0) { resultBody.innerHTML = '<tr><td colspan="4">📭 لا توجد درجات مسجلة لهذا الطالب</td></tr>'; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">✅ لا توجد مخالفات</td></tr>'; return; }
+    // ✅ إذا لم توجد درجات حقيقية (كلها صفر) – لا نعرض نتيجة
+    if (!hasAnyGrade(student)) {
+        resultBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;">📭 لا توجد درجات مسجلة لهذا الطالب</td></tr>';
+        if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">✅ لا توجد مخالفات</td></tr>';
+        return;
+    }
+
     const detectedSemester = student.semester || detectSemester(student.subjects) || 'first';
     const semesterName = getSemesterName(detectedSemester), config = getSubjectConfig(detectedSemester);
     const orderedSubjects = getOrderedSubjects(detectedSemester), totalPossible = getTotalPossible(detectedSemester);
