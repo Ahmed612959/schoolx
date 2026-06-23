@@ -57,7 +57,7 @@ class LiveRobotAssistant {
             { id: 'username', name: 'اسم المستخدم', placeholder: '3-20 حرف (حروف وأرقام)' },
             { id: 'password', name: 'كلمة المرور', placeholder: '6 أحرف على الأقل' },
             { id: 'grade', name: 'الصف الدراسي', placeholder: 'اختر من القائمة' },
-            { id: 'studentCode', name: 'رقم الجلوس', placeholder: 'آخر 7 أرقام' },
+            { id: 'studentCode', name: ' آخر 7 أرقام', placeholder: 'آخر 7 أرقام من البطاقة' },
             { id: 'phone', name: 'رقم الهاتف', placeholder: 'مثال: 01012345678' },
             { id: 'parentName', name: 'ولي الأمر', placeholder: 'اسم الأب أو الأم رباعياً' },
             { id: 'parentId', name: 'رقم بطاقة ولي الأمر', placeholder: '14 رقم' }
@@ -185,7 +185,7 @@ class LiveRobotAssistant {
         }
         
         if (field.id === 'studentCode' && value.length === 7) {
-            this.speak('✓ تم إدخال رقم الجلوس بالكامل! 🎉');
+            this.speak('✓ تم إدخال اخر7 ارقام من البطاقة بالكامل! 🎉');
             this.celebrate();
         }
         
@@ -309,7 +309,7 @@ class LiveRobotAssistant {
             fullName: '😠 الاسم الكامل يجب أن يكون 4 كلمات على الأقل!',
             username: '😠 اسم المستخدم يجب أن يكون 3-20 حرف (حروف وأرقام فقط)!',
             password: '😠 كلمة المرور قصيرة جداً! استخدم 6 أحرف على الأقل!',
-            studentCode: '😠 رقم الجلوس يجب أن يكون 5-7 أرقام!',
+            studentCode: '😠 آخر 7 أرقام من البطاقة يجب ان يكون 7 أرقام!',
             phone: '😠 رقم الهاتف غير صحيح! أدخل 10-15 رقم!',
             parentName: '😠 اسم ولي الأمر يجب أن يكون 4 كلمات على الأقل!',
             parentId: '😠 رقم بطاقة ولي الأمر يجب أن يكون 10-14 رقم!'
@@ -551,7 +551,7 @@ function validateForm(fullName, username, password, studentCode, phone, parentNa
         return false;
     }
     if (!studentCode || studentCode.length < 5 || studentCode.length > 7) {
-        showToast('⚠️ رقم الجلوس يجب أن يكون 5-7 أرقام', 'error');
+        showToast('⚠️ اخر 7 ارقام من البطاقة يجب أن يكون 7 أرقام', 'error');
         return false;
     }
     if (!phone || phone.length < 10 || phone.length > 15) {
