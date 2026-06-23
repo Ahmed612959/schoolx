@@ -1979,6 +1979,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+
+    // ====================== إخفاء لينك إنشاء الحساب ======================
+setTimeout(function() {
+    if (sessionStorage.getItem('fromSignup') === 'true') {
+        const signupLink = document.querySelector('.signup-link');
+        if (signupLink) signupLink.style.display = 'none';
+        sessionStorage.removeItem('fromSignup');
+    }
+}, 500);
+
+
     
     // تهيئة الكابتشا عند تحميل الصفحة
     refreshCaptcha();
