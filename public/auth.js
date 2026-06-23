@@ -1871,24 +1871,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-
-
-
-    
-    // تهيئة الكابتشا عند تحميل الصفحة
-    refreshCaptcha();
-    
-    // عرض إشعار ترحيب عند تحميل الصفحة (للمستخدمين الزائرين)
-    if (!getLoggedInUser()) {
-        setTimeout(() => {
-            const welcome = getTimeBasedWelcome();
-            if (welcome.greeting) {
-                showToastMessage(`${welcome.icon} ${welcome.greeting}! 👋`, 'info');
-            }
-        }, 1000);
-    }
-});
-
 // حماية الصفحات
 const currentPage = window.location.pathname.split('/').pop().toLowerCase();
 const protectedPages = ['home.html', 'admin.html', 'profile.html', 'search-monthly.html', 'first-gards.html', 'exams.html', 'file-library.html', 'parent-dashboard.html'];
