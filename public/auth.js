@@ -1894,44 +1894,29 @@ function getIconByTime() {
     return 'fa-star';
 }
 
-// ====================== تحديث دالة تسجيل الدخول لإضافة الكابتشا ======================
-
-// حفظ الدالة الأصلية
-const originalLoginHandler = document.getElementById('login-form')?.submit;
-
-// تحديث مستمع حدث تسجيل الدخول
+// ====================== تسجيل الدخول ======================
 document.addEventListener('DOMContentLoaded', function() {
     const loginForm = document.getElementById('login-form');
     if (!loginForm) return;
-    
-    // إزالة المستمع القديم وإضافة مستمع جديد مع الكابتشا
-    const oldSubmit = loginForm.onsubmit;
-    loginForm.onsubmit = null;
-    
+
     loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        
-        // التحقق من الكابتشا أولاً
-        if (!verifyCaptcha()) {
-            return;
-        }
-        
+
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
         const submitBtn = loginForm.querySelector('button[type="submit"]');
         const originalText = submitBtn?.innerHTML || 'تسجيل الدخول';
-        
+
         if (!username || !password) {
             showToastMessage('⚠️ يرجى إدخال اسم المستخدم وكلمة المرور!', 'error');
-            refreshCaptcha(); // تحديث الكابتشا عند الخطأ
             return;
         }
-        
+
         if (submitBtn) {
             submitBtn.innerHTML = '⏳ جاري...';
             submitBtn.disabled = true;
         }
-        
+
         try {
             const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
             const response = await fetch(`${BASE_URL}/api/login`, {
@@ -1940,22 +1925,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'include',
                 body: JSON.stringify({ username, password })
             });
-            
+
             const data = await response.json();
-            
+
             if (response.ok && data.success) {
                 if (data.csrfToken) saveCsrfToken(data.csrfToken);
                 if (data.user) saveUserData(data.user);
                 
-                // حفظ وقت آخر تسجيل دخول
-                localStorage.setItem('last_login', new Date().toISOString());
-                
                 showToastMessage(`🎉 مرحباً ${data.user?.fullName || username}!`, 'success');
-                
-                // عرض إشعار الترحيب
-                setTimeout(() => {
-                    showWelcomeNotification();
-                }, 500);
                 
                 setTimeout(() => {
                     if (data.user?.type === 'admin') {
@@ -1963,15 +1940,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         window.location.href = 'Home.html';
                     }
-                }, 1500);
+                }, 1000);
             } else {
                 showToastMessage(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
-                refreshCaptcha(); // تحديث الكابتشا عند الخطأ
             }
         } catch (err) {
             console.error('Login Error:', err);
             showToastMessage('❌ فشل الاتصال بالخادم! تأكد من تشغيل السيرفر', 'error');
-            refreshCaptcha();
         } finally {
             if (submitBtn) {
                 submitBtn.innerHTML = originalText;
@@ -1979,6 +1954,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+});
 
 
 
