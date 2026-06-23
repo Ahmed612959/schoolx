@@ -610,8 +610,10 @@ async function createAccount(event) {
         
         if (response.ok && result.success) {
             if (window.liveRobot) window.liveRobot.celebrate();
-            showToast('🎉 تم إنشاء الحساب بنجاح! جاري تحويلك...', 'success');
-            setTimeout(() => { window.location.href = 'login.html'; }, 2000);
+         showToast('🎉 تم إنشاء الحساب بنجاح! جاري تحويلك...', 'success');
+// ✅ تخزين علامة في sessionStorage عشان login.html يعرف إن المستخدم جاي من التسجيل
+sessionStorage.setItem('fromSignup', 'true');
+setTimeout(() => { window.location.href = 'login.html'; }, 2000);
         } else {
             showToast(result.error || '❌ فشل إنشاء الحساب', 'error');
         }
