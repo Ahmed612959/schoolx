@@ -268,43 +268,38 @@
             });
         })();
     </script>
-    <!-- ====================== نافذة منبثقة للسؤال عن التسجيل ====================== -->
-<div id="registrationCheckModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; justify-content:center; align-items:center; backdrop-filter:blur(5px);">
-    <div style="background:white; border-radius:20px; padding:30px; max-width:480px; width:92%; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.3); animation:fadeInModal 0.3s ease;">
+  <!-- ====================== نافذة منبثقة للسؤال عن التسجيل ====================== -->
+<div id="regModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center;">
+    <div style="background:white; border-radius:24px; padding:30px 25px; max-width:440px; width:90%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
         
-        <!-- أيقونة -->
-        <div style="font-size:55px; margin-bottom:15px;">🤔</div>
+        <div style="font-size:50px; margin-bottom:12px;">🤔</div>
         
-        <!-- السؤال الرئيسي -->
-        <h3 style="color:#1a4f6e; margin-bottom:12px; font-size:1.2rem; line-height:1.6;">
+        <h3 style="color:#1a4f6e; margin-bottom:8px; font-size:1.2rem;">
             هل سبق لك التسجيل في المنصة؟
         </h3>
         
-        <!-- توضيح -->
-        <p style="color:#64748b; font-size:0.9rem; margin-bottom:5px; line-height:1.6;">
+        <p style="color:#64748b; font-size:0.85rem; margin-bottom:15px;">
             لكي لا يمكن إنشاء أكثر من حساب على المنصة
         </p>
         
-        <!-- أزرار الاختيار -->
-        <div style="display:flex; gap:12px; margin-top:20px; justify-content:center; flex-wrap:wrap;">
-            <button onclick="handleRegistrationAnswer('yes')" style="background:#2d6a4f; color:white; border:none; padding:12px 28px; border-radius:50px; font-weight:700; cursor:pointer; font-family:'Tajawal',sans-serif; font-size:0.95rem; transition:all 0.2s; min-width:140px;">
+        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button id="btnYes" style="background:#2d6a4f; color:white; border:none; padding:14px 24px; border-radius:50px; font-weight:700; cursor:pointer; font-family:'Tajawal',sans-serif; font-size:0.9rem; min-width:130px;">
                 ✅ نعم، سبق لي التسجيل
             </button>
-            <button onclick="handleRegistrationAnswer('no')" style="background:#dc3545; color:white; border:none; padding:12px 28px; border-radius:50px; font-weight:700; cursor:pointer; font-family:'Tajawal',sans-serif; font-size:0.95rem; transition:all 0.2s; min-width:140px;">
+            <button id="btnNo" style="background:#dc3545; color:white; border:none; padding:14px 24px; border-radius:50px; font-weight:700; cursor:pointer; font-family:'Tajawal',sans-serif; font-size:0.9rem; min-width:130px;">
                 ❌ لا، حساب جديد
             </button>
         </div>
         
-        <!-- معلومات التواصل -->
-        <div style="background:#f8fafc; border-radius:12px; padding:16px; margin-top:22px; border:1px solid #e2e8f0;">
-            <p style="color:#64748b; font-size:0.82rem; margin:0 0 10px 0; line-height:1.8;">
+        <div style="background:#f8fafc; border-radius:12px; padding:14px; margin-top:20px; border:1px solid #e2e8f0;">
+            <p style="color:#64748b; font-size:0.8rem; margin:0 0 8px 0;">
                 لو محتاج أي مساعدة في حسابك في أي معلومات
             </p>
-            <p style="color:#1a4f6e; font-size:0.9rem; font-weight:700; margin:0;">
+            <p style="color:#1a4f6e; font-size:0.85rem; font-weight:700; margin:0;">
                 📞 تواصل مع أحمد موسى
             </p>
-            <p style="color:#25D366; font-size:1rem; font-weight:800; margin:5px 0; direction:ltr;">
-                <a href="https://wa.me/201124963765" target="_blank" style="color:#25D366; text-decoration:none;">
+            <p style="margin:5px 0 0 0;">
+                <a href="https://wa.me/201124963765" target="_blank" style="color:#25D366; font-weight:700; text-decoration:none; font-size:0.95rem;">
                     <i class="fab fa-whatsapp"></i> 01124963765
                 </a>
             </p>
@@ -313,60 +308,48 @@
     </div>
 </div>
 
+<!-- ✅ إخفاء اللينك افتراضياً -->
 <style>
-    @keyframes fadeInModal {
-        from { opacity:0; transform:translateY(-20px); }
-        to { opacity:1; transform:translateY(0); }
-    }
-    
-    #registrationCheckModal button:hover {
-        filter: brightness(1.1);
-        transform: translateY(-2px);
-    }
+    .signup-link { display: none !important; }
+    body.show-signup .signup-link { display: block !important; }
 </style>
 
 <script>
-    // ✅ دالة التعامل مع اختيار المستخدم
-    function handleRegistrationAnswer(answer) {
-        const modal = document.getElementById('registrationCheckModal');
-        const signupLink = document.querySelector('.signup-link');
+    // ✅ تشغيل الكود بعد تحميل الصفحة
+    document.addEventListener('DOMContentLoaded', function() {
         
-        if (answer === 'yes') {
-            // المستخدم سبق له التسجيل → أخفي اللينك نهائياً
-            localStorage.setItem('hideSignupLink', 'true');
-            if (signupLink) signupLink.style.display = 'none';
+        var modal = document.getElementById('regModal');
+        var btnYes = document.getElementById('btnYes');
+        var btnNo = document.getElementById('btnNo');
+        var body = document.body;
+        
+        // ✅ وظيفة الزرين
+        btnYes.onclick = function() {
+            localStorage.setItem('regDone', 'yes');
+            modal.style.display = 'none';
+        };
+        
+        btnNo.onclick = function() {
+            localStorage.setItem('regDone', 'no');
+            body.classList.add('show-signup');
+            modal.style.display = 'none';
+        };
+        
+        // ✅ تحميل الإعدادات
+        var saved = localStorage.getItem('regDone');
+        
+        if (saved === 'no') {
+            // المستخدم اختار "لا" قبل كده → أظهر اللينك
+            body.classList.add('show-signup');
+        } else if (saved === 'yes') {
+            // المستخدم اختار "نعم" قبل كده → اللينك مختفي (default)
+            // متعملش حاجة
         } else {
-            // المستخدم جديد → خلي اللينك ظاهر
-            localStorage.setItem('hideSignupLink', 'false');
-            if (signupLink) signupLink.style.display = 'block';
-        }
-        
-        // حفظ إن السؤال اتعرض عليه
-        localStorage.setItem('registrationCheckDone', 'true');
-        
-        // إخفاء النافذة
-        modal.style.display = 'none';
-    }
-    
-    // ✅ عند تحميل الصفحة
-    (function() {
-        const modal = document.getElementById('registrationCheckModal');
-        const signupLink = document.querySelector('.signup-link');
-        const checkDone = localStorage.getItem('registrationCheckDone');
-        
-        if (checkDone === 'true') {
-            // السؤال اتعرض قبل كده → طبق الإعدادات المحفوظة
-            const hideLink = localStorage.getItem('hideSignupLink');
-            if (hideLink === 'true' && signupLink) {
-                signupLink.style.display = 'none';
-            } else if (signupLink) {
-                signupLink.style.display = 'block';
-            }
-        } else {
-            // أول مرة يفتح الصفحة → أظهر النافذة المنبثقة
+            // أول مرة → أظهر النافذة
             modal.style.display = 'flex';
         }
-    })();
+        
+    });
 </script>
 </body>
 </html>
