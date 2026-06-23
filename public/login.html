@@ -268,8 +268,8 @@
             });
         })();
     </script>
-  <!-- ====================== نافذة منبثقة للسؤال عن التسجيل ====================== -->
-<div id="regModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center;">
+<!-- ====================== نافذة منبثقة للسؤال عن التسجيل ====================== -->
+<div id="regModal" style="display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center;">
     <div style="background:white; border-radius:24px; padding:30px 25px; max-width:440px; width:90%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
         
         <div style="font-size:50px; margin-bottom:12px;">🤔</div>
@@ -308,7 +308,7 @@
     </div>
 </div>
 
-<!-- ✅ إخفاء اللينك افتراضياً -->
+<!-- ✅ إخفاء اللينك افتراضياً، يظهر بس للمستخدمين الجدد -->
 <style>
     .signup-link { display: none !important; }
     body.show-signup .signup-link { display: block !important; }
@@ -323,31 +323,31 @@
         var btnNo = document.getElementById('btnNo');
         var body = document.body;
         
-        // ✅ وظيفة الزرين
-        btnYes.onclick = function() {
-            localStorage.setItem('regDone', 'yes');
-            modal.style.display = 'none';
-        };
+        // ✅ تحميل الاختيار السابق لو موجود
+        var savedChoice = localStorage.getItem('regChoice');
         
-        btnNo.onclick = function() {
-            localStorage.setItem('regDone', 'no');
-            body.classList.add('show-signup');
-            modal.style.display = 'none';
-        };
-        
-        // ✅ تحميل الإعدادات
-        var saved = localStorage.getItem('regDone');
-        
-        if (saved === 'no') {
+        if (savedChoice === 'no') {
             // المستخدم اختار "لا" قبل كده → أظهر اللينك
             body.classList.add('show-signup');
-        } else if (saved === 'yes') {
-            // المستخدم اختار "نعم" قبل كده → اللينك مختفي (default)
-            // متعملش حاجة
-        } else {
-            // أول مرة → أظهر النافذة
-            modal.style.display = 'flex';
         }
+        // لو اختار "yes" أو مفيش اختيار → اللينك مختفي (default)
+        
+        // ✅ النافذة تظهر دايمًا
+        modal.style.display = 'flex';
+        
+        // ✅ زر "نعم"
+        btnYes.onclick = function() {
+            localStorage.setItem('regChoice', 'yes');
+            body.classList.remove('show-signup');
+            modal.style.display = 'none';
+        };
+        
+        // ✅ زر "لا"
+        btnNo.onclick = function() {
+            localStorage.setItem('regChoice', 'no');
+            body.classList.add('show-signup');
+            modal.style.display = 'none';
+        };
         
     });
 </script>
