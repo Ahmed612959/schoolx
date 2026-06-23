@@ -2068,7 +2068,39 @@ app.get('/api/violations/student/:studentId', verifyToken, async (req, res) => {
 });
 
 
-
+ // ====================== ✅ التحقق من حالة تسجيل الدخول (للصفحات العامة) ======================
+app.get('/api/check-auth-status', async (req, res) => {
+    try {
+        // نحاول نتحقق من التوكن
+        let token = req.cookies?.authToken;
+        if (!token) {
+            const authHeader = req.headers['authorization'];
+            token = authHeader?.split(' ')[1];
+        }
+        
+        if (!token) {
+            // مفيش توكن خالص
+            return res.json({ isLoggedIn: false });
+        }
+        
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            // التوكن سليم - المستخدم مسجل دخول
+            return res.json({ 
+                isLoggedIn: true, 
+                userType: decoded.type,
+                username: decoded.username 
+            });
+        } catch (error) {
+            // التوكن موجود لكن منتهي الصلاحية
+            return res.json({ isLoggedIn: false, expired: true });
+        }
+        
+    } catch (error) {
+        // لو حصل أي خطأ، نعتبره مش مسجل
+        res.json({ isLoggedIn: false });
+    }
+});
 
 
 
