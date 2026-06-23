@@ -1981,14 +1981,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
 
-    // ====================== إخفاء لينك إنشاء الحساب ======================
-setTimeout(function() {
-    if (sessionStorage.getItem('fromSignup') === 'true') {
+   // ====================== إخفاء لينك إنشاء الحساب (دائم) ======================
+document.addEventListener('DOMContentLoaded', function() {
+    const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+    const fromSignup = sessionStorage.getItem('fromSignup') === 'true';
+    
+    if (userData || fromSignup) {
         const signupLink = document.querySelector('.signup-link');
-        if (signupLink) signupLink.style.display = 'none';
+        if (signupLink) {
+            signupLink.style.display = 'none';
+        }
         sessionStorage.removeItem('fromSignup');
     }
-}, 500);
+});
 
 
     
