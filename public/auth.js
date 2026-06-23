@@ -1981,21 +1981,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
 
-  // ====================== إخفاء لينك إنشاء الحساب ======================
-(function() {
-    const userData = sessionStorage.getItem('userData');
-    const fromSignup = sessionStorage.getItem('fromSignup') === 'true';
-    
-    // لو المستخدم مسجل أو جاي من التسجيل → أخفي اللينك
-    if (userData || fromSignup) {
-        // انتظر شوية عشان الصفحة تتحمل
-        setTimeout(function() {
-            const signupLink = document.querySelector('.signup-link');
-            if (signupLink) signupLink.style.display = 'none';
-        }, 300);
-        sessionStorage.removeItem('fromSignup');
-    }
-})();
+
 
 
     
