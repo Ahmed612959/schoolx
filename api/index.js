@@ -385,7 +385,7 @@ app.post('/api/students/register', async (req, res) => {
         const existingUser = await Student.findOne({ username: username.toLowerCase() });
         if (existingUser) return res.status(400).json({ error: 'اسم المستخدم موجود مسبقاً' });
         const existingCode = await Student.findOne({ studentCode });
-        if (existingCode) return res.status(400).json({ error: 'رقم الجلوس موجود مسبقاً' });
+      if (existingCode) return res.status(400).json({ error: 'آخر 7 أرقام من البطاقة مستخدمين من قبل' });
         const hashedPassword = await hashPassword(password);
         const student = new Student({
             fullName,
