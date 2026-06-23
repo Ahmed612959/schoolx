@@ -10,7 +10,39 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
-    <!-- حماية متطورة -->
+  <style>
+    /* إخفاء لينك إنشاء الحساب افتراضياً */
+    .signup-link { display: none; }
+    /* إظهاره فقط للزوار الجدد */
+    body.show-signup-link .signup-link { display: block !important; }
+</style>
+<script>
+    // ✅ فحص سريع عن طريق السيرفر
+    (async function() {
+        try {
+            const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+            const response = await fetch(`${BASE_URL}/api/check-auth-status`, {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // لو مش مسجل دخول → أظهر اللينك
+                if (!data.isLoggedIn) {
+                    document.body.classList.add('show-signup-link');
+                }
+                // لو مسجل دخول → اللينك هيفضل مختفي (default)
+            } else {
+                // لو فشل الاتصال، أظهر اللينك عشان متحرمش المستخدم
+                document.body.classList.add('show-signup-link');
+            }
+        } catch (e) {
+            // لو حصل خطأ، أظهر اللينك
+            document.body.classList.add('show-signup-link');
+        }
+    })();
+</script>
+    
     <script>
         (function() {
             // منع جميع طرق فتح Page Source
