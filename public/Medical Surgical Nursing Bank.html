@@ -270,75 +270,7 @@ var DEBUG = true;
 function debugLog() { if (DEBUG) { console.log('🔍 [DEBUG]:', ...arguments); } }
 function debugError() { if (DEBUG) { console.error('❌ [ERROR]:', ...arguments); } }
 
-// ====================== حماية الصفحة ======================
-(function protectPage() {
-    document.addEventListener('keydown', function(e) {
-        var key = e.key, ctrl = e.ctrlKey, shift = e.shiftKey;
-        if (key === 'F12' || (ctrl && shift && (key === 'I' || key === 'J' || key === 'C' || key === 'E')) || (ctrl && (key === 'U' || key === 'S'))) {
-            e.preventDefault(); e.stopPropagation(); return false;
-        }
-    }, true);
-    document.addEventListener('contextmenu', function(e) {
-        if (!e.target.closest('input') && !e.target.closest('textarea') && !e.target.closest('select')) {
-            e.preventDefault(); e.stopPropagation(); return false;
-        }
-    }, true);
-    document.addEventListener('dragstart', function(e) { e.preventDefault(); return false; }, true);
-    document.addEventListener('copy', function(e) {
-        if (e.target.closest('input') || e.target.closest('textarea')) return true;
-        e.preventDefault(); return false;
-    }, true);
-    var longPressTimer = null, longPressTriggered = false;
-    document.addEventListener('touchstart', function(e) {
-        var target = e.target;
-        if (target.closest('input') || target.closest('textarea') || target.closest('select') || target.closest('button')) return;
-        longPressTriggered = false;
-        longPressTimer = setTimeout(function() { longPressTriggered = true; e.preventDefault(); }, 500);
-    }, { passive: false });
-    document.addEventListener('touchmove', function() { clearTimeout(longPressTimer); }, { passive: false });
-    document.addEventListener('touchend', function(e) { clearTimeout(longPressTimer); if (longPressTriggered) e.preventDefault(); }, { passive: false });
-    var warningShown = false, checkCount = 0, isPageLoaded = false;
-    function showDevToolsWarning() {
-        if (warningShown || document.getElementById('devtools-warning')) return;
-        warningShown = true;
-        var overlay = document.createElement('div');
-        overlay.id = 'devtools-warning';
-        overlay.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;background:rgba(15,23,42,0.95)!important;backdrop-filter:blur(10px)!important;z-index:999999!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;padding:20px!important;color:white!important;font-family:"Tajawal",sans-serif!important;pointer-events:all!important;';
-        overlay.innerHTML = '<div style="max-width:400px;width:100%;"><div style="font-size:4rem;margin-bottom:20px;">🚫</div><h2 style="font-size:1.5rem;margin-bottom:10px;color:white;">أدوات المطور غير مسموح بها</h2><p style="color:#94a3b8;margin-top:10px;font-size:1rem;margin-bottom:20px;line-height:1.8;">يرجى إغلاق أدوات المطور (F12) لمواصلة التصفح</p><button onclick="window.closeDevToolsWarning()" style="padding:12px 40px;background:linear-gradient(135deg,#d4af5a,#b8943a);color:#0e2a35;border:none;border-radius:25px;cursor:pointer;font-weight:700;font-size:1rem;font-family:Tajawal,sans-serif;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(212,175,90,0.3);">✅ تم الإغلاق</button></div>';
-        document.body.appendChild(overlay);
-        document.body.style.pointerEvents = 'none';
-        document.body.style.overflow = 'hidden';
-        try { console.clear(); } catch(e) {}
-    }
-    window.closeDevToolsWarning = function() {
-        var overlay = document.getElementById('devtools-warning');
-        if (overlay) { overlay.remove(); document.body.style.pointerEvents = 'auto'; document.body.style.overflow = 'auto'; warningShown = false; }
-    };
-    function detectDevTools() {
-        if (!isPageLoaded || warningShown) return;
-        checkCount++;
-        if (checkCount < 3) return;
-        try {
-            var start = performance.now();
-            console.log('%c', '');
-            if (performance.now() - start > 80) { showDevToolsWarning(); return; }
-            var threshold = 120;
-            if ((Math.abs(window.outerWidth - window.innerWidth) > threshold || Math.abs(window.outerHeight - window.innerHeight) > threshold) && checkCount > 5) {
-                showDevToolsWarning();
-            }
-        } catch(e) {}
-    }
-    console.log = function() {}; console.error = function() {}; console.warn = function() {};
-    console.info = function() {}; console.debug = function() {}; console.table = function() {}; console.dir = function() {};
-    document.addEventListener('DOMContentLoaded', function() { isPageLoaded = true; });
-    setTimeout(function() { isPageLoaded = true; }, 2000);
-    setInterval(detectDevTools, 3000);
-    var resizeTimer = null;
-    window.addEventListener('resize', function() { clearTimeout(resizeTimer); resizeTimer = setTimeout(detectDevTools, 400); });
-    if (window.location.href.includes('view-source:') || window.location.href.includes('about:blank')) {
-        window.location.href = window.location.origin + '/';
-    }
-})();
+
 
 // ==================== المتغيرات ====================
 var chaptersData = {chapter1: chapter1, chapter2: chapter2, chapter3: chapter3, chapter4: chapter4, chapter5: chapter5, chapter6: chapter6, chapter7: chapter7, chapter8: chapter8, chapter9: chapter9, chapter10: chapter10, chapter11: chapter11};
