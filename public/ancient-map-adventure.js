@@ -1247,3 +1247,32 @@
         setTimeout(initSystem, 2500);
     }
 })();
+
+// ==================== ربط الأسماء ====================
+// الصفحة الرئيسية بتستخدم PirateAdventure، فبنربطه بـ AncientMap
+window.PirateAdventure = {
+    openMap: function() { return window.AncientMap.openMap(); },
+    openAchievements: function() { return window.AncientMap.openAchievements(); },
+    openIsland: function(id) { return window.AncientMap.openIsland(id); },
+    startBattle: function(islandId, creatureId) { return window.AncientMap.startBattle(islandId, creatureId); },
+    adventurer: window.AncientMap.adventurer,
+    islands: window.AncientMap.islands,
+    version: window.AncientMap.version
+};
+
+// تهيئة النظام تلقائياً
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            window.AncientMap.init();
+            window.AncientMap.addButton();
+        }, 2000);
+    });
+} else {
+    setTimeout(function() {
+        window.AncientMap.init();
+        window.AncientMap.addButton();
+    }, 2000);
+}
+
+console.log('🏴‍☠️ تم تحميل خريطة القرصان الأسطورية! ابحث عن زر 🗺️ الخريطة');
