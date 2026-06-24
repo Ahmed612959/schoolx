@@ -1424,15 +1424,21 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 <div class="pirate-floating-buttons">
     <!-- زر الخريطة -->
-    <button class="pirate-btn pirate-btn-map" onclick="if(typeof PirateAdventure!=='undefined')PirateAdventure.openMap();else alert('جاري تحميل النظام...');">
+    <button class="pirate-btn pirate-btn-map" onclick="if(typeof AncientMap!=='undefined' && AncientMap.openMap) AncientMap.openMap(); else alert('🏴‍☠️ جاري تحميل خريطة القرصان...');">
         🗺️
         <span class="pirate-btn-tooltip">خريطة المغامرة</span>
     </button>
     
     <!-- زر الإنجازات -->
-    <button class="pirate-btn pirate-btn-ach" onclick="if(typeof PirateAdventure!=='undefined')PirateAdventure.openAchievements();else alert('جاري تحميل النظام...');">
+    <button class="pirate-btn pirate-btn-ach" onclick="if(typeof AncientMap!=='undefined' && AncientMap.openAchievements) AncientMap.openAchievements(); else alert('🏆 جاري تحميل الإنجازات...');">
         🏆
         <span class="pirate-btn-tooltip">الإنجازات</span>
+    </button>
+    
+    <!-- زر التحديات (اختياري) -->
+    <button class="pirate-btn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="if(typeof AncientMap!=='undefined' && AncientMap.adventurer) alert('⚓ ' + AncientMap.adventurer.title + '\n⭐ XP: ' + AncientMap.adventurer.xp + '\n🪙 ذهب: ' + AncientMap.adventurer.gold + '\n🏝️ جزر: ' + AncientMap.adventurer.completedIslands.length + '/' + AncientMap.islands.length); else alert('جاري تحميل البيانات...');">
+        👤
+        <span class="pirate-btn-tooltip">حالة المغامر</span>
     </button>
 </div>
 
