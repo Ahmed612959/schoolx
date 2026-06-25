@@ -1369,338 +1369,72 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 </script>
 
-<!-- ===== أزرار المغامرة الظاهرة ===== -->
-<!-- ===== أزرار المغامرة العائمة ===== -->
+<!-- ==================== نظام المغامرة الأسطوري ==================== -->
+<!-- تحميل ملفات المغامرة -->
+<script src="ancient-map-core.js"></script>
+<script src="ancient-map-rewards.js"></script>
+<script src="ancient-map-characters.js"></script>
+<script src="ancient-map-quests.js"></script>
+<script src="ancient-map-adventure.js"></script>
+
+<!-- رابط صفحة المغامرة -->
 <style>
-    .pirate-floating-buttons {
-        position: fixed;
-        bottom: 25px;
-        right: 25px;
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    .pirate-btn {
-        width: 55px;
-        height: 55px;
-        border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.3);
-        cursor: pointer;
-        font-size: 1.5rem;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        position: relative;
-    }
-    .pirate-btn:hover {
-        transform: scale(1.15);
-        box-shadow: 0 12px 35px rgba(0,0,0,0.5);
-    }
-    .pirate-btn.loading {
-        opacity: 0.5;
-        cursor: wait;
-        animation: pulse 1.5s infinite;
-    }
-    .pirate-btn.ready {
-        opacity: 1;
-        cursor: pointer;
-        animation: none;
-    }
-    .pirate-btn-tooltip {
-        position: absolute;
-        right: 70px;
-        background: #1e293b;
-        color: white;
-        padding: 6px 12px;
-        border-radius: 15px;
-        font-size: 0.75rem;
-        white-space: nowrap;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.3s;
-        font-family: 'Tajawal', sans-serif;
-    }
-    .pirate-btn:hover .pirate-btn-tooltip {
-        opacity: 1;
-    }
-    @keyframes pulse {
-        0%, 100% { opacity: 0.5; }
-        50% { opacity: 0.8; }
-    }
+.adventure-link-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #1a3a4a, #fbbf24) !important;
+    border: 2px solid #fbbf24 !important;
+    color: #0f0f1a !important;
+    font-weight: 900 !important;
+    padding: 8px 16px !important;
+    border-radius: 25px !important;
+    cursor: pointer !important;
+    font-family: 'Tajawal', sans-serif !important;
+    font-size: 0.8rem !important;
+    transition: all 0.3s !important;
+    text-decoration: none !important;
+    animation: pulse 2s infinite;
+}
+.adventure-link-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(251,191,36,0.4);
+}
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.4); }
+    50% { box-shadow: 0 0 0 10px rgba(251,191,36,0); }
+}
 </style>
 
-<div class="pirate-floating-buttons">
-    <!-- 🗺️ زر الخريطة -->
-    <button id="btnMap" class="pirate-btn loading" style="background:linear-gradient(135deg,#0369a1,#0284c7);" 
-        onclick="handleMapClick()">
-        🗺️
-        <span class="pirate-btn-tooltip">خريطة المغامرة</span>
-    </button>
-    
-    <!-- 🏆 زر الإنجازات -->
-    <button id="btnAchievements" class="pirate-btn loading" style="background:linear-gradient(135deg,#f59e0b,#d97706);" 
-        onclick="handleAchievementsClick()">
-        🏆
-        <span class="pirate-btn-tooltip">الإنجازات</span>
-    </button>
-    
-    <!-- 📋 زر المهام -->
-    <button id="btnQuests" class="pirate-btn loading" style="background:linear-gradient(135deg,#10b981,#059669);" 
-        onclick="handleQuestsClick()">
-        📋
-        <span class="pirate-btn-tooltip">سجل المهام</span>
-    </button>
-    
-    <!-- 🎁 زر المكافأة اليومية -->
-    <button id="btnDaily" class="pirate-btn loading" style="background:linear-gradient(135deg,#ec4899,#db2777);" 
-        onclick="handleDailyClick()">
-        🎁
-        <span class="pirate-btn-tooltip">المكافأة اليومية</span>
-    </button>
-    
-    <!-- 🌙 زر طور الليل -->
-    <button id="btnNight" class="pirate-btn loading" style="background:linear-gradient(135deg,#6366f1,#4f46e5);" 
-        onclick="handleNightClick()">
-        🌙
-        <span class="pirate-btn-tooltip">طور الليل</span>
-    </button>
-    
-    <!-- 👤 زر الحالة -->
-    <button id="btnStatus" class="pirate-btn loading" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" 
-        onclick="handleStatusClick()">
-        👤
-        <span class="pirate-btn-tooltip">حالة المغامر</span>
-    </button>
-</div>
-
-<!-- ==================== نظام التحميل والأزرار ==================== -->
 <script>
-// ===== نظام فحص تحميل الملفات =====
-var SystemLoader = {
-    requiredFiles: [
-        'AncientMap',
-        'AncientCharacters', 
-        'AncientBattle',
-        'AncientQuests',
-        'AncientAchievements',
-        'AncientDaily',
-        'AncientNight',
-        'AncientSecrets'
-    ],
-    
-    checkInterval: null,
-    allReady: false,
-    
-    // بدء مراقبة التحميل
-    startWatching: function() {
-        var self = this;
-        console.log('🔍 جاري مراقبة تحميل أنظمة المغامرة...');
+// إضافة زر المغامرة لشريط التحكم
+(function() {
+    function addAdventureButton() {
+        var controlBar = document.querySelector('.control-bar');
+        if (!controlBar || document.getElementById('adventurePageBtn')) return;
         
-        this.checkInterval = setInterval(function() {
-            self.checkSystems();
-        }, 500);
+        var link = document.createElement('a');
+        link.id = 'adventurePageBtn';
+        link.href = 'adventure.html';
+        link.className = 'adventure-link-btn';
+        link.title = '🗺️ افتح خريطة المغامرة في صفحة جديدة';
+        link.innerHTML = '🗺️ مغامرة';
+        link.target = '_blank'; // يفتح في تاب جديد
         
-        // فحص أولي فوري
-        this.checkSystems();
-        
-        // مهلة 20 ثانية
-        setTimeout(function() {
-            if (!self.allReady) {
-                console.warn('⚠️ انتهت مهلة التحميل - بعض الأنظمة غير متوفرة');
-                self.enableAvailableButtons();
-            }
-        }, 20000);
-    },
-    
-    // فحص الأنظمة
-    checkSystems: function() {
-        var loaded = 0;
-        var total = this.requiredFiles.length;
-        var missing = [];
-        
-        for (var i = 0; i < this.requiredFiles.length; i++) {
-            if (window[this.requiredFiles[i]]) {
-                loaded++;
-            } else {
-                missing.push(this.requiredFiles[i]);
-            }
-        }
-        
-        console.log('📊 حالة التحميل: ' + loaded + '/' + total + ' | missing: ' + (missing.length > 0 ? missing.join(', ') : 'لا شيء'));
-        
-        if (loaded >= total) {
-            this.allReady = true;
-            clearInterval(this.checkInterval);
-            this.enableAllButtons();
-            console.log('✅ جميع الأنظمة جاهزة!');
-        } else if (loaded >= 2) {
-            // Core + أي نظام تاني = نشغل المتاح
-            this.enableAvailableButtons();
-        }
-    },
-    
-    // تفعيل الأزرار المتاحة
-    enableAvailableButtons: function() {
-        // الخريطة - تحتاج AncientMap فقط
-        if (window.AncientMap && window.AncientMap.openMap) {
-            this.readyButton('btnMap');
-        }
-        
-        // الإنجازات - تحتاج AncientMap
-        if (window.AncientMap && window.AncientMap.openAchievements) {
-            this.readyButton('btnAchievements');
-        } else if (window.AncientAchievements) {
-            this.readyButton('btnAchievements');
-        }
-        
-        // المهام
-        if (window.AncientQuests && window.AncientQuests.openQuestLog) {
-            this.readyButton('btnQuests');
-        }
-        
-        // المكافأة اليومية
-        if (window.AncientDaily && window.AncientDaily.showDailyReward) {
-            this.readyButton('btnDaily');
-        }
-        
-        // طور الليل
-        if (window.AncientNight && window.AncientNight.toggle) {
-            this.readyButton('btnNight');
-        }
-        
-        // الحالة
-        if (window.AncientMap && window.AncientMap.adventurer) {
-            this.readyButton('btnStatus');
-        }
-    },
-    
-    // تفعيل كل الأزرار
-    enableAllButtons: function() {
-        var buttons = ['btnMap', 'btnAchievements', 'btnQuests', 'btnDaily', 'btnNight', 'btnStatus'];
-        for (var i = 0; i < buttons.length; i++) {
-            this.readyButton(buttons[i]);
-        }
-        console.log('🎮 جميع أزرار المغامرة جاهزة!');
-    },
-    
-    // تجهيز زر واحد
-    readyButton: function(btnId) {
-        var btn = document.getElementById(btnId);
-        if (btn) {
-            btn.classList.remove('loading');
-            btn.classList.add('ready');
-            btn.title = btn.querySelector('.pirate-btn-tooltip')?.textContent || 'جاهز';
-        }
-    },
-    
-    // التحقق من جاهزية نظام معين
-    isReady: function(systemName) {
-        return !!window[systemName];
-    },
-    
-    // عرض رسالة تحميل
-    showLoadingMessage: function(systemName) {
-        var messages = {
-            'الخريطة': '🗺️ جاري تحميل خريطة المغامرة...\n\nتأكد من وجود ملف ancient-map-core.js',
-            'الإنجازات': '🏆 جاري تحميل الإنجازات...\n\nتأكد من وجود ملف ancient-map-rewards.js',
-            'المهام': '📋 جاري تحميل المهام...\n\nتأكد من وجود ملف ancient-map-quests.js',
-            'المكافأة': '🎁 جاري تحميل المكافآت...\n\nتأكد من وجود ملف ancient-map-rewards.js',
-            'الليل': '🌙 جاري تحميل طور الليل...\n\nتأكد من وجود ملف ancient-map-rewards.js',
-            'الحالة': '👤 جاري تحميل البيانات...\n\nتأكد من وجود ملف ancient-map-core.js'
-        };
-        return messages[systemName] || '⏳ جاري تحميل النظام...';
+        controlBar.appendChild(link);
+        console.log('🗺️ زر صفحة المغامرة تمت إضافته');
     }
-};
-
-// ===== دوال التعامل مع الأزرار =====
-function handleMapClick() {
-    if (window.AncientMap && window.AncientMap.openMap) {
-        window.AncientMap.openMap();
-    } else {
-        alert(SystemLoader.showLoadingMessage('الخريطة'));
-    }
-}
-
-function handleAchievementsClick() {
-    if (window.AncientMap && window.AncientMap.openAchievements) {
-        window.AncientMap.openAchievements();
-    } else if (window.AncientAchievements) {
-        var progress = window.AncientAchievements.getProgress();
-        alert('🏆 الإنجازات: ' + progress.unlocked + '/' + progress.total + ' (' + progress.percent + '%)');
-    } else {
-        alert(SystemLoader.showLoadingMessage('الإنجازات'));
-    }
-}
-
-function handleQuestsClick() {
-    if (window.AncientQuests && window.AncientQuests.openQuestLog) {
-        window.AncientQuests.openQuestLog();
-    } else {
-        alert(SystemLoader.showLoadingMessage('المهام'));
-    }
-}
-
-function handleDailyClick() {
-    if (window.AncientDaily && window.AncientDaily.showDailyReward) {
-        window.AncientDaily.showDailyReward();
-    } else {
-        alert(SystemLoader.showLoadingMessage('المكافأة'));
-    }
-}
-
-function handleNightClick() {
-    if (window.AncientNight && window.AncientNight.toggle) {
-        var active = window.AncientNight.toggle();
-        var btn = document.getElementById('btnNight');
-        if (btn) btn.innerHTML = active ? '☀️' : '🌙';
-        alert(active ? '🌙 تم تفعيل طور الليل' : '☀️ تم إلغاء طور الليل');
-    } else {
-        alert(SystemLoader.showLoadingMessage('الليل'));
-    }
-}
-
-function handleStatusClick() {
-    if (window.AncientMap && window.AncientMap.adventurer) {
-        var a = window.AncientMap.adventurer;
-        var questsCompleted = window.AncientQuests ? window.AncientQuests.completedQuests.size : 0;
-        var achievementsUnlocked = window.AncientAchievements ? window.AncientAchievements.getProgress().unlocked : 0;
-        
-        var status = '⚓ ' + (a.title || 'مغامر') + '\n';
-        status += '⭐ المستوى: ' + (a.level || 1) + '\n';
-        status += '⭐ XP: ' + (a.xp || 0) + '\n';
-        status += '🪙 ذهب: ' + (a.gold || 0) + '\n';
-        status += '❤️ الصحة: ' + (a.health || 100) + '/' + (a.maxHealth || 100) + '\n';
-        status += '🏝️ جزر مكتشفة: ' + (a.discoveredIslands ? a.discoveredIslands.length : 0) + '\n';
-        status += '✅ جزر مكتملة: ' + (a.completedIslands ? a.completedIslands.length : 0) + '\n';
-        status += '📋 مهام مكتملة: ' + questsCompleted + '\n';
-        status += '🏆 إنجازات: ' + achievementsUnlocked + '\n';
-        status += '🔥 تتابع: ' + (a.streak || 0) + ' يوم\n';
-        status += '⛵ السفينة: ' + (a.shipName || 'السنونو') + ' (مستوى ' + (a.shipLevel || 1) + ')\n';
-        status += '👥 الطاقم: ' + (a.crew ? a.crew.join(', ') : 'ببغاء حكيم 🦜');
-        
-        alert(status);
-    } else {
-        alert(SystemLoader.showLoadingMessage('الحالة'));
-    }
-}
-
-// ===== بدء مراقبة التحميل =====
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        SystemLoader.startWatching();
+    
+    // المحاولة كل ثانية لحد ما يظهر شريط التحكم
+    var attempts = 0;
+    var interval = setInterval(function() {
+        attempts++;
+        addAdventureButton();
+        if (document.getElementById('adventurePageBtn') || attempts > 20) {
+            clearInterval(interval);
+        }
     }, 1000);
-});
-
-// لو الصفحة اتحملت بالفعل
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(function() {
-        SystemLoader.startWatching();
-    }, 1000);
-}
+})();
 </script>
 </body>
 </html>
