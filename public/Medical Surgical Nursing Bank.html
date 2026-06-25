@@ -1370,6 +1370,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 </script>
 
 <!-- ===== أزرار المغامرة الظاهرة ===== -->
+<!-- ===== أزرار المغامرة العائمة ===== -->
 <style>
     .pirate-floating-buttons {
         position: fixed;
@@ -1378,44 +1379,40 @@ document.addEventListener('DOMContentLoaded', async function() {
         z-index: 9999;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
     }
     .pirate-btn {
-        width: 60px;
-        height: 60px;
+        width: 55px;
+        height: 55px;
         border-radius: 50%;
-        border: none;
+        border: 2px solid rgba(255,255,255,0.3);
         cursor: pointer;
-        font-size: 1.8rem;
+        font-size: 1.5rem;
         box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-        transition: all 0.3s;
+        transition: all 0.3s ease;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
+        position: relative;
     }
     .pirate-btn:hover {
-        transform: scale(1.1);
-        box-shadow: 0 12px 35px rgba(0,0,0,0.4);
-    }
-    .pirate-btn-map {
-        background: linear-gradient(135deg, #0369a1, #0284c7);
-    }
-    .pirate-btn-ach {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
+        transform: scale(1.15);
+        box-shadow: 0 12px 35px rgba(0,0,0,0.5);
     }
     .pirate-btn-tooltip {
         position: absolute;
-        right: 75px;
+        right: 70px;
         background: #1e293b;
         color: white;
-        padding: 8px 15px;
-        border-radius: 20px;
-        font-size: 0.8rem;
+        padding: 6px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
         white-space: nowrap;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.3s;
+        font-family: 'Tajawal', sans-serif;
     }
     .pirate-btn:hover .pirate-btn-tooltip {
         opacity: 1;
@@ -1423,26 +1420,47 @@ document.addEventListener('DOMContentLoaded', async function() {
 </style>
 
 <div class="pirate-floating-buttons">
-    <!-- زر الخريطة -->
-    <button class="pirate-btn pirate-btn-map" onclick="if(typeof AncientMap!=='undefined' && AncientMap.openMap) AncientMap.openMap(); else alert('🏴‍☠️ جاري تحميل خريطة القرصان...');">
+    <!-- 🗺️ زر الخريطة -->
+    <button class="pirate-btn" style="background:linear-gradient(135deg,#0369a1,#0284c7);" 
+        onclick="if(window.AncientMap&&window.AncientMap.openMap)AncientMap.openMap();else alert('🏴‍☠️ جاري تحميل خريطة القرصان...\n\nتأكد من تحميل جميع ملفات النظام');">
         🗺️
         <span class="pirate-btn-tooltip">خريطة المغامرة</span>
     </button>
     
-    <!-- زر الإنجازات -->
-    <button class="pirate-btn pirate-btn-ach" onclick="if(typeof AncientMap!=='undefined' && AncientMap.openAchievements) AncientMap.openAchievements(); else alert('🏆 جاري تحميل الإنجازات...');">
+    <!-- 🏆 زر الإنجازات -->
+    <button class="pirate-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706);" 
+        onclick="if(window.AncientAchievements)window.AncientMap.openAchievements?AncientMap.openAchievements():alert('🏆 '+window.AncientAchievements.getProgress().unlocked+'/'+window.AncientAchievements.getProgress().total+' إنجاز');else alert('🏆 جاري تحميل الإنجازات...');">
         🏆
         <span class="pirate-btn-tooltip">الإنجازات</span>
     </button>
     
-    <!-- زر التحديات (اختياري) -->
-    <button class="pirate-btn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="if(typeof AncientMap!=='undefined' && AncientMap.adventurer) alert('⚓ ' + AncientMap.adventurer.title + '\n⭐ XP: ' + AncientMap.adventurer.xp + '\n🪙 ذهب: ' + AncientMap.adventurer.gold + '\n🏝️ جزر: ' + AncientMap.adventurer.completedIslands.length + '/' + AncientMap.islands.length); else alert('جاري تحميل البيانات...');">
+    <!-- 📋 زر المهام -->
+    <button class="pirate-btn" style="background:linear-gradient(135deg,#10b981,#059669);" 
+        onclick="if(window.AncientQuests)AncientQuests.openQuestLog();else alert('📋 جاري تحميل المهام...');">
+        📋
+        <span class="pirate-btn-tooltip">سجل المهام</span>
+    </button>
+    
+    <!-- 🎁 زر المكافأة اليومية -->
+    <button class="pirate-btn" style="background:linear-gradient(135deg,#ec4899,#db2777);" 
+        onclick="if(window.AncientDaily)AncientDaily.showDailyReward();else alert('🎁 جاري تحميل المكافآت...');">
+        🎁
+        <span class="pirate-btn-tooltip">المكافأة اليومية</span>
+    </button>
+    
+    <!-- 🌙 زر طور الليل -->
+    <button class="pirate-btn" style="background:linear-gradient(135deg,#6366f1,#4f46e5);" 
+        onclick="if(window.AncientNight){var a=AncientNight.toggle();alert(a?'🌙 تم تفعيل طور الليل':'☀️ تم إلغاء طور الليل');}else alert('🌙 جاري التحميل...');">
+        🌙
+        <span class="pirate-btn-tooltip">طور الليل</span>
+    </button>
+    
+    <!-- 👤 زر الحالة -->
+    <button class="pirate-btn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" 
+        onclick="if(window.AncientMap&&window.AncientMap.adventurer){var a=AncientMap.adventurer;var q=AncientQuests?AncientQuests.completedQuests.size:0;alert('⚓ '+a.title+'\n⭐ المستوى: '+a.level+'\n⭐ XP: '+a.xp+'\n🪙 ذهب: '+a.gold+'\n🏝️ جزر: '+(a.completedIslands?a.completedIslands.length:0)+'\n📋 مهام: '+q+'\n🔥 تتابع: '+a.streak+' يوم');}else alert('👤 جاري تحميل البيانات...');">
         👤
         <span class="pirate-btn-tooltip">حالة المغامر</span>
     </button>
 </div>
-
-<!-- تحميل نظام المغامرة -->
-<script src="ancient-map-adventure.js"></script>
 </body>
 </html>
