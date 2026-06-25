@@ -2139,23 +2139,6 @@ app.get('/api/check-auth-status', async (req, res) => {
 });
 
 
-
-
-// ====================== نموذج الواجبات (Homework Schema) ======================
-const homeworkSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    chapterId: { type: String, required: true },
-    chapterName: { type: String, required: true },
-    questionCount: { type: Number, required: true },
-    categoryFilter: { type: String, default: 'all' },
-    deadline: { type: String, required: true }, // صيغة YYYY-MM-DD
-    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
-    createdBy: { type: String, default: 'admin' },
-    isActive: { type: Boolean, default: true }
-}, { timestamps: true });
-
-const Homework = mongoose.models.Homework || mongoose.model('Homework', homeworkSchema);
-
 // ====================== 1. إنشاء واجب جديد (للأدمن) ======================
 app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
     try {
