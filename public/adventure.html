@@ -3,18 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏜️ مغامرة الصحراء - بنك الأسئلة التفاعلي</title>
+    <title>🏜️ مغامرة الصحراء – معهد رعاية الضبعية</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --gold: #f0b90b;
             --orange: #f59e0b;
             --red: #ef4444;
+            --green: #10b981;
             --brown: #8B4513;
             --sand: #f5e6d3;
             --dark: #1a1a2e;
+            --card: #2a1f0e;
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Tajawal', sans-serif;
             background: #1a1408;
@@ -24,95 +26,146 @@
             background-image: radial-gradient(ellipse at 30% 20%, #3d2b0a 0%, #1a1408 70%);
         }
 
-        /* شاشة التحميل */
         #loadingScreen {
-            position:fixed; top:0; left:0; width:100%; height:100%;
-            background:#0d0b06; z-index:9999; display:flex; flex-direction:column;
-            align-items:center; justify-content:center; transition:0.5s;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0d0b06; z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; transition: 0.5s;
         }
-        #loadingScreen.hidden { opacity:0; pointer-events:none; }
-        .loader-camel { font-size:4rem; animation: camelWalk 1s infinite; }
+        #loadingScreen.hidden { opacity: 0; pointer-events: none; }
+        .loader-camel { font-size: 4rem; animation: camelWalk 1s infinite; }
         @keyframes camelWalk { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);} }
-        .loader-text { color:var(--gold); margin-top:15px; font-weight:700; }
+        .loader-text { color: var(--gold); margin-top: 15px; font-weight: 700; }
+        .loader-bar { width: 250px; height: 6px; background: #333; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+        .loader-fill { height: 100%; background: var(--gold); width: 0%; transition: 0.3s; border-radius: 3px; }
 
-        /* الخلفية المتحركة */
-        .stars { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0; }
-        .star { position:absolute; background:#fff; border-radius:50%; animation: twinkle 2s infinite; }
+        .stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .star { position: absolute; background: #fff; border-radius: 50%; animation: twinkle 2s infinite; }
         @keyframes twinkle { 0%,100%{opacity:0.3;} 50%{opacity:1;} }
 
-        /* الحاوية */
-        .container { max-width:1200px; margin:0 auto; padding:15px; position:relative; z-index:2; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 15px; position: relative; z-index: 2; }
 
-        /* الهيدر */
         .header {
-            text-align:center; padding:20px; background:linear-gradient(180deg, rgba(139,69,19,0.5), transparent);
-            border-bottom:2px solid var(--gold); margin-bottom:20px;
+            text-align: center; padding: 20px;
+            background: linear-gradient(180deg, rgba(139,69,19,0.5), transparent);
+            border-bottom: 2px solid var(--gold); margin-bottom: 20px;
         }
-        .header h1 { font-size:2.2rem; color:var(--gold); text-shadow:0 0 20px rgba(240,185,11,0.6); }
-        .header .subtitle { color:#ccc; margin:5px 0; }
-        .stats-row { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin:15px 0; }
-        .stat-box { background:rgba(0,0,0,0.5); border:1px solid var(--gold); border-radius:15px; padding:10px 18px; min-width:90px; }
-        .stat-box .val { font-size:1.4rem; font-weight:900; color:var(--gold); }
-        .stat-box .lbl { font-size:0.7rem; color:#aaa; }
+        .header h1 { font-size: 2.2rem; color: var(--gold); text-shadow: 0 0 20px rgba(240,185,11,0.6); }
+        .header .subtitle { color: #ccc; margin: 5px 0; }
+        .stats-row { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin: 15px 0; }
+        .stat-box {
+            background: rgba(0,0,0,0.5); border: 1px solid var(--gold);
+            border-radius: 15px; padding: 10px 16px; min-width: 85px; text-align: center;
+        }
+        .stat-box .val { font-size: 1.3rem; font-weight: 900; color: var(--gold); }
+        .stat-box .lbl { font-size: 0.65rem; color: #aaa; }
 
-        /* الخريطة الصحراوية */
         .desert-map {
-            position:relative; width:100%; height:480px; background:linear-gradient(180deg, #e8c97a 0%, #d4a74a 30%, #c19a3e 60%, #a67c28 100%);
-            border-radius:24px; overflow:hidden; border:4px solid #6b3a0a; box-shadow:0 0 60px rgba(240,185,11,0.2);
-            margin:15px 0;
+            position: relative; width: 100%; height: 480px;
+            background: linear-gradient(180deg, #e8c97a 0%, #d4a74a 30%, #c19a3e 60%, #a67c28 100%);
+            border-radius: 24px; overflow: hidden;
+            border: 4px solid #6b3a0a; box-shadow: 0 0 60px rgba(240,185,11,0.2); margin: 15px 0;
         }
-        .dune { position:absolute; background:linear-gradient(180deg, #dbb45c, #b8882e); border-radius:50%; opacity:0.7; }
+        .dune { position: absolute; background: linear-gradient(180deg, #dbb45c, #b8882e); border-radius: 50%; opacity: 0.7; }
         .oasis-marker {
-            position:absolute; transform:translate(-50%,-50%); z-index:5; text-align:center; cursor:pointer;
-            transition:0.3s; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+            position: absolute; transform: translate(-50%,-50%); z-index: 5; text-align: center;
+            cursor: pointer; transition: 0.3s; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
         }
-        .oasis-marker:hover { transform:translate(-50%,-50%) scale(1.2); z-index:10; }
-        .oasis-marker .oasis-icon { font-size:2.5rem; display:block; }
-        .oasis-marker .oasis-name { background:rgba(0,0,0,0.7); color:var(--gold); padding:2px 10px; border-radius:10px; font-size:0.7rem; white-space:nowrap; margin-top:2px; }
-        .oasis-marker.locked { filter:grayscale(100%); opacity:0.5; cursor:not-allowed; }
-        .oasis-marker.completed .oasis-name { background:#10b981; color:#fff; }
-        .camel-rider { position:absolute; font-size:2rem; z-index:6; pointer-events:none; animation: camelRide 8s infinite; }
-        @keyframes camelRide { 0%{left:5%;top:70%;} 50%{left:85%;top:45%;} 100%{left:5%;top:70%;} }
+        .oasis-marker:hover { transform: translate(-50%,-50%) scale(1.2); z-index: 10; }
+        .oasis-marker .oasis-icon { font-size: 2.5rem; display: block; }
+        .oasis-marker .oasis-name {
+            background: rgba(0,0,0,0.7); color: var(--gold); padding: 2px 10px;
+            border-radius: 10px; font-size: 0.7rem; white-space: nowrap; margin-top: 2px;
+        }
+        .oasis-marker.locked { filter: grayscale(100%); opacity: 0.5; cursor: not-allowed; }
+        .oasis-marker.completed .oasis-name { background: var(--green); color: #fff; }
+        .oasis-marker.current { animation: pulseOasis 1.5s infinite; }
+        @keyframes pulseOasis { 0%,100%{filter:drop-shadow(0 0 5px #f0b90b);} 50%{filter:drop-shadow(0 0 20px #f0b90b);} }
+        .camel-rider { position: absolute; font-size: 2rem; z-index: 6; pointer-events: none; animation: camelRide 10s infinite; }
+        @keyframes camelRide { 0%{left:5%;top:70%;} 25%{left:40%;top:45%;} 50%{left:80%;top:55%;} 75%{left:50%;top:30%;} 100%{left:5%;top:70%;} }
 
-        /* مودال */
-        .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; display:none; align-items:center; justify-content:center; backdrop-filter:blur(5px); }
-        .modal-overlay.active { display:flex; }
-        .modal-content { background:linear-gradient(145deg, #3b2a0f, #1f1406); border:2px solid var(--gold); border-radius:20px; padding:25px; max-width:700px; width:95%; max-height:85vh; overflow-y:auto; position:relative; }
-        .close-btn { position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.1); border:none; color:#fff; font-size:1.3rem; width:32px; height:32px; border-radius:50%; cursor:pointer; }
-        .close-btn:hover { background:var(--red); }
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 1000; display: none;
+            align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: linear-gradient(145deg, #3b2a0f, #1f1406);
+            border: 2px solid var(--gold); border-radius: 20px; padding: 25px;
+            max-width: 720px; width: 95%; max-height: 85vh; overflow-y: auto; position: relative;
+        }
+        .close-btn {
+            position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.1);
+            border: none; color: #fff; font-size: 1.3rem; width: 32px; height: 32px;
+            border-radius: 50%; cursor: pointer;
+        }
+        .close-btn:hover { background: var(--red); }
 
-        /* بطاقات المعركة */
-        .battle-scene { text-align:center; }
-        .vs-monster { font-size:5rem; animation: monsterFloat 2s infinite; }
+        .quest-card {
+            background: var(--card); border: 2px solid #5c3a0a; border-radius: 15px;
+            padding: 15px; margin: 10px 0; cursor: pointer; transition: 0.3s;
+            display: flex; align-items: center; gap: 15px;
+        }
+        .quest-card:hover { border-color: var(--gold); transform: translateX(-5px); }
+        .quest-card .q-icon { font-size: 2.5rem; }
+        .quest-card .q-info { flex: 1; text-align: right; }
+        .quest-card .q-name { color: #fff; font-weight: 700; }
+        .quest-card .q-reward { color: var(--gold); font-size: 0.8rem; }
+        .quest-card .q-status { font-size: 0.75rem; }
+        .quest-card.completed { border-color: var(--green); opacity: 0.7; }
+        .quest-card.current { border-color: var(--orange); animation: pulseQuest 2s infinite; }
+        @keyframes pulseQuest { 0%,100%{border-color:var(--orange);} 50%{border-color:var(--gold);} }
+
+        .progress-bar { background: #333; height: 8px; border-radius: 4px; margin: 8px 0; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--gold); border-radius: 4px; transition: 0.4s; }
+
+        .battle-scene { text-align: center; }
+        .vs-monster { font-size: 5rem; animation: monsterFloat 2s infinite; }
         @keyframes monsterFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-15px);} }
-        .question-card { background:rgba(255,255,255,0.05); border:1px solid var(--orange); border-radius:15px; padding:15px; margin:12px 0; }
-        .option-btn { display:block; width:100%; padding:12px; margin:6px 0; background:rgba(255,255,255,0.08); border:2px solid #5c3a0a; border-radius:10px; color:#fff; cursor:pointer; font-family:'Tajawal',sans-serif; font-size:0.95rem; transition:0.2s; text-align:right; }
-        .option-btn:hover { border-color:var(--gold); background:rgba(240,185,11,0.15); }
-        .option-btn.correct { border-color:#10b981; background:rgba(16,185,129,0.2); }
-        .option-btn.wrong { border-color:var(--red); background:rgba(239,68,68,0.2); }
-        .hp-bar { background:#333; height:16px; border-radius:8px; margin:10px 0; overflow:hidden; }
-        .hp-fill { height:100%; transition:0.4s; border-radius:8px; }
-        .hp-player { background:linear-gradient(90deg, #10b981, #34d399); }
-        .hp-monster { background:linear-gradient(90deg, #ef4444, #f87171); }
+        .question-card { background: rgba(255,255,255,0.05); border: 1px solid var(--orange); border-radius: 15px; padding: 15px; margin: 12px 0; }
+        .option-btn {
+            display: block; width: 100%; padding: 12px; margin: 6px 0;
+            background: rgba(255,255,255,0.08); border: 2px solid #5c3a0a;
+            border-radius: 10px; color: #fff; cursor: pointer;
+            font-family: 'Tajawal', sans-serif; font-size: 0.95rem; transition: 0.2s; text-align: right;
+        }
+        .option-btn:hover { border-color: var(--gold); background: rgba(240,185,11,0.15); }
+        .option-btn.correct { border-color: var(--green); background: rgba(16,185,129,0.2); }
+        .option-btn.wrong { border-color: var(--red); background: rgba(239,68,68,0.2); }
+        .hp-bar { background: #333; height: 16px; border-radius: 8px; margin: 8px 0; overflow: hidden; }
+        .hp-fill { height: 100%; transition: 0.4s; border-radius: 8px; }
+        .hp-player { background: linear-gradient(90deg, #10b981, #34d399); }
+        .hp-monster { background: linear-gradient(90deg, #ef4444, #f87171); }
 
-        /* أزرار */
-        .btn { padding:10px 22px; border-radius:25px; border:none; cursor:pointer; font-family:'Tajawal',sans-serif; font-weight:700; font-size:0.9rem; transition:0.3s; display:inline-flex; align-items:center; gap:6px; margin:3px; }
-        .btn-gold { background:linear-gradient(135deg, var(--gold), var(--orange)); color:#000; }
-        .btn-red { background:linear-gradient(135deg, #dc2626, #b91c1c); color:#fff; }
-        .btn-green { background:linear-gradient(135deg, #10b981, #059669); color:#fff; }
-        .btn:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.3); }
-        .btn:active { transform:scale(0.95); }
+        .btn {
+            padding: 10px 22px; border-radius: 25px; border: none; cursor: pointer;
+            font-family: 'Tajawal', sans-serif; font-weight: 700; font-size: 0.9rem;
+            transition: 0.3s; display: inline-flex; align-items: center; gap: 6px; margin: 3px; color: #fff;
+        }
+        .btn-gold { background: linear-gradient(135deg, var(--gold), var(--orange)); color: #000; }
+        .btn-red { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .btn-green { background: linear-gradient(135deg, #10b981, #059669); }
+        .btn-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+        .btn:active { transform: scale(0.95); }
 
-        /* تأثيرات */
-        .confetti { position:fixed; pointer-events:none; z-index:3000; animation: confettiFall 2s forwards; }
-        @keyframes confettiFall { 0%{opacity:1; transform:translateY(0) rotate(0);} 100%{opacity:0; transform:translateY(100vh) rotate(720deg);} }
-        .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#1f1406; border:2px solid var(--gold); padding:12px 25px; border-radius:30px; z-index:2000; font-weight:700; animation: toastIn 0.4s, toastOut 0.4s 2.5s forwards; }
-        @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(-30px);} to{opacity:1;transform:translateX(-50%) translateY(0);} }
-        @keyframes toastOut { from{opacity:1;transform:translateX(-50%) translateY(0);} to{opacity:0;transform:translateX(-50%) translateY(-30px);} }
+        .confetti { position: fixed; pointer-events: none; z-index: 3000; animation: confettiFall 2s forwards; border-radius: 2px; }
+        @keyframes confettiFall { 0%{opacity:1;transform:translateY(0)rotate(0);} 100%{opacity:0;transform:translateY(100vh)rotate(720deg);} }
+        .toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #1f1406; border: 2px solid var(--gold); padding: 12px 25px;
+            border-radius: 30px; z-index: 2000; font-weight: 700;
+            animation: toastIn 0.4s, toastOut 0.4s 2.5s forwards;
+        }
+        @keyframes toastIn { from{opacity:0;transform:translateX(-50%)translateY(-30px);} to{opacity:1;transform:translateX(-50%)translateY(0);} }
+        @keyframes toastOut { from{opacity:1;transform:translateX(-50%)translateY(0);} to{opacity:0;transform:translateX(-50%)translateY(-30px);} }
+
+        .monster-card { text-align: center; padding: 20px; }
+        .monster-emoji { font-size: 6rem; animation: monsterFloat 1.5s infinite; }
 
         @media (max-width:600px) {
-            .desert-map { height:320px; }
-            .oasis-marker .oasis-icon { font-size:1.8rem; }
+            .desert-map { height: 320px; }
+            .oasis-marker .oasis-icon { font-size: 1.8rem; }
         }
     </style>
 </head>
@@ -121,6 +174,7 @@
 <div id="loadingScreen">
     <div class="loader-camel">🐪</div>
     <div class="loader-text">🏜️ جاري تجهيز رحلتك الصحراوية...</div>
+    <div class="loader-bar"><div class="loader-fill" id="loaderFill"></div></div>
 </div>
 
 <div class="stars" id="starsContainer"></div>
@@ -132,23 +186,22 @@
         <div class="stats-row">
             <div class="stat-box"><span class="val" id="xpVal">0</span><div class="lbl">⭐ خبرة</div></div>
             <div class="stat-box"><span class="val" id="goldVal">0</span><div class="lbl">🪙 ذهب</div></div>
-            <div class="stat-box"><span class="val" id="oasisVal">0/6</span><div class="lbl">🏝️ واحات</div></div>
+            <div class="stat-box"><span class="val" id="oasisVal">0/11</span><div class="lbl">🏝️ واحات</div></div>
+            <div class="stat-box"><span class="val" id="questVal">0</span><div class="lbl">📋 مهام</div></div>
             <div class="stat-box"><span class="val" id="streakVal">0</span><div class="lbl">🔥 تتابع</div></div>
         </div>
     </div>
 
-    <div class="desert-map" id="desertMap">
-        <!-- الخريطة تُملأ برمجياً -->
-    </div>
+    <div class="desert-map" id="desertMap"></div>
 
     <div style="text-align:center; margin:15px 0;">
-        <button class="btn btn-gold" onclick="refreshMap()">🗺️ تحديث</button>
-        <button class="btn btn-green" onclick="showAllQuests()">📋 المهام</button>
+        <button class="btn btn-gold" onclick="refreshMap()">🗺️ تحديث الخريطة</button>
+        <button class="btn btn-green" onclick="showAllQuests()">📋 سجل المهام</button>
+        <button class="btn btn-blue" onclick="showPlayerInfo()">👤 المغامر</button>
         <button class="btn btn-red" onclick="resetProgress()">🔄 إعادة</button>
     </div>
 </div>
 
-<!-- المودال -->
 <div class="modal-overlay" id="modal">
     <div class="modal-content" id="modalContent">
         <button class="close-btn" onclick="closeModal()">✕</button>
@@ -157,32 +210,134 @@
 </div>
 
 <script>
-// ==================== إعداد البيانات ====================
-// الواحات (تمثل فصول الأسئلة)
+// ==================== بيانات الواحات والمهام ====================
 const OASIS_DATA = [
-    { id: 'chapter1', name: 'واحة البداية', icon: '🌴', pos: {x:10, y:80}, chapterKey:'chapter1', unlocked:true, completed:false,
-      story:'واحة خضراء في قلب الصحراء... هنا يبدأ طريق المعرفة. شيخ القبيلة ينتظرك ليعلمك أساسيات التمريض.' },
-    { id: 'chapter2', name: 'واحة الجراحين', icon: '🏥', pos: {x:28, y:68}, chapterKey:'chapter2', unlocked:false, completed:false,
-      story:'خيام طبية ومشارط معقمة... الجراح الماهر يعلمك فن التعقيم والعمليات.' },
-    { id: 'chapter3', name: 'كثبان التنفس', icon: '🌬️', pos: {x:48, y:55}, chapterKey:'chapter3', unlocked:false, completed:false,
-      story:'رياح الصحراء تحمل أسرار الرئة... الساحرة تعلمك كيف تسمع أصوات التنفس.' },
-    { id: 'chapter4', name: 'جبل القلوب', icon: '❤️', pos: {x:68, y:42}, chapterKey:'chapter4', unlocked:false, completed:false,
-      story:'جبل بركاني ينبض كالقلب... الحكيم يعلمك قراءة نبضات القلوب.' },
-    { id: 'chapter5', name: 'سراب البطن', icon: '🌀', pos: {x:85, y:30}, chapterKey:'chapter5', unlocked:false, completed:false,
-      story:'سراب يخفي أمراض الجهاز الهضمي... الطاهي العجوز يكشف أسرار البطن.' },
-    { id: 'chapter6', name: 'قلعة الطوارئ', icon: '🏰', pos: {x:50, y:20}, chapterKey:'chapter6', unlocked:false, completed:false,
-      story:'قلعة على قمة الكثبان... هنا تتعلم إنقاذ الأرواح في اللحظات الحرجة.' }
+    {
+        id: 'chapter1', name: 'واحة البداية', icon: '🌴', pos: {x:8, y:85}, chapterKey: 'chapter1',
+        unlocked: true, completed: false,
+        story: 'واحة خضراء في قلب الصحراء... شيخ القبيلة الحكيم ينتظرك ليبدأ معك رحلة المعرفة.',
+        quests: [
+            { id: 'q1_1', name: 'لقاء شيخ القبيلة', icon: '🧙‍♂️', desc: 'تحدث مع شيخ القبيلة واستمع لنصائحه', type: 'dialogue', steps: ['اذهب إلى خيمة الشيخ','استمع إلى كلماته','اقبل مفتاح المعرفة'], xp:30, gold:15 },
+            { id: 'q1_2', name: 'جمع أعشاب الواحة', icon: '🌿', desc: 'اجمع 3 أعشاب طبية من حول الواحة', type: 'collect', items: ['نعناع','زعتر','مريمية'], xp:40, gold:20 },
+            { id: 'q1_3', name: 'مساعدة المسافر العطشان', icon: '💧', desc: 'قدم الماء والإسعاف لمسافر أنهكه العطش', type: 'medical', xp:50, gold:25 },
+            { id: 'q1_boss', name: 'مواجهة عفريت الجهل', icon: '👹', desc: 'حارب عفريت الجهل في معركة المعرفة!', type: 'boss', monster: {name:'عفريت الجهل', emoji:'👹', hp:80, dmg:8}, xp:80, gold:40 }
+        ]
+    },
+    {
+        id: 'chapter2', name: 'خيمة الجراحين', icon: '🏥', pos: {x:25, y:75}, chapterKey: 'chapter2',
+        unlocked: false, completed: false,
+        story: 'خيمة طبية كبيرة في وسط الصحراء... الجراح الماهر يعلمك فن التعقيم والعمليات الجراحية.',
+        quests: [
+            { id: 'q2_1', name: 'تعلم التعقيم', icon: '🧼', desc: 'تعلم خطوات التعقيم الصحيحة من الجراح', type: 'dialogue', steps: ['استمع للجراح','تعلم خطوات التعقيم','طبق ما تعلمته'], xp:35, gold:18 },
+            { id: 'q2_2', name: 'ترتيب الأدوات الجراحية', icon: '🔧', desc: 'رتب الأدوات الجراحية بالترتيب الصحيح', type: 'sort', items: ['مشرط','ملقط','مقص','خيط جراحي','ضماد'], xp:45, gold:22 },
+            { id: 'q2_boss', name: 'مواجهة وحش التلوث', icon: '🧟', desc: 'حارب وحش التلوث بمعرفتك في التعقيم!', type: 'boss', monster: {name:'وحش التلوث', emoji:'🧟', hp:90, dmg:10}, xp:90, gold:45 }
+        ]
+    },
+    {
+        id: 'chapter3', name: 'كثبان التنفس', icon: '🌬️', pos: {x:45, y:62}, chapterKey: 'chapter3',
+        unlocked: false, completed: false,
+        story: 'رياح الصحراء تحمل أسرار التنفس... ساحرة الكثبان تعلمك كيف تسمع أصوات الرئة.',
+        quests: [
+            { id: 'q3_1', name: 'لقاء ساحرة الكثبان', icon: '🧙‍♀️', desc: 'تعلم من الساحرة عن أمراض الجهاز التنفسي', type: 'dialogue', steps: ['اقترب من الساحرة','استمع لتعاليمها','تعلم عن الربو'], xp:40, gold:20 },
+            { id: 'q3_2', name: 'إنقاذ الغريق في الرمال', icon: '🆘', desc: 'قدم الإسعافات الأولية لمسافر غرق في الرمال', type: 'rescue', steps: ['افتح مجرى الهواء','ابدأ التنفس الصناعي','انقل المصاب للظل'], xp:55, gold:28 },
+            { id: 'q3_boss', name: 'مواجهة تنين العاصفة', icon: '🐉', desc: 'حارب تنين العاصفة الرملية بمعرفتك!', type: 'boss', monster: {name:'تنين العاصفة', emoji:'🐉', hp:100, dmg:12}, xp:100, gold:50 }
+        ]
+    },
+    {
+        id: 'chapter4', name: 'جبل القلوب', icon: '❤️', pos: {x:65, y:50}, chapterKey: 'chapter4',
+        unlocked: false, completed: false,
+        story: 'جبل بركاني ينبض كالقلب... الحكيم الجبلي يعلمك قراءة نبضات القلوب وأسرارها.',
+        quests: [
+            { id: 'q4_1', name: 'صعود جبل القلوب', icon: '🧗', desc: 'اصعد الجبل وقابل الحكيم الجبلي', type: 'dialogue', steps: ['ابدأ الصعود','قابل الحكيم','تعلم عن أمراض القلب'], xp:45, gold:22 },
+            { id: 'q4_2', name: 'قياس نبضات المسافرين', icon: '💓', desc: 'قس نبضات 3 مسافرين وشخص حالتهم', type: 'medical', xp:50, gold:25 },
+            { id: 'q4_boss', name: 'مواجهة غول الضغط', icon: '👹', desc: 'حارب غول ارتفاع الضغط بمعرفتك!', type: 'boss', monster: {name:'غول الضغط', emoji:'👹', hp:110, dmg:14}, xp:110, gold:55 }
+        ]
+    },
+    {
+        id: 'chapter5', name: 'سراب البطن', icon: '🌀', pos: {x:80, y:40}, chapterKey: 'chapter5',
+        unlocked: false, completed: false,
+        story: 'سراب يخفي أمراض الجهاز الهضمي... الطاهي العجوز يكشف أسرار البطن وما يدور فيها.',
+        quests: [
+            { id: 'q5_1', name: 'دخول مطبخ الطاهي', icon: '👨‍🍳', desc: 'تعلم من الطاهي عن أمراض الجهاز الهضمي', type: 'dialogue', steps: ['ادخل المطبخ','تحدث مع الطاهي','تعلم عن الهضم'], xp:40, gold:20 },
+            { id: 'q5_2', name: 'تشخيص آلام البطن', icon: '🔍', desc: 'شخص 3 حالات ألم بطن مختلفة', type: 'diagnose', cases: ['التهاب الزائدة','قرحة المعدة','حصوات المرارة'], xp:55, gold:28 },
+            { id: 'q5_boss', name: 'مواجهة ثعبان السموم', icon: '🐍', desc: 'حارب ثعبان السموم الهضمية!', type: 'boss', monster: {name:'ثعبان السموم', emoji:'🐍', hp:95, dmg:11}, xp:95, gold:48 }
+        ]
+    },
+    {
+        id: 'chapter6', name: 'قلعة الطوارئ', icon: '🏰', pos: {x:55, y:22}, chapterKey: 'chapter6',
+        unlocked: false, completed: false,
+        story: 'قلعة على قمة الكثبان... قائد الطوارئ يعلمك كيف تنقذ الأرواح في اللحظات الحرجة.',
+        quests: [
+            { id: 'q6_1', name: 'تقرير القائد', icon: '📋', desc: 'استمع لتوجيهات قائد الطوارئ', type: 'dialogue', steps: ['ادخل القلعة','قابل القائد','تعلم أساسيات الطوارئ'], xp:45, gold:22 },
+            { id: 'q6_2', name: 'إنقاذ المصابين', icon: '🚑', desc: 'طبق الإسعافات على 3 مصابين', type: 'rescue', steps: ['تقييم المصاب','إسعاف','نقل للمستشفى'], xp:60, gold:30 },
+            { id: 'q6_boss', name: 'مواجهة ملك السكتة', icon: '🧟‍♂️', desc: 'حارب ملك السكتة الدماغية!', type: 'boss', monster: {name:'ملك السكتة', emoji:'🧟‍♂️', hp:120, dmg:16}, xp:120, gold:60 }
+        ]
+    },
+    {
+        id: 'chapter7', name: 'هضبة العظام', icon: '🦴', pos: {x:35, y:30}, chapterKey: 'chapter7',
+        unlocked: false, completed: false,
+        story: 'هضبة مليئة بالعظام والحفريات... حارس الهضبة يعلمك عن الكسور والإصابات.',
+        quests: [
+            { id: 'q7_1', name: 'لقاء حارس الهضبة', icon: '💀', desc: 'تعلم من الحارس عن أنواع الكسور', type: 'dialogue', steps: ['اصعد الهضبة','قابل الحارس','تعلم عن الكسور'], xp:40, gold:20 },
+            { id: 'q7_2', name: 'تجبير الكسور', icon: '🩹', desc: 'طبق التجبير على 3 كسور مختلفة', type: 'medical', xp:55, gold:28 },
+            { id: 'q7_boss', name: 'مواجهة غول العظام', icon: '🗿', desc: 'حارب غول العظام العملاق!', type: 'boss', monster: {name:'غول العظام', emoji:'🗿', hp:105, dmg:13}, xp:105, gold:52 }
+        ]
+    },
+    {
+        id: 'chapter8', name: 'واحة الهرمونات', icon: '⚗️', pos: {x:20, y:48}, chapterKey: 'chapter8',
+        unlocked: false, completed: false,
+        story: 'واحة غريبة مليئة بالنباتات المتوهجة... الكيميائي يعلمك عن الهرمونات وتوازنها.',
+        quests: [
+            { id: 'q8_1', name: 'لقاء الكيميائي', icon: '🧪', desc: 'تعلم من الكيميائي عن الغدد الصماء', type: 'dialogue', steps: ['ادخل المختبر','تحدث مع الكيميائي','تعلم عن الهرمونات'], xp:42, gold:21 },
+            { id: 'q8_2', name: 'موازنة الهرمونات', icon: '⚖️', desc: 'ساعد في موازنة هرمونات 3 مرضى', type: 'diagnose', cases: ['السكري','قصور الدرقية','فرط الدرقية'], xp:58, gold:29 },
+            { id: 'q8_boss', name: 'مواجهة شيطان السكر', icon: '🍬', desc: 'حارب شيطان السكر اللزج!', type: 'boss', monster: {name:'شيطان السكر', emoji:'🍬', hp:100, dmg:12}, xp:100, gold:50 }
+        ]
+    },
+    {
+        id: 'chapter9', name: 'شعاب الألم', icon: '🎗️', pos: {x:72, y:65}, chapterKey: 'chapter9',
+        unlocked: false, completed: false,
+        story: 'شعاب مظلمة في عمق الصحراء... المعالج الحكيم يعلمك كيف تخفف آلام المرضى.',
+        quests: [
+            { id: 'q9_1', name: 'لقاء المعالج', icon: '🧘', desc: 'تعلم فنون تخفيف الألم من المعالج', type: 'dialogue', steps: ['اقترب من الشعاب','تحدث مع المعالج','تعلم عن مسكنات الألم'], xp:45, gold:22 },
+            { id: 'q9_2', name: 'تخفيف آلام المرضى', icon: '💊', desc: 'ساعد 3 مرضى في تخفيف آلامهم', type: 'medical', xp:55, gold:28 },
+            { id: 'q9_boss', name: 'مواجهة وحش الألم', icon: '👾', desc: 'حارب وحش الألم المزمن!', type: 'boss', monster: {name:'وحش الألم', emoji:'👾', hp:115, dmg:15}, xp:115, gold:58 }
+        ]
+    },
+    {
+        id: 'chapter10', name: 'برج المراقبة', icon: '🗼', pos: {x:88, y:18}, chapterKey: 'chapter10',
+        unlocked: false, completed: false,
+        story: 'برج عالي يطل على الصحراء كلها... الحكيم الأخير يعلمك خلاصة المعرفة.',
+        quests: [
+            { id: 'q10_1', name: 'صعود البرج', icon: '🏗️', desc: 'اصعد البرج وقابل الحكيم الأخير', type: 'dialogue', steps: ['اصعد البرج','قابل الحكيم','استمع للحكمة'], xp:50, gold:25 },
+            { id: 'q10_2', name: 'الاختبار الشامل', icon: '📝', desc: 'أجب على أسئلة شاملة عن كل ما تعلمته', type: 'exam', count: 10, xp:70, gold:35 },
+            { id: 'q10_boss', name: 'مواجهة تنين الظلام', icon: '🐲', desc: 'حارب تنين الظلام الأخير!', type: 'boss', monster: {name:'تنين الظلام', emoji:'🐲', hp:150, dmg:20}, xp:150, gold:75 }
+        ]
+    },
+    {
+        id: 'chapter11', name: 'المدينة الذهبية', icon: '🕌', pos: {x:48, y:10}, chapterKey: 'chapter11',
+        unlocked: false, completed: false,
+        story: 'المدينة الذهبية الأسطورية... هنا تنتهي رحلتك وتبدأ أسطورتك.',
+        quests: [
+            { id: 'q11_1', name: 'دخول المدينة', icon: '🏛️', desc: 'ادخل المدينة الذهبية واكتشف أسرارها', type: 'dialogue', steps: ['اقترب من البوابة','ادخل المدينة','اكتشف الكنز'], xp:60, gold:30 },
+            { id: 'q11_boss', name: 'المواجهة النهائية', icon: '👑', desc: 'حارب ملك الجهل في المعركة النهائية!', type: 'boss', monster: {name:'ملك الجهل', emoji:'👑', hp:180, dmg:25}, xp:200, gold:100 }
+        ]
+    }
 ];
 
-// حالة اللاعب
+// ==================== حالة اللاعب ====================
 let playerData = {
-    xp: 0, gold: 0, streak: 0, completedOasis: [], discoveredOasis: ['chapter1'],
-    currentOasis: 'chapter1', title: 'رحالة مبتدئ'
+    xp: 0, gold: 0, streak: 0,
+    completedOasis: [],
+    discoveredOasis: ['chapter1'],
+    completedQuests: [],
+    currentOasis: 'chapter1',
+    title: 'رحالة مبتدئ',
+    totalBattles: 0,
+    totalCorrect: 0
 };
 
-// تحميل البيانات المحفوظة
 try {
-    const saved = localStorage.getItem('desert_adventure');
+    const saved = localStorage.getItem('desert_adventure_v2');
     if (saved) {
         const p = JSON.parse(saved);
         playerData = {...playerData, ...p};
@@ -190,10 +345,10 @@ try {
 } catch(e) {}
 
 function saveData() {
-    localStorage.setItem('desert_adventure', JSON.stringify(playerData));
+    localStorage.setItem('desert_adventure_v2', JSON.stringify(playerData));
 }
 
-// دمج بيانات الأسئلة من الفصول (إن وجدت)
+// ==================== الأسئلة من الفصول ====================
 function getQuestionsFromChapter(chapterKey) {
     if (typeof window[chapterKey] !== 'undefined') {
         const ch = window[chapterKey];
@@ -211,27 +366,24 @@ function getQuestionsFromChapter(chapterKey) {
     return [];
 }
 
-// ==================== الخريطة ====================
+// ==================== عرض الخريطة ====================
 function renderMap() {
     const map = document.getElementById('desertMap');
     map.innerHTML = '';
 
-    // كثبان رملية
-    for (let i=0; i<12; i++) {
+    for (let i=0; i<10; i++) {
         const dune = document.createElement('div');
         dune.className = 'dune';
-        const size = 60 + Math.random()*120;
-        dune.style.cssText = `width:${size}px; height:${size/2}px; left:${Math.random()*90}%; top:${Math.random()*90}%;`;
+        const size = 50 + Math.random()*100;
+        dune.style.cssText = `width:${size}px;height:${size/2}px;left:${Math.random()*90}%;top:${Math.random()*90}%;`;
         map.appendChild(dune);
     }
 
-    // جمال مسافر
     const camel = document.createElement('div');
     camel.className = 'camel-rider';
     camel.textContent = '🐪';
     map.appendChild(camel);
 
-    // الواحات
     OASIS_DATA.forEach(oasis => {
         if (playerData.discoveredOasis.includes(oasis.id)) oasis.unlocked = true;
         if (playerData.completedOasis.includes(oasis.id)) oasis.completed = true;
@@ -240,6 +392,7 @@ function renderMap() {
         marker.className = 'oasis-marker';
         if (!oasis.unlocked) marker.classList.add('locked');
         if (oasis.completed) marker.classList.add('completed');
+        if (playerData.currentOasis === oasis.id && !oasis.completed) marker.classList.add('current');
         marker.style.left = oasis.pos.x + '%';
         marker.style.top = oasis.pos.y + '%';
 
@@ -262,222 +415,486 @@ function renderMap() {
 function openOasis(oasis) {
     playerData.currentOasis = oasis.id;
     saveData();
-    const questions = getQuestionsFromChapter(oasis.chapterKey);
-    const qCount = questions.length;
 
-    let html = `
-        <div style="text-align:center;">
-            <div style="font-size:4rem;">${oasis.icon}</div>
-            <h2 style="color:var(--gold);">${oasis.name}</h2>
-            <p style="color:#ccc;">${oasis.story}</p>
-            <p style="color:var(--orange);">📚 الأسئلة المتاحة: ${qCount} سؤال</p>
+    const oasisQuests = oasis.quests;
+    const allCompleted = oasisQuests.every(q => playerData.completedQuests.includes(q.id));
+
+    let html = `<div style="text-align:center;">
+        <div style="font-size:4rem;">${oasis.icon}</div>
+        <h2 style="color:var(--gold);">${oasis.name}</h2>
+        <p style="color:#ccc;">${oasis.story}</p>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width:${allCompleted ? 100 : (playerData.completedQuests.filter(id => oasisQuests.some(q=>q.id===id)).length / oasisQuests.length * 100)}%;"></div>
+        </div>
+        <p style="color:#aaa;font-size:0.8rem;">المهام: ${playerData.completedQuests.filter(id => oasisQuests.some(q=>q.id===id)).length}/${oasisQuests.length}</p>
     `;
 
-    if (!oasis.completed) {
-        html += `
-            <button class="btn btn-gold" onclick="startBattle('${oasis.id}')" style="margin:10px;">
-                ⚔️ بدء تحدي الواحة (${Math.min(qCount, 8)} أسئلة)
-            </button>
-        `;
-    } else {
-        html += `<p style="color:#10b981;">✅ تم تحرير هذه الواحة!</p>`;
+    oasisQuests.forEach((quest, idx) => {
+        const completed = playerData.completedQuests.includes(quest.id);
+        const locked = idx > 0 && !playerData.completedQuests.includes(oasisQuests[idx-1].id);
+        const isBoss = quest.type === 'boss';
+        const canStart = !completed && !locked;
+
+        html += `<div class="quest-card ${completed ? 'completed' : ''} ${canStart ? 'current' : ''}"
+            onclick="${canStart ? `startQuest('${oasis.id}','${quest.id}')` : ''}"
+            style="${!canStart && !completed ? 'opacity:0.5;cursor:not-allowed;' : ''}">
+            <div class="q-icon">${quest.icon}</div>
+            <div class="q-info">
+                <div class="q-name">${quest.name} ${isBoss ? '👑' : ''}</div>
+                <div style="color:#aaa;font-size:0.8rem;">${quest.desc}</div>
+                <div class="q-reward">⭐ +${quest.xp} XP | 🪙 +${quest.gold} ذهب</div>
+                <div class="q-status">${completed ? '✅ مكتملة' : (locked ? '🔒 أكمل السابقة' : '⏳ متاحة')}</div>
+            </div>
+        </div>`;
+    });
+
+    if (allCompleted && !oasis.completed) {
+        html += `<button class="btn btn-green" onclick="completeOasis('${oasis.id}')" style="width:100%;margin-top:10px;">✅ تحرير الواحة (+200 XP)</button>`;
     }
 
-    html += `<button class="btn" onclick="closeModal()" style="margin-top:10px;">رجوع</button></div>`;
+    html += `<button class="btn" onclick="closeModal()" style="width:100%;margin-top:10px;">رجوع للخريطة</button></div>`;
     document.getElementById('modalBody').innerHTML = html;
-    document.getElementById('modal').classList.add('active');
+    openModal();
 }
 
-// ==================== المعركة (أسئلة) ====================
-let battleState = null;
-
-function startBattle(oasisId) {
+// ==================== بدء مهمة ====================
+function startQuest(oasisId, questId) {
     const oasis = OASIS_DATA.find(o => o.id === oasisId);
     if (!oasis) return;
-    const allQ = getQuestionsFromChapter(oasis.chapterKey);
-    if (allQ.length === 0) {
-        showToast('⚠️ لا توجد أسئلة متاحة لهذه الواحة');
-        return;
+    const quest = oasis.quests.find(q => q.id === questId);
+    if (!quest) return;
+
+    switch(quest.type) {
+        case 'dialogue': startDialogueQuest(quest, oasis); break;
+        case 'collect': startCollectQuest(quest, oasis); break;
+        case 'medical': startSimpleQuest(quest, '🏥 مهمة طبية', 'قدم الرعاية الطبية المطلوبة'); break;
+        case 'rescue': startSimpleQuest(quest, '🆘 مهمة إنقاذ', 'قم بإجراءات الإنقاذ المطلوبة'); break;
+        case 'diagnose': startDiagnoseQuest(quest, oasis); break;
+        case 'exam': startExamQuest(quest, oasis); break;
+        case 'sort': startSortQuest(quest, oasis); break;
+        case 'boss': startBossBattle(quest, oasis); break;
+        default: startSimpleQuest(quest, '📋 مهمة', 'أكمل المهمة المطلوبة');
     }
-    // خلط واختيار 8 أسئلة
-    const shuffled = allQ.sort(() => Math.random() - 0.5).slice(0, 8);
-    battleState = {
-        oasis: oasis,
-        questions: shuffled,
-        currentIndex: 0,
-        playerHP: 100,
-        monsterHP: 100,
-        correctCount: 0,
-        combo: 0
-    };
-    showBattleQuestion();
 }
 
-function showBattleQuestion() {
-    if (!battleState) return;
-    const q = battleState.questions[battleState.currentIndex];
-    if (!q) return endBattle();
+// ==================== مهمة حوار ====================
+function startDialogueQuest(quest, oasis) {
+    let step = 0;
+    const steps = quest.steps || ['أكمل المهمة'];
+    showDialogueStep();
 
-    let optionsHTML = '';
-    if (q.cat === 'mcq' && q.options) {
-        q.options.forEach(opt => {
-            const safeOpt = opt.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            optionsHTML += `<button class="option-btn" onclick="answerQuestion('${safeOpt}', '${(q.correct||'').replace(/'/g, "\\'")}')">${opt}</button>`;
-        });
-    } else if (q.cat === 'truefalse') {
-        optionsHTML += `<button class="option-btn" onclick="answerQuestion('true', '${String(q.correct||'true')}')">✅ صواب</button>`;
-        optionsHTML += `<button class="option-btn" onclick="answerQuestion('false', '${String(q.correct||'true')}')">❌ خطأ</button>`;
-    } else {
-        optionsHTML = `
-            <input type="text" id="textAnswer" placeholder="اكتب إجابتك..." style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--gold);background:rgba(0,0,0,0.5);color:#fff;font-family:Tajawal;">
-            <button class="btn btn-gold" onclick="answerQuestion(document.getElementById('textAnswer').value, '${(q.completion||q.answer||'').replace(/'/g, "\\'")}')">تحقق</button>
-        `;
+    function showDialogueStep() {
+        if (step >= steps.length) {
+            completeQuest(quest, oasis);
+            return;
+        }
+        const html = `
+            <div style="text-align:center;padding:20px;">
+                <div style="font-size:4rem;">${quest.icon}</div>
+                <h3 style="color:var(--gold);">${quest.name}</h3>
+                <div class="progress-bar"><div class="progress-fill" style="width:${(step/steps.length)*100}%;"></div></div>
+                <div style="background:var(--card);border-radius:15px;padding:20px;margin:15px 0;border:2px solid var(--gold);">
+                    <p style="font-size:1.2rem;">${steps[step]}</p>
+                </div>
+                <p style="color:#aaa;">الخطوة ${step+1}/${steps.length}</p>
+                <button class="btn btn-gold" onclick="window._dialogueNext()">⏭️ التالي</button>
+            </div>`;
+        document.getElementById('modalBody').innerHTML = html;
+        openModal();
     }
 
+    window._dialogueNext = function() {
+        step++;
+        showDialogueStep();
+    };
+}
+
+// ==================== مهمة جمع ====================
+function startCollectQuest(quest, oasis) {
+    const items = quest.items || ['عنصر 1','عنصر 2','عنصر 3'];
+    let collected = 0;
+
+    function renderCollect() {
+        let html = `<div style="text-align:center;padding:20px;">
+            <h3 style="color:var(--gold);">${quest.icon} ${quest.name}</h3>
+            <p>🎒 اجمع ${items.length} عناصر</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0;">`;
+
+        items.forEach((item, i) => {
+            html += `<div id="colItem${i}" onclick="window._collectItem(${i})" style="background:var(--card);border:2px solid var(--gold);border-radius:10px;padding:15px;cursor:pointer;text-align:center;">
+                <div style="font-size:2rem;">🔍</div><div>${item}</div></div>`;
+        });
+
+        html += `</div><p>تم الجمع: <span id="colCount">${collected}</span>/${items.length}</p></div>`;
+        document.getElementById('modalBody').innerHTML = html;
+        openModal();
+    }
+
+    window._collectItem = function(idx) {
+        const el = document.getElementById('colItem'+idx);
+        if (el && !el.classList.contains('found')) {
+            el.classList.add('found');
+            el.innerHTML = `<div style="font-size:2rem;">✅</div><div style="color:var(--green);">${items[idx]}</div>`;
+            el.style.borderColor = 'var(--green)';
+            el.onclick = null;
+            collected++;
+            document.getElementById('colCount').textContent = collected;
+            if (collected >= items.length) {
+                setTimeout(() => completeQuest(quest, oasis), 800);
+            }
+        }
+    };
+    renderCollect();
+}
+
+// ==================== مهمة تشخيص ====================
+function startDiagnoseQuest(quest, oasis) {
+    const cases = quest.cases || ['حالة 1','حالة 2','حالة 3'];
+    let current = 0;
+    let correctCount = 0;
+
+    function showCase() {
+        if (current >= cases.length) {
+            if (correctCount >= cases.length) completeQuest(quest, oasis);
+            else { showToast('تحتاج تشخيص كل الحالات بشكل صحيح'); closeModal(); }
+            return;
+        }
+        const html = `
+            <div style="text-align:center;padding:20px;">
+                <h3 style="color:var(--gold);">🔍 ${quest.name}</h3>
+                <p>الحالة ${current+1}/${cases.length}</p>
+                <div style="background:var(--card);border-radius:15px;padding:20px;margin:10px 0;border:2px solid var(--gold);">
+                    <p style="font-size:1.2rem;">المريض يعاني من: <b>${cases[current]}</b></p>
+                    <p style="color:#aaa;">ما هو التشخيص المناسب؟</p>
+                </div>
+                <input type="text" id="diagnoseInput" placeholder="اكتب التشخيص..." style="width:100%;padding:12px;border-radius:10px;border:2px solid var(--gold);background:rgba(0,0,0,0.5);color:#fff;font-family:Tajawal;">
+                <button class="btn btn-gold" onclick="window._checkDiagnose()" style="margin-top:10px;">تحقق</button>
+            </div>`;
+        document.getElementById('modalBody').innerHTML = html;
+        openModal();
+    }
+
+    window._checkDiagnose = function() {
+        const input = document.getElementById('diagnoseInput')?.value?.trim();
+        if (input && input.length > 2) {
+            correctCount++;
+            showToast('✅ تم تشخيص الحالة');
+            current++;
+            showCase();
+        } else {
+            showToast('⚠️ اكتب تشخيصاً صحيحاً');
+        }
+    };
+    showCase();
+}
+
+// ==================== مهمة ترتيب ====================
+function startSortQuest(quest, oasis) {
+    const items = quest.items || [];
+    const shuffled = [...items].sort(() => Math.random()-0.5);
+    let userOrder = [];
+
+    function renderSort() {
+        const remaining = shuffled.filter(s => !userOrder.includes(s));
+        let html = `<div style="text-align:center;padding:20px;">
+            <h3 style="color:var(--gold);">🔧 ${quest.name}</h3>
+            <div style="margin:10px 0;">
+                <h4 style="color:var(--green);">✅ تم الترتيب:</h4>
+                ${userOrder.map((s,i) => `<div style="background:rgba(16,185,129,0.2);border:1px solid var(--green);border-radius:8px;padding:8px;margin:3px 0;">${i+1}. ${s}</div>`).join('')}
+            </div>
+            <div style="margin:10px 0;">
+                <h4 style="color:var(--gold);">📋 اختر التالي:</h4>
+                ${remaining.map(s => `<div onclick="window._addSort('${s}')" style="background:var(--card);border:1px solid var(--gold);border-radius:8px;padding:10px;margin:3px 0;cursor:pointer;">${s}</div>`).join('')}
+            </div>
+            <button class="btn btn-gold" onclick="window._checkSort()">✅ تأكيد الترتيب</button></div>`;
+        document.getElementById('modalBody').innerHTML = html;
+        openModal();
+    }
+
+    window._addSort = function(item) {
+        if (!userOrder.includes(item)) {
+            userOrder.push(item);
+            renderSort();
+        }
+    };
+    window._checkSort = function() {
+        const correct = JSON.stringify(userOrder) === JSON.stringify(items);
+        if (correct) completeQuest(quest, oasis);
+        else { showToast('❌ ترتيب غير صحيح! حاول مرة أخرى.'); userOrder = []; renderSort(); }
+    };
+    renderSort();
+}
+
+// ==================== مهمة امتحان ====================
+function startExamQuest(quest, oasis) {
+    const allQ = getQuestionsFromChapter(oasis.chapterKey);
+    if (allQ.length === 0) {
+        showToast('⚠️ لا توجد أسئلة متاحة');
+        return;
+    }
+    const questions = allQ.sort(()=>Math.random()-0.5).slice(0, quest.count || 10);
+    startBattleGeneric(questions, quest, oasis);
+}
+
+// ==================== مهمة بسيطة ====================
+function startSimpleQuest(quest, oasis) {
+    const html = `
+        <div style="text-align:center;padding:30px;">
+            <div style="font-size:5rem;">${quest.icon}</div>
+            <h3 style="color:var(--gold);">${quest.name}</h3>
+            <p>${quest.desc || 'أكمل هذه المهمة'}</p>
+            <button class="btn btn-green" onclick="completeQuestById('${quest.id}','${oasis.id}')" style="margin-top:20px;width:100%;">✅ إكمال المهمة</button>
+        </div>`;
+    document.getElementById('modalBody').innerHTML = html;
+    openModal();
+}
+
+window.completeQuestById = function(questId, oasisId) {
+    const oasis = OASIS_DATA.find(o => o.id === oasisId);
+    const quest = oasis?.quests?.find(q => q.id === questId);
+    if (quest) completeQuest(quest, oasis);
+};
+
+// ==================== إكمال مهمة ====================
+function completeQuest(quest, oasis) {
+    if (!playerData.completedQuests.includes(quest.id)) {
+        playerData.completedQuests.push(quest.id);
+        playerData.xp += quest.xp;
+        playerData.gold += quest.gold;
+        saveData();
+        updateStats();
+        showToast(`✅ تم إكمال: ${quest.name}! +${quest.xp} XP`);
+        spawnConfetti(20);
+    }
+    closeModal();
+    if (oasis) openOasis(oasis);
+}
+
+// ==================== إكمال واحة ====================
+function completeOasis(oasisId) {
+    const oasis = OASIS_DATA.find(o => o.id === oasisId);
+    if (!oasis || oasis.completed) return;
+    oasis.completed = true;
+    if (!playerData.completedOasis.includes(oasisId)) {
+        playerData.completedOasis.push(oasisId);
+        playerData.xp += 200;
+        playerData.gold += 100;
+    }
+    const idx = OASIS_DATA.indexOf(oasis);
+    if (idx < OASIS_DATA.length-1) {
+        const next = OASIS_DATA[idx+1];
+        if (!playerData.discoveredOasis.includes(next.id)) {
+            playerData.discoveredOasis.push(next.id);
+        }
+    }
+    saveData();
+    updateStats();
+    renderMap();
+    showToast('🎉 تم تحرير ' + oasis.name + '!');
+    spawnConfetti(40);
+    closeModal();
+}
+
+// ==================== معركة الزعيم ====================
+function startBossBattle(quest, oasis) {
+    const allQ = getQuestionsFromChapter(oasis.chapterKey);
+    if (allQ.length === 0) {
+        showToast('⚠️ لا توجد أسئلة متاحة للمعركة');
+        return;
+    }
+    const questions = allQ.sort(()=>Math.random()-0.5).slice(0, 8);
+    startBattleGeneric(questions, quest, oasis);
+}
+
+let battleState = null;
+
+function startBattleGeneric(questions, quest, oasis) {
+    battleState = {
+        quest, oasis, questions,
+        currentIndex: 0, playerHP: 100, monsterHP: quest.monster?.hp || 100,
+        correctCount: 0, combo: 0, monster: quest.monster || {name:'وحش', emoji:'👾', dmg:10}
+    };
+    showBattleScreen();
+}
+
+function showBattleScreen() {
+    if (!battleState || battleState.currentIndex >= battleState.questions.length || battleState.playerHP <= 0 || battleState.monsterHP <= 0) {
+        endBattle();
+        return;
+    }
+    const q = battleState.questions[battleState.currentIndex];
+    const m = battleState.monster;
     const progress = Math.round((battleState.currentIndex / battleState.questions.length)*100);
+
+    let opts = '';
+    if (q.cat === 'mcq' && q.options) {
+        q.options.forEach(opt => {
+            const safe = opt.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+            opts += `<button class="option-btn" onclick="battleAnswer('${safe}','${(q.correct||'').replace(/'/g,"\\'")}')">${opt}</button>`;
+        });
+    } else if (q.cat === 'truefalse') {
+        opts += `<button class="option-btn" onclick="battleAnswer('true','${String(q.correct||'true')}')">✅ صواب</button>`;
+        opts += `<button class="option-btn" onclick="battleAnswer('false','${String(q.correct||'true')}')">❌ خطأ</button>`;
+    } else {
+        opts = `<input type="text" id="battleText" placeholder="اكتب إجابتك..." style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--gold);background:rgba(0,0,0,0.5);color:#fff;font-family:Tajawal;">
+            <button class="btn btn-gold" onclick="battleAnswer(document.getElementById('battleText').value,'${(q.completion||q.answer||'').replace(/'/g,"\\'")}')">⚔️ هجوم</button>`;
+    }
 
     document.getElementById('modalBody').innerHTML = `
         <div class="battle-scene">
-            <div class="vs-monster">🐪 vs 👾</div>
-            <div style="display:flex; gap:20px; justify-content:center;">
-                <div style="flex:1;">
-                    <div>🧑‍⚕️ أنت</div>
-                    <div class="hp-bar"><div class="hp-fill hp-player" style="width:${battleState.playerHP}%"></div></div>
-                    <span>${battleState.playerHP}/100</span>
-                </div>
-                <div style="flex:1;">
-                    <div>👾 وحش الجهل</div>
-                    <div class="hp-bar"><div class="hp-fill hp-monster" style="width:${battleState.monsterHP}%"></div></div>
-                    <span>${battleState.monsterHP}/100</span>
-                </div>
+            <h2 style="color:var(--red);">⚔️ ${battleState.quest.name}</h2>
+            <div class="vs-monster">${m.emoji}</div>
+            <p style="color:var(--orange);">${m.name} | ❤️ ${battleState.monsterHP} | ⚔️ ${m.dmg}</p>
+            <div style="display:flex;gap:15px;align-items:center;">
+                <div style="flex:1;"><div>🧑‍⚕️ أنت</div><div class="hp-bar"><div class="hp-fill hp-player" style="width:${battleState.playerHP}%"></div></div><span>${battleState.playerHP}</span></div>
+                <div style="flex:1;"><div>${m.emoji} ${m.name}</div><div class="hp-bar"><div class="hp-fill hp-monster" style="width:${battleState.monsterHP}%"></div></div><span>${battleState.monsterHP}</span></div>
             </div>
-            <div class="progress-bar-container" style="margin:10px 0;"><div style="width:${progress}%; height:6px; background:var(--gold); border-radius:3px;"></div></div>
-            <p style="color:#ccc;">سؤال ${battleState.currentIndex+1}/${battleState.questions.length}</p>
-            <div class="question-card">
-                <strong>${q.text}</strong>
-                ${q.translation ? `<p style="color:#aaa; font-size:0.85rem;">${q.translation}</p>` : ''}
-            </div>
-            <div>${optionsHTML}</div>
-            <p style="color:var(--orange);">🔥 كومبو: x${battleState.combo}</p>
-        </div>
-    `;
-    document.getElementById('modal').classList.add('active');
+            <div class="progress-bar"><div class="progress-fill" style="width:${progress}%;"></div></div>
+            <div class="question-card"><strong>${q.text}</strong>${q.translation?`<p style="color:#aaa;font-size:0.85rem;">${q.translation}</p>`:''}</div>
+            <div>${opts}</div>
+            <p>🔥 كومبو: x${battleState.combo} | 📝 ${battleState.currentIndex+1}/${battleState.questions.length}</p>
+        </div>`;
+    openModal();
 }
 
-function answerQuestion(chosen, correct) {
+window.battleAnswer = function(chosen, correct) {
     if (!battleState) return;
     const isCorrect = checkAnswer(chosen, correct);
-    const damage = 10 + (battleState.combo * 3);
+    const dmg = 10 + (battleState.combo * 3);
 
     if (isCorrect) {
         battleState.correctCount++;
         battleState.combo++;
-        battleState.monsterHP = Math.max(0, battleState.monsterHP - damage);
+        battleState.monsterHP = Math.max(0, battleState.monsterHP - dmg);
         playerData.xp += 5 + battleState.combo;
         playerData.gold += 2;
-        showToast(`✅ صحيح! -${damage} للوحش`);
-        spawnConfetti(10);
     } else {
         battleState.combo = 0;
-        battleState.playerHP = Math.max(0, battleState.playerHP - 12);
-        showToast(`❌ خطأ! الإجابة: ${correct}`);
+        battleState.playerHP = Math.max(0, battleState.playerHP - (battleState.monster.dmg || 10));
     }
-
     battleState.currentIndex++;
 
     if (battleState.playerHP <= 0) {
-        showToast('💀 لقد هُزمت! حاول مرة أخرى.');
-        endBattle(false);
+        showToast('💀 هُزمت! حاول مرة أخرى.');
+        closeModal();
+        battleState = null;
     } else if (battleState.monsterHP <= 0 || battleState.currentIndex >= battleState.questions.length) {
-        endBattle(true);
+        const won = battleState.correctCount >= Math.ceil(battleState.questions.length * 0.6);
+        if (won) {
+            completeQuest(battleState.quest, battleState.oasis);
+            showToast('🎉 انتصرت! هزمت ' + battleState.monster.name + '!');
+            spawnConfetti(50);
+        } else {
+            showToast('😞 لم تحقق النسبة المطلوبة! حاول مرة أخرى.');
+        }
+        closeModal();
+        battleState = null;
     } else {
-        showBattleQuestion();
+        showBattleScreen();
     }
     saveData();
     updateStats();
+};
+
+function endBattle() {
+    if (!battleState) return;
+    const won = battleState.monsterHP <= 0 || (battleState.currentIndex >= battleState.questions.length && battleState.correctCount >= Math.ceil(battleState.questions.length*0.6));
+    if (won) {
+        completeQuest(battleState.quest, battleState.oasis);
+    }
+    closeModal();
+    battleState = null;
 }
 
 function checkAnswer(chosen, correct) {
     if (!chosen || !correct) return false;
-    const c = String(chosen).trim().toLowerCase();
-    const a = String(correct).trim().toLowerCase();
+    const c = String(chosen).trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,'');
+    const a = String(correct).trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,'');
     if (c === a) return true;
     if (a.includes(c) && c.length > 3) return true;
     return false;
 }
 
-function endBattle(won = true) {
-    if (!battleState) return;
-    const oasis = battleState.oasis;
-    if (won && battleState.correctCount >= Math.ceil(battleState.questions.length * 0.6)) {
-        if (!playerData.completedOasis.includes(oasis.id)) {
-            playerData.completedOasis.push(oasis.id);
-            playerData.xp += 100;
-            playerData.gold += 50;
-            // فتح التالية
-            const idx = OASIS_DATA.findIndex(o => o.id === oasis.id);
-            if (idx < OASIS_DATA.length-1) {
-                const next = OASIS_DATA[idx+1];
-                if (!playerData.discoveredOasis.includes(next.id)) {
-                    playerData.discoveredOasis.push(next.id);
-                }
-            }
-            showToast('🎉 تم تحرير الواحة! +100XP +50 ذهب');
-            spawnConfetti(40);
-        }
-    }
-    saveData();
-    updateStats();
-    refreshMap();
-    closeModal();
-    battleState = null;
-}
-
 // ==================== دوال مساعدة ====================
-function showToast(msg) {
+function showToast(msg, type) {
     const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+    if (type === 'error') t.style.borderColor = 'var(--red)';
+    if (type === 'success') t.style.borderColor = 'var(--green)';
     document.body.appendChild(t); setTimeout(()=>t.remove(), 3000);
 }
+
 function spawnConfetti(count=20) {
+    const colors = ['#f0b90b','#f59e0b','#ef4444','#10b981','#8b5cf6','#ec4899','#3b82f6'];
     for(let i=0;i<count;i++){
         const el=document.createElement('div'); el.className='confetti';
         el.style.left=Math.random()*100+'%';
-        el.style.background=['#f0b90b','#f59e0b','#ef4444','#10b981','#8b5cf6'][Math.floor(Math.random()*5)];
-        el.style.width=el.style.height=(5+Math.random()*10)+'px';
+        el.style.top='-20px';
+        el.style.background=colors[Math.floor(Math.random()*colors.length)];
+        el.style.width=el.style.height=(4+Math.random()*8)+'px';
+        el.style.borderRadius=Math.random()>0.5?'50%':'2px';
         el.style.animationDelay=Math.random()*0.5+'s';
+        el.style.animationDuration=(1.5+Math.random()*1.5)+'s';
         document.body.appendChild(el);
-        setTimeout(()=>el.remove(), 2000);
+        setTimeout(()=>el.remove(), 2500);
     }
 }
+
 function openModal() { document.getElementById('modal').classList.add('active'); }
 function closeModal() { document.getElementById('modal').classList.remove('active'); }
+
 function updateStats() {
     document.getElementById('xpVal').textContent = playerData.xp;
     document.getElementById('goldVal').textContent = playerData.gold;
     document.getElementById('oasisVal').textContent = playerData.completedOasis.length + '/' + OASIS_DATA.length;
+    document.getElementById('questVal').textContent = playerData.completedQuests.length;
     document.getElementById('streakVal').textContent = playerData.streak;
 }
-function refreshMap() { renderMap(); }
+
+function refreshMap() { closeModal(); renderMap(); }
+
 function showAllQuests() {
-    let html = '<h2>📋 المهام</h2>';
-    OASIS_DATA.forEach(o => {
-        if (!playerData.discoveredOasis.includes(o.id)) return;
-        html += `<div style="background:rgba(255,255,255,0.05); margin:5px 0; padding:10px; border-radius:8px;">
-            ${o.icon} ${o.name} ${playerData.completedOasis.includes(o.id)?'✅':''}
-            ${!playerData.completedOasis.includes(o.id)?`<button class="btn btn-gold" onclick="closeModal();openOasis(OASIS_DATA.find(x=>x.id==='${o.id}'))">⚔️</button>`:''}
+    let html = '<h2>📋 سجل المهام</h2><div style="max-height:60vh;overflow-y:auto;">';
+    OASIS_DATA.forEach(oasis => {
+        if (!playerData.discoveredOasis.includes(oasis.id)) return;
+        const completed = oasis.quests.filter(q => playerData.completedQuests.includes(q.id)).length;
+        html += `<div style="background:var(--card);margin:8px 0;padding:12px;border-radius:10px;border:1px solid var(--gold);">
+            <strong>${oasis.icon} ${oasis.name}</strong>
+            <span style="color:var(--gold);">${completed}/${oasis.quests.length}</span>
+            <button class="btn btn-gold" style="float:left;font-size:0.7rem;" onclick="closeModal();openOasis(OASIS_DATA.find(o=>o.id==='${oasis.id}'))">فتح</button>
         </div>`;
     });
+    html += '</div><button class="btn" onclick="closeModal()">إغلاق</button>';
     document.getElementById('modalBody').innerHTML = html;
     openModal();
 }
+
+function showPlayerInfo() {
+    const a = playerData;
+    let html = `<div style="text-align:center;">
+        <div style="font-size:5rem;">👤</div>
+        <h2 style="color:var(--gold);">${a.title}</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0;">
+            <div style="background:var(--card);padding:10px;border-radius:8px;"><small>⭐ المستوى</small><br><b style="color:var(--gold);">${Math.floor(a.xp/500)+1}</b></div>
+            <div style="background:var(--card);padding:10px;border-radius:8px;"><small>⭐ XP</small><br><b style="color:var(--gold);">${a.xp}</b></div>
+            <div style="background:var(--card);padding:10px;border-radius:8px;"><small>🪙 ذهب</small><br><b style="color:var(--orange);">${a.gold}</b></div>
+            <div style="background:var(--card);padding:10px;border-radius:8px;"><small>🏝️ واحات</small><br><b style="color:var(--green);">${a.completedOasis.length}/${OASIS_DATA.length}</b></div>
+            <div style="background:var(--card);padding:10px;border-radius:8px;"><small>📋 مهام</small><br><b style="color:#8b5cf6;">${a.completedQuests.length}</b></div>
+            <div style="background:var(--card);padding:10px;border-radius:8px;"><small>⚔️ معارك</small><br><b style="color:var(--red);">${a.totalBattles||0}</b></div>
+        </div>
+        <button class="btn" onclick="closeModal()">إغلاق</button></div>`;
+    document.getElementById('modalBody').innerHTML = html;
+    openModal();
+}
+
 function resetProgress() {
-    if(confirm('إعادة ضبط كل التقدم؟')){
-        playerData = {xp:0,gold:0,streak:0,completedOasis:[],discoveredOasis:['chapter1'],currentOasis:'chapter1',title:'رحالة مبتدئ'};
-        saveData(); updateStats(); renderMap(); showToast('🔄 تم إعادة الضبط');
+    if (confirm('⚠️ إعادة ضبط كل التقدم؟ لا يمكن التراجع!')) {
+        playerData = {xp:0,gold:0,streak:0,completedOasis:[],discoveredOasis:['chapter1'],completedQuests:[],currentOasis:'chapter1',title:'رحالة مبتدئ',totalBattles:0,totalCorrect:0};
+        OASIS_DATA.forEach((o,i) => { o.unlocked = (i===0); o.completed = false; });
+        saveData(); updateStats(); renderMap(); closeModal();
+        showToast('🔄 تم إعادة الضبط');
     }
 }
 
-// نجوم
 function createStars() {
     const c = document.getElementById('starsContainer');
     for(let i=0;i<80;i++){
@@ -487,15 +904,33 @@ function createStars() {
     }
 }
 
-// ==================== بدء التطبيق ====================
-function init() {
+// ==================== شاشة التحميل ====================
+let loadProgress = 0;
+const loadInterval = setInterval(() => {
+    loadProgress += 10;
+    document.getElementById('loaderFill').style.width = loadProgress + '%';
+    if (loadProgress >= 100) {
+        clearInterval(loadInterval);
+        document.getElementById('loadingScreen').classList.add('hidden');
+        document.getElementById('mainContainer').style.display = 'block';
+    }
+}, 150);
+
+// ==================== بدء ====================
+window.addEventListener('load', () => {
     createStars();
     renderMap();
     updateStats();
-    document.getElementById('loadingScreen').classList.add('hidden');
-    document.getElementById('mainContainer').style.display = 'block';
-}
-window.addEventListener('load', () => setTimeout(init, 600));
+    // ربط الفصول تلقائياً
+    for (let i=1; i<=11; i++) {
+        const key = 'chapter'+i;
+        if (typeof window[key] !== 'undefined') {
+            console.log('📚 ' + key + ' متصل');
+        }
+    }
+    console.log('🏜️ مغامرة الصحراء جاهزة!');
+});
 </script>
+
 </body>
 </html>
