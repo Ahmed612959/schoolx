@@ -2617,7 +2617,7 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
             });
         }
         
-        // 1. جلب تقدم الطالب
+        // جلب تقدم الطالب
         let progress = await Progress.findOne({ userId });
         if (!progress) {
             progress = new Progress({ userId });
@@ -2625,11 +2625,11 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
             console.log('✅ تم إنشاء تقدم جديد للمستخدم');
         }
         
-        // 2. جلب الأسئلة الخاطئة من الاختبارات والامتحانات
+        // جلب الأسئلة الخاطئة
         const wrongQuestions = progress.wrongQuestions || [];
         console.log(`📝 عدد الأسئلة الخاطئة: ${wrongQuestions.length}`);
         
-        // 3. جلب الأسئلة الصعبة
+        // جلب الأسئلة الصعبة
         const difficulties = progress.difficulties || {};
         const hardQuestionIds = [];
         for (const [key, value] of Object.entries(difficulties)) {
@@ -2637,11 +2637,11 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
         }
         console.log(`🔴 عدد الأسئلة الصعبة: ${hardQuestionIds.length}`);
         
-        // 4. جلب سجل الاختبارات
+        // جلب سجل الاختبارات
         const quizHistory = progress.quizHistory || [];
         console.log(`📊 عدد الاختبارات السابقة: ${quizHistory.length}`);
         
-        // 5. تصفية الأسئلة للمراجعة
+        // تصفية الأسئلة للمراجعة
         const reviewQuestions = [];
         const now = new Date();
         const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -2665,19 +2665,10 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
             }
         }
         
-        // فصل الأسئلة حسب نوع الخطأ
-        const wrongFromExams = []; // أسئلة خاطئة من الامتحانات
-        const wrongFromQuizzes = []; // أسئلة خاطئة من الاختبارات
-        const wrongFromHomework = []; // أسئلة خاطئة من الواجبات
-        
         for (const q of allQuestions) {
-            // التحقق من الأسئلة الخاطئة مع تحديد مصدرها
-            const wrongEntry = wrongQuestions.find(w => w.questionId === q.questionId);
-            if (wrongEntry) {
-                // تحديد نوع الخطأ من مصدره
-                const source = wrongEntry.source || 'unknown';
-                const reason = `❌ أجبت عليها خطأ${source === 'exam' ? ' (امتحان)' : source === 'quiz' ? ' (اختبار)' : source === 'homework' ? ' (واجب)' : ''}`;
-                reviewQuestions.push({ ...q, reason: reason });
+            // 1. أسئلة خاطئة - أولوية عالية جداً
+            if (wrongQuestions.some(w => w.questionId === q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '❌ أجبت عليها خطأ' });
                 continue;
             }
             
@@ -2701,12 +2692,12 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
         
         console.log(`📋 عدد أسئلة المراجعة: ${reviewQuestions.length}`);
         
-        // 6. اختيار 10-20 سؤال عشوائي
+        // اختيار 10-20 سؤال عشوائي
         const shuffled = reviewQuestions.sort(() => Math.random() - 0.5);
         const selected = shuffled.slice(0, Math.min(20, Math.max(10, shuffled.length)));
         const reasons = selected.map(q => q.reason);
         
-        // 7. إزالة الإجابات
+        // إزالة الإجابات
         const questionsWithoutAnswers = selected.map(q => {
             const newQ = { ...q };
             delete newQ.correct;
@@ -2717,7 +2708,7 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
             return newQ;
         });
         
-        // 8. الحصول على اسم الفصل
+        // الحصول على اسم الفصل
         let chapterName = 'جميع الفصول';
         if (chapterId && chapterId !== 'all' && allQuestions.length > 0) {
             const firstQ = allQuestions.find(q => q.chapterId === chapterId);
@@ -2727,7 +2718,6 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
         console.log(`✅ تم اختيار ${questionsWithoutAnswers.length} سؤال للمراجعة من ${chapterName}`);
         console.log(`📊 أسباب الاختيار: ${reasons.join(', ')}`);
         
-        // 9. إرجاع النتيجة
         res.json({
             success: true,
             questions: questionsWithoutAnswers,
@@ -2741,18 +2731,17 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
         console.error('❌ خطأ في المراجعة الذكية:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في جلب أسئلة المراجعة: ' + error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: 'خطأ في جلب أسئلة المراجعة: ' + error.message
         });
     }
 });
 
-// ====================== حفظ تقدم المراجعة الذكية ======================
+// حفظ تقدم المراجعة الذكية
 app.post('/api/smart-review/save-progress', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const userId = req.user.username || req.user.id;
-        const { questionId, isCorrect } = req.body;
+        const { questionId, isCorrect, chapterId } = req.body;
         
         if (!questionId) {
             return res.status(400).json({ error: 'معرف السؤال مطلوب' });
@@ -2768,7 +2757,8 @@ app.post('/api/smart-review/save-progress', verifyToken, async (req, res) => {
             date: new Date().toISOString(),
             questionId: questionId,
             correct: isCorrect,
-            type: 'smart_review'
+            type: 'smart_review',
+            chapterId: chapterId || 'all'
         });
         
         // إذا كانت الإجابة خاطئة، أضفها إلى الأسئلة الخاطئة
@@ -2777,7 +2767,8 @@ app.post('/api/smart-review/save-progress', verifyToken, async (req, res) => {
             if (!exists) {
                 progress.wrongQuestions.push({
                     questionId: questionId,
-                    date: new Date().toISOString()
+                    date: new Date().toISOString(),
+                    source: 'smart_review'
                 });
             }
         } else {
