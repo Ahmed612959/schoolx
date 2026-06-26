@@ -2854,17 +2854,53 @@ let smartReviewScores = {};
 let smartReviewTotal = 0;
 let smartReviewAnswered = 0;
 
-// فتح المراجعة الذكية
+// ====================== المراجعة الذكية (Smart Review) - النسخة المُصححة ======================
+
 async function openSmartReview() {
     try {
         showToast('🔄 جاري تحضير أسئلة المراجعة الذكية...', 'info');
         
+        // جمع جميع الأسئلة من جميع الفصول
+        const allQuestions = [];
+        const testCategories = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situations'];
+        
+        for (const key in chaptersData) {
+            if (chaptersData.hasOwnProperty(key)) {
+                const ch = chaptersData[key];
+                for (const cat of testCategories) {
+                    if (ch[cat] && Array.isArray(ch[cat])) {
+                        for (let i = 0; i < ch[cat].length; i++) {
+                            const q = Object.assign({}, ch[cat][i]);
+                            q.cat = cat;
+                            q.chapterName = ch.name || key;
+                            q.questionId = key + '_' + cat + '_' + i;
+                            q.chapterId = key;
+                            allQuestions.push(q);
+                        }
+                    }
+                }
+            }
+        }
+        
+        console.log(`📚 إجمالي الأسئلة المتاحة: ${allQuestions.length}`);
+        
+        if (allQuestions.length === 0) {
+            showToast('❌ لا توجد أسئلة في قاعدة البيانات', 'error');
+            return;
+        }
+        
+        // إرسال الأسئلة مع الطلب
         const response = await fetch(API_BASE + '/api/smart-review', {
+            method: 'POST',
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'Cache-Control': 'no-cache'
-            }
+            },
+            body: JSON.stringify({ 
+                questions: allQuestions,
+                userId: currentUser?.username 
+            })
         });
         
         console.log('📡 Response status:', response.status);
@@ -2931,6 +2967,7 @@ async function openSmartReview() {
         showToast('❌ ' + error.message, 'error');
     }
 }
+
 
 // عرض سؤال المراجعة الذكية
 function renderSmartReviewQuestion(q, index) {
