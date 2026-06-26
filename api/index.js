@@ -2250,28 +2250,45 @@ app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
     }
 });
 
-// 6. جلب تفاصيل تسليم واجب معين (للأدمن)
-app.get('/api/homework/:id/submissions', verifyToken, isAdmin, async (req, res) => {
+// 6. جلب تفاصيل تسليم واجب معين (للأدمن أو للطالب نفسه)
+app.get('/api/homework/:id/submissions', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         console.log('📊 جلب تسليمات الواجب:', req.params.id);
         
-        const submissions = await HomeworkSubmission.find({ homeworkId: req.params.id })
-            .sort({ submittedAt: -1 });
+        // إذا كان المستخدم أدمن، يجيب كل التسليمات
+        if (req.user.type === 'admin') {
+            const submissions = await HomeworkSubmission.find({ homeworkId: req.params.id })
+                .sort({ submittedAt: -1 });
+            
+            console.log(`✅ تم جلب ${submissions.length} تسليم للأدمن`);
+            
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return {
+                    ...sub._doc,
+                    id: sub._id,
+                    studentName: student ? student.fullName : sub.studentName || 'غير معروف',
+                    studentCode: student ? student.studentCode : sub.studentCode || '---'
+                };
+            }));
+            
+            return res.json(detailedSubmissions);
+        }
         
-        console.log(`✅ تم جلب ${submissions.length} تسليم`);
+        // إذا كان المستخدم طالب، يجيب تسليمه هو فقط
+        const submission = await HomeworkSubmission.findOne({ 
+            homeworkId: req.params.id, 
+            studentId: req.user.username 
+        });
         
-        const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
-            const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
-            return {
-                ...sub._doc,
-                id: sub._id,
-                studentName: student ? student.fullName : sub.studentName || 'غير معروف',
-                studentCode: student ? student.studentCode : sub.studentCode || '---'
-            };
-        }));
-
-        res.json(detailedSubmissions);
+        if (!submission) {
+            return res.status(404).json({ error: 'لم تجد تسليم لهذا الواجب' });
+        }
+        
+        console.log(`✅ تم جلب تسليم الطالب ${req.user.username}`);
+        return res.json([submission]); // إرجاع كمصفوفة للتوافق مع الواجهة
+        
     } catch (error) {
         console.error('❌ خطأ في جلب التسليمات:', error);
         res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message });
