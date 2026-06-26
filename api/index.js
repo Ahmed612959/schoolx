@@ -2471,6 +2471,26 @@ app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
     }
 });
 
+
+// مسار جلب أسئلة البطولة للطالب للبدء في الحل
+app.get('/api/tournaments/:id/start', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const tournament = await Tournament.findById(req.params.id);
+        if (!tournament) return res.status(404).json({ error: 'البطولة غير موجودة' });
+        if (!tournament.isActive) return res.status(400).json({ error: 'البطولة غير نشطة' });
+        
+        const alreadyJoined = tournament.participants.find(p => p.studentId === req.user.username);
+        if (alreadyJoined) return res.status(400).json({ error: 'لقد شاركت بالفعل' });
+
+        res.json({ success: true, questions: tournament.questions });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ' });
+    }
+});
+
+
+
 // 4. جلب جميع البطولات (للأدمن)
 app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
     try {
