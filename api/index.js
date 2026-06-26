@@ -276,7 +276,6 @@ const examResultSchema = new mongoose.Schema({
 });
 
 
-
 // ====================== نموذج الواجبات (Homework Schema) ======================
 const homeworkSchema = new mongoose.Schema({
     title: { type: String, required: true },
@@ -308,7 +307,6 @@ const homeworkSubmissionSchema = new mongoose.Schema({
 });
 
 const HomeworkSubmission = mongoose.models.HomeworkSubmission || mongoose.model('HomeworkSubmission', homeworkSubmissionSchema);
-
 
 
 // ====================== نموذج الملفات (File Schema) ======================
@@ -2139,11 +2137,14 @@ app.get('/api/check-auth-status', async (req, res) => {
 });
 
 
-// ====================== 1. إنشاء واجب جديد (للأدمن) ======================
+
+// 1. إنشاء واجب جديد (للأدمن)
 app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
         const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, targetGrade, questions } = req.body;
+        
+        console.log('📝 إنشاء واجب جديد:', { title, chapterId, questionCount });
         
         if (!title || !chapterId || !questionCount || !deadline || !questions || questions.length === 0) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة، ويجب اختيار الأسئلة' });
@@ -2152,16 +2153,18 @@ app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
         const newHomework = new Homework({
             title,
             chapterId,
-            chapterName,
+            chapterName: chapterName || 'فصل غير معروف',
             questionCount,
             categoryFilter: categoryFilter || 'all',
             deadline,
             targetGrade: targetGrade || 'first',
-            createdBy: req.user.username,
-            questions: questions
+            createdBy: req.user.username || 'admin',
+            questions: questions,
+            isActive: true
         });
 
         await newHomework.save();
+        console.log('✅ تم إنشاء الواجب:', newHomework._id);
         res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
     } catch (error) {
         console.error('❌ خطأ في إنشاء الواجب:', error);
@@ -2169,34 +2172,84 @@ app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// ====================== 2. جلب كل الواجبات (للأدمن) ======================
+// 2. جلب كل الواجبات (للأدمن)
 app.get('/api/homework/all', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
         console.log('📋 جلب كل الواجبات...');
         
         const homeworks = await Homework.find().sort({ createdAt: -1 });
-        console.log(`✅ تم جلب ${homeworks.length} واجب`);
+        console.log(`✅ تم جلب ${homeworks.length} واجب من قاعدة البيانات`);
+        
+        if (!homeworks || homeworks.length === 0) {
+            console.log('⚠️ لا توجد واجبات في قاعدة البيانات');
+            return res.status(200).json([]);
+        }
         
         const homeworkWithStats = await Promise.all(homeworks.map(async (hw) => {
-            const submissions = await HomeworkSubmission.find({ homeworkId: hw._id });
-            const totalStudents = await Student.countDocuments({ grade: hw.targetGrade });
-            return {
-                ...hw._doc,
-                totalStudents,
-                submittedCount: submissions.length,
-                avgScore: submissions.length > 0 ? (submissions.reduce((sum, s) => sum + s.score, 0) / submissions.length).toFixed(1) : 0
-            };
+            try {
+                const submissions = await HomeworkSubmission.find({ homeworkId: hw._id });
+                const totalStudents = await Student.countDocuments({ grade: hw.targetGrade || 'first' });
+                
+                let avgScore = '0';
+                if (submissions.length > 0) {
+                    const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                    avgScore = (totalScore / submissions.length).toFixed(1);
+                }
+                
+                console.log(`📊 واجب "${hw.title}": ${submissions.length} تسليم من ${totalStudents} طالب`);
+                
+                return {
+                    _id: hw._id,
+                    id: hw._id,
+                    title: hw.title || 'بدون عنوان',
+                    chapterId: hw.chapterId || '',
+                    chapterName: hw.chapterName || 'فصل غير معروف',
+                    questionCount: hw.questionCount || 0,
+                    categoryFilter: hw.categoryFilter || 'all',
+                    deadline: hw.deadline || new Date().toISOString().split('T')[0],
+                    targetGrade: hw.targetGrade || 'first',
+                    createdBy: hw.createdBy || 'admin',
+                    isActive: hw.isActive !== undefined ? hw.isActive : true,
+                    questions: hw.questions || [],
+                    totalStudents: totalStudents || 0,
+                    submittedCount: submissions.length || 0,
+                    avgScore: avgScore,
+                    createdAt: hw.createdAt || new Date(),
+                    updatedAt: hw.updatedAt || new Date()
+                };
+            } catch (err) {
+                console.error(`❌ خطأ في معالجة واجب ${hw._id}:`, err);
+                return {
+                    _id: hw._id,
+                    id: hw._id,
+                    title: hw.title || 'واجب (خطأ في المعالجة)',
+                    chapterName: hw.chapterName || 'فصل غير معروف',
+                    questionCount: hw.questionCount || 0,
+                    deadline: hw.deadline || new Date().toISOString().split('T')[0],
+                    targetGrade: hw.targetGrade || 'first',
+                    isActive: true,
+                    totalStudents: 0,
+                    submittedCount: 0,
+                    avgScore: '0',
+                    questions: []
+                };
+            }
         }));
 
-        res.json(homeworkWithStats);
+        console.log(`✅ تم تجهيز ${homeworkWithStats.length} واجب للإرسال`);
+        return res.status(200).json(homeworkWithStats);
+        
     } catch (error) {
         console.error('❌ خطأ في جلب الواجبات:', error);
-        res.status(500).json({ error: 'خطأ في جلب الواجبات: ' + error.message });
+        return res.status(500).json({ 
+            error: 'خطأ في جلب الواجبات: ' + error.message,
+            details: error.stack
+        });
     }
 });
 
-// ====================== 3. جلب الواجبات المعلقة للطالب ======================
+// 3. جلب الواجبات المعلقة للطالب
 app.get('/api/homework/pending', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -2226,27 +2279,32 @@ app.get('/api/homework/pending', verifyToken, async (req, res) => {
             });
             return {
                 ...hw._doc,
+                id: hw._id,
                 isSubmitted: !!submission,
-                myScore: submission ? submission.score : null,
-                hasSubmission: !!submission
+                hasSubmission: !!submission,
+                myScore: submission ? submission.score : null
             };
         }));
 
-        res.json(pendingHomeworks);
+        return res.status(200).json(pendingHomeworks);
     } catch (error) {
         console.error('❌ خطأ في جلب الواجبات المعلقة:', error);
         res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message });
     }
 });
 
-// ====================== 4. جلب واجب معين لحله (للطالب) ======================
+// 4. جلب واجب معين لحله (للطالب)
 app.get('/api/homework/:id', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
+        console.log('📥 جلب واجب:', req.params.id);
+        
         const homework = await Homework.findById(req.params.id);
         if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
 
         const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        
         if (student.grade !== homework.targetGrade) {
             return res.status(403).json({ error: 'هذا الواجب ليس لصفك' });
         }
@@ -2260,7 +2318,7 @@ app.get('/api/homework/:id', verifyToken, async (req, res) => {
         }
 
         // إرجاع الأسئلة بدون الإجابات الصحيحة
-        const questionsWithoutAnswers = homework.questions.map(q => ({
+        const questionsWithoutAnswers = (homework.questions || []).map(q => ({
             ...q,
             correct: undefined,
             correctAnswer: undefined,
@@ -2268,8 +2326,9 @@ app.get('/api/homework/:id', verifyToken, async (req, res) => {
             answer: undefined
         }));
 
-        res.json({
+        return res.status(200).json({
             ...homework._doc,
+            id: homework._id,
             questions: questionsWithoutAnswers
         });
     } catch (error) {
@@ -2278,12 +2337,14 @@ app.get('/api/homework/:id', verifyToken, async (req, res) => {
     }
 });
 
-// ====================== 5. تسليم الواجب (للطالب) ======================
+// 5. تسليم الواجب (للطالب)
 app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const homeworkId = req.params.id;
         const { answers, timeTaken, tabSwitches } = req.body;
+        
+        console.log('📤 تسليم واجب:', homeworkId);
         
         const homework = await Homework.findById(homeworkId);
         if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
@@ -2302,9 +2363,10 @@ app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
         // حساب الدرجة
         let correctCount = 0;
         const detailedAnswers = [];
+        const questions = homework.questions || [];
         
-        for (const answer of answers) {
-            const question = homework.questions[answer.questionIndex];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
             if (!question) continue;
             
             let isCorrect = false;
@@ -2315,6 +2377,7 @@ app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
                 const answerStr = String(answer.answer).toLowerCase();
                 isCorrect = correctStr === answerStr;
             } else {
+                // مقارنة تقريبية للإجابات المقالية
                 isCorrect = answer.answer && answer.answer.length > 3 && 
                            question.completion && 
                            answer.answer.toLowerCase().includes(question.completion.toLowerCase());
@@ -2323,46 +2386,58 @@ app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
             if (isCorrect) correctCount++;
             detailedAnswers.push({
                 questionIndex: answer.questionIndex,
-                answer: answer.answer,
+                answer: answer.answer || '',
                 isCorrect: isCorrect
             });
         }
 
-        const score = Math.round((correctCount / homework.questions.length) * 100);
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
 
         const submission = new HomeworkSubmission({
             homeworkId: homework._id,
             studentId: req.user.username,
-            studentName: student.fullName,
-            studentCode: student.studentCode,
+            studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---',
             answers: detailedAnswers,
             score: score,
-            totalQuestions: homework.questions.length,
+            totalQuestions: totalQuestions,
             timeTaken: timeTaken || 0,
             tabSwitches: tabSwitches || 0
         });
 
         await submission.save();
-        res.json({ success: true, message: 'تم تسليم الواجب بنجاح', score: score });
+        console.log(`✅ تم تسليم الواجب ${homeworkId} من الطالب ${req.user.username} بنتيجة ${score}%`);
+        
+        res.json({ 
+            success: true, 
+            message: 'تم تسليم الواجب بنجاح', 
+            score: score 
+        });
     } catch (error) {
         console.error('❌ خطأ في تسليم الواجب:', error);
         res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message });
     }
 });
 
-// ====================== 6. جلب تفاصيل تسليم واجب معين (للأدمن) ======================
+// 6. جلب تفاصيل تسليم واجب معين (للأدمن)
 app.get('/api/homework/:id/submissions', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
+        console.log('📊 جلب تسليمات الواجب:', req.params.id);
+        
         const submissions = await HomeworkSubmission.find({ homeworkId: req.params.id })
             .sort({ submittedAt: -1 });
+        
+        console.log(`✅ تم جلب ${submissions.length} تسليم`);
         
         const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
             const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
             return {
                 ...sub._doc,
-                studentName: student ? student.fullName : sub.studentName,
-                studentCode: student ? student.studentCode : sub.studentCode
+                id: sub._id,
+                studentName: student ? student.fullName : sub.studentName || 'غير معروف',
+                studentCode: student ? student.studentCode : sub.studentCode || '---'
             };
         }));
 
@@ -2373,13 +2448,25 @@ app.get('/api/homework/:id/submissions', verifyToken, isAdmin, async (req, res) 
     }
 });
 
-// ====================== 7. حذف/إلغاء واجب (للأدمن) ======================
+// 7. حذف/إلغاء واجب (للأدمن)
 app.delete('/api/homework/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
-        await Homework.findByIdAndDelete(req.params.id);
-        await HomeworkSubmission.deleteMany({ homeworkId: req.params.id });
-        res.json({ success: true, message: 'تم حذف الواجب وجميع التسليمات المرتبطة به' });
+        console.log('🗑️ حذف واجب:', req.params.id);
+        
+        const deletedHomework = await Homework.findByIdAndDelete(req.params.id);
+        if (!deletedHomework) {
+            return res.status(404).json({ error: 'الواجب غير موجود' });
+        }
+        
+        const deletedSubmissions = await HomeworkSubmission.deleteMany({ homeworkId: req.params.id });
+        console.log(`✅ تم حذف الواجب و ${deletedSubmissions.deletedCount} تسليم`);
+        
+        res.json({ 
+            success: true, 
+            message: 'تم حذف الواجب وجميع التسليمات المرتبطة به',
+            deletedSubmissions: deletedSubmissions.deletedCount
+        });
     } catch (error) {
         console.error('❌ خطأ في حذف الواجب:', error);
         res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message });
