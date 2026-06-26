@@ -2599,6 +2599,217 @@ app.post('/api/tournaments/:id/finish', verifyToken, isAdmin, async (req, res) =
 });
 
 
+// ====================== المراجعة الذكية (Smart Review) ======================
+app.get('/api/smart-review', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.username || req.user.id;
+        
+        console.log('🧠 جلب أسئلة المراجعة الذكية للمستخدم:', userId);
+        
+        // 1. جلب تقدم الطالب
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+            await progress.save();
+            console.log('✅ تم إنشاء تقدم جديد للمستخدم');
+        }
+        
+        // 2. جلب الأسئلة الخاطئة
+        const wrongQuestions = progress.wrongQuestions || [];
+        console.log(`📝 عدد الأسئلة الخاطئة: ${wrongQuestions.length}`);
+        
+        // 3. جلب الأسئلة الصعبة
+        const difficulties = progress.difficulties || {};
+        const hardQuestionIds = [];
+        for (const [key, value] of Object.entries(difficulties)) {
+            if (value === 'hard') hardQuestionIds.push(key);
+        }
+        console.log(`🔴 عدد الأسئلة الصعبة: ${hardQuestionIds.length}`);
+        
+        // 4. جلب سجل الاختبارات
+        const quizHistory = progress.quizHistory || [];
+        console.log(`📊 عدد الاختبارات السابقة: ${quizHistory.length}`);
+        
+        // 5. جمع جميع الأسئلة من جميع الفصول
+        // ملاحظة: في السيرفر الحقيقي، يجب جلب الأسئلة من قاعدة البيانات
+        // لكن هنا نستخدم chaptersData من ملفات الفصول
+        const allQuestions = [];
+        const testCategories = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situations'];
+        
+        // استيراد بيانات الفصول - يجب أن تكون معرفة مسبقاً
+        // أو يمكن جلبها من قاعدة البيانات
+        if (typeof chaptersData === 'undefined') {
+            // إذا لم تكن chaptersData معرفة، نستخدم بيانات افتراضية
+            // في الحالة الطبيعية، ستكون chaptersData معرفة من ملفات الفصول
+            console.log('⚠️ chaptersData غير معرفة، يتم استخدام بيانات افتراضية');
+            // يمكن هنا جلب البيانات من قاعدة البيانات أو ملفات
+            return res.status(500).json({ 
+                error: 'بيانات الفصول غير متاحة. تأكد من تحميل بيانات الأسئلة.'
+            });
+        }
+        
+        for (const key in chaptersData) {
+            if (chaptersData.hasOwnProperty(key)) {
+                const ch = chaptersData[key];
+                for (const cat of testCategories) {
+                    if (ch[cat] && Array.isArray(ch[cat])) {
+                        for (let i = 0; i < ch[cat].length; i++) {
+                            const q = Object.assign({}, ch[cat][i]);
+                            q.cat = cat;
+                            q.chapterName = ch.name || key;
+                            q.questionId = key + '_' + cat + '_' + i;
+                            q.chapterId = key;
+                            allQuestions.push(q);
+                        }
+                    }
+                }
+            }
+        }
+        console.log(`📚 إجمالي الأسئلة المتاحة: ${allQuestions.length}`);
+        
+        if (allQuestions.length === 0) {
+            return res.status(404).json({ 
+                error: 'لا توجد أسئلة في قاعدة البيانات. تأكد من تحميل الأسئلة.'
+            });
+        }
+        
+        // 6. تصفية الأسئلة للمراجعة
+        const reviewQuestions = [];
+        const now = new Date();
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const oneWeekAgoStr = oneWeekAgo.toISOString();
+        
+        // قائمة الأسئلة التي تم حلها مؤخراً
+        const recentlySolved = new Set();
+        for (const history of quizHistory) {
+            if (history.date && history.date > oneWeekAgoStr) {
+                if (history.questionId) {
+                    recentlySolved.add(history.questionId);
+                }
+            }
+        }
+        
+        // قائمة الأسئلة التي تم حلها بشكل عام
+        const solvedQuestions = new Set();
+        for (const history of quizHistory) {
+            if (history.questionId) {
+                solvedQuestions.add(history.questionId);
+            }
+        }
+        
+        for (const q of allQuestions) {
+            // 1. أسئلة خاطئة - أولوية عالية جداً
+            if (wrongQuestions.some(w => w.questionId === q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '❌ أجبت عليها خطأ' });
+                continue;
+            }
+            
+            // 2. أسئلة صعبة - أولوية عالية
+            if (hardQuestionIds.includes(q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '🔴 صنفتها صعبة' });
+                continue;
+            }
+            
+            // 3. أسئلة لم تراجع منذ أسبوع
+            if (!recentlySolved.has(q.questionId) && solvedQuestions.has(q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '⏰ مر أكثر من أسبوع' });
+                continue;
+            }
+            
+            // 4. أسئلة لم تحل من قبل (للطلاب الجدد)
+            if (!solvedQuestions.has(q.questionId) && reviewQuestions.length < 30) {
+                reviewQuestions.push({ ...q, reason: '🆕 لم تحل من قبل' });
+            }
+        }
+        
+        console.log(`📋 عدد أسئلة المراجعة: ${reviewQuestions.length}`);
+        
+        // 7. اختيار 10-20 سؤال عشوائي
+        const shuffled = reviewQuestions.sort(() => Math.random() - 0.5);
+        const selected = shuffled.slice(0, Math.min(20, Math.max(10, shuffled.length)));
+        const reasons = selected.map(q => q.reason);
+        
+        // 8. إزالة الإجابات
+        const questionsWithoutAnswers = selected.map(q => {
+            const newQ = { ...q };
+            delete newQ.correct;
+            delete newQ.correctAnswer;
+            delete newQ.completion;
+            delete newQ.answer;
+            delete newQ.reason;
+            return newQ;
+        });
+        
+        console.log(`✅ تم اختيار ${questionsWithoutAnswers.length} سؤال للمراجعة`);
+        console.log(`📊 أسباب الاختيار: ${reasons.join(', ')}`);
+        
+        // 9. إرجاع النتيجة
+        res.json({
+            success: true,
+            questions: questionsWithoutAnswers,
+            total: selected.length,
+            reasons: reasons,
+            message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية`
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في المراجعة الذكية:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في جلب أسئلة المراجعة: ' + error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// ====================== حفظ تقدم المراجعة الذكية ======================
+app.post('/api/smart-review/save-progress', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.username || req.user.id;
+        const { questionId, isCorrect } = req.body;
+        
+        if (!questionId) {
+            return res.status(400).json({ error: 'معرف السؤال مطلوب' });
+        }
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        // تحديث سجل الاختبارات
+        progress.quizHistory.push({
+            date: new Date().toISOString(),
+            questionId: questionId,
+            correct: isCorrect,
+            type: 'smart_review'
+        });
+        
+        // إذا كانت الإجابة خاطئة، أضفها إلى الأسئلة الخاطئة
+        if (!isCorrect) {
+            const exists = progress.wrongQuestions.some(w => w.questionId === questionId);
+            if (!exists) {
+                progress.wrongQuestions.push({
+                    questionId: questionId,
+                    date: new Date().toISOString()
+                });
+            }
+        } else {
+            // إذا كانت صحيحة، أزل من الأسئلة الخاطئة
+            progress.wrongQuestions = progress.wrongQuestions.filter(w => w.questionId !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ خطأ في حفظ تقدم المراجعة:', error);
+        res.status(500).json({ error: 'خطأ في حفظ التقدم: ' + error.message });
+    }
+});
+
 
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
