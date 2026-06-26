@@ -2653,13 +2653,14 @@ async function joinByCode() {
     try {
         const response = await fetch(API_BASE + '/api/tournaments/join-by-code', {
             method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code })
+            body: JSON.stringify({ code: code.toUpperCase() })
         });
         const result = await response.json();
-        if (result.success) {
-            showToast('✅ تم الانضمام بنجاح! ابدأ الحل الآن', 'success');
+        
+        // تعديل الخلل هنا: نستقبل الأسئلة مش الـ score
+        if (result.success && result.questions) {
+            showToast('✅ تم التحقق من الكود! ابدأ الحل الآن', 'success');
             closeModal('tournamentModal');
-            // فتح نافذة حل الأسئلة مباشرة
             startTournamentQuiz(result.tournamentId, result.questions);
         } else {
             showToast('❌ ' + (result.error || 'فشل الانضمام'), 'error');
@@ -2710,7 +2711,7 @@ function renderTournaments(tournaments) {
                     </div>
                 </div>
                 <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
-                    ${!isParticipant ? `<button class="modal-btn btn-primary" onclick="startTournamentById('${t._id}')">📝 المشاركة الآن</button>` : ''}
+                    ${!isParticipant ? `<button class="modal-btn btn-primary" onclick="startTournamentById('${t._id}', '${t.code}')">📝 المشاركة الآن</button>` : ''}
                     ${isParticipant ? `<button class="modal-btn btn-info" onclick="viewTournamentResults('${t._id}')" style="background:var(--blue);">📊 النتائج</button>` : ''}
                     ${currentUser?.type === 'admin' ? `<button class="modal-btn btn-danger" onclick="finishTournament('${t._id}')"><i class="fas fa-flag-checkered"></i> إنهاء البطولة</button>` : ''}
                 </div>
@@ -2718,6 +2719,29 @@ function renderTournaments(tournaments) {
         `;
     }
     container.innerHTML = html;
+}
+
+// تعديل زر المشاركة الآن ليعمل بنفس طريقة الكود (بدون الاعتماد على مسار /start)
+async function startTournamentById(tournamentId, code) {
+    if (!confirm('📝 هل أنت مستعد؟ سيبدأ الوقت بمجرد الضغط على موافق!')) return;
+    
+    try {
+        // نستخدم نفس مسار الكود عشان نجيب الأسئلة بشكل مضمون
+        const response = await fetch(API_BASE + '/api/tournaments/join-by-code', {
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code })
+        });
+        const result = await response.json();
+        
+        if (result.success && result.questions) {
+            closeModal('tournamentModal');
+            startTournamentQuiz(result.tournamentId, result.questions);
+        } else {
+            showToast('❌ ' + (result.error || 'فشل بدء البطولة'), 'error');
+        }
+    } catch (error) {
+        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+    }
 }
 
 function showCreateTournamentForm() {
@@ -2755,10 +2779,6 @@ function showCreateTournamentForm() {
                     </select>
                 </div>
                 <div>
-                    <label style="font-size:0.8rem;font-weight:600;">المدة الزمنية (بالثواني)</label>
-                    <input type="number" id="tournamentTime" value="600" min="60" step="30" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                </div>
-                <div>
                     <label style="font-size:0.8rem;font-weight:600;">تاريخ البدء</label>
                     <input type="date" id="tournamentStartDate" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
                 </div>
@@ -2774,13 +2794,11 @@ function showCreateTournamentForm() {
     openModal('createTournamentModal', h);
     
     const today = new Date();
-    const saturday = new Date(today);
-    saturday.setDate(today.getDate() + (6 - today.getDay() + 1) % 7);
-    const nextSaturday = new Date(saturday);
-    nextSaturday.setDate(saturday.getDate() + 7);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
     
     document.getElementById('tournamentStartDate').value = today.toISOString().split('T')[0];
-    document.getElementById('tournamentEndDate').value = nextSaturday.toISOString().split('T')[0];
+    document.getElementById('tournamentEndDate').value = nextWeek.toISOString().split('T')[0];
 }
 
 async function createTournament() {
@@ -2817,39 +2835,7 @@ async function createTournament() {
     }
 }
 
-// بدء البطولة بالضغط على زر المشاركة (يجلب الأسئلة من السيرفر أولاً)
-async function startTournamentById(tournamentId) {
-    if (!confirm('📝 هل أنت مستعد؟ سيبدأ الوقت بمجرد الضغط على موافق!')) return;
-    
-    try {
-        // الانضمام بالكود الداخلي بمعرفة الـ ID
-        // نستخدم مسار المشاركة لكن نحتاج نجلب الأسئلة أولاً (بما إننا مسجلين نقدر نجاوب على الأسئلة المحفوظة عندنا)
-        // لتبسيط الأمر، نطلب من السيرفر البيانات عن طريق الـ Results (لأنه بيرجع البيانات الأساسية)
-        // الأفضل نضيف مسار سريع يجيب الأسئلة للطالب
-        const response = await fetch(API_BASE + `/api/tournaments/${tournamentId}/start`, { credentials: 'include' });
-        if (!response.ok) {
-            // لو المسار مش موجود، نستخدم الطريقة القديمة كـ Fallback
-            joinTournamentDirect(tournamentId);
-            return;
-        }
-        const result = await response.json();
-        if (result.success) {
-            startTournamentQuiz(tournamentId, result.questions);
-        } else {
-            showToast('❌ ' + (result.error || 'فشل'), 'error');
-        }
-    } catch (e) {
-        joinTournamentDirect(tournamentId);
-    }
-}
-
-// Fallback للمشاركة المباشرة
-async function joinTournamentDirect(tournamentId) {
-    // هذه الدالة تُستخدم فقط إذا لم تضف مسار /start في السيرفر
-    showToast('جاري تحميل الأسئلة...', 'info');
-}
-
-// واجهة حل أسئلة البطولة (مؤقت ومباشر)
+// واجهة حل أسئلة البطولة
 let tournamentState = {};
 
 function startTournamentQuiz(tournamentId, questions) {
@@ -2865,7 +2851,7 @@ function renderTournamentQuestion() {
     }
 
     const q = state.questions[state.currentIndex];
-    const timeLeft = Math.max(0, 600 - Math.floor((Date.now() - state.startTime) / 1000)); // 10 دقائق افتراضياً
+    const timeLeft = Math.max(0, 600 - Math.floor((Date.now() - state.startTime) / 1000));
     const minutes = Math.floor(timeLeft / 60);
     const seconds = timeLeft % 60;
 
@@ -2881,7 +2867,7 @@ function renderTournamentQuestion() {
     const content = `
         <div style="text-align:right;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <span style="background:#fef2f2;color:#dc2626;padding:5px 12px;border-radius:20px;font-size:0.9rem;font-weight:800;">
+                <span style="background:#fef2f2;color:#dc2626;padding:5px 12px;border-radius:20px;font-size:0.9rem;font-weight:800;" id="tourTimer">
                     <i class="fas fa-clock"></i> ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}
                 </span>
                 <span style="color:#64748b;font-size:0.85rem;">سؤال ${state.currentIndex + 1} من ${state.questions.length}</span>
@@ -2904,9 +2890,13 @@ function renderTournamentQuestion() {
     clearInterval(window.tournamentTimerInterval);
     window.tournamentTimerInterval = setInterval(() => {
         const tLeft = Math.max(0, 600 - Math.floor((Date.now() - state.startTime) / 1000));
-        if (tLeft <= 0) { clearInterval(window.tournamentTimerInterval); submitTournamentAnswers(); return; }
+        if (tLeft <= 0) { 
+            clearInterval(window.tournamentTimerInterval); 
+            submitTournamentAnswers(); 
+            return; 
+        }
         const m = Math.floor(tLeft / 60), s = tLeft % 60;
-        const timerEl = document.querySelector('#tournamentQuizModal .fa-clock').parentElement;
+        const timerEl = document.getElementById('tourTimer');
         if(timerEl) timerEl.innerHTML = `<i class="fas fa-clock"></i> ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }, 1000);
 }
@@ -2950,7 +2940,7 @@ async function submitTournamentAnswers() {
             openModal('tournamentQuizModal', content);
             addXP(10);
         } else {
-            showToast('❌ ' + (result.error || 'حدث خطأ'), 'error');
+            showToast('❌ ' + (result.error || 'حدث خطأ أثناء التسليم'), 'error');
         }
     } catch (error) {
         showToast('❌ فشل حفظ النتيجة', 'error');
