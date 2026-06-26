@@ -2876,15 +2876,23 @@ async function viewTournamentResults(tournamentId) {
 // ====================== نظام المراجعة الذكية (Smart Review) ======================
 // ====================== نظام المراجعة الذكية (Smart Review) ======================
 
-
-
 // فتح المراجعة الذكية مع اختيار الفصل
 async function openSmartReview() {
     // عرض خيارات اختيار الفصل أولاً
-    let chapterOptions = '<option value="all">جميع الفصول</option>';
+    let chapterOptions = '<option value="all">📚 جميع الفصول</option>';
     for (const id in chaptersData) {
         if (chaptersData.hasOwnProperty(id)) {
-            chapterOptions += `<option value="${id}">${chaptersData[id].name}</option>`;
+            const ch = chaptersData[id];
+            const chapterName = ch.name || id;
+            // حساب عدد الأسئلة في كل فصل
+            let totalQuestions = 0;
+            const cats = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situations'];
+            for (const cat of cats) {
+                if (ch[cat] && Array.isArray(ch[cat])) {
+                    totalQuestions += ch[cat].length;
+                }
+            }
+            chapterOptions += `<option value="${id}">📖 ${chapterName} (${totalQuestions} سؤال)</option>`;
         }
     }
     
@@ -2892,23 +2900,23 @@ async function openSmartReview() {
         <h2>🧠 مراجعة ذكية</h2>
         <div style="text-align:right;max-height:55vh;overflow-y:auto;">
             <div style="margin:15px 0;">
-                <label style="font-weight:600;display:block;margin-bottom:5px;">📚 اختر الفصل للمراجعة:</label>
-                <select id="smartReviewChapterSelect" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--gold);background:var(--card-bg);color:var(--text-primary);font-size:1rem;">
+                <label style="font-weight:600;display:block;margin-bottom:8px;font-size:1rem;">📚 اختر الفصل للمراجعة:</label>
+                <select id="smartReviewChapterSelect" style="width:100%;padding:12px;border-radius:10px;border:2px solid var(--gold);background:var(--card-bg);color:var(--text-primary);font-size:1rem;font-family:'Tajawal',sans-serif;">
                     ${chapterOptions}
                 </select>
             </div>
-            <div style="margin:15px 0;padding:10px;background:var(--gold-light);border-radius:10px;">
-                <p style="font-size:0.85rem;color:var(--text-secondary);">
-                    📌 سيتم اختيار الأسئلة التي:
-                </p>
-                <ul style="font-size:0.8rem;color:var(--text-secondary);list-style:none;padding-right:10px;">
-                    <li>✅ ❌ أجبت عليها خطأ سابقاً</li>
-                    <li>🔴 صنفتها صعبة</li>
-                    <li>⏰ مر أكثر من أسبوع على حلها</li>
-                    <li>🆕 لم تحل من قبل</li>
+            <div style="margin:15px 0;padding:15px;background:var(--gold-light);border-radius:12px;border:1px solid var(--gold);">
+                <p style="font-size:0.9rem;font-weight:700;color:var(--gold-dark);margin-bottom:8px;">📌 سيتم اختيار الأسئلة التي:</p>
+                <ul style="font-size:0.85rem;color:var(--text-secondary);list-style:none;padding-right:5px;line-height:2;">
+                    <li>✅ ❌ <span style="font-weight:600;color:var(--red);">أجبت عليها خطأ</span> في الاختبارات أو الامتحانات</li>
+                    <li>🔴 <span style="font-weight:600;color:var(--orange);">صنفتها صعبة</span> سابقاً</li>
+                    <li>⏰ <span style="font-weight:600;color:var(--blue);">مر أكثر من أسبوع</span> على حلها</li>
+                    <li>🆕 <span style="font-weight:600;color:var(--green);">لم تحل من قبل</span> (للطلاب الجدد)</li>
                 </ul>
             </div>
-            <button class="modal-btn btn-success" onclick="startSmartReview()" style="width:100%;margin-top:10px;">🚀 بدء المراجعة الذكية</button>
+            <button class="modal-btn btn-success" onclick="startSmartReview()" style="width:100%;padding:12px;font-size:1rem;border-radius:12px;">
+                🚀 بدء المراجعة الذكية
+            </button>
         </div>
         <button class="modal-btn btn-close" onclick="closeModal('smartReviewChapterModal')">إلغاء</button>
     `;
@@ -3007,21 +3015,25 @@ async function startSmartReview() {
         
         // عرض واجهة المراجعة
         let h = `
-            <h2>🧠 مراجعة ذكية - ${data.chapterName || 'جميع الفصول'}</h2>
-            <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:10px;">
-                📚 ${questions.length} سؤال مخصص لك بناءً على أدائك السابق
+            <h2>🧠 مراجعة ذكية</h2>
+            <div style="font-size:0.9rem;color:var(--gold-dark);margin-bottom:8px;font-weight:700;">
+                📖 ${data.chapterName || 'جميع الفصول'} | ${questions.length} سؤال
             </div>
-            <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:10px;padding:8px;background:var(--gold-light);border-radius:8px;">
+            <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:10px;padding:10px;background:var(--gold-light);border-radius:8px;border:1px solid var(--gold);">
                 📊 أسباب الاختيار: ${data.reasons ? data.reasons.map((r, i) => `${i+1}. ${r}`).join(' | ') : 'جميع الأسئلة مناسبة للمراجعة'}
             </div>
-            <div id="smartReviewProgress" style="margin-bottom:10px;font-size:0.8rem;color:var(--text-secondary);">
-                التقدم: 0/${questions.length}
+            <div id="smartReviewProgress" style="margin-bottom:12px;font-size:0.9rem;color:var(--text-secondary);font-weight:600;">
+                📊 التقدم: 0/${questions.length}
             </div>
-            <div id="smartReviewQuestions"></div>
+            <div id="smartReviewQuestions" style="max-height:50vh;overflow-y:auto;padding:5px;"></div>
             <div id="smartReviewScore"></div>
             <div style="display:flex;gap:10px;justify-content:center;margin-top:15px;flex-wrap:wrap;">
-                <button class="modal-btn btn-success" onclick="submitSmartReview()">📤 إنهاء المراجعة</button>
-                <button class="modal-btn btn-close" onclick="closeModal('smartReviewModal'); resetSmartReview();">إغلاق</button>
+                <button class="modal-btn btn-success" onclick="submitSmartReview()" style="padding:10px 25px;">
+                    📤 إنهاء المراجعة
+                </button>
+                <button class="modal-btn btn-close" onclick="closeModal('smartReviewModal'); resetSmartReview();" style="padding:10px 25px;">
+                    إغلاق
+                </button>
             </div>
         `;
         openModal('smartReviewModal', h);
@@ -3045,25 +3057,30 @@ function renderSmartReviewQuestion(q, index) {
     const catIcon = getCategoryIcon(q.cat);
     
     let html = `
-        <div class="quiz-q" id="smartReview-q-${index}" style="border:2px solid var(--border-color);border-radius:12px;margin-bottom:15px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
-                <strong>${index + 1}. ${q.text}</strong>
-                <span class="q-type-badge"><i class="fas ${catIcon}"></i> ${catLabel}</span>
+        <div class="quiz-q" id="smartReview-q-${index}" style="border:2px solid var(--border-color);border-radius:12px;margin-bottom:15px;padding:15px;background:var(--card-bg);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+                <strong style="font-size:1rem;color:var(--dark);">${index + 1}. ${q.text}</strong>
+                <span class="q-type-badge" style="font-size:0.7rem;padding:4px 10px;border-radius:12px;background:var(--gold-light);color:var(--gold-dark);">
+                    <i class="fas ${catIcon}"></i> ${catLabel}
+                </span>
             </div>
     `;
     
     if (q.translation) {
-        html += `<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ${q.translation}</div>`;
+        html += `<div class="translation-box" style="margin-top:5px;margin-bottom:8px;padding:8px 12px;background:#f8fafc;border-radius:8px;font-size:0.85rem;border-right:3px solid var(--gold);color:var(--text-secondary);">
+            <i class="fas fa-language"></i> ${q.translation}
+        </div>`;
     }
     
     // عرض الخيارات حسب نوع السؤال
-    if (q.cat === 'mcq' && q.options) {
+    if (q.cat === 'mcq' && q.options && q.options.length > 0) {
         html += `<div style="margin-top:10px;">`;
         for (let o = 0; o < q.options.length; o++) {
             const opt = q.options[o];
             const escapedOpt = opt.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             html += `
-                <button class="quiz-opt" onclick="checkSmartReviewAnswer(this, '${escapedOpt}', ${index})">
+                <button class="quiz-opt" onclick="checkSmartReviewAnswer(this, '${escapedOpt}', ${index})" 
+                        style="display:block;width:100%;text-align:right;padding:10px 15px;margin:5px 0;border:2px solid var(--border-color);border-radius:10px;background:var(--card-bg);cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.9rem;transition:all 0.3s ease;">
                     ${opt}
                 </button>
             `;
@@ -3071,28 +3088,191 @@ function renderSmartReviewQuestion(q, index) {
         html += `</div>`;
     } else if (q.cat === 'truefalse') {
         html += `
-            <div style="margin-top:10px;">
-                <button class="quiz-opt" onclick="checkSmartReviewAnswer(this, 'true', ${index})">✅ صواب</button>
-                <button class="quiz-opt" onclick="checkSmartReviewAnswer(this, 'false', ${index})">❌ خطأ</button>
+            <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="quiz-opt" onclick="checkSmartReviewAnswer(this, 'صواب', ${index})" 
+                        style="padding:10px 25px;border:2px solid var(--border-color);border-radius:10px;background:var(--card-bg);cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.9rem;transition:all 0.3s ease;flex:1;">
+                    ✅ صواب
+                </button>
+                <button class="quiz-opt" onclick="checkSmartReviewAnswer(this, 'خطأ', ${index})" 
+                        style="padding:10px 25px;border:2px solid var(--border-color);border-radius:10px;background:var(--card-bg);cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.9rem;transition:all 0.3s ease;flex:1;">
+                    ❌ خطأ
+                </button>
             </div>
         `;
     } else {
-        // أسئلة مقالية
+        // أسئلة مقالية (complete, explain, list, situations)
+        const placeholder = q.cat === 'complete' ? 'أكمل الفراغ...' : 
+                           q.cat === 'explain' ? 'اكتب الشرح...' : 
+                           q.cat === 'list' ? 'اكتب القائمة...' : 'اكتب الإجابة...';
         html += `
             <div style="margin-top:10px;">
-                <textarea class="def-input" id="smartReview-text-${index}" placeholder="اكتب إجابتك هنا..." style="min-height:80px;"></textarea>
-                <button class="modal-btn btn-primary" onclick="checkSmartReviewText(${index})">تحقق</button>
+                <textarea class="def-input" id="smartReview-text-${index}" 
+                          placeholder="${placeholder}" 
+                          style="width:100%;min-height:80px;padding:10px;border-radius:10px;border:2px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);font-family:'Tajawal',sans-serif;font-size:0.9rem;resize:vertical;"></textarea>
+                <button class="modal-btn btn-primary" onclick="checkSmartReviewText(${index})" 
+                        style="margin-top:8px;padding:8px 20px;border-radius:10px;border:none;background:var(--gold);color:#0e2a35;font-weight:700;cursor:pointer;transition:all 0.3s ease;">
+                    🔍 تحقق
+                </button>
             </div>
         `;
     }
     
-    html += `<div class="quiz-fb" id="smartReview-fb-${index}"></div>`;
+    html += `<div class="quiz-fb" id="smartReview-fb-${index}" style="margin-top:8px;"></div>`;
     html += `</div>`;
     
     return html;
 }
 
-// 🔧 دالة محسنة للتحقق من الإجابة (تصحيح مشكلة الإجابات الصحيحة)
+// ====================== دالة مقارنة الإجابات المحسنة (10 مستويات) ======================
+
+function isAnswerCorrectSmart(userAnswer, question) {
+    if (!userAnswer || !question) return false;
+    
+    // تنظيف الإجابات
+    const user = String(userAnswer).trim();
+    let correct = '';
+    
+    // الحصول على الإجابة الصحيحة حسب نوع السؤال
+    if (question.cat === 'mcq') {
+        correct = String(question.correct || '').trim();
+    } else if (question.cat === 'truefalse') {
+        correct = String(question.correct || '').trim();
+    } else {
+        correct = String(question.completion || question.answer || '').trim();
+    }
+    
+    if (!correct) return false;
+    
+    // ========== 1. مقارنة مباشرة ==========
+    if (user === correct) return true;
+    
+    // ========== 2. مقارنة بعد إزالة المسافات الزائدة ==========
+    if (user.replace(/\s+/g, ' ') === correct.replace(/\s+/g, ' ')) return true;
+    
+    // ========== 3. مقارنة مع تجاهل حالة الأحرف ==========
+    if (user.toLowerCase() === correct.toLowerCase()) return true;
+    
+    // ========== 4. مقارنة مع إزالة علامات الترقيم ==========
+    const cleanUser = user.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()"']/g, '').trim();
+    const cleanCorrect = correct.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()"']/g, '').trim();
+    if (cleanUser.toLowerCase() === cleanCorrect.toLowerCase()) return true;
+    
+    // ========== 5. مقارنة مع إزالة الأقواس والأرقام ==========
+    const cleanUser2 = user.replace(/^[\d\s.)-]+/, '').trim();
+    const cleanCorrect2 = correct.replace(/^[\d\s.)-]+/, '').trim();
+    if (cleanUser2.toLowerCase() === cleanCorrect2.toLowerCase()) return true;
+    
+    // ========== 6. للأسئلة من نوع MCQ (اختيار من متعدد) ==========
+    if (question.cat === 'mcq' && question.options) {
+        // البحث عن الخيار الصحيح في قائمة الخيارات
+        const correctOption = question.options.find(opt => {
+            const cleanOpt = opt.replace(/^[\d\s.)-]+/, '').trim();
+            return cleanOpt.toLowerCase() === cleanCorrect.toLowerCase();
+        });
+        
+        if (correctOption) {
+            const cleanUserOpt = user.replace(/^[\d\s.)-]+/, '').trim();
+            const cleanCorrectOpt = correctOption.replace(/^[\d\s.)-]+/, '').trim();
+            if (cleanUserOpt.toLowerCase() === cleanCorrectOpt.toLowerCase()) return true;
+        }
+    }
+    
+    // ========== 7. للأسئلة من نوع True/False ==========
+    if (question.cat === 'truefalse') {
+        const userLower = user.toLowerCase();
+        const correctLower = correct.toLowerCase();
+        
+        if (correctLower === 'true' || correctLower === 'صواب' || correctLower === 'صح') {
+            return userLower === 'true' || userLower === 'صواب' || userLower === 'صح';
+        }
+        if (correctLower === 'false' || correctLower === 'خطأ' || correctLower === 'غلط') {
+            return userLower === 'false' || userLower === 'خطأ' || userLower === 'غلط';
+        }
+        return userLower === correctLower;
+    }
+    
+    // ========== 8. مقارنة بالكلمات المفتاحية (للأسئلة الطويلة) ==========
+    if (correct.length > 10 && user.length > 5) {
+        const keywords = correct.split(/\s+/)
+            .filter(word => word.length > 3)
+            .map(word => word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()"']/g, '').toLowerCase());
+        
+        if (keywords.length > 0) {
+            const userWords = user.split(/\s+/)
+                .filter(word => word.length > 2)
+                .map(word => word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()"']/g, '').toLowerCase());
+            
+            let matchCount = 0;
+            for (const kw of keywords) {
+                for (const uw of userWords) {
+                    if (uw.includes(kw) || kw.includes(uw)) {
+                        matchCount++;
+                        break;
+                    }
+                }
+            }
+            
+            if (matchCount / keywords.length >= 0.6) return true;
+        }
+    }
+    
+    // ========== 9. مقارنة جزئية ==========
+    if (correct.length > 5 && user.length > 3) {
+        const userLower = user.toLowerCase();
+        const correctLower = correct.toLowerCase();
+        
+        if (correctLower.includes(userLower) || userLower.includes(correctLower)) {
+            const shorter = Math.min(userLower.length, correctLower.length);
+            const longer = Math.max(userLower.length, correctLower.length);
+            if (shorter / longer >= 0.7) return true;
+        }
+    }
+    
+    // ========== 10. مقارنة مع إزالة "ال" والتعريف ==========
+    const userNoAl = user.replace(/^(ال|أل|آل)\s*/i, '').trim();
+    const correctNoAl = correct.replace(/^(ال|أل|آل)\s*/i, '').trim();
+    if (userNoAl.toLowerCase() === correctNoAl.toLowerCase()) return true;
+    
+    return false;
+}
+
+// ====================== دالة الحصول على الإجابة الصحيحة للعرض ======================
+
+function getFullAnswerSmart(question) {
+    if (!question) return '';
+    
+    if (question.cat === 'mcq') {
+        if (question.options && question.correct) {
+            const cleanCorrect = question.correct.replace(/^[\d\s.)-]+/, '').trim();
+            const found = question.options.find(opt => {
+                const cleanOpt = opt.replace(/^[\d\s.)-]+/, '').trim();
+                return cleanOpt.toLowerCase() === cleanCorrect.toLowerCase();
+            });
+            return found || question.correct;
+        }
+        return question.correct || '';
+    }
+    
+    if (question.cat === 'truefalse') {
+        const val = String(question.correct || '').toLowerCase();
+        if (val === 'true' || val === 'صواب') return 'صواب (True)';
+        if (val === 'false' || val === 'خطأ') return 'خطأ (False)';
+        return question.correct || '';
+    }
+    
+    if (question.cat === 'complete') {
+        return question.completion || '';
+    }
+    
+    if (question.cat === 'explain') {
+        return question.answer || '';
+    }
+    
+    return question.completion || question.answer || question.correct || '';
+}
+
+// ====================== التحقق من إجابة MCQ ======================
+
 function checkSmartReviewAnswer(btn, chosen, index) {
     const question = smartReviewQuestions[index];
     if (!question) return;
@@ -3101,10 +3281,21 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     const parent = btn.parentElement;
     parent.querySelectorAll('.quiz-opt').forEach(b => b.disabled = true);
     
-    // 🔧 التحقق من الإجابة باستخدام دالة محسنة
+    // استخدام دالة المقارنة المحسنة
     const isCorrect = isAnswerCorrectSmart(chosen, question);
     
+    // تمييز الإجابة
     btn.classList.add(isCorrect ? 'correct' : 'wrong');
+    
+    // إذا كانت الإجابة خاطئة، أظهر الإجابة الصحيحة باللون الأخضر
+    if (!isCorrect) {
+        parent.querySelectorAll('.quiz-opt').forEach(b => {
+            const optText = b.textContent.trim();
+            if (isAnswerCorrectSmart(optText, question)) {
+                b.classList.add('correct');
+            }
+        });
+    }
     
     // حفظ النتيجة
     smartReviewScores[index] = isCorrect;
@@ -3116,11 +3307,15 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     if (fb) {
         const correctAnswer = getFullAnswerSmart(question);
         fb.innerHTML = `
-            <div style="padding:10px;border-radius:10px;margin-top:8px;background:${isCorrect ? '#f0fdf4' : '#fef2f2'};border-right:4px solid ${isCorrect ? '#22c55e' : '#ef4444'};">
+            <div style="padding:12px;border-radius:10px;margin-top:8px;background:${isCorrect ? '#f0fdf4' : '#fef2f2'};border-right:4px solid ${isCorrect ? '#22c55e' : '#ef4444'};">
                 <strong style="color:${isCorrect ? '#059669' : '#dc2626'};">${isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ'}</strong>
-                ${!isCorrect ? ` <span style="color:#059669;">الإجابة الصحيحة: ${correctAnswer}</span>` : ''}
-                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;">
-                    إجابتك: "${chosen}"
+                ${!isCorrect ? ` 
+                    <div style="margin-top:5px;">
+                        <span style="color:#059669;font-weight:700;">✅ الإجابة الصحيحة: ${correctAnswer}</span>
+                    </div>
+                ` : ''}
+                <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:3px;border-top:1px solid var(--border-color);padding-top:5px;">
+                    📝 إجابتك: "${chosen}"
                 </div>
             </div>
         `;
@@ -3135,7 +3330,8 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     saveSmartReviewProgress(question.questionId, isCorrect);
 }
 
-// 🔧 دالة محسنة للتحقق من الإجابة المقالية
+// ====================== التحقق من الإجابة المقالية ======================
+
 function checkSmartReviewText(index) {
     const question = smartReviewQuestions[index];
     if (!question) return;
@@ -3145,18 +3341,15 @@ function checkSmartReviewText(index) {
     
     const userAnswer = input.value.trim();
     
-    // 🔧 الحصول على الإجابة الصحيحة
-    let correctAnswer = '';
-    if (question.cat === 'complete') {
-        correctAnswer = question.completion || '';
-    } else if (question.cat === 'explain') {
-        correctAnswer = question.answer || '';
-    } else {
-        correctAnswer = question.completion || question.answer || '';
-    }
+    // الحصول على الإجابة الصحيحة
+    const correctAnswer = question.completion || question.answer || '';
     
-    // 🔧 التحقق من الإجابة باستخدام دالة محسنة
-    const isCorrect = isTextAnswerCorrect(userAnswer, correctAnswer);
+    // استخدام دالة المقارنة المحسنة
+    const isCorrect = isAnswerCorrectSmart(userAnswer, {
+        ...question,
+        cat: 'text',
+        completion: correctAnswer
+    });
     
     input.classList.add(isCorrect ? 'correct-input' : 'wrong-input');
     input.disabled = true;
@@ -3170,11 +3363,15 @@ function checkSmartReviewText(index) {
     const fb = document.getElementById(`smartReview-fb-${index}`);
     if (fb) {
         fb.innerHTML = `
-            <div style="padding:10px;border-radius:10px;margin-top:8px;background:${isCorrect ? '#f0fdf4' : '#fef2f2'};border-right:4px solid ${isCorrect ? '#22c55e' : '#ef4444'};">
+            <div style="padding:12px;border-radius:10px;margin-top:8px;background:${isCorrect ? '#f0fdf4' : '#fef2f2'};border-right:4px solid ${isCorrect ? '#22c55e' : '#ef4444'};">
                 <strong style="color:${isCorrect ? '#059669' : '#dc2626'};">${isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ'}</strong>
-                ${!isCorrect ? ` <span style="color:#059669;">الإجابة الصحيحة: ${correctAnswer}</span>` : ''}
-                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;">
-                    إجابتك: "${userAnswer || '(فارغ)'}"
+                ${!isCorrect ? ` 
+                    <div style="margin-top:5px;">
+                        <span style="color:#059669;font-weight:700;">✅ الإجابة الصحيحة: ${correctAnswer}</span>
+                    </div>
+                ` : ''}
+                <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:3px;border-top:1px solid var(--border-color);padding-top:5px;">
+                    📝 إجابتك: "${userAnswer || '(فارغ)'}"
                 </div>
             </div>
         `;
@@ -3189,130 +3386,12 @@ function checkSmartReviewText(index) {
     saveSmartReviewProgress(question.questionId, isCorrect);
 }
 
-// 🔧 دالة محسنة لمقارنة الإجابات (لحل مشكلة الإجابات الصحيحة)
-function isAnswerCorrectSmart(chosen, question) {
-    if (!chosen || !question) return false;
-    
-    const userAnswer = String(chosen).trim();
-    let correctAnswer = '';
-    
-    // الحصول على الإجابة الصحيحة حسب نوع السؤال
-    if (question.cat === 'mcq') {
-        correctAnswer = String(question.correct || '').trim();
-    } else if (question.cat === 'truefalse') {
-        correctAnswer = String(question.correct || '').trim().toLowerCase();
-        const userLower = userAnswer.toLowerCase();
-        // معالجة true/false
-        if (correctAnswer === 'true' || correctAnswer === 'صواب') {
-            return userLower === 'true' || userLower === 'صواب';
-        } else if (correctAnswer === 'false' || correctAnswer === 'خطأ') {
-            return userLower === 'false' || userLower === 'خطأ';
-        }
-        return userLower === correctAnswer;
-    } else {
-        correctAnswer = question.completion || question.answer || '';
-    }
-    
-    // مقارنة دقيقة
-    if (userAnswer === correctAnswer) return true;
-    
-    // مقارنة مع إزالة المسافات الزائدة
-    if (userAnswer.trim() === correctAnswer.trim()) return true;
-    
-    // مقارنة مع تجاهل حالة الأحرف
-    if (userAnswer.toLowerCase() === correctAnswer.toLowerCase()) return true;
-    
-    // للأسئلة الطويلة: مقارنة جزئية (إذا كانت الإجابة طويلة)
-    if (correctAnswer.length > 20 && userAnswer.length > 5) {
-        const userWords = userAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        const correctWords = correctAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        
-        if (userWords.length > 0 && correctWords.length > 0) {
-            let matchCount = 0;
-            for (const word of userWords) {
-                if (correctWords.some(cw => cw.includes(word) || word.includes(cw))) {
-                    matchCount++;
-                }
-            }
-            const matchRatio = matchCount / Math.max(userWords.length, 1);
-            if (matchRatio >= 0.6) return true;
-        }
-    }
-    
-    // للأسئلة القصيرة: مقارنة دقيقة بعد إزالة علامات الترقيم
-    const cleanUser = userAnswer.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '').trim();
-    const cleanCorrect = correctAnswer.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '').trim();
-    if (cleanUser.toLowerCase() === cleanCorrect.toLowerCase()) return true;
-    
-    // التحقق من أن إجابة المستخدم تحتوي على الكلمات المفتاحية
-    if (correctAnswer.length > 3) {
-        const keywords = correctAnswer.split(/\s+/).filter(w => w.length > 3);
-        let foundKeywords = 0;
-        for (const word of keywords) {
-            if (userAnswer.toLowerCase().includes(word.toLowerCase())) {
-                foundKeywords++;
-            }
-        }
-        if (foundKeywords >= Math.min(2, keywords.length)) return true;
-    }
-    
-    return false;
-}
+// ====================== تحديث شريط التقدم ======================
 
-// 🔧 دالة محسنة للحصول على الإجابة الكاملة للعرض
-function getFullAnswerSmart(question) {
-    if (question.cat === 'mcq') {
-        return question.correct || '';
-    } else if (question.cat === 'truefalse') {
-        const isTrue = (question.correct === true || question.correct === 'true' || question.correct === 'True');
-        return isTrue ? 'صواب (True)' : 'خطأ (False)';
-    } else if (question.cat === 'complete') {
-        return question.completion || '';
-    } else if (question.cat === 'explain') {
-        return question.answer || '';
-    }
-    return question.completion || question.answer || '';
-}
-
-// 🔧 دالة محسنة للتحقق من الإجابات النصية
-function isTextAnswerCorrect(userAnswer, correctAnswer) {
-    if (!userAnswer || !correctAnswer) return false;
-    
-    const user = userAnswer.trim();
-    const correct = correctAnswer.trim();
-    
-    // مقارنة دقيقة
-    if (user === correct) return true;
-    
-    // تجاهل حالة الأحرف
-    if (user.toLowerCase() === correct.toLowerCase()) return true;
-    
-    // التحقق من وجود الكلمات المفتاحية
-    const correctWords = correct.split(/\s+/).filter(w => w.length > 3);
-    const userWords = user.split(/\s+/).filter(w => w.length > 2);
-    
-    if (correctWords.length === 0) return false;
-    
-    let matchCount = 0;
-    for (const cw of correctWords) {
-        for (const uw of userWords) {
-            if (uw.toLowerCase().includes(cw.toLowerCase()) || cw.toLowerCase().includes(uw.toLowerCase())) {
-                matchCount++;
-                break;
-            }
-        }
-    }
-    
-    // إذا تطابقت 50% من الكلمات المفتاحية
-    const matchRatio = matchCount / correctWords.length;
-    return matchRatio >= 0.5;
-}
-
-// تحديث شريط التقدم
 function updateSmartReviewProgress() {
     const progressEl = document.getElementById('smartReviewProgress');
     if (progressEl) {
-        progressEl.textContent = `التقدم: ${smartReviewAnswered}/${smartReviewTotal}`;
+        progressEl.textContent = `📊 التقدم: ${smartReviewAnswered}/${smartReviewTotal}`;
     }
     
     // إذا تم حل جميع الأسئلة
@@ -3321,7 +3400,8 @@ function updateSmartReviewProgress() {
     }
 }
 
-// عرض النتائج النهائية
+// ====================== عرض النتائج النهائية ======================
+
 function showSmartReviewResults() {
     const correctCount = Object.values(smartReviewScores).filter(v => v === true).length;
     const score = Math.round((correctCount / smartReviewTotal) * 100);
@@ -3330,20 +3410,34 @@ function showSmartReviewResults() {
     if (scoreEl) {
         let message = '';
         let emoji = '';
-        if (score >= 90) { emoji = '🌟'; message = 'ممتاز! أنت متميز!'; }
-        else if (score >= 70) { emoji = '👏'; message = 'جيد جداً! استمر!'; }
-        else if (score >= 50) { emoji = '💪'; message = 'تحتاج إلى مزيد من الممارسة!'; }
-        else { emoji = '📚'; message = 'أنت بحاجة إلى مراجعة أكثر!'; }
+        let bgColor = '';
+        if (score >= 90) { 
+            emoji = '🌟'; 
+            message = 'ممتاز! أنت متميز!'; 
+            bgColor = '#d1fae5';
+        } else if (score >= 70) { 
+            emoji = '👏'; 
+            message = 'جيد جداً! استمر!'; 
+            bgColor = '#fef3c7';
+        } else if (score >= 50) { 
+            emoji = '💪'; 
+            message = 'تحتاج إلى مزيد من الممارسة!'; 
+            bgColor = '#fde68a';
+        } else { 
+            emoji = '📚'; 
+            message = 'أنت بحاجة إلى مراجعة أكثر!'; 
+            bgColor = '#fca5a5';
+        }
         
         scoreEl.innerHTML = `
-            <div style="background:var(--gold-light);padding:15px;border-radius:12px;margin-top:10px;">
+            <div style="background:${bgColor};padding:15px;border-radius:12px;margin-top:10px;border:2px solid var(--gold);">
                 <div style="font-size:1.5rem;font-weight:900;color:var(--gold-dark);">
                     ${emoji} النتيجة: ${correctCount}/${smartReviewTotal} (${score}%)
                 </div>
                 <div style="font-size:0.9rem;color:var(--text-secondary);margin-top:5px;">
                     ${message}
                 </div>
-                ${score >= 80 ? '<div style="margin-top:5px;">🎉 تم تحقيق إنجاز جديد!</div>' : ''}
+                ${score >= 80 ? '<div style="margin-top:5px;font-size:1.1rem;">🎉 تم تحقيق إنجاز جديد!</div>' : ''}
             </div>
         `;
         
@@ -3354,7 +3448,8 @@ function showSmartReviewResults() {
     }
 }
 
-// إنهاء المراجعة
+// ====================== إنهاء المراجعة ======================
+
 function submitSmartReview() {
     // التحقق من الأسئلة غير المجابة
     const unanswered = [];
@@ -3374,7 +3469,8 @@ function submitSmartReview() {
     showToast('✅ تم إنهاء المراجعة الذكية بنجاح!', 'success');
 }
 
-// إعادة تعيين المراجعة
+// ====================== إعادة تعيين المراجعة ======================
+
 function resetSmartReview() {
     smartReviewQuestions = [];
     smartReviewCurrentIndex = 0;
@@ -3383,7 +3479,8 @@ function resetSmartReview() {
     smartReviewAnswered = 0;
 }
 
-// حفظ تقدم المراجعة في السيرفر
+// ====================== حفظ تقدم المراجعة في السيرفر ======================
+
 async function saveSmartReviewProgress(questionId, isCorrect) {
     try {
         await fetch(API_BASE + '/api/smart-review/save-progress', {
@@ -3399,8 +3496,7 @@ async function saveSmartReviewProgress(questionId, isCorrect) {
     } catch (error) {
         console.error('❌ خطأ في حفظ التقدم:', error);
     }
-}
-            
+}       
 </script>
     
 </body>
