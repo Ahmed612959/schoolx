@@ -315,6 +315,32 @@ var testCategories = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situat
 var API_BASE = '';
 var isOnlineMode = false;
 
+
+// ==================== المتغيرات ====================
+var chaptersData = {chapter1: chapter1, chapter2: chapter2, chapter3: chapter3, chapter4: chapter4, chapter5: chapter5, chapter6: chapter6, chapter7: chapter7, chapter8: chapter8, chapter9: chapter9, chapter10: chapter10, chapter11: chapter11};
+var currentChapterId = 'all';
+var currentCategory = 'all';
+var hideAnswers = false;
+var bookmarks = new Set(JSON.parse(localStorage.getItem('nb_bookmarks') || '[]'));
+var hardQuestions = new Set(JSON.parse(localStorage.getItem('nb_hard') || '[]'));
+var notes = JSON.parse(localStorage.getItem('nb_notes') || '{}');
+var difficulties = JSON.parse(localStorage.getItem('nb_diff') || '{}');
+var quizHistory = JSON.parse(localStorage.getItem('nb_history') || '[]');
+var wrongQuestions = JSON.parse(localStorage.getItem('nb_wrong') || '[]');
+var xp = parseInt(localStorage.getItem('nb_xp') || 0);
+var achievements = JSON.parse(localStorage.getItem('nb_achievements') || '[]');
+var currentUser = null;
+var leaderboardData = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+var challengeData = JSON.parse(localStorage.getItem('challengeData') || '{}');
+var challengeTimerInterval = null;
+
+// ==================== متغيرات المراجعة الذكية ====================
+var smartReviewQuestions = [];
+var smartReviewTotal = 0;
+var smartReviewScores = {};
+var smartReviewAnswered = 0;
+var smartReviewCurrentIndex = 0;
+    
 // ====================== الاتصال بالسيرفر ======================
 function updateSyncIndicator(status, text) {
     var el = document.getElementById('syncIndicator');
@@ -2854,8 +2880,9 @@ let smartReviewScores = {};
 let smartReviewTotal = 0;
 let smartReviewAnswered = 0;
 
-// ====================== المراجعة الذكية (Smart Review) - النسخة المُصححة ======================
+// ====================== نظام المراجعة الذكية (Smart Review) ======================
 
+// فتح المراجعة الذكية
 async function openSmartReview() {
     try {
         showToast('🔄 جاري تحضير أسئلة المراجعة الذكية...', 'info');
@@ -2925,11 +2952,12 @@ async function openSmartReview() {
             return;
         }
         
-        // تخزين الأسئلة
+        // تخزين الأسئلة في المتغيرات العامة
         smartReviewQuestions = questions;
         smartReviewTotal = questions.length;
         smartReviewScores = {};
         smartReviewAnswered = 0;
+        smartReviewCurrentIndex = 0;
         window._currentQuestions = questions;
         window._smartReviewTotal = questions.length;
         window._smartReviewScores = {};
@@ -2967,7 +2995,6 @@ async function openSmartReview() {
         showToast('❌ ' + error.message, 'error');
     }
 }
-
 
 // عرض سؤال المراجعة الذكية
 function renderSmartReviewQuestion(q, index) {
@@ -3114,7 +3141,7 @@ function updateSmartReviewProgress() {
     }
     
     // إذا تم حل جميع الأسئلة
-    if (smartReviewAnswered >= smartReviewTotal) {
+    if (smartReviewAnswered >= smartReviewTotal && smartReviewTotal > 0) {
         showSmartReviewResults();
     }
 }
