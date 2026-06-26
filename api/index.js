@@ -1967,176 +1967,6 @@ app.get('/api/upload/signature', verifyToken, (req, res) => {
     }
 });
 
-// ====================== مسار افتراضي ======================
-app.get('*', (req, res) => {
-    res.json({ 
-        message: 'معهد رعاية الضبعية - API', 
-        status: 'running', 
-        version: '3.0.0', 
-        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
-    });
-});
-
-
-// ====================== ✅ رفع الدرجات من Excel (مع معالجة duplicate username) ======================
-app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
-    try {
-        await connectToDatabase();
-        const { students } = req.body;
-        
-        if (!students || !Array.isArray(students) || students.length === 0) {
-            return res.status(400).json({ error: 'لا توجد بيانات صالحة للرفع' });
-        }
-        
-        console.log(`📥 استلام ${students.length} طالب للرفع`);
-        
-        let updatedCount = 0;
-        let addedCount = 0;
-        const errors = [];
-        
-        for (const studentData of students) {
-            try {
-                const { studentCode, fullName, subjects, grade, semester } = studentData;
-                
-                if (!studentCode || !fullName) {
-                    errors.push(`تخطي صف: بيانات غير مكتملة`);
-                    continue;
-                }
-                
-                let student = await Student.findOne({ studentCode });
-                
-                if (student) {
-                    // تحديث الطالب الموجود
-                    await Student.updateOne(
-                        { studentCode },
-                        { 
-                            $set: { 
-                                fullName, 
-                                subjects: subjects || [], 
-                                grade: grade || student.grade || 'first',
-                                semester: semester || student.semester || 'first'
-                            } 
-                        }
-                    );
-                    updatedCount++;
-                } else {
-                    // ✅ إضافة طالب جديد مع username = studentCode
-                    // ✅ لو username موجود (يعني طالب تاني بنفس الاسم)، نضيف رقم عشوائي
-                    let username = studentCode;
-                    let existingUser = await Student.findOne({ username });
-                    
-                    if (existingUser) {
-                        // اسم المستخدم موجود، نضيف رقم عشوائي
-                        username = studentCode + '_' + Math.floor(Math.random() * 1000);
-                    }
-                    
-                    await Student.create({
-                        fullName,
-                        studentCode,
-                        username: username,
-                        password: await hashPassword('123456'),
-                        grade: grade || 'first',
-                        semester: semester || 'first',
-                        subjects: subjects || [],
-                        role: 'student'
-                    });
-                    addedCount++;
-                }
-            } catch (err) {
-                // ✅ لو حصل duplicate، نجرب من غير username
-                if (err.code === 11000) {
-                    try {
-                        await Student.create({
-                            fullName: studentData.fullName,
-                            studentCode: studentData.studentCode,
-                            grade: studentData.grade || 'first',
-                            semester: studentData.semester || 'first',
-                            subjects: studentData.subjects || [],
-                            role: 'student'
-                            // بدون username
-                        });
-                        addedCount++;
-                    } catch (err2) {
-                        errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err2.message}`);
-                    }
-                } else {
-                    errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err.message}`);
-                }
-            }
-        }
-        
-        const message = `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد`;
-        console.log(message);
-        
-        res.json({ 
-            success: true, 
-            message: message,
-            updated: updatedCount,
-            added: addedCount,
-            errors: errors.length > 0 ? errors.slice(0, 5) : undefined // أول 5 أخطاء فقط
-        });
-        
-    } catch (error) {
-        console.error('❌ Upload grades error:', error);
-        res.status(500).json({ error: 'خطأ في رفع الدرجات: ' + error.message });
-    }
-});
-
-// ====================== ✅ جلب مخالفات طالب محدد ======================
-app.get('/api/violations/student/:studentId', verifyToken, async (req, res) => {
-    try {
-        await connectToDatabase();
-        const { studentId } = req.params;
-        
-        // الطالب يشوف مخالفاته هو بس
-        if (req.user.type === 'student' && req.user.studentCode !== studentId) {
-            return res.status(403).json({ error: 'لا يمكنك عرض مخالفات طالب آخر' });
-        }
-        
-        const violations = await Violation.find({ studentId }).sort({ createdAt: -1 });
-        res.json(violations);
-    } catch (error) {
-        console.error('❌ خطأ في جلب مخالفات الطالب:', error);
-        res.status(500).json({ error: 'خطأ في جلب المخالفات' });
-    }
-});
-
-
- // ====================== ✅ التحقق من حالة تسجيل الدخول (للصفحات العامة) ======================
-app.get('/api/check-auth-status', async (req, res) => {
-    try {
-        // نحاول نتحقق من التوكن
-        let token = req.cookies?.authToken;
-        if (!token) {
-            const authHeader = req.headers['authorization'];
-            token = authHeader?.split(' ')[1];
-        }
-        
-        if (!token) {
-            // مفيش توكن خالص
-            return res.json({ isLoggedIn: false });
-        }
-        
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            // التوكن سليم - المستخدم مسجل دخول
-            return res.json({ 
-                isLoggedIn: true, 
-                userType: decoded.type,
-                username: decoded.username 
-            });
-        } catch (error) {
-            // التوكن موجود لكن منتهي الصلاحية
-            return res.json({ isLoggedIn: false, expired: true });
-        }
-        
-    } catch (error) {
-        // لو حصل أي خطأ، نعتبره مش مسجل
-        res.json({ isLoggedIn: false });
-    }
-});
-
-
 
 // 1. إنشاء واجب جديد (للأدمن)
 app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
@@ -2472,6 +2302,180 @@ app.delete('/api/homework/:id', verifyToken, isAdmin, async (req, res) => {
         res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message });
     }
 });
+
+
+// ====================== مسار افتراضي ======================
+app.get('*', (req, res) => {
+    res.json({ 
+        message: 'معهد رعاية الضبعية - API', 
+        status: 'running', 
+        version: '3.0.0', 
+        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
+    });
+});
+
+
+// ====================== ✅ رفع الدرجات من Excel (مع معالجة duplicate username) ======================
+app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { students } = req.body;
+        
+        if (!students || !Array.isArray(students) || students.length === 0) {
+            return res.status(400).json({ error: 'لا توجد بيانات صالحة للرفع' });
+        }
+        
+        console.log(`📥 استلام ${students.length} طالب للرفع`);
+        
+        let updatedCount = 0;
+        let addedCount = 0;
+        const errors = [];
+        
+        for (const studentData of students) {
+            try {
+                const { studentCode, fullName, subjects, grade, semester } = studentData;
+                
+                if (!studentCode || !fullName) {
+                    errors.push(`تخطي صف: بيانات غير مكتملة`);
+                    continue;
+                }
+                
+                let student = await Student.findOne({ studentCode });
+                
+                if (student) {
+                    // تحديث الطالب الموجود
+                    await Student.updateOne(
+                        { studentCode },
+                        { 
+                            $set: { 
+                                fullName, 
+                                subjects: subjects || [], 
+                                grade: grade || student.grade || 'first',
+                                semester: semester || student.semester || 'first'
+                            } 
+                        }
+                    );
+                    updatedCount++;
+                } else {
+                    // ✅ إضافة طالب جديد مع username = studentCode
+                    // ✅ لو username موجود (يعني طالب تاني بنفس الاسم)، نضيف رقم عشوائي
+                    let username = studentCode;
+                    let existingUser = await Student.findOne({ username });
+                    
+                    if (existingUser) {
+                        // اسم المستخدم موجود، نضيف رقم عشوائي
+                        username = studentCode + '_' + Math.floor(Math.random() * 1000);
+                    }
+                    
+                    await Student.create({
+                        fullName,
+                        studentCode,
+                        username: username,
+                        password: await hashPassword('123456'),
+                        grade: grade || 'first',
+                        semester: semester || 'first',
+                        subjects: subjects || [],
+                        role: 'student'
+                    });
+                    addedCount++;
+                }
+            } catch (err) {
+                // ✅ لو حصل duplicate، نجرب من غير username
+                if (err.code === 11000) {
+                    try {
+                        await Student.create({
+                            fullName: studentData.fullName,
+                            studentCode: studentData.studentCode,
+                            grade: studentData.grade || 'first',
+                            semester: studentData.semester || 'first',
+                            subjects: studentData.subjects || [],
+                            role: 'student'
+                            // بدون username
+                        });
+                        addedCount++;
+                    } catch (err2) {
+                        errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err2.message}`);
+                    }
+                } else {
+                    errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err.message}`);
+                }
+            }
+        }
+        
+        const message = `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد`;
+        console.log(message);
+        
+        res.json({ 
+            success: true, 
+            message: message,
+            updated: updatedCount,
+            added: addedCount,
+            errors: errors.length > 0 ? errors.slice(0, 5) : undefined // أول 5 أخطاء فقط
+        });
+        
+    } catch (error) {
+        console.error('❌ Upload grades error:', error);
+        res.status(500).json({ error: 'خطأ في رفع الدرجات: ' + error.message });
+    }
+});
+
+// ====================== ✅ جلب مخالفات طالب محدد ======================
+app.get('/api/violations/student/:studentId', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { studentId } = req.params;
+        
+        // الطالب يشوف مخالفاته هو بس
+        if (req.user.type === 'student' && req.user.studentCode !== studentId) {
+            return res.status(403).json({ error: 'لا يمكنك عرض مخالفات طالب آخر' });
+        }
+        
+        const violations = await Violation.find({ studentId }).sort({ createdAt: -1 });
+        res.json(violations);
+    } catch (error) {
+        console.error('❌ خطأ في جلب مخالفات الطالب:', error);
+        res.status(500).json({ error: 'خطأ في جلب المخالفات' });
+    }
+});
+
+
+ // ====================== ✅ التحقق من حالة تسجيل الدخول (للصفحات العامة) ======================
+app.get('/api/check-auth-status', async (req, res) => {
+    try {
+        // نحاول نتحقق من التوكن
+        let token = req.cookies?.authToken;
+        if (!token) {
+            const authHeader = req.headers['authorization'];
+            token = authHeader?.split(' ')[1];
+        }
+        
+        if (!token) {
+            // مفيش توكن خالص
+            return res.json({ isLoggedIn: false });
+        }
+        
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            // التوكن سليم - المستخدم مسجل دخول
+            return res.json({ 
+                isLoggedIn: true, 
+                userType: decoded.type,
+                username: decoded.username 
+            });
+        } catch (error) {
+            // التوكن موجود لكن منتهي الصلاحية
+            return res.json({ isLoggedIn: false, expired: true });
+        }
+        
+    } catch (error) {
+        // لو حصل أي خطأ، نعتبره مش مسجل
+        res.json({ isLoggedIn: false });
+    }
+});
+
+
+
+
 
 
 // ====================== Error Handling ======================
