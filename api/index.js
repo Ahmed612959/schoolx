@@ -2599,37 +2599,44 @@ app.post('/api/tournaments/:id/finish', verifyToken, isAdmin, async (req, res) =
 });
 
 
-// ====================== المراجعة الذكية ======================
+// ====================== المراجعة الذكية (Smart Review) ======================
 app.get('/api/smart-review', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
-        const userId = req.user.username;
+        const userId = req.user.username || req.user.id;
+        
+        console.log('🧠 جلب أسئلة المراجعة الذكية للمستخدم:', userId);
         
         // جلب تقدم الطالب
         let progress = await Progress.findOne({ userId });
         if (!progress) {
             progress = new Progress({ userId });
             await progress.save();
+            console.log('✅ تم إنشاء تقدم جديد للمستخدم');
         }
         
         // جلب الأسئلة الخاطئة
         const wrongQuestions = progress.wrongQuestions || [];
+        console.log(`📝 عدد الأسئلة الخاطئة: ${wrongQuestions.length}`);
         
-        // جلب الأسئلة الصعبة
-        const hardQuestions = progress.difficulties || new Map();
+        // جلب الأسئلة الصعبة من Map
+        const difficulties = progress.difficulties || new Map();
         const hardQuestionIds = [];
-        for (const [key, value] of hardQuestions) {
-            if (value === 'hard') hardQuestionIds.push(key);
+        if (difficulties && typeof difficulties === 'object') {
+            for (const [key, value] of Object.entries(difficulties)) {
+                if (value === 'hard') hardQuestionIds.push(key);
+            }
         }
+        console.log(`🔴 عدد الأسئلة الصعبة: ${hardQuestionIds.length}`);
         
         // جلب سجل الاختبارات
         const quizHistory = progress.quizHistory || [];
+        console.log(`📊 عدد الاختبارات السابقة: ${quizHistory.length}`);
         
-        // تحديد الأسئلة التي تحتاج مراجعة
-        const reviewQuestions = [];
+        // جمع جميع الأسئلة من جميع الفصول
         const allQuestions = [];
+        const testCategories = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situations'];
         
-        // جمع جميع الأسئلة
         for (const key in chaptersData) {
             if (chaptersData.hasOwnProperty(key)) {
                 const ch = chaptersData[key];
@@ -2647,13 +2654,26 @@ app.get('/api/smart-review', verifyToken, async (req, res) => {
                 }
             }
         }
+        console.log(`📚 إجمالي الأسئلة المتاحة: ${allQuestions.length}`);
         
         // تصفية الأسئلة للمراجعة
-        const now = Date.now();
-        const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+        const reviewQuestions = [];
+        const now = new Date();
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const oneWeekAgoStr = oneWeekAgo.toISOString();
+        
+        // قائمة الأسئلة التي تم حلها مؤخراً
+        const recentlySolved = new Set();
+        for (const history of quizHistory) {
+            if (history.date && history.date > oneWeekAgoStr) {
+                if (history.questionId) {
+                    recentlySolved.add(history.questionId);
+                }
+            }
+        }
         
         for (const q of allQuestions) {
-            // 1. أسئلة خاطئة
+            // 1. أسئلة خاطئة - أولوية عالية
             if (wrongQuestions.some(w => w.questionId === q.questionId)) {
                 reviewQuestions.push({ ...q, reason: '❌ أجبت عليها خطأ' });
                 continue;
@@ -2665,40 +2685,53 @@ app.get('/api/smart-review', verifyToken, async (req, res) => {
                 continue;
             }
             
-            // 3. أسئلة لم تراجع منذ أسبوع
-            const lastAttempt = quizHistory.filter(h => 
-                h.chapter === q.chapterId && 
-                h.date && new Date(h.date) < oneWeekAgo
-            );
-            if (lastAttempt.length > 0) {
-                reviewQuestions.push({ ...q, reason: '⏰ مر أكثر من أسبوع' });
+            // 3. أسئلة لم تراجع منذ أسبوع (وليس في الأسئلة الخاطئة أو الصعبة)
+            if (!recentlySolved.has(q.questionId)) {
+                // التحقق من آخر مرة تم فيها حل هذا السؤال
+                const lastAttempt = quizHistory.filter(h => 
+                    h.questionId === q.questionId && 
+                    h.date && new Date(h.date) < oneWeekAgo
+                );
+                if (lastAttempt.length > 0 || !quizHistory.some(h => h.questionId === q.questionId)) {
+                    reviewQuestions.push({ ...q, reason: '⏰ مر أكثر من أسبوع' });
+                }
             }
         }
+        
+        console.log(`📋 عدد أسئلة المراجعة: ${reviewQuestions.length}`);
         
         // اختيار 10-20 سؤال عشوائي
         const shuffled = reviewQuestions.sort(() => Math.random() - 0.5);
         const selected = shuffled.slice(0, Math.min(20, shuffled.length));
+        const reasons = selected.map(q => q.reason);
         
         // إزالة الإجابات
-        const questionsWithoutAnswers = selected.map(q => ({
-            ...q,
-            correct: undefined,
-            correctAnswer: undefined,
-            completion: undefined,
-            answer: undefined
-        }));
+        const questionsWithoutAnswers = selected.map(q => {
+            const newQ = { ...q };
+            delete newQ.correct;
+            delete newQ.correctAnswer;
+            delete newQ.completion;
+            delete newQ.answer;
+            delete newQ.reason;
+            return newQ;
+        });
+        
+        console.log(`✅ تم اختيار ${questionsWithoutAnswers.length} سؤال للمراجعة`);
         
         res.json({
             questions: questionsWithoutAnswers,
             total: selected.length,
-            reasons: selected.map(q => q.reason)
+            reasons: reasons
         });
+        
     } catch (error) {
         console.error('❌ خطأ في المراجعة الذكية:', error);
-        res.status(500).json({ error: 'خطأ في جلب أسئلة المراجعة' });
+        res.status(500).json({ 
+            error: 'خطأ في جلب أسئلة المراجعة: ' + error.message,
+            stack: error.stack 
+        });
     }
 });
-
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
     res.json({ 
