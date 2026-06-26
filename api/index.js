@@ -2175,6 +2175,7 @@ app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
         const { answers, timeTaken, tabSwitches } = req.body;
         
         console.log('📤 تسليم واجب:', homeworkId);
+        console.log('📝 الإجابات المستلمة:', JSON.stringify(answers, null, 2));
         
         const homework = await Homework.findById(homeworkId);
         if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
@@ -2195,34 +2196,49 @@ app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
         const detailedAnswers = [];
         const questions = homework.questions || [];
         
+        console.log(`📚 عدد الأسئلة في الواجب: ${questions.length}`);
+        
         for (const answer of answers || []) {
             const question = questions[answer.questionIndex];
-            if (!question) continue;
+            if (!question) {
+                console.log(`⚠️ سؤال غير موجود في الفهرس ${answer.questionIndex}`);
+                continue;
+            }
             
             let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            let correctAnswer = '';
+            
             if (question.cat === 'mcq') {
-                isCorrect = answer.answer === question.correct;
+                correctAnswer = (question.correct || '').toString().trim();
+                isCorrect = userAnswer === correctAnswer;
+                console.log(`📊 MCQ - السؤال ${answer.questionIndex + 1}: "${userAnswer}" === "${correctAnswer}" => ${isCorrect}`);
             } else if (question.cat === 'truefalse') {
-                const correctStr = String(question.correct).toLowerCase();
-                const answerStr = String(answer.answer).toLowerCase();
+                const correctStr = String(question.correct).toLowerCase().trim();
+                const answerStr = userAnswer.toLowerCase().trim();
                 isCorrect = correctStr === answerStr;
+                console.log(`📊 True/False - السؤال ${answer.questionIndex + 1}: "${answerStr}" === "${correctStr}" => ${isCorrect}`);
             } else {
                 // مقارنة تقريبية للإجابات المقالية
-                isCorrect = answer.answer && answer.answer.length > 3 && 
-                           question.completion && 
-                           answer.answer.toLowerCase().includes(question.completion.toLowerCase());
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 && 
+                           userAnswer.toLowerCase().includes(correctStr) || 
+                           correctStr.includes(userAnswer.toLowerCase());
+                console.log(`📊 Essay - السؤال ${answer.questionIndex + 1}: "${userAnswer}" ~ "${correctStr}" => ${isCorrect}`);
             }
             
             if (isCorrect) correctCount++;
             detailedAnswers.push({
                 questionIndex: answer.questionIndex,
-                answer: answer.answer || '',
+                answer: userAnswer,
                 isCorrect: isCorrect
             });
         }
 
         const totalQuestions = questions.length || 1;
         const score = Math.round((correctCount / totalQuestions) * 100);
+        
+        console.log(`✅ النتيجة: ${correctCount}/${totalQuestions} = ${score}%`);
 
         const submission = new HomeworkSubmission({
             homeworkId: homework._id,
