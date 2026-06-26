@@ -1996,10 +1996,18 @@ async function submitHomework() {
         
         if (q.cat === 'mcq' || q.cat === 'truefalse') {
             const selected = document.querySelector(`input[name="hw_q_${i}"]:checked`);
-            if (selected) answer = selected.value;
+            if (selected) {
+                answer = selected.value;
+                console.log(`📝 السؤال ${i+1} (${q.cat}): الإجابة المختارة = "${answer}"`);
+            } else {
+                console.log(`⚠️ السؤال ${i+1} (${q.cat}): لم يتم اختيار إجابة`);
+            }
         } else {
             const textarea = document.getElementById(`hw_text_${i}`);
-            if (textarea) answer = textarea.value.trim();
+            if (textarea) {
+                answer = textarea.value.trim();
+                console.log(`📝 السؤال ${i+1} (${q.cat}): الإجابة = "${answer}"`);
+            }
         }
         
         answers.push({
@@ -2023,6 +2031,8 @@ async function submitHomework() {
         timeTaken: timeTaken,
         tabSwitches: homeworkTabSwitchCount || 0
     };
+
+    console.log('📤 بيانات التسليم:', JSON.stringify(data, null, 2));
 
     try {
         console.log('📤 تسليم الواجب:', currentHomeworkData._id);
@@ -2050,7 +2060,6 @@ async function submitHomework() {
         showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
     }
 }
-
 // ---------- عرض نتيجة الواجب للطالب ----------
 async function viewMyHomeworkResult(homeworkId) {
     try {
