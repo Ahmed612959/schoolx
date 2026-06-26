@@ -2067,7 +2067,21 @@ async function viewMyHomeworkResult(homeworkId) {
         const response = await fetch(API_BASE + '/api/homework/' + homeworkId + '/submissions', {
             credentials: 'include'
         });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'فشل في جلب النتيجة');
+        }
+        
         const submissions = await response.json();
+        console.log('📥 البيانات المستلمة:', submissions);
+        
+        // التأكد من أن submissions هي مصفوفة
+        if (!Array.isArray(submissions)) {
+            console.error('❌ البيانات ليست مصفوفة:', submissions);
+            throw new Error('البيانات المستلمة ليست مصفوفة');
+        }
+        
         const mySubmission = submissions.find(s => s.studentId === currentUser?.username);
         if (!mySubmission) {
             showToast('⚠️ لم يتم العثور على تسليمك', 'error');
@@ -2083,12 +2097,16 @@ async function viewMyHomeworkResult(homeworkId) {
             html += `<p style="color:var(--text-secondary);">لا توجد إجابات مسجلة</p>`;
         } else {
             for (const ans of answers) {
+                const isCorrect = ans.isCorrect;
                 html += `
                     <div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
-                        <span style="color:${ans.isCorrect ? 'var(--green)' : 'var(--red)'};">${ans.isCorrect ? '✅' : '❌'}</span>
+                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};">${isCorrect ? '✅' : '❌'}</span>
                         السؤال ${(ans.questionIndex || 0) + 1}: 
-                        <span style="color:${ans.isCorrect ? 'var(--green)' : 'var(--red)'};font-weight:${ans.isCorrect ? '700' : '400'};">
-                            ${ans.isCorrect ? 'صحيح' : 'خطأ'}
+                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};font-weight:${isCorrect ? '700' : '400'};">
+                            ${isCorrect ? 'صحيح' : 'خطأ'}
+                        </span>
+                        <span style="color:var(--text-secondary);font-size:0.7rem;display:block;margin-top:2px;">
+                            إجابتك: "${ans.answer || '(فارغ)'}"
                         </span>
                     </div>
                 `;
@@ -2099,7 +2117,7 @@ async function viewMyHomeworkResult(homeworkId) {
         openModal('myHomeworkResultModal', html);
     } catch (error) {
         console.error('❌ خطأ في جلب نتيجتي:', error);
-        showToast('❌ خطأ في جلب نتيجتك', 'error');
+        showToast('❌ خطأ في جلب نتيجتك: ' + error.message, 'error');
     }
 }
 
