@@ -2599,6 +2599,106 @@ app.post('/api/tournaments/:id/finish', verifyToken, isAdmin, async (req, res) =
 });
 
 
+// ====================== المراجعة الذكية ======================
+app.get('/api/smart-review', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.username;
+        
+        // جلب تقدم الطالب
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+            await progress.save();
+        }
+        
+        // جلب الأسئلة الخاطئة
+        const wrongQuestions = progress.wrongQuestions || [];
+        
+        // جلب الأسئلة الصعبة
+        const hardQuestions = progress.difficulties || new Map();
+        const hardQuestionIds = [];
+        for (const [key, value] of hardQuestions) {
+            if (value === 'hard') hardQuestionIds.push(key);
+        }
+        
+        // جلب سجل الاختبارات
+        const quizHistory = progress.quizHistory || [];
+        
+        // تحديد الأسئلة التي تحتاج مراجعة
+        const reviewQuestions = [];
+        const allQuestions = [];
+        
+        // جمع جميع الأسئلة
+        for (const key in chaptersData) {
+            if (chaptersData.hasOwnProperty(key)) {
+                const ch = chaptersData[key];
+                for (const cat of testCategories) {
+                    if (ch[cat] && Array.isArray(ch[cat])) {
+                        for (let i = 0; i < ch[cat].length; i++) {
+                            const q = Object.assign({}, ch[cat][i]);
+                            q.cat = cat;
+                            q.chapterName = ch.name;
+                            q.questionId = key + '_' + cat + '_' + i;
+                            q.chapterId = key;
+                            allQuestions.push(q);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // تصفية الأسئلة للمراجعة
+        const now = Date.now();
+        const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+        
+        for (const q of allQuestions) {
+            // 1. أسئلة خاطئة
+            if (wrongQuestions.some(w => w.questionId === q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '❌ أجبت عليها خطأ' });
+                continue;
+            }
+            
+            // 2. أسئلة صعبة
+            if (hardQuestionIds.includes(q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '🔴 صنفتها صعبة' });
+                continue;
+            }
+            
+            // 3. أسئلة لم تراجع منذ أسبوع
+            const lastAttempt = quizHistory.filter(h => 
+                h.chapter === q.chapterId && 
+                h.date && new Date(h.date) < oneWeekAgo
+            );
+            if (lastAttempt.length > 0) {
+                reviewQuestions.push({ ...q, reason: '⏰ مر أكثر من أسبوع' });
+            }
+        }
+        
+        // اختيار 10-20 سؤال عشوائي
+        const shuffled = reviewQuestions.sort(() => Math.random() - 0.5);
+        const selected = shuffled.slice(0, Math.min(20, shuffled.length));
+        
+        // إزالة الإجابات
+        const questionsWithoutAnswers = selected.map(q => ({
+            ...q,
+            correct: undefined,
+            correctAnswer: undefined,
+            completion: undefined,
+            answer: undefined
+        }));
+        
+        res.json({
+            questions: questionsWithoutAnswers,
+            total: selected.length,
+            reasons: selected.map(q => q.reason)
+        });
+    } catch (error) {
+        console.error('❌ خطأ في المراجعة الذكية:', error);
+        res.status(500).json({ error: 'خطأ في جلب أسئلة المراجعة' });
+    }
+});
+
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
     res.json({ 
