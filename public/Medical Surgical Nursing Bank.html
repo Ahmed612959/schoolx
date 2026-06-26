@@ -335,11 +335,13 @@ var challengeData = JSON.parse(localStorage.getItem('challengeData') || '{}');
 var challengeTimerInterval = null;
 
 // ==================== متغيرات المراجعة الذكية ====================
+// متغيرات المراجعة الذكية
 var smartReviewQuestions = [];
 var smartReviewTotal = 0;
 var smartReviewScores = {};
 var smartReviewAnswered = 0;
 var smartReviewCurrentIndex = 0;
+var selectedSmartReviewChapter = 'all';
     
 // ====================== الاتصال بالسيرفر ======================
 function updateSyncIndicator(status, text) {
@@ -2874,16 +2876,64 @@ async function viewTournamentResults(tournamentId) {
 // ====================== نظام المراجعة الذكية (Smart Review) ======================
 // ====================== نظام المراجعة الذكية (Smart Review) ======================
 
-// فتح المراجعة الذكية
+
+
+// فتح المراجعة الذكية مع اختيار الفصل
 async function openSmartReview() {
+    // عرض خيارات اختيار الفصل أولاً
+    let chapterOptions = '<option value="all">جميع الفصول</option>';
+    for (const id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            chapterOptions += `<option value="${id}">${chaptersData[id].name}</option>`;
+        }
+    }
+    
+    const h = `
+        <h2>🧠 مراجعة ذكية</h2>
+        <div style="text-align:right;max-height:55vh;overflow-y:auto;">
+            <div style="margin:15px 0;">
+                <label style="font-weight:600;display:block;margin-bottom:5px;">📚 اختر الفصل للمراجعة:</label>
+                <select id="smartReviewChapterSelect" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--gold);background:var(--card-bg);color:var(--text-primary);font-size:1rem;">
+                    ${chapterOptions}
+                </select>
+            </div>
+            <div style="margin:15px 0;padding:10px;background:var(--gold-light);border-radius:10px;">
+                <p style="font-size:0.85rem;color:var(--text-secondary);">
+                    📌 سيتم اختيار الأسئلة التي:
+                </p>
+                <ul style="font-size:0.8rem;color:var(--text-secondary);list-style:none;padding-right:10px;">
+                    <li>✅ ❌ أجبت عليها خطأ سابقاً</li>
+                    <li>🔴 صنفتها صعبة</li>
+                    <li>⏰ مر أكثر من أسبوع على حلها</li>
+                    <li>🆕 لم تحل من قبل</li>
+                </ul>
+            </div>
+            <button class="modal-btn btn-success" onclick="startSmartReview()" style="width:100%;margin-top:10px;">🚀 بدء المراجعة الذكية</button>
+        </div>
+        <button class="modal-btn btn-close" onclick="closeModal('smartReviewChapterModal')">إلغاء</button>
+    `;
+    openModal('smartReviewChapterModal', h);
+}
+
+// بدء المراجعة الذكية بعد اختيار الفصل
+async function startSmartReview() {
+    const chapterSelect = document.getElementById('smartReviewChapterSelect');
+    selectedSmartReviewChapter = chapterSelect ? chapterSelect.value : 'all';
+    
+    closeModal('smartReviewChapterModal');
+    
     try {
         showToast('🔄 جاري تحضير أسئلة المراجعة الذكية...', 'info');
         
-        // جمع جميع الأسئلة من جميع الفصول
+        // جمع الأسئلة من الفصل المختار فقط
         const allQuestions = [];
         const testCategories = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situations'];
         
-        for (const key in chaptersData) {
+        const chaptersToProcess = selectedSmartReviewChapter === 'all' 
+            ? Object.keys(chaptersData) 
+            : [selectedSmartReviewChapter];
+        
+        for (const key of chaptersToProcess) {
             if (chaptersData.hasOwnProperty(key)) {
                 const ch = chaptersData[key];
                 for (const cat of testCategories) {
@@ -2901,10 +2951,10 @@ async function openSmartReview() {
             }
         }
         
-        console.log(`📚 إجمالي الأسئلة المتاحة: ${allQuestions.length}`);
+        console.log(`📚 إجمالي الأسئلة المتاحة في الفصل المختار: ${allQuestions.length}`);
         
         if (allQuestions.length === 0) {
-            showToast('❌ لا توجد أسئلة في قاعدة البيانات', 'error');
+            showToast('❌ لا توجد أسئلة في هذا الفصل', 'error');
             return;
         }
         
@@ -2918,7 +2968,8 @@ async function openSmartReview() {
             },
             body: JSON.stringify({ 
                 questions: allQuestions,
-                userId: currentUser?.username 
+                userId: currentUser?.username,
+                chapterId: selectedSmartReviewChapter
             })
         });
         
@@ -2940,7 +2991,7 @@ async function openSmartReview() {
         const questions = data.questions || [];
         
         if (questions.length === 0) {
-            showToast('🎉 لا توجد أسئلة تحتاج مراجعة! أنت متميز!', 'success');
+            showToast('🎉 لا توجد أسئلة تحتاج مراجعة في هذا الفصل! أنت متميز!', 'success');
             return;
         }
         
@@ -2956,7 +3007,7 @@ async function openSmartReview() {
         
         // عرض واجهة المراجعة
         let h = `
-            <h2>🧠 مراجعة ذكية</h2>
+            <h2>🧠 مراجعة ذكية - ${data.chapterName || 'جميع الفصول'}</h2>
             <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:10px;">
                 📚 ${questions.length} سؤال مخصص لك بناءً على أدائك السابق
             </div>
@@ -3041,7 +3092,7 @@ function renderSmartReviewQuestion(q, index) {
     return html;
 }
 
-// التحقق من إجابة الاختيار من متعدد
+// 🔧 دالة محسنة للتحقق من الإجابة (تصحيح مشكلة الإجابات الصحيحة)
 function checkSmartReviewAnswer(btn, chosen, index) {
     const question = smartReviewQuestions[index];
     if (!question) return;
@@ -3050,8 +3101,9 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     const parent = btn.parentElement;
     parent.querySelectorAll('.quiz-opt').forEach(b => b.disabled = true);
     
-    // التحقق من الإجابة
-    const isCorrect = isAnswerCorrect(chosen, question.correct);
+    // 🔧 التحقق من الإجابة باستخدام دالة محسنة
+    const isCorrect = isAnswerCorrectSmart(chosen, question);
+    
     btn.classList.add(isCorrect ? 'correct' : 'wrong');
     
     // حفظ النتيجة
@@ -3059,14 +3111,17 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     smartReviewAnswered++;
     updateSmartReviewProgress();
     
-    // عرض التغذية الراجعة
+    // عرض التغذية الراجعة مع الإجابة الصحيحة
     const fb = document.getElementById(`smartReview-fb-${index}`);
     if (fb) {
-        const correctAnswer = getFullAnswer(question);
+        const correctAnswer = getFullAnswerSmart(question);
         fb.innerHTML = `
             <div style="padding:10px;border-radius:10px;margin-top:8px;background:${isCorrect ? '#f0fdf4' : '#fef2f2'};border-right:4px solid ${isCorrect ? '#22c55e' : '#ef4444'};">
-                <strong style="color:${isCorrect ? '#059669' : '#dc2626'};">${isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ - الإجابة الصحيحة:'}</strong>
-                ${!isCorrect ? ` <span style="color:#059669;">${correctAnswer}</span>` : ''}
+                <strong style="color:${isCorrect ? '#059669' : '#dc2626'};">${isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ'}</strong>
+                ${!isCorrect ? ` <span style="color:#059669;">الإجابة الصحيحة: ${correctAnswer}</span>` : ''}
+                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;">
+                    إجابتك: "${chosen}"
+                </div>
             </div>
         `;
     }
@@ -3080,7 +3135,7 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     saveSmartReviewProgress(question.questionId, isCorrect);
 }
 
-// التحقق من الإجابة المقالية
+// 🔧 دالة محسنة للتحقق من الإجابة المقالية
 function checkSmartReviewText(index) {
     const question = smartReviewQuestions[index];
     if (!question) return;
@@ -3089,13 +3144,19 @@ function checkSmartReviewText(index) {
     if (!input || input.disabled) return;
     
     const userAnswer = input.value.trim();
-    const correctAnswer = question.completion || question.answer || '';
     
-    // التحقق من الإجابة
-    const isCorrect = userAnswer.length > 3 && 
-                     correctAnswer.length > 0 && 
-                     (userAnswer.toLowerCase().includes(correctAnswer.toLowerCase()) || 
-                      correctAnswer.toLowerCase().includes(userAnswer.toLowerCase()));
+    // 🔧 الحصول على الإجابة الصحيحة
+    let correctAnswer = '';
+    if (question.cat === 'complete') {
+        correctAnswer = question.completion || '';
+    } else if (question.cat === 'explain') {
+        correctAnswer = question.answer || '';
+    } else {
+        correctAnswer = question.completion || question.answer || '';
+    }
+    
+    // 🔧 التحقق من الإجابة باستخدام دالة محسنة
+    const isCorrect = isTextAnswerCorrect(userAnswer, correctAnswer);
     
     input.classList.add(isCorrect ? 'correct-input' : 'wrong-input');
     input.disabled = true;
@@ -3110,8 +3171,11 @@ function checkSmartReviewText(index) {
     if (fb) {
         fb.innerHTML = `
             <div style="padding:10px;border-radius:10px;margin-top:8px;background:${isCorrect ? '#f0fdf4' : '#fef2f2'};border-right:4px solid ${isCorrect ? '#22c55e' : '#ef4444'};">
-                <strong style="color:${isCorrect ? '#059669' : '#dc2626'};">${isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ - الإجابة الصحيحة:'}</strong>
-                ${!isCorrect ? ` <span style="color:#059669;">${correctAnswer}</span>` : ''}
+                <strong style="color:${isCorrect ? '#059669' : '#dc2626'};">${isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ'}</strong>
+                ${!isCorrect ? ` <span style="color:#059669;">الإجابة الصحيحة: ${correctAnswer}</span>` : ''}
+                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;">
+                    إجابتك: "${userAnswer || '(فارغ)'}"
+                </div>
             </div>
         `;
     }
@@ -3123,6 +3187,125 @@ function checkSmartReviewText(index) {
     
     // حفظ التقدم في السيرفر
     saveSmartReviewProgress(question.questionId, isCorrect);
+}
+
+// 🔧 دالة محسنة لمقارنة الإجابات (لحل مشكلة الإجابات الصحيحة)
+function isAnswerCorrectSmart(chosen, question) {
+    if (!chosen || !question) return false;
+    
+    const userAnswer = String(chosen).trim();
+    let correctAnswer = '';
+    
+    // الحصول على الإجابة الصحيحة حسب نوع السؤال
+    if (question.cat === 'mcq') {
+        correctAnswer = String(question.correct || '').trim();
+    } else if (question.cat === 'truefalse') {
+        correctAnswer = String(question.correct || '').trim().toLowerCase();
+        const userLower = userAnswer.toLowerCase();
+        // معالجة true/false
+        if (correctAnswer === 'true' || correctAnswer === 'صواب') {
+            return userLower === 'true' || userLower === 'صواب';
+        } else if (correctAnswer === 'false' || correctAnswer === 'خطأ') {
+            return userLower === 'false' || userLower === 'خطأ';
+        }
+        return userLower === correctAnswer;
+    } else {
+        correctAnswer = question.completion || question.answer || '';
+    }
+    
+    // مقارنة دقيقة
+    if (userAnswer === correctAnswer) return true;
+    
+    // مقارنة مع إزالة المسافات الزائدة
+    if (userAnswer.trim() === correctAnswer.trim()) return true;
+    
+    // مقارنة مع تجاهل حالة الأحرف
+    if (userAnswer.toLowerCase() === correctAnswer.toLowerCase()) return true;
+    
+    // للأسئلة الطويلة: مقارنة جزئية (إذا كانت الإجابة طويلة)
+    if (correctAnswer.length > 20 && userAnswer.length > 5) {
+        const userWords = userAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        const correctWords = correctAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        
+        if (userWords.length > 0 && correctWords.length > 0) {
+            let matchCount = 0;
+            for (const word of userWords) {
+                if (correctWords.some(cw => cw.includes(word) || word.includes(cw))) {
+                    matchCount++;
+                }
+            }
+            const matchRatio = matchCount / Math.max(userWords.length, 1);
+            if (matchRatio >= 0.6) return true;
+        }
+    }
+    
+    // للأسئلة القصيرة: مقارنة دقيقة بعد إزالة علامات الترقيم
+    const cleanUser = userAnswer.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '').trim();
+    const cleanCorrect = correctAnswer.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '').trim();
+    if (cleanUser.toLowerCase() === cleanCorrect.toLowerCase()) return true;
+    
+    // التحقق من أن إجابة المستخدم تحتوي على الكلمات المفتاحية
+    if (correctAnswer.length > 3) {
+        const keywords = correctAnswer.split(/\s+/).filter(w => w.length > 3);
+        let foundKeywords = 0;
+        for (const word of keywords) {
+            if (userAnswer.toLowerCase().includes(word.toLowerCase())) {
+                foundKeywords++;
+            }
+        }
+        if (foundKeywords >= Math.min(2, keywords.length)) return true;
+    }
+    
+    return false;
+}
+
+// 🔧 دالة محسنة للحصول على الإجابة الكاملة للعرض
+function getFullAnswerSmart(question) {
+    if (question.cat === 'mcq') {
+        return question.correct || '';
+    } else if (question.cat === 'truefalse') {
+        const isTrue = (question.correct === true || question.correct === 'true' || question.correct === 'True');
+        return isTrue ? 'صواب (True)' : 'خطأ (False)';
+    } else if (question.cat === 'complete') {
+        return question.completion || '';
+    } else if (question.cat === 'explain') {
+        return question.answer || '';
+    }
+    return question.completion || question.answer || '';
+}
+
+// 🔧 دالة محسنة للتحقق من الإجابات النصية
+function isTextAnswerCorrect(userAnswer, correctAnswer) {
+    if (!userAnswer || !correctAnswer) return false;
+    
+    const user = userAnswer.trim();
+    const correct = correctAnswer.trim();
+    
+    // مقارنة دقيقة
+    if (user === correct) return true;
+    
+    // تجاهل حالة الأحرف
+    if (user.toLowerCase() === correct.toLowerCase()) return true;
+    
+    // التحقق من وجود الكلمات المفتاحية
+    const correctWords = correct.split(/\s+/).filter(w => w.length > 3);
+    const userWords = user.split(/\s+/).filter(w => w.length > 2);
+    
+    if (correctWords.length === 0) return false;
+    
+    let matchCount = 0;
+    for (const cw of correctWords) {
+        for (const uw of userWords) {
+            if (uw.toLowerCase().includes(cw.toLowerCase()) || cw.toLowerCase().includes(uw.toLowerCase())) {
+                matchCount++;
+                break;
+            }
+        }
+    }
+    
+    // إذا تطابقت 50% من الكلمات المفتاحية
+    const matchRatio = matchCount / correctWords.length;
+    return matchRatio >= 0.5;
 }
 
 // تحديث شريط التقدم
@@ -3207,7 +3390,11 @@ async function saveSmartReviewProgress(questionId, isCorrect) {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ questionId, isCorrect })
+            body: JSON.stringify({ 
+                questionId, 
+                isCorrect,
+                chapterId: selectedSmartReviewChapter 
+            })
         });
     } catch (error) {
         console.error('❌ خطأ في حفظ التقدم:', error);
