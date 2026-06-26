@@ -2600,12 +2600,21 @@ app.post('/api/tournaments/:id/finish', verifyToken, isAdmin, async (req, res) =
 
 
 // ====================== المراجعة الذكية (Smart Review) ======================
-app.get('/api/smart-review', verifyToken, async (req, res) => {
+app.post('/api/smart-review', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const userId = req.user.username || req.user.id;
+        const { questions: allQuestions } = req.body;
         
         console.log('🧠 جلب أسئلة المراجعة الذكية للمستخدم:', userId);
+        console.log(`📚 عدد الأسئلة المستلمة من الواجهة: ${allQuestions?.length || 0}`);
+        
+        if (!allQuestions || allQuestions.length === 0) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'لا توجد أسئلة مرسلة من الواجهة' 
+            });
+        }
         
         // 1. جلب تقدم الطالب
         let progress = await Progress.findOne({ userId });
@@ -2631,50 +2640,7 @@ app.get('/api/smart-review', verifyToken, async (req, res) => {
         const quizHistory = progress.quizHistory || [];
         console.log(`📊 عدد الاختبارات السابقة: ${quizHistory.length}`);
         
-        // 5. جمع جميع الأسئلة من جميع الفصول
-        // ملاحظة: في السيرفر الحقيقي، يجب جلب الأسئلة من قاعدة البيانات
-        // لكن هنا نستخدم chaptersData من ملفات الفصول
-        const allQuestions = [];
-        const testCategories = ['mcq', 'truefalse', 'complete', 'explain', 'list', 'situations'];
-        
-        // استيراد بيانات الفصول - يجب أن تكون معرفة مسبقاً
-        // أو يمكن جلبها من قاعدة البيانات
-        if (typeof chaptersData === 'undefined') {
-            // إذا لم تكن chaptersData معرفة، نستخدم بيانات افتراضية
-            // في الحالة الطبيعية، ستكون chaptersData معرفة من ملفات الفصول
-            console.log('⚠️ chaptersData غير معرفة، يتم استخدام بيانات افتراضية');
-            // يمكن هنا جلب البيانات من قاعدة البيانات أو ملفات
-            return res.status(500).json({ 
-                error: 'بيانات الفصول غير متاحة. تأكد من تحميل بيانات الأسئلة.'
-            });
-        }
-        
-        for (const key in chaptersData) {
-            if (chaptersData.hasOwnProperty(key)) {
-                const ch = chaptersData[key];
-                for (const cat of testCategories) {
-                    if (ch[cat] && Array.isArray(ch[cat])) {
-                        for (let i = 0; i < ch[cat].length; i++) {
-                            const q = Object.assign({}, ch[cat][i]);
-                            q.cat = cat;
-                            q.chapterName = ch.name || key;
-                            q.questionId = key + '_' + cat + '_' + i;
-                            q.chapterId = key;
-                            allQuestions.push(q);
-                        }
-                    }
-                }
-            }
-        }
-        console.log(`📚 إجمالي الأسئلة المتاحة: ${allQuestions.length}`);
-        
-        if (allQuestions.length === 0) {
-            return res.status(404).json({ 
-                error: 'لا توجد أسئلة في قاعدة البيانات. تأكد من تحميل الأسئلة.'
-            });
-        }
-        
-        // 6. تصفية الأسئلة للمراجعة
+        // 5. تصفية الأسئلة للمراجعة
         const reviewQuestions = [];
         const now = new Date();
         const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -2725,12 +2691,12 @@ app.get('/api/smart-review', verifyToken, async (req, res) => {
         
         console.log(`📋 عدد أسئلة المراجعة: ${reviewQuestions.length}`);
         
-        // 7. اختيار 10-20 سؤال عشوائي
+        // 6. اختيار 10-20 سؤال عشوائي
         const shuffled = reviewQuestions.sort(() => Math.random() - 0.5);
         const selected = shuffled.slice(0, Math.min(20, Math.max(10, shuffled.length)));
         const reasons = selected.map(q => q.reason);
         
-        // 8. إزالة الإجابات
+        // 7. إزالة الإجابات
         const questionsWithoutAnswers = selected.map(q => {
             const newQ = { ...q };
             delete newQ.correct;
@@ -2744,7 +2710,7 @@ app.get('/api/smart-review', verifyToken, async (req, res) => {
         console.log(`✅ تم اختيار ${questionsWithoutAnswers.length} سؤال للمراجعة`);
         console.log(`📊 أسباب الاختيار: ${reasons.join(', ')}`);
         
-        // 9. إرجاع النتيجة
+        // 8. إرجاع النتيجة
         res.json({
             success: true,
             questions: questionsWithoutAnswers,
