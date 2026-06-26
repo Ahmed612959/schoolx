@@ -2954,9 +2954,6 @@ app.get('/api/check-auth-status', async (req, res) => {
 
 
 
-
-
-
 // ====================== Error Handling ======================
 app.use((err, req, res, next) => {
     console.error('❌ Unhandled Error:', err);
