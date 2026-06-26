@@ -2604,10 +2604,11 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const userId = req.user.username || req.user.id;
-        const { questions: allQuestions } = req.body;
+        const { questions: allQuestions, chapterId } = req.body;
         
         console.log('🧠 جلب أسئلة المراجعة الذكية للمستخدم:', userId);
-        console.log(`📚 عدد الأسئلة المستلمة من الواجهة: ${allQuestions?.length || 0}`);
+        console.log(`📚 عدد الأسئلة المستلمة: ${allQuestions?.length || 0}`);
+        console.log(`📖 الفصل المختار: ${chapterId || 'جميع الفصول'}`);
         
         if (!allQuestions || allQuestions.length === 0) {
             return res.status(400).json({ 
@@ -2624,7 +2625,7 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
             console.log('✅ تم إنشاء تقدم جديد للمستخدم');
         }
         
-        // 2. جلب الأسئلة الخاطئة
+        // 2. جلب الأسئلة الخاطئة من الاختبارات والامتحانات
         const wrongQuestions = progress.wrongQuestions || [];
         console.log(`📝 عدد الأسئلة الخاطئة: ${wrongQuestions.length}`);
         
@@ -2664,10 +2665,19 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
             }
         }
         
+        // فصل الأسئلة حسب نوع الخطأ
+        const wrongFromExams = []; // أسئلة خاطئة من الامتحانات
+        const wrongFromQuizzes = []; // أسئلة خاطئة من الاختبارات
+        const wrongFromHomework = []; // أسئلة خاطئة من الواجبات
+        
         for (const q of allQuestions) {
-            // 1. أسئلة خاطئة - أولوية عالية جداً
-            if (wrongQuestions.some(w => w.questionId === q.questionId)) {
-                reviewQuestions.push({ ...q, reason: '❌ أجبت عليها خطأ' });
+            // التحقق من الأسئلة الخاطئة مع تحديد مصدرها
+            const wrongEntry = wrongQuestions.find(w => w.questionId === q.questionId);
+            if (wrongEntry) {
+                // تحديد نوع الخطأ من مصدره
+                const source = wrongEntry.source || 'unknown';
+                const reason = `❌ أجبت عليها خطأ${source === 'exam' ? ' (امتحان)' : source === 'quiz' ? ' (اختبار)' : source === 'homework' ? ' (واجب)' : ''}`;
+                reviewQuestions.push({ ...q, reason: reason });
                 continue;
             }
             
@@ -2707,16 +2717,24 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
             return newQ;
         });
         
-        console.log(`✅ تم اختيار ${questionsWithoutAnswers.length} سؤال للمراجعة`);
+        // 8. الحصول على اسم الفصل
+        let chapterName = 'جميع الفصول';
+        if (chapterId && chapterId !== 'all' && allQuestions.length > 0) {
+            const firstQ = allQuestions.find(q => q.chapterId === chapterId);
+            if (firstQ) chapterName = firstQ.chapterName || chapterId;
+        }
+        
+        console.log(`✅ تم اختيار ${questionsWithoutAnswers.length} سؤال للمراجعة من ${chapterName}`);
         console.log(`📊 أسباب الاختيار: ${reasons.join(', ')}`);
         
-        // 8. إرجاع النتيجة
+        // 9. إرجاع النتيجة
         res.json({
             success: true,
             questions: questionsWithoutAnswers,
             total: selected.length,
             reasons: reasons,
-            message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية`
+            chapterName: chapterName,
+            message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية من ${chapterName}`
         });
         
     } catch (error) {
