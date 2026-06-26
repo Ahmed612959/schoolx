@@ -250,6 +250,9 @@
             <button class="flashcard-btn" onclick="openAIFlashcards()"><i class="fas fa-robot"></i> AI بطاقات</button>
             <button class="exam-btn" onclick="openHomeworkDashboard()" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="fas fa-tasks"></i> الواجبات</button>
 <button class="exam-btn" onclick="openMyHomework()" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="fas fa-book"></i> واجباتي</button>
+            <button class="control-btn" onclick="openPrintOptions()" style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
+    <i class="fas fa-print"></i> طباعة ذكية
+</button>
         </div>
     </div>
 </header>
@@ -2344,6 +2347,235 @@ app.delete('/api/homework/:id', verifyToken, isAdmin, async (req, res) => {
         res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message });
     }
 });
+
+    // ====================== وضع الطباعة الذكي ======================
+function openPrintOptions() {
+    const h = `
+        <h2>🖨️ خيارات الطباعة الذكية</h2>
+        <div style="text-align:right;max-height:55vh;overflow-y:auto;">
+            <div style="margin:10px 0;">
+                <label style="font-weight:600;">📚 اختيار الفصول:</label>
+                <div id="printChaptersList" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:5px 0;">
+                    <label><input type="checkbox" id="printAllChapters" checked onclick="toggleAllChapters()"> جميع الفصول</label>
+                </div>
+            </div>
+            
+            <div style="margin:10px 0;">
+                <label style="font-weight:600;">📝 اختيار أنواع الأسئلة:</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:5px 0;">
+                    <label><input type="checkbox" class="print-category" value="mcq" checked> اختيار متعدد</label>
+                    <label><input type="checkbox" class="print-category" value="truefalse" checked> صح وخطأ</label>
+                    <label><input type="checkbox" class="print-category" value="complete" checked> أكمل</label>
+                    <label><input type="checkbox" class="print-category" value="explain" checked> اشرح</label>
+                    <label><input type="checkbox" class="print-category" value="list" checked> قوائم</label>
+                    <label><input type="checkbox" class="print-category" value="situations" checked> مواقف</label>
+                </div>
+            </div>
+            
+            <div style="margin:10px 0;">
+                <label style="font-weight:600;">📄 خيارات الطباعة:</label>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <label><input type="radio" name="printMode" value="withoutAnswers" checked> بدون إجابات (للمعلم)</label>
+                    <label><input type="radio" name="printMode" value="withAnswers"> مع الإجابات (للطالب)</label>
+                    <label><input type="radio" name="printMode" value="withSpaces"> مع مساحات فارغة</label>
+                </div>
+            </div>
+            
+            <div style="margin:10px 0;">
+                <label><input type="checkbox" id="printQuestionNumbers" checked> عرض أرقام الأسئلة</label>
+                <label style="margin-right:15px;"><input type="checkbox" id="printChapterNames" checked> عرض أسماء الفصول</label>
+            </div>
+            
+            <button class="modal-btn btn-success" onclick="generatePrintPreview()" style="width:100%;margin-top:10px;">📄 معاينة الطباعة</button>
+        </div>
+        <button class="modal-btn btn-close" onclick="closeModal('printOptionsModal')">إغلاق</button>
+    `;
+    openModal('printOptionsModal', h);
+    
+    // إضافة الفصول إلى القائمة
+    const container = document.getElementById('printChaptersList');
+    for (const id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            const ch = chaptersData[id];
+            const label = document.createElement('label');
+            label.innerHTML = `<input type="checkbox" class="print-chapter" value="${id}" checked> ${ch.name}`;
+            container.appendChild(label);
+        }
+    }
+}
+
+function toggleAllChapters() {
+    const checked = document.getElementById('printAllChapters').checked;
+    document.querySelectorAll('.print-chapter').forEach(cb => cb.checked = checked);
+}
+
+function generatePrintPreview() {
+    // جلب الفصول المختارة
+    const selectedChapters = [];
+    document.querySelectorAll('.print-chapter:checked').forEach(cb => {
+        selectedChapters.push(cb.value);
+    });
+    
+    // جلب أنواع الأسئلة المختارة
+    const selectedCategories = [];
+    document.querySelectorAll('.print-category:checked').forEach(cb => {
+        selectedCategories.push(cb.value);
+    });
+    
+    const printMode = document.querySelector('input[name="printMode"]:checked').value;
+    const showNumbers = document.getElementById('printQuestionNumbers').checked;
+    const showChapterNames = document.getElementById('printChapterNames').checked;
+    
+    // جمع الأسئلة
+    let questions = [];
+    const chapters = selectedChapters.includes('all') ? Object.keys(chaptersData) : selectedChapters;
+    
+    for (const chId of chapters) {
+        if (!chaptersData[chId]) continue;
+        const ch = chaptersData[chId];
+        for (const cat of selectedCategories) {
+            if (ch[cat] && Array.isArray(ch[cat])) {
+                for (const q of ch[cat]) {
+                    questions.push({
+                        ...q,
+                        cat: cat,
+                        chapterName: ch.name,
+                        chapterId: chId
+                    });
+                }
+            }
+        }
+    }
+    
+    if (questions.length === 0) {
+        showToast('⚠️ لا توجد أسئلة مطابقة للاختيارات', 'warning');
+        return;
+    }
+    
+    // إنشاء صفحة الطباعة
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    let html = `
+        <!DOCTYPE html>
+        <html dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>ورقة أسئلة - Medical Surgical Nursing</title>
+            <style>
+                @page { margin: 2cm; }
+                body { font-family: 'Tajawal', Arial, sans-serif; font-size: 14px; line-height: 1.8; padding: 20px; }
+                .print-header { text-align: center; border-bottom: 2px solid #d4af5a; padding-bottom: 15px; margin-bottom: 20px; }
+                .print-header h1 { color: #1a3a48; font-size: 24px; margin: 0; }
+                .print-header p { color: #64748b; font-size: 14px; margin: 5px 0; }
+                .print-chapter { background: #f8fafc; padding: 10px 15px; margin: 10px 0; border-radius: 8px; border-right: 4px solid #d4af5a; }
+                .print-chapter h3 { color: #1a3a48; margin: 0 0 5px 0; font-size: 18px; }
+                .print-question { margin: 15px 0; padding: 10px 15px; border: 1px solid #edf2f7; border-radius: 8px; }
+                .print-question .q-number { font-weight: 700; color: #d4af5a; }
+                .print-question .q-text { font-weight: 600; margin: 5px 0; }
+                .print-question .q-translation { color: #64748b; font-size: 13px; margin: 3px 0; padding: 5px 10px; background: #f8fafc; border-radius: 5px; }
+                .print-options { margin: 5px 0; padding-right: 20px; }
+                .print-options li { list-style: none; padding: 3px 0; }
+                .print-options li:before { content: "○ "; }
+                .print-answer { color: #059669; font-weight: 600; margin: 5px 0; padding: 5px 10px; background: #f0fdf4; border-radius: 5px; border-right: 3px solid #10b981; }
+                .print-space { min-height: 80px; border-bottom: 1px dashed #94a3b8; margin: 5px 0; }
+                .print-answer-space { min-height: 120px; border-bottom: 2px dashed #94a3b8; margin: 5px 0; }
+                .print-footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #edf2f7; color: #94a3b8; font-size: 12px; }
+                .print-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+                .badge-mcq { background: #ecfdf5; color: #059669; }
+                .badge-tf { background: #fffbeb; color: #d97706; }
+                .badge-complete { background: #faf5ff; color: #7c3aed; }
+                .badge-explain { background: #ecfeff; color: #0891b2; }
+                .badge-list { background: #fff1f2; color: #e11d48; }
+                .badge-situation { background: #eef2ff; color: #4f46e5; }
+                @media print {
+                    body { padding: 0; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="print-header">
+                <h1>📝 Medical Surgical Nursing</h1>
+                <p>معهد رعاية الضبعية الفني للتمريض</p>
+                <p style="font-size:12px;">${new Date().toLocaleDateString('ar-EG')} | ${printMode === 'withoutAnswers' ? '📋 ورقة أسئلة (بدون إجابات)' : printMode === 'withAnswers' ? '📖 ورقة أسئلة مع الإجابات' : '✏️ ورقة أسئلة مع مساحات للإجابة'}</p>
+            </div>
+    `;
+    
+    let currentChapter = '';
+    let qIndex = 0;
+    
+    for (const q of questions) {
+        if (showChapterNames && q.chapterName !== currentChapter) {
+            currentChapter = q.chapterName;
+            html += `<div class="print-chapter"><h3>📚 ${currentChapter}</h3></div>`;
+        }
+        
+        qIndex++;
+        const badgeClass = `badge-${q.cat}`;
+        const catLabel = getCategoryLabel(q.cat);
+        
+        html += `<div class="print-question">`;
+        html += `<div><span class="q-number">${showNumbers ? qIndex + '.' : ''}</span> <span class="q-text">${q.text}</span>`;
+        html += ` <span class="print-badge ${badgeClass}">${catLabel}</span></div>`;
+        
+        if (q.translation) {
+            html += `<div class="q-translation">🌐 ${q.translation}</div>`;
+        }
+        
+        // عرض الخيارات
+        if (q.cat === 'mcq' && q.options) {
+            html += `<div class="print-options">`;
+            for (const opt of q.options) {
+                const isCorrect = opt === q.correct;
+                const highlight = printMode === 'withAnswers' && isCorrect;
+                html += `<li style="${highlight ? 'color:#059669;font-weight:700;' : ''}">${opt}${highlight ? ' ✅' : ''}</li>`;
+            }
+            html += `</div>`;
+        } else if (q.cat === 'truefalse') {
+            const isTrue = q.correct === true || q.correct === 'true';
+            html += `<div class="print-options">`;
+            html += `<li>🔘 صواب${printMode === 'withAnswers' && isTrue ? ' ✅' : ''}</li>`;
+            html += `<li>🔘 خطأ${printMode === 'withAnswers' && !isTrue ? ' ✅' : ''}</li>`;
+            html += `</div>`;
+        }
+        
+        // عرض الإجابة
+        if (printMode === 'withAnswers') {
+            const answer = getFullAnswer(q);
+            if (answer) {
+                html += `<div class="print-answer">✅ الإجابة: ${answer}</div>`;
+            }
+        }
+        
+        // عرض مساحة للإجابة
+        if (printMode === 'withSpaces') {
+            if (q.cat === 'mcq') {
+                html += `<div class="print-space">الإجابة: ____________________</div>`;
+            } else if (q.cat === 'truefalse') {
+                html += `<div class="print-space">الإجابة: ____________________</div>`;
+            } else {
+                html += `<div class="print-answer-space"></div>`;
+            }
+        }
+        
+        html += `</div>`;
+    }
+    
+    html += `
+            <div class="print-footer">
+                <p>تم إنشاء هذه الورقة بواسطة بنك الأسئلة - Medical Surgical Nursing</p>
+                <p>عدد الأسئلة: ${questions.length} | ${new Date().toLocaleString('ar-EG')}</p>
+            </div>
+            <div class="no-print" style="text-align:center;margin:20px 0;">
+                <button onclick="window.print()" style="padding:10px 30px;background:#d4af5a;color:#0e2a35;border:none;border-radius:8px;font-size:16px;cursor:pointer;">🖨️ طباعة</button>
+                <button onclick="window.close()" style="padding:10px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:16px;cursor:pointer;margin-right:10px;">إغلاق</button>
+            </div>
+        </body>
+        </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+}
     
 </script>
     
