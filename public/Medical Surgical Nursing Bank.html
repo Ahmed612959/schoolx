@@ -2846,66 +2846,6 @@ async function viewTournamentResults(tournamentId) {
 }
 
 
-            // ====================== المراجعة الذكية ======================
-
-async function openSmartReview() {
-    try {
-        showToast('🔄 جاري تحضير أسئلة المراجعة الذكية...', 'info');
-        
-        const response = await fetch(API_BASE + '/api/smart-review', {
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'فشل في جلب المراجعة');
-        }
-        
-        const data = await response.json();
-        const questions = data.questions || [];
-        
-        if (questions.length === 0) {
-            showToast('🎉 لا توجد أسئلة تحتاج مراجعة! أنت متميز!', 'success');
-            return;
-        }
-        
-        window._currentQuestions = questions;
-        window._smartReviewTotal = questions.length;
-        window._smartReviewScores = {};
-        
-        let h = `
-            <h2>🧠 مراجعة ذكية</h2>
-            <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:10px;">
-                📚 ${questions.length} سؤال مخصص لك بناءً على أدائك السابق
-            </div>
-            <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:10px;">
-                ${data.reasons ? data.reasons.map((r, i) => `${i+1}. ${r}`).join(' | ') : ''}
-            </div>
-            <div id="smartReviewQuestions"></div>
-            <div id="smartReviewScore"></div>
-            <button class="modal-btn btn-close" onclick="closeModal('smartReviewModal')">إغلاق</button>
-        `;
-        openModal('smartReviewModal', h);
-        
-        let qHTML = '';
-        for (let i = 0; i < questions.length; i++) {
-            qHTML += renderQuestionHTML(questions[i], i, 'SmartReview', questions.length);
-        }
-        document.getElementById('smartReviewQuestions').innerHTML = qHTML;
-    } catch (error) {
-        console.error('❌ خطأ في المراجعة الذكية:', error);
-        showToast('❌ ' + error.message, 'error');
-    }
-}
-
-function checkSmartReviewAnswer(btn, chosen, correct, i, total) {
-    handleGenericAnswer(btn, chosen, correct, i, total, 'SmartReview', '_smartReviewTotal', '_smartReviewScores', 'smartReviewScore');
-}
-
-function checkSmartReviewOther(i, correctText, total) {
-    handleGenericOther(i, correctText, total, 'SmartReview', '_smartReviewTotal', '_smartReviewScores', 'smartReviewScore');
-}
-
             
 </script>
     
