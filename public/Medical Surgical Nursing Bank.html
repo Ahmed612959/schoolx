@@ -1370,721 +1370,340 @@ document.addEventListener('DOMContentLoaded', async function() {
     initPage();
 });
 
-// ====================== نظام الواجبات المنزلية ======================
-
-// ---------- لوحة تحكم الأدمن ----------
-function openHomeworkDashboard() {
-    const userType = currentUser?.type || 'student';
-    if (userType !== 'admin') {
-        showToast('❌ هذه الصفحة مخصصة للأدمن فقط', 'error');
-        return;
-    }
-
-    fetchHomeworksForAdmin();
-    const h = `
-        <h2>📋 لوحة تحكم الواجبات</h2>
-        <div style="margin-bottom:15px;">
-            <button class="modal-btn btn-success" onclick="showCreateHomeworkForm()"><i class="fas fa-plus"></i> إنشاء واجب جديد</button>
-            <button class="modal-btn btn-info" onclick="fetchHomeworksForAdmin()" style="background:var(--blue);"><i class="fas fa-sync"></i> تحديث</button>
-        </div>
-        <div id="homeworkListAdmin" style="max-height:55vh;overflow-y:auto;">
-            <p style="color:var(--text-secondary);text-align:center;">⏳ جاري تحميل الواجبات...</p>
-        </div>
-        <button class="modal-btn btn-close" onclick="closeModal('homeworkDashboardModal')">إغلاق</button>
-    `;
-    openModal('homeworkDashboardModal', h);
-}
-
-async function fetchHomeworksForAdmin() {
-    const container = document.getElementById('homeworkListAdmin');
-    if (!container) return;
-    
-    container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">⏳ جاري التحميل...</p>';
-    
+// ====================== 1. إنشاء واجب جديد (للأدمن) ======================
+app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
     try {
-        console.log('🔄 جلب الواجبات للأدمن...');
-        const response = await fetch(API_BASE + '/api/homework/all', {
-            credentials: 'include',
-            headers: { 
-                'Cache-Control': 'no-cache',
-                'Content-Type': 'application/json'
-            }
-        });
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, targetGrade, questions } = req.body;
         
-        console.log('📡 Response status:', response.status);
+        console.log('📝 إنشاء واجب جديد:', { title, chapterId, questionCount });
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Response error:', errorText);
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        if (!title || !chapterId || !questionCount || !deadline || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة، ويجب اختيار الأسئلة' });
         }
-        
-        const homeworks = await response.json();
-        console.log('✅ تم جلب الواجبات:', homeworks.length);
-        renderHomeworkListAdmin(homeworks);
-    } catch (error) {
-        console.error('❌ خطأ في جلب الواجبات:', error);
-        container.innerHTML = `
-            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;text-align:center;margin:10px 0;">
-                <p style="color:#dc2626;font-weight:700;">❌ فشل في تحميل الواجبات</p>
-                <p style="color:var(--text-secondary);font-size:0.85rem;">${error.message || 'خطأ غير معروف'}</p>
-                <button class="modal-btn btn-primary" onclick="fetchHomeworksForAdmin()" style="margin-top:10px;">🔄 إعادة المحاولة</button>
-            </div>
-        `;
-    }
-}
 
-function renderHomeworkListAdmin(homeworks) {
-    const container = document.getElementById('homeworkListAdmin');
-    if (!container) return;
-
-    if (!homeworks || homeworks.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state" style="margin:20px 0;">
-                <i class="fas fa-tasks" style="font-size:2.5rem;color:var(--gold);"></i>
-                <h3 style="margin-top:10px;">لا توجد واجبات</h3>
-                <p style="color:var(--text-secondary);">قم بإنشاء أول واجب منزلي الآن</p>
-            </div>
-        `;
-        return;
-    }
-
-    let html = '';
-    for (const hw of homeworks) {
-        const isPastDeadline = new Date(hw.deadline) < new Date();
-        const hwId = hw._id || hw.id;
-        html += `
-            <div style="background:var(--card-bg);border-radius:16px;padding:15px;margin-bottom:12px;border:1px solid var(--border-color);">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                    <div style="flex:1;">
-                        <h4 style="color:var(--dark);font-size:0.95rem;margin-bottom:4px;">📘 ${hw.title}</h4>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);">
-                            📚 ${hw.chapterName || 'فصل غير معروف'} 
-                            | 🎯 ${hw.targetGrade === 'first' ? 'الأول' : hw.targetGrade === 'second' ? 'الثاني' : 'الثالث'}
-                            | 📅 ${hw.deadline}
-                            ${isPastDeadline ? ' <span style="color:var(--red);">⏰ منتهي</span>' : ' <span style="color:var(--green);">⏳ مفتوح</span>'}
-                        </div>
-                    </div>
-                    <div style="font-size:0.75rem;text-align:left;background:var(--gold-light);padding:6px 12px;border-radius:12px;">
-                        <span style="color:var(--green);">✅ ${hw.submittedCount || 0}/${hw.totalStudents || 0}</span>
-                        <span style="color:var(--gold-dark);"> | متوسط: ${hw.avgScore || 0}%</span>
-                    </div>
-                </div>
-                <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-                    <button class="modal-btn btn-info" style="padding:4px 12px;font-size:0.7rem;background:var(--blue);" onclick="viewHomeworkSubmissions('${hwId}')">👀 النتائج</button>
-                    <button class="modal-btn btn-danger" style="padding:4px 12px;font-size:0.7rem;" onclick="deleteHomework('${hwId}')">🗑️ حذف</button>
-                </div>
-            </div>
-        `;
-    }
-    container.innerHTML = html;
-}
-
-// ---------- إنشاء واجب جديد ----------
-function showCreateHomeworkForm() {
-    let chapterOptions = '';
-    for (const id in chaptersData) {
-        if (chaptersData.hasOwnProperty(id)) {
-            chapterOptions += `<option value="${id}">${chaptersData[id].name}</option>`;
-        }
-    }
-
-    let categoryOptions = '';
-    for (const cat of categoryMeta) {
-        if (cat.id !== 'definitions') {
-            categoryOptions += `<option value="${cat.id}">${cat.label}</option>`;
-        }
-    }
-
-    const h = `
-        <h2>📝 إنشاء واجب جديد</h2>
-        <div style="text-align:right;max-height:55vh;overflow-y:auto;">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                <div>
-                    <label style="font-size:0.8rem;font-weight:600;">عنوان الواجب</label>
-                    <input type="text" id="hwTitle" placeholder="مثال: واجب الفصل الأول" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                </div>
-                <div>
-                    <label style="font-size:0.8rem;font-weight:600;">الفصل</label>
-                    <select id="hwChapter" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                        ${chapterOptions}
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size:0.8rem;font-weight:600;">نوع الأسئلة</label>
-                    <select id="hwCategory" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                        <option value="all">جميع الأنواع</option>
-                        ${categoryOptions}
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size:0.8rem;font-weight:600;">عدد الأسئلة</label>
-                    <input type="number" id="hwCount" value="10" min="1" max="50" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                </div>
-                <div>
-                    <label style="font-size:0.8rem;font-weight:600;">موعد التسليم</label>
-                    <input type="date" id="hwDeadline" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                </div>
-                <div>
-                    <label style="font-size:0.8rem;font-weight:600;">الصف المستهدف</label>
-                    <select id="hwGrade" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                        <option value="first">الأول</option>
-                        <option value="second">الثاني</option>
-                        <option value="third">الثالث</option>
-                    </select>
-                </div>
-            </div>
-            <div style="margin:15px 0;">
-                <button class="modal-btn btn-primary" onclick="generateHomeworkQuestions()">🔄 اختيار الأسئلة</button>
-                <span id="hwQuestionsStatus" style="font-size:0.8rem;color:var(--text-secondary);margin-right:10px;">لم يتم اختيار أسئلة بعد</span>
-            </div>
-            <div id="hwQuestionsPreview" style="max-height:200px;overflow-y:auto;background:var(--light-bg);border-radius:10px;padding:10px;"></div>
-            <button class="modal-btn btn-success" onclick="createHomework()" style="width:100%;margin-top:10px;">📤 إنشاء الواجب</button>
-        </div>
-        <button class="modal-btn btn-close" onclick="closeModal('createHomeworkModal')">إلغاء</button>
-    `;
-    openModal('createHomeworkModal', h);
-    
-    // تعيين التاريخ الافتراضي بعد أسبوع
-    const defaultDate = new Date();
-    defaultDate.setDate(defaultDate.getDate() + 7);
-    const deadlineInput = document.getElementById('hwDeadline');
-    if (deadlineInput) {
-        deadlineInput.value = defaultDate.toISOString().split('T')[0];
-    }
-}
-
-let selectedHomeworkQuestions = [];
-
-function generateHomeworkQuestions() {
-    const chapterId = document.getElementById('hwChapter').value;
-    const category = document.getElementById('hwCategory').value;
-    const count = parseInt(document.getElementById('hwCount').value) || 10;
-    
-    const allQ = getAllQuestions(chapterId, category);
-    const shuffled = allQ.sort(() => Math.random() - 0.5);
-    selectedHomeworkQuestions = shuffled.slice(0, Math.min(count, shuffled.length));
-    
-    const statusEl = document.getElementById('hwQuestionsStatus');
-    if (statusEl) {
-        statusEl.textContent = `✅ تم اختيار ${selectedHomeworkQuestions.length} سؤال`;
-    }
-    
-    let preview = '';
-    for (let i = 0; i < selectedHomeworkQuestions.length; i++) {
-        const q = selectedHomeworkQuestions[i];
-        preview += `<div style="padding:4px 0;font-size:0.75rem;border-bottom:1px solid var(--border-color);">
-            <strong>${i+1}.</strong> ${q.text.substring(0, 60)}${q.text.length > 60 ? '...' : ''}
-            <span style="color:var(--text-secondary);font-size:0.65rem;"> (${q.cat})</span>
-        </div>`;
-    }
-    document.getElementById('hwQuestionsPreview').innerHTML = preview || '⚠️ لا توجد أسئلة متاحة';
-}
-
-async function createHomework() {
-    if (selectedHomeworkQuestions.length === 0) {
-        showToast('⚠️ يرجى اختيار الأسئلة أولاً', 'warning');
-        return;
-    }
-
-    const title = document.getElementById('hwTitle').value.trim();
-    const chapterId = document.getElementById('hwChapter').value;
-    const category = document.getElementById('hwCategory').value;
-    const deadline = document.getElementById('hwDeadline').value;
-    const targetGrade = document.getElementById('hwGrade').value;
-    
-    if (!title) {
-        showToast('⚠️ يرجى إدخال عنوان للواجب', 'warning');
-        return;
-    }
-    if (!deadline) {
-        showToast('⚠️ يرجى تحديد موعد التسليم', 'warning');
-        return;
-    }
-
-    const chapterName = chaptersData[chapterId]?.name || 'فصل غير معروف';
-
-    const data = {
-        title,
-        chapterId,
-        chapterName,
-        questionCount: selectedHomeworkQuestions.length,
-        categoryFilter: category,
-        deadline,
-        targetGrade,
-        questions: selectedHomeworkQuestions
-    };
-
-    try {
-        console.log('📤 إرسال بيانات الواجب:', data);
-        const response = await fetch(API_BASE + '/api/homework', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+        const newHomework = new Homework({
+            title,
+            chapterId,
+            chapterName: chapterName || 'فصل غير معروف',
+            questionCount,
+            categoryFilter: categoryFilter || 'all',
+            deadline,
+            targetGrade: targetGrade || 'first',
+            createdBy: req.user.username || 'admin',
+            questions: questions,
+            isActive: true
         });
 
-        const result = await response.json();
-        console.log('📥 رد السيرفر:', result);
-        
-        if (result.success) {
-            showToast('✅ تم إنشاء الواجب بنجاح!', 'success');
-            closeModal('createHomeworkModal');
-            fetchHomeworksForAdmin();
-        } else {
-            showToast('❌ ' + (result.error || 'فشل في إنشاء الواجب'), 'error');
-        }
+        await newHomework.save();
+        console.log('✅ تم إنشاء الواجب:', newHomework._id);
+        res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
     } catch (error) {
         console.error('❌ خطأ في إنشاء الواجب:', error);
-        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+        res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' + error.message });
     }
-}
+});
 
-// ---------- عرض تسليمات واجب (للأدمن) ----------
-async function viewHomeworkSubmissions(homeworkId) {
+// ====================== 2. جلب كل الواجبات (للأدمن) ======================
+app.get('/api/homework/all', verifyToken, isAdmin, async (req, res) => {
     try {
-        console.log('📊 جلب تسليمات الواجب:', homeworkId);
-        const response = await fetch(API_BASE + '/api/homework/' + homeworkId + '/submissions', {
-            credentials: 'include'
-        });
-        if (!response.ok) throw new Error('فشل في جلب التسليمات');
-        const submissions = await response.json();
-        console.log('✅ تم جلب التسليمات:', submissions.length);
-
-        let html = `<h2>📊 نتائج الواجب</h2>`;
-        if (submissions.length === 0) {
-            html += `<p style="color:var(--text-secondary);text-align:center;">لا توجد تسليمات حتى الآن</p>`;
-        } else {
-            html += `
-                <div style="max-height:50vh;overflow-y:auto;">
-                <table style="width:100%;border-collapse:collapse;font-size:0.8rem;text-align:center;">
-                    <tr style="background:var(--gold);color:var(--darker);">
-                        <th style="padding:8px;">#</th>
-                        <th style="padding:8px;">👤 الطالب</th>
-                        <th style="padding:8px;">📝 الكود</th>
-                        <th style="padding:8px;">📊 الدرجة</th>
-                        <th style="padding:8px;">⏱️ الوقت</th>
-                        <th style="padding:8px;">🔄 التبويبات</th>
-                        <th style="padding:8px;">التفاصيل</th>
-                    </tr>`;
-            for (let i = 0; i < submissions.length; i++) {
-                const s = submissions[i];
-                const timeMinutes = Math.floor((s.timeTaken || 0) / 60);
-                const timeSeconds = (s.timeTaken || 0) % 60;
-                const scoreColor = s.score >= 70 ? 'var(--green)' : s.score >= 40 ? 'var(--orange)' : 'var(--red)';
-                html += `
-                    <tr style="border-bottom:1px solid var(--border-color);">
-                        <td style="padding:6px;">${i+1}</td>
-                        <td style="padding:6px;font-weight:600;">${s.studentName || 'غير معروف'}</td>
-                        <td style="padding:6px;font-size:0.7rem;color:var(--text-secondary);">${s.studentCode || '---'}</td>
-                        <td style="padding:6px;font-weight:700;color:${scoreColor};">${s.score || 0}%</td>
-                        <td style="padding:6px;font-size:0.7rem;">${String(timeMinutes).padStart(2, '0')}:${String(timeSeconds).padStart(2, '0')}</td>
-                        <td style="padding:6px;font-size:0.7rem;color:${(s.tabSwitches || 0) > 3 ? 'var(--red)' : 'var(--text-secondary)'};">${s.tabSwitches || 0}</td>
-                        <td style="padding:6px;">
-                            <button class="modal-btn btn-info" style="padding:2px 8px;font-size:0.65rem;" onclick="viewStudentSubmission('${homeworkId}','${s._id}')">📖 تفاصيل</button>
-                        </td>
-                    </tr>
-                `;
+        await connectToDatabase();
+        console.log('📋 جلب كل الواجبات...');
+        
+        const homeworks = await Homework.find().sort({ createdAt: -1 });
+        console.log(`✅ تم جلب ${homeworks.length} واجب من قاعدة البيانات`);
+        
+        if (!homeworks || homeworks.length === 0) {
+            console.log('⚠️ لا توجد واجبات في قاعدة البيانات');
+            return res.status(200).json([]);
+        }
+        
+        const homeworkWithStats = await Promise.all(homeworks.map(async (hw) => {
+            try {
+                const submissions = await HomeworkSubmission.find({ homeworkId: hw._id });
+                const totalStudents = await Student.countDocuments({ grade: hw.targetGrade || 'first' });
+                
+                let avgScore = '0';
+                if (submissions.length > 0) {
+                    const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                    avgScore = (totalScore / submissions.length).toFixed(1);
+                }
+                
+                console.log(`📊 واجب "${hw.title}": ${submissions.length} تسليم من ${totalStudents} طالب`);
+                
+                return {
+                    _id: hw._id,
+                    id: hw._id,
+                    title: hw.title || 'بدون عنوان',
+                    chapterId: hw.chapterId || '',
+                    chapterName: hw.chapterName || 'فصل غير معروف',
+                    questionCount: hw.questionCount || 0,
+                    categoryFilter: hw.categoryFilter || 'all',
+                    deadline: hw.deadline || new Date().toISOString().split('T')[0],
+                    targetGrade: hw.targetGrade || 'first',
+                    createdBy: hw.createdBy || 'admin',
+                    isActive: hw.isActive !== undefined ? hw.isActive : true,
+                    questions: hw.questions || [],
+                    totalStudents: totalStudents || 0,
+                    submittedCount: submissions.length || 0,
+                    avgScore: avgScore,
+                    createdAt: hw.createdAt || new Date(),
+                    updatedAt: hw.updatedAt || new Date()
+                };
+            } catch (err) {
+                console.error(`❌ خطأ في معالجة واجب ${hw._id}:`, err);
+                return {
+                    _id: hw._id,
+                    id: hw._id,
+                    title: hw.title || 'واجب (خطأ في المعالجة)',
+                    chapterName: hw.chapterName || 'فصل غير معروف',
+                    questionCount: hw.questionCount || 0,
+                    deadline: hw.deadline || new Date().toISOString().split('T')[0],
+                    targetGrade: hw.targetGrade || 'first',
+                    isActive: true,
+                    totalStudents: 0,
+                    submittedCount: 0,
+                    avgScore: '0',
+                    questions: []
+                };
             }
-            html += `</table></div>`;
-        }
-        html += `<button class="modal-btn btn-close" onclick="closeModal('submissionsModal')">إغلاق</button>`;
-        openModal('submissionsModal', html);
+        }));
+
+        console.log(`✅ تم تجهيز ${homeworkWithStats.length} واجب للإرسال`);
+        return res.status(200).json(homeworkWithStats);
+        
     } catch (error) {
-        console.error('❌ خطأ في جلب التسليمات:', error);
-        showToast('❌ خطأ في جلب التسليمات', 'error');
-    }
-}
-
-async function viewStudentSubmission(homeworkId, submissionId) {
-    try {
-        const response = await fetch(API_BASE + '/api/homework/' + homeworkId + '/submissions', {
-            credentials: 'include'
+        console.error('❌ خطأ في جلب الواجبات:', error);
+        return res.status(500).json({ 
+            error: 'خطأ في جلب الواجبات: ' + error.message,
+            details: error.stack
         });
-        const submissions = await response.json();
-        const submission = submissions.find(s => s._id === submissionId);
-        if (!submission) {
-            showToast('⚠️ لم يتم العثور على التسليم', 'error');
-            return;
-        }
-
-        let html = `<h2>📖 تفاصيل تسليم الطالب</h2>`;
-        html += `<p style="font-size:0.85rem;"><strong>👤 ${submission.studentName || 'غير معروف'}</strong> | كود: ${submission.studentCode || '---'} | الدرجة: <strong style="color:${submission.score >= 70 ? 'var(--green)' : 'var(--red)'};">${submission.score || 0}%</strong></p>`;
-        html += `<div style="max-height:40vh;overflow-y:auto;text-align:right;">`;
-        
-        const answers = submission.answers || [];
-        if (answers.length === 0) {
-            html += `<p style="color:var(--text-secondary);">لا توجد إجابات مسجلة</p>`;
-        } else {
-            for (const ans of answers) {
-                const isCorrect = ans.isCorrect;
-                html += `
-                    <div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
-                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};">${isCorrect ? '✅' : '❌'}</span>
-                        السؤال ${(ans.questionIndex || 0) + 1}: 
-                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};font-weight:${isCorrect ? '700' : '400'};">
-                            ${isCorrect ? 'إجابة صحيحة' : 'إجابة خاطئة'}
-                        </span>
-                        <span style="color:var(--text-secondary);font-size:0.7rem;display:block;margin-top:2px;">
-                            إجابة الطالب: "${ans.answer || '(فارغ)'}"
-                        </span>
-                    </div>
-                `;
-            }
-        }
-        html += `</div>`;
-        html += `<button class="modal-btn btn-close" onclick="closeModal('studentSubmissionModal')">إغلاق</button>`;
-        openModal('studentSubmissionModal', html);
-    } catch (error) {
-        console.error('❌ خطأ في جلب تفاصيل التسليم:', error);
-        showToast('❌ خطأ في جلب تفاصيل التسليم', 'error');
     }
-}
+});
 
-async function deleteHomework(homeworkId) {
-    if (!confirm('⚠️ هل أنت متأكد من حذف هذا الواجب وجميع تسليماته؟')) return;
+// ====================== 3. جلب الواجبات المعلقة للطالب ======================
+app.get('/api/homework/pending', verifyToken, async (req, res) => {
     try {
-        console.log('🗑️ حذف الواجب:', homeworkId);
-        const response = await fetch(API_BASE + '/api/homework/' + homeworkId, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-            showToast('✅ تم حذف الواجب بنجاح', 'success');
-            fetchHomeworksForAdmin();
-        } else {
-            showToast('❌ ' + (result.error || 'فشل في حذف الواجب'), 'error');
+        await connectToDatabase();
+        console.log('📚 جلب الواجبات المعلقة للطالب:', req.user.username);
+        
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) {
+            console.log('❌ الطالب غير موجود');
+            return res.status(404).json({ error: 'الطالب غير موجود' });
         }
-    } catch (error) {
-        console.error('❌ خطأ في حذف الواجب:', error);
-        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
-    }
-}
 
-// ---------- واجهة الطالب: عرض وحل الواجبات ----------
-function openMyHomework() {
-    const h = `
-        <h2>📚 واجباتي المنزلية</h2>
-        <div style="margin-bottom:10px;">
-            <button class="modal-btn btn-info" onclick="fetchPendingHomeworks()" style="background:var(--blue);padding:4px 12px;font-size:0.7rem;"><i class="fas fa-sync"></i> تحديث</button>
-        </div>
-        <div id="pendingHomeworkList" style="max-height:55vh;overflow-y:auto;">
-            <p style="color:var(--text-secondary);text-align:center;">⏳ جاري تحميل الواجبات...</p>
-        </div>
-        <button class="modal-btn btn-close" onclick="closeModal('myHomeworkModal')">إغلاق</button>
-    `;
-    openModal('myHomeworkModal', h);
-    fetchPendingHomeworks();
-}
+        const today = new Date().toISOString().split('T')[0];
+        console.log(`🎯 الصف: ${student.grade}, التاريخ: ${today}`);
 
-async function fetchPendingHomeworks() {
-    const container = document.getElementById('pendingHomeworkList');
-    if (!container) return;
-    
-    container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">⏳ جاري التحميل...</p>';
-    
-    try {
-        console.log('🔄 جلب الواجبات المعلقة للطالب...');
-        const response = await fetch(API_BASE + '/api/homework/pending', {
-            credentials: 'include',
-            headers: { 
-                'Cache-Control': 'no-cache',
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        console.log('📡 Response status:', response.status);
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Response error:', errorText);
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-        
-        const homeworks = await response.json();
-        console.log('✅ تم جلب الواجبات المعلقة:', homeworks.length);
-        renderPendingHomeworks(homeworks);
+        const homeworks = await Homework.find({
+            targetGrade: student.grade,
+            isActive: true,
+            deadline: { $gte: today }
+        }).sort({ deadline: 1 });
+
+        console.log(`✅ تم جلب ${homeworks.length} واجب معلق`);
+
+        const pendingHomeworks = await Promise.all(homeworks.map(async (hw) => {
+            const submission = await HomeworkSubmission.findOne({ 
+                homeworkId: hw._id, 
+                studentId: req.user.username 
+            });
+            return {
+                ...hw._doc,
+                id: hw._id,
+                isSubmitted: !!submission,
+                hasSubmission: !!submission,
+                myScore: submission ? submission.score : null
+            };
+        }));
+
+        return res.status(200).json(pendingHomeworks);
     } catch (error) {
         console.error('❌ خطأ في جلب الواجبات المعلقة:', error);
-        container.innerHTML = `
-            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;text-align:center;margin:10px 0;">
-                <p style="color:#dc2626;font-weight:700;">❌ فشل في تحميل الواجبات</p>
-                <p style="color:var(--text-secondary);font-size:0.85rem;">${error.message || 'خطأ غير معروف'}</p>
-                <button class="modal-btn btn-primary" onclick="fetchPendingHomeworks()" style="margin-top:10px;">🔄 إعادة المحاولة</button>
-            </div>
-        `;
+        res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message });
     }
-}
+});
 
-function renderPendingHomeworks(homeworks) {
-    const container = document.getElementById('pendingHomeworkList');
-    if (!container) return;
-
-    if (!homeworks || homeworks.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state" style="margin:20px 0;">
-                <i class="fas fa-check-circle" style="font-size:2.5rem;color:var(--green);"></i>
-                <h3 style="margin-top:10px;">🎉 لا توجد واجبات معلقة</h3>
-                <p style="color:var(--text-secondary);">مبروك! كل الواجبات مكتملة ✅</p>
-            </div>
-        `;
-        return;
-    }
-
-    let html = '';
-    for (const hw of homeworks) {
-        const isPastDeadline = new Date(hw.deadline) < new Date();
-        const isSubmitted = hw.isSubmitted || hw.hasSubmission || false;
-        const myScore = hw.myScore || 0;
-        const hwId = hw._id || hw.id;
-        
-        html += `
-            <div style="background:var(--card-bg);border-radius:16px;padding:15px;margin-bottom:12px;border:1px solid var(--border-color);">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                    <div style="flex:1;">
-                        <h4 style="color:var(--dark);font-size:0.95rem;margin-bottom:4px;">📘 ${hw.title}</h4>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);">
-                            📚 ${hw.chapterName || 'فصل غير معروف'} 
-                            | 📅 ${hw.deadline}
-                            ${isPastDeadline ? ' <span style="color:var(--red);">⏰ انتهى الوقت</span>' : ' <span style="color:var(--green);">⏳ متاح</span>'}
-                            ${isSubmitted ? ' <span style="color:var(--green);">✅ تم التسليم</span>' : ''}
-                        </div>
-                    </div>
-                    ${isSubmitted ? `<span style="font-size:1.2rem;font-weight:700;color:${myScore >= 70 ? 'var(--green)' : 'var(--red)'};">${myScore}%</span>` : ''}
-                </div>
-                ${!isSubmitted && !isPastDeadline ? `<button class="modal-btn btn-primary" onclick="startHomework('${hwId}')" style="margin-top:8px;">📝 حل الواجب</button>` : ''}
-                ${isSubmitted ? `<button class="modal-btn btn-info" style="margin-top:8px;background:var(--blue);" onclick="viewMyHomeworkResult('${hwId}')">👀 عرض نتيجتي</button>` : ''}
-            </div>
-        `;
-    }
-    container.innerHTML = html;
-}
-
-// ---------- حل الواجب (مع منع الغش) ----------
-let currentHomeworkData = null;
-let homeworkTabSwitchCount = 0;
-let homeworkStartTime = null;
-
-function startHomework(homeworkId) {
-    // بدء مراقبة تبديل التبويب
-    homeworkTabSwitchCount = 0;
-    homeworkStartTime = Date.now();
-    
-    // إزالة المستمع القديم إذا كان موجوداً
-    if (window._homeworkVisibilityHandler) {
-        document.removeEventListener('visibilitychange', window._homeworkVisibilityHandler);
-    }
-    
-    // إضافة مستمع جديد
-    window._homeworkVisibilityHandler = function() {
-        if (document.hidden) {
-            homeworkTabSwitchCount++;
-            showToast(`⚠️ تم تبديل التبويب ${homeworkTabSwitchCount} مرة. التبديل المتكرر قد يؤدي إلى إلغاء الواجب.`, 'warning');
-        }
-    };
-    document.addEventListener('visibilitychange', window._homeworkVisibilityHandler);
-
-    // جلب بيانات الواجب
-    fetchHomeworkData(homeworkId);
-}
-
-async function fetchHomeworkData(homeworkId) {
+// ====================== 4. جلب واجب معين لحله (للطالب) ======================
+app.get('/api/homework/:id', verifyToken, async (req, res) => {
     try {
-        console.log('📥 جلب بيانات الواجب:', homeworkId);
-        const response = await fetch(API_BASE + '/api/homework/' + homeworkId, {
-            credentials: 'include',
-            headers: { 'Cache-Control': 'no-cache' }
-        });
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'فشل في جلب الواجب');
+        await connectToDatabase();
+        console.log('📥 جلب واجب:', req.params.id);
+        
+        const homework = await Homework.findById(req.params.id);
+        if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
+
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        
+        if (student.grade !== homework.targetGrade) {
+            return res.status(403).json({ error: 'هذا الواجب ليس لصفك' });
         }
-        const data = await response.json();
-        console.log('✅ تم جلب بيانات الواجب:', data.title);
-        currentHomeworkData = data;
-        renderHomeworkForStudent(data);
+
+        const existingSubmission = await HomeworkSubmission.findOne({ 
+            homeworkId: homework._id, 
+            studentId: req.user.username 
+        });
+        if (existingSubmission) {
+            return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
+        }
+
+        // إرجاع الأسئلة بدون الإجابات الصحيحة
+        const questionsWithoutAnswers = (homework.questions || []).map(q => ({
+            ...q,
+            correct: undefined,
+            correctAnswer: undefined,
+            completion: undefined,
+            answer: undefined
+        }));
+
+        return res.status(200).json({
+            ...homework._doc,
+            id: homework._id,
+            questions: questionsWithoutAnswers
+        });
     } catch (error) {
         console.error('❌ خطأ في جلب الواجب:', error);
-        showToast('❌ ' + error.message, 'error');
+        res.status(500).json({ error: 'خطأ في جلب الواجب: ' + error.message });
     }
-}
+});
 
-function renderHomeworkForStudent(homework) {
-    const h = `
-        <h2>📝 ${homework.title}</h2>
-        <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:10px;">
-            📚 ${homework.chapterName} | ⏱️ ${homework.questionCount} سؤال
-        </div>
-        <div style="font-size:0.85rem;color:var(--red);margin-bottom:10px;">
-            ⚠️ تحذير: لا يمكنك تبديل التبويب أثناء حل الواجب. سيتم تسجيل كل تبديل.
-        </div>
-        <div id="homeworkQuestions" style="max-height:50vh;overflow-y:auto;text-align:right;"></div>
-        <div style="display:flex;gap:10px;justify-content:center;margin-top:15px;flex-wrap:wrap;">
-            <button class="modal-btn btn-success" onclick="submitHomework()">📤 تسليم الواجب</button>
-            <button class="modal-btn btn-close" onclick="closeModal('solveHomeworkModal'); clearHomeworkListeners();">إلغاء</button>
-        </div>
-    `;
-    openModal('solveHomeworkModal', h);
-    
-    let qHTML = '';
-    const questions = homework.questions || [];
-    for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        qHTML += `<div style="margin:10px 0;padding:12px;background:var(--light-bg);border-radius:12px;">`;
-        qHTML += `<strong>${i+1}. ${q.text || 'سؤال غير معروف'}</strong>`;
-        if (q.translation) {
-            qHTML += `<div style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0;">🌐 ${q.translation}</div>`;
-        }
-        qHTML += `<div style="margin-top:6px;">`;
-        
-        if (q.cat === 'mcq' && q.options && q.options.length > 0) {
-            for (const opt of q.options) {
-                const escapedOpt = opt.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                qHTML += `
-                    <label style="display:block;padding:6px 12px;margin:3px 0;background:var(--card-bg);border-radius:8px;border:1px solid var(--border-color);cursor:pointer;">
-                        <input type="radio" name="hw_q_${i}" value="${escapedOpt}"> ${opt}
-                    </label>
-                `;
-            }
-        } else if (q.cat === 'truefalse') {
-            qHTML += `
-                <label style="display:inline-block;padding:6px 15px;margin:3px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border-color);cursor:pointer;">
-                    <input type="radio" name="hw_q_${i}" value="true"> ✅ صواب
-                </label>
-                <label style="display:inline-block;padding:6px 15px;margin:3px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border-color);cursor:pointer;">
-                    <input type="radio" name="hw_q_${i}" value="false"> ❌ خطأ
-                </label>
-            `;
-        } else {
-            qHTML += `<textarea id="hw_text_${i}" placeholder="اكتب إجابتك هنا..." style="width:100%;min-height:60px;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);"></textarea>`;
-        }
-        
-        qHTML += `</div></div>`;
-    }
-    document.getElementById('homeworkQuestions').innerHTML = qHTML;
-}
-
-function clearHomeworkListeners() {
-    if (window._homeworkVisibilityHandler) {
-        document.removeEventListener('visibilitychange', window._homeworkVisibilityHandler);
-        window._homeworkVisibilityHandler = null;
-    }
-}
-
-async function submitHomework() {
-    if (!currentHomeworkData) {
-        showToast('❌ لا توجد بيانات واجب', 'error');
-        return;
-    }
-
-    // جمع الإجابات
-    const answers = [];
-    const questions = currentHomeworkData.questions || [];
-    
-    for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        let answer = '';
-        
-        if (q.cat === 'mcq' || q.cat === 'truefalse') {
-            const selected = document.querySelector(`input[name="hw_q_${i}"]:checked`);
-            if (selected) answer = selected.value;
-        } else {
-            const textarea = document.getElementById(`hw_text_${i}`);
-            if (textarea) answer = textarea.value.trim();
-        }
-        
-        answers.push({
-            questionIndex: i,
-            answer: answer || ''
-        });
-    }
-
-    // التحقق من الإجابة على كل الأسئلة
-    const unanswered = answers.filter(a => !a.answer || a.answer === '');
-    if (unanswered.length > 0) {
-        if (!confirm(`⚠️ هناك ${unanswered.length} سؤال(أسئلة) لم يتم الإجابة عليها. هل تريد التسليم على أي حال؟`)) {
-            return;
-        }
-    }
-
-    const timeTaken = Math.floor((Date.now() - (homeworkStartTime || Date.now())) / 1000);
-
-    const data = {
-        answers: answers,
-        timeTaken: timeTaken,
-        tabSwitches: homeworkTabSwitchCount || 0
-    };
-
+// ====================== 5. تسليم الواجب (للطالب) ======================
+app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
     try {
-        console.log('📤 تسليم الواجب:', currentHomeworkData._id);
-        const response = await fetch(API_BASE + '/api/homework/' + currentHomeworkData._id + '/submit', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+        await connectToDatabase();
+        const homeworkId = req.params.id;
+        const { answers, timeTaken, tabSwitches } = req.body;
+        
+        console.log('📤 تسليم واجب:', homeworkId);
+        
+        const homework = await Homework.findById(homeworkId);
+        if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
+
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+        const existingSubmission = await HomeworkSubmission.findOne({ 
+            homeworkId, 
+            studentId: req.user.username 
+        });
+        if (existingSubmission) {
+            return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
+        }
+
+        // حساب الدرجة
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = homework.questions || [];
+        
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            
+            let isCorrect = false;
+            if (question.cat === 'mcq') {
+                isCorrect = answer.answer === question.correct;
+            } else if (question.cat === 'truefalse') {
+                const correctStr = String(question.correct).toLowerCase();
+                const answerStr = String(answer.answer).toLowerCase();
+                isCorrect = correctStr === answerStr;
+            } else {
+                // مقارنة تقريبية للإجابات المقالية
+                isCorrect = answer.answer && answer.answer.length > 3 && 
+                           question.completion && 
+                           answer.answer.toLowerCase().includes(question.completion.toLowerCase());
+            }
+            
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({
+                questionIndex: answer.questionIndex,
+                answer: answer.answer || '',
+                isCorrect: isCorrect
+            });
+        }
+
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+
+        const submission = new HomeworkSubmission({
+            homeworkId: homework._id,
+            studentId: req.user.username,
+            studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---',
+            answers: detailedAnswers,
+            score: score,
+            totalQuestions: totalQuestions,
+            timeTaken: timeTaken || 0,
+            tabSwitches: tabSwitches || 0
         });
 
-        const result = await response.json();
-        console.log('📥 رد التسليم:', result);
+        await submission.save();
+        console.log(`✅ تم تسليم الواجب ${homeworkId} من الطالب ${req.user.username} بنتيجة ${score}%`);
         
-        if (result.success) {
-            showToast(`✅ تم تسليم الواجب بنجاح! نتيجتك: ${result.score}%`, 'success');
-            clearHomeworkListeners();
-            closeModal('solveHomeworkModal');
-            fetchPendingHomeworks(); // تحديث قائمة الواجبات
-            if (result.score >= 80) spawnConfetti();
-        } else {
-            showToast('❌ ' + (result.error || 'فشل في تسليم الواجب'), 'error');
-        }
+        res.json({ 
+            success: true, 
+            message: 'تم تسليم الواجب بنجاح', 
+            score: score 
+        });
     } catch (error) {
         console.error('❌ خطأ في تسليم الواجب:', error);
-        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+        res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message });
     }
-}
+});
 
-// ---------- عرض نتيجة الواجب للطالب ----------
-async function viewMyHomeworkResult(homeworkId) {
+// ====================== 6. جلب تفاصيل تسليم واجب معين (للأدمن) ======================
+app.get('/api/homework/:id/submissions', verifyToken, isAdmin, async (req, res) => {
     try {
-        console.log('📊 جلب نتيجتي في الواجب:', homeworkId);
-        const response = await fetch(API_BASE + '/api/homework/' + homeworkId + '/submissions', {
-            credentials: 'include'
-        });
-        const submissions = await response.json();
-        const mySubmission = submissions.find(s => s.studentId === currentUser?.username);
-        if (!mySubmission) {
-            showToast('⚠️ لم يتم العثور على تسليمك', 'error');
-            return;
-        }
-
-        let html = `<h2>📊 نتيجتي في الواجب</h2>`;
-        html += `<p style="font-size:1.2rem;font-weight:700;color:${mySubmission.score >= 70 ? 'var(--green)' : 'var(--red)'};">الدرجة: ${mySubmission.score || 0}%</p>`;
-        html += `<div style="max-height:40vh;overflow-y:auto;text-align:right;">`;
+        await connectToDatabase();
+        console.log('📊 جلب تسليمات الواجب:', req.params.id);
         
-        const answers = mySubmission.answers || [];
-        if (answers.length === 0) {
-            html += `<p style="color:var(--text-secondary);">لا توجد إجابات مسجلة</p>`;
-        } else {
-            for (const ans of answers) {
-                html += `
-                    <div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
-                        <span style="color:${ans.isCorrect ? 'var(--green)' : 'var(--red)'};">${ans.isCorrect ? '✅' : '❌'}</span>
-                        السؤال ${(ans.questionIndex || 0) + 1}: 
-                        <span style="color:${ans.isCorrect ? 'var(--green)' : 'var(--red)'};font-weight:${ans.isCorrect ? '700' : '400'};">
-                            ${ans.isCorrect ? 'صحيح' : 'خطأ'}
-                        </span>
-                    </div>
-                `;
-            }
-        }
-        html += `</div>`;
-        html += `<button class="modal-btn btn-close" onclick="closeModal('myHomeworkResultModal')">إغلاق</button>`;
-        openModal('myHomeworkResultModal', html);
+        const submissions = await HomeworkSubmission.find({ homeworkId: req.params.id })
+            .sort({ submittedAt: -1 });
+        
+        console.log(`✅ تم جلب ${submissions.length} تسليم`);
+        
+        const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+            const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+            return {
+                ...sub._doc,
+                id: sub._id,
+                studentName: student ? student.fullName : sub.studentName || 'غير معروف',
+                studentCode: student ? student.studentCode : sub.studentCode || '---'
+            };
+        }));
+
+        res.json(detailedSubmissions);
     } catch (error) {
-        console.error('❌ خطأ في جلب نتيجتي:', error);
-        showToast('❌ خطأ في جلب نتيجتك', 'error');
+        console.error('❌ خطأ في جلب التسليمات:', error);
+        res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message });
     }
-}
+});
+
+// ====================== 7. حذف/إلغاء واجب (للأدمن) ======================
+app.delete('/api/homework/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log('🗑️ حذف واجب:', req.params.id);
+        
+        const deletedHomework = await Homework.findByIdAndDelete(req.params.id);
+        if (!deletedHomework) {
+            return res.status(404).json({ error: 'الواجب غير موجود' });
+        }
+        
+        const deletedSubmissions = await HomeworkSubmission.deleteMany({ homeworkId: req.params.id });
+        console.log(`✅ تم حذف الواجب و ${deletedSubmissions.deletedCount} تسليم`);
+        
+        res.json({ 
+            success: true, 
+            message: 'تم حذف الواجب وجميع التسليمات المرتبطة به',
+            deletedSubmissions: deletedSubmissions.deletedCount
+        });
+    } catch (error) {
+        console.error('❌ خطأ في حذف الواجب:', error);
+        res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message });
+    }
+});
     
 </script>
     
