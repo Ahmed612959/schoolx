@@ -2920,7 +2920,7 @@ async function createTournament() {
 }
 
 
-// ====================== واجهة اختبار البطولة (كل الأسئلة في صفحة واحدة) ======================
+// ====================== واجهة اختبار البطولة (التصميم الجذاب) ======================
 
 var tournamentState = {};
 var tournamentTimerInterval = null;
@@ -2931,22 +2931,188 @@ function startTournamentQuiz(tournamentId, questions) {
     renderFullTournamentPage();
 }
 
+function getQuestionDesign(q, index) {
+    var type = q.cat || 'mcq';
+    var html = '<div class="tour-q-card" id="qCard_' + index + '">';
+    
+    // رأس السؤال المتطور
+    html += '<div class="tour-q-header">';
+    html += '<div class="tour-q-right">';
+    html += '<span class="tour-q-num">السؤال ' + (index + 1) + '</span>';
+    html += '<span class="tour-type-badge type-' + type + '"><i class="fas ' + getCategoryIcon(type) + '"></i> ' + getCategoryLabel(type) + '</span>';
+    html += '</div>';
+    html += '</div>';
+    
+    // نص السؤال
+    html += '<div class="tour-q-text">' + (q.text || q.question) + '</div>';
+    
+    // جسم السؤال حسب النوع
+    if (type === 'mcq' || type === 'truefalse') {
+        html += getOptionsDesign(q, index, type);
+    } else if (type === 'complete') {
+        html += '<div class="tour-input-group">';
+        html += '<span class="tour-input-prefix">الإجابة: </span>';
+        html += '<input type="text" class="tour-text-input" id="tourText_' + index + '" placeholder="أكمل الفراغ هنا...">';
+        html += '</div>';
+    } else if (type === 'list') {
+        html += '<div class="tour-input-group" style="align-items: flex-start;">';
+        html += '<span class="tour-input-prefix" style="margin-top: 10px;">النقاط: </span>';
+        html += '<textarea class="tour-textarea" id="tourText_' + index + '" placeholder="اكتب النقاط هنا (كل نقطة في سطر)..."></textarea>';
+        html += '</div>';
+    } else if (type === 'explain' || type === 'situations') {
+        html += '<div class="tour-input-group" style="align-items: flex-start;">';
+        html += '<span class="tour-input-prefix" style="margin-top: 10px;">الشرح: </span>';
+        html += '<textarea class="tour-textarea" id="tourText_' + index + '" placeholder="اكتب شرحك أو إجابتك هنا..."></textarea>';
+        html += '</div>';
+    } else {
+        html += '<div class="tour-input-group">';
+        html += '<span class="tour-input-prefix">الإجابة: </span>';
+        html += '<input type="text" class="tour-text-input" id="tourText_' + index + '" placeholder="اكتب الإجابة هنا...">';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+function getOptionsDesign(q, index, type) {
+    var html = '<div class="tour-options-grid">';
+    var options = q.options || ['صواب (True)', 'خطأ (False)']; // افتراضي لـ صح وخطأ
+    
+    for (var i = 0; i < options.length; i++) {
+        var colSpan = (type === 'truefalse') ? 'span 1' : 'span 1';
+        html += '<label class="tour-opt-label" id="optLabel_' + index + '_' + i + '" onclick="selectFullOption(this, ' + index + ', ' + i + ')">';
+        html += '<input type="radio" name="q_' + index + '" value="' + options[i] + '" class="tour-radio-input">';
+        html += '<span class="tour-opt-visual" id="optVisual_' + index + '_' + i + '"></span>';
+        html += '<span class="tour-opt-text">' + options[i] + '</span>';
+        html += '</label>';
+    }
+    html += '</div>';
+    return html;
+}
+
 function renderFullTournamentPage() {
     var state = tournamentState;
     var content = `
-        <div style="text-align: right; direction: rtl;">
+        <style>
+            /* CSS مخصص للاختبار داخل المودال */
+            .tour-header {
+                background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                color: white; padding: 15px 25px; border-radius: 18px; margin-bottom: 25px;
+                display: flex; justify-content: space-between; align-items: center;
+                position: sticky; top: 0; z-index: 10; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            .tour-timer-box { text-align: center; }
+            .tour-timer { font-size: 2.2rem; font-weight: 900; color: #10b981; font-family: monospace; letter-spacing: 2px; }
+            .tour-timer.warn { color: #f59e0b; }
+            .tour-timer.danger { color: #ef4444; animation: pulse 1s infinite; }
+            @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+            .tour-submit-btn {
+                background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+                color: #0e2a35; border: none; padding: 12px 25px; border-radius: 50px;
+                font-family: 'Tajawal', sans-serif; font-size: 1rem; font-weight: 800;
+                cursor: pointer; box-shadow: 0 5px 15px rgba(212,175,90,0.4); transition: all 0.3s;
+            }
+            .tour-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(212,175,90,0.5); }
+            
+            .tour-q-card {
+                background: var(--card-bg); border: 1px solid var(--border-color);
+                border-radius: 20px; padding: 0; margin-bottom: 25px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.04); transition: all 0.3s ease;
+                overflow: hidden;
+            }
+            .tour-q-card:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.08); transform: translateY(-3px); }
+            
+            .tour-q-header {
+                padding: 15px 20px; background: #f8fafc; border-bottom: 2px solid var(--border-color);
+                display: flex; justify-content: space-between; align-items: center;
+            }
+            body.dark-mode .tour-q-header { background: #1a2538; border-color: #334155; }
+            
+            .tour-q-right { display: flex; align-items: center; gap: 10px; }
+            .tour-q-num {
+                background: var(--gold-light); color: var(--gold-dark); padding: 5px 14px;
+                border-radius: 20px; font-size: 0.85rem; font-weight: 800;
+            }
+            .tour-type-badge {
+                padding: 5px 12px; border-radius: 20px; font-size: 0.75rem;
+                font-weight: 700; display: flex; align-items: center; gap: 5px;
+            }
+            .type-mcq { background: #ecfdf5; color: #059669; }
+            .type-truefalse { background: #fffbeb; color: #d97706; }
+            .type-complete { background: #faf5ff; color: #7c3aed; }
+            .type-explain { background: #ecfeff; color: #0891b2; }
+            .type-list { background: #fff1f2; color: #e11d48; }
+            .type-situations { background: #eef2ff; color: #4f46e5; }
+            
+            .tour-q-text {
+                padding: 20px; font-size: 1.05rem; font-weight: 700;
+                color: var(--dark); line-height: 1.9;
+            }
+            
+            .tour-options-grid {
+                display: grid; grid-template-columns: 1fr 1fr;
+                gap: 12px; padding: 0 20px 20px;
+            }
+            
+            .tour-opt-label {
+                display: flex; align-items: center; gap: 12px;
+                padding: 14px 16px; border: 2px solid var(--border-color);
+                border-radius: 14px; cursor: pointer; transition: all 0.25s ease;
+                background: var(--light-bg); position: relative;
+            }
+            .tour-opt-label:hover { border-color: var(--gold); background: var(--gold-light); }
+            
+            .tour-radio-input { display: none; }
+            
+            .tour-opt-visual {
+                width: 26px; height: 26px; border: 2px solid var(--border-color);
+                border-radius: 8px; display: flex; align-items: center; justify-content: center;
+                transition: all 0.3s; flex-shrink: 0; font-size: 12px; color: transparent;
+            }
+            .tour-opt-text { font-size: 0.92rem; color: var(--text-primary); font-weight: 500; }
+            
+            .tour-opt-label.selected {
+                border-color: var(--gold); background: var(--gold-light);
+                box-shadow: 0 4px 15px rgba(212,175,90,0.2);
+            }
+            .tour-opt-label.selected .tour-opt-visual {
+                background: var(--gold); border-color: var(--gold); color: #0e2a35;
+            }
+            
+            .tour-input-group {
+                display: flex; align-items: center; gap: 10px;
+                padding: 0 20px 20px;
+            }
+            .tour-input-prefix {
+                font-size: 0.9rem; font-weight: 700; color: var(--gold-dark);
+                white-space: nowrap;
+            }
+            .tour-text-input, .tour-textarea {
+                flex: 1; padding: 12px 16px; border: 2px solid var(--border-color);
+                border-radius: 12px; font-family: 'Tajawal', sans-serif; font-size: 0.95rem;
+                background: var(--light-bg); color: var(--text-primary); transition: all 0.3s;
+            }
+            .tour-textarea { min-height: 100px; resize: vertical; line-height: 1.8; }
+            .tour-text-input:focus, .tour-textarea:focus {
+                outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,175,90,0.2);
+            }
+        </style>
+
+        <div style="text-align: right; direction: rtl; max-height: 80vh; overflow-y: auto; padding-right: 5px;" id="tourScrollContainer">
             <!-- الهيدر الثابت -->
-            <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 15px 20px; border-radius: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+            <div class="tour-header" id="tourStickyHeader">
                 <div>
-                    <span style="font-size: 0.9rem; font-weight: 700;">🏆 اختبار البطولة</span>
-                    <span style="font-size: 0.8rem; color: #94a3b8; display: block;">مجموع الأسئلة: ${state.questions.length} سؤال</span>
+                    <div style="font-size: 1rem; font-weight: 800;">🏆 اختبار البطولة</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">مجموع الأسئلة: ${state.questions.length} سؤال</div>
                 </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 1.8rem; font-weight: 900; color: #ef4444;" id="tourTimer">10:00</div>
-                    <div style="font-size: 0.7rem; color: #94a3b8;">الوقت المتبقي</div>
+                <div class="tour-timer-box">
+                    <div class="tour-timer" id="tourTimer">10:00</div>
+                    <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">الوقت المتبقي</div>
                 </div>
-                <button class="modal-btn btn-danger" onclick="submitTournamentAnswers()" style="padding: 10px 20px; font-size: 0.9rem;">
-                    <i class="fas fa-paper-plane"></i> تسليم النتيجة
+                <button class="tour-submit-btn" onclick="submitTournamentAnswers()">
+                    <i class="fas fa-paper-plane"></i> تسليم
                 </button>
             </div>
 
@@ -2964,37 +3130,7 @@ function renderFullTournamentPage() {
 function generateQuestionsHTML(questions) {
     var html = '';
     for (var i = 0; i < questions.length; i++) {
-        var q = questions[i];
-        var hasOptions = (q.options && q.options.length > 0);
-        
-        html += '<div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm); transition: all 0.3s;" id="qCard_' + i + '">';
-        
-        // رأس السؤال
-        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid var(--gold-light); padding-bottom: 10px;">';
-        html += '<span style="background: var(--gold-light); color: var(--gold-dark); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">سؤال ' + (i + 1) + '</span>';
-        html += '<span style="font-size: 0.75rem; color: var(--text-secondary);">' + getCategoryLabel(q.cat) + '</span>';
-        html += '</div>';
-        
-        // نص السؤال
-        html += '<p style="font-size: 1rem; font-weight: 700; color: var(--dark); margin-bottom: 15px; line-height: 1.8;">' + (q.text || q.question) + '</p>';
-        
-        // الخيارات
-        if (hasOptions) {
-            html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
-            for (var j = 0; j < q.options.length; j++) {
-                html += '<label style="display: flex; align-items: center; padding: 12px; border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--light-bg);" class="tour_option_label" id="optLabel_' + i + '_' + j + '" onclick="selectFullOption(this, ' + i + ', ' + j + ')">';
-                html += '<input type="radio" name="q_' + i + '" value="' + q.options[j] + '" style="display: none;">';
-                html += '<span style="width: 24px; height: 24px; border: 2px solid var(--border-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: 10px; transition: all 0.2s; flex-shrink: 0;" class="custom_radio" id="radioSpan_' + i + '_' + j + '"></span>';
-                html += '<span style="font-size: 0.9rem; color: var(--text-primary);">' + q.options[j] + '</span>';
-                html += '</label>';
-            }
-            html += '</div>';
-        } else {
-            // سؤال كتابي
-            html += '<textarea class="def-input tour_textarea" id="tourText_' + i + '" placeholder="اكتب إجابتك هنا..." style="height: 80px; width: 100%;"></textarea>';
-        }
-        
-        html += '</div>';
+        html += getQuestionDesign(questions[i], i);
     }
     return html;
 }
@@ -3003,21 +3139,13 @@ window.selectFullOption = function(label, qIndex, optIndex) {
     // إزالة التحديد من باقي خيارات نفس السؤال
     var allLabels = document.querySelectorAll('[id^="optLabel_' + qIndex + '_"]');
     for(var i=0; i<allLabels.length; i++) {
-        allLabels[i].style.borderColor = 'var(--border-color)';
-        allLabels[i].style.background = 'var(--light-bg)';
-        document.getElementById('radioSpan_' + qIndex + '_' + i).style.background = 'transparent';
-        document.getElementById('radioSpan_' + qIndex + '_' + i).style.borderColor = 'var(--border-color)';
+        allLabels[i].classList.remove('selected');
+        allLabels[i].querySelector('.tour-opt-visual').innerHTML = '';
     }
     
     // تحديد الخيار الحالي
-    label.style.borderColor = 'var(--gold)';
-    label.style.background = 'var(--gold-light)';
-    var radioSpan = document.getElementById('radioSpan_' + qIndex + '_' + optIndex);
-    radioSpan.style.background = 'var(--gold)';
-    radioSpan.style.borderColor = 'var(--gold)';
-    
-    // إضافة علامة صح داخل الدائرة
-    radioSpan.innerHTML = '<i class="fas fa-check" style="font-size: 12px; color: white;"></i>';
+    label.classList.add('selected');
+    document.getElementById('optVisual_' + qIndex + '_' + optIndex).innerHTML = '<i class="fas fa-check"></i>';
 };
 
 function startTournamentTimer() {
@@ -3034,9 +3162,9 @@ function startTournamentTimer() {
         var timerEl = document.getElementById('tourTimer');
         if(timerEl) {
             timerEl.innerHTML = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-            // تغيير اللون لما الوقت يقل
-            if(tLeft <= 60) timerEl.style.color = '#ef4444';
-            else if(tLeft <= 180) timerEl.style.color = '#f59e0b';
+            timerEl.classList.remove('warn', 'danger');
+            if(tLeft <= 60) timerEl.classList.add('danger');
+            else if(tLeft <= 180) timerEl.classList.add('warn');
         }
     }, 1000);
 }
@@ -3047,15 +3175,15 @@ function collectTournamentAnswers() {
     
     for (var i = 0; i < questions.length; i++) {
         var q = questions[i];
-        var hasOptions = (q.options && q.options.length > 0);
+        var type = q.cat || 'mcq';
         var userAnswer = '';
         
-        if (hasOptions) {
+        if (type === 'mcq' || type === 'truefalse') {
             var selectedRadio = document.querySelector('input[name="q_' + i + '"]:checked');
             if (selectedRadio) userAnswer = selectedRadio.value;
         } else {
-            var textArea = document.getElementById('tourText_' + i);
-            if (textArea) userAnswer = textArea.value.trim();
+            var textEl = document.getElementById('tourText_' + i);
+            if (textEl) userAnswer = textEl.value.trim();
         }
         
         answers.push({ questionIndex: i, answer: userAnswer });
@@ -3067,13 +3195,25 @@ function collectTournamentAnswers() {
 async function submitTournamentAnswers() {
     if(tournamentTimerInterval) clearInterval(tournamentTimerInterval);
     
-    if (!confirm('هل أنت متأكد من التسليم؟ لا يمكنك التعديل بعد التسليم!')) {
+    // نافذرة التأكيد المخصصة والجميلة
+    var timeTaken = Math.floor((Date.now() - tournamentState.startTime) / 1000);
+    var answers = collectTournamentAnswers();
+    var answeredCount = answers.filter(a => a.answer !== '').length;
+    var totalCount = tournamentState.questions.length;
+    var unansweredCount = totalCount - answeredCount;
+    
+    var confirmMsg = '⚙️ <b>تأكيد التسليم</b>\n\n';
+    confirmMsg += '✅ تمت الإجابة على: ' + answeredCount + ' سؤال\n';
+    if(unansweredCount > 0) {
+        confirmMsg += '⚠️ لم يتم الإجابة على: ' + unansweredCount + ' سؤال (سيحتسب كإجابة خاطئة)\n';
+    }
+    confirmMsg += '\n⏱️ الوقت المستغرق: ' + Math.floor(timeTaken/60) + ' د و ' + (timeTaken%60) + ' ث\n\n';
+    confirmMsg += 'هل أنت متأكد من التسليم النهائي؟';
+    
+    if (!confirm(confirmMsg)) {
         startTournamentTimer(); // إعادة تشغيل المؤقت لو غيّر رأيه
         return;
     }
-    
-    var timeTaken = Math.floor((Date.now() - tournamentState.startTime) / 1000);
-    var answers = collectTournamentAnswers();
     
     try {
         var result = await smartFetch('/api/tournaments/' + tournamentState.id + '/participate', {
@@ -3081,32 +3221,121 @@ async function submitTournamentAnswers() {
             body: JSON.stringify({ answers: answers, timeTaken: timeTaken })
         });
         
-        var content = '<div style="text-align:center;padding:30px 20px;">';
-        content += '<div style="font-size: 5rem;margin-bottom:15px;">🏆</div>';
-        content += '<h2 style="color:var(--dark); font-size: 1.5rem;">تم تسليم البطولة بنجاح!</h2>';
-        content += '<div class="quiz-score" style="font-size: 3rem;">' + result.score + '%</div>';
-        content += '<p style="color:var(--text-secondary); font-size: 1.1rem; margin-top: 10px;">ترتيبك: المركز ' + result.rank + '</p>';
-        content += '<p style="color:#94a3b8; font-size: 0.9rem; margin-top: 5px;">الوقت المستغرق: ' + Math.floor(timeTaken/60) + ' دقيقة و ' + (timeTaken%60) + ' ثانية</p>';
-        content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\'); openTournaments();" style="margin-top:25px; padding: 12px 30px; font-size: 1rem;">عودة للبطولات</button>';
-        content += '</div>';
+        // حساب الإحصائيات الدقيقة لعرضها
+        var correctCount = Math.round((result.score / 100) * totalCount);
+        var wrongCount = totalCount - correctCount;
+        var scoreColor = result.score >= 80 ? '#10b981' : (result.score >= 50 ? '#f59e0b' : '#ef4444');
+        var rankEmoji = result.rank === 1 ? '🥇' : (result.rank === 2 ? '🥈' : (result.rank === 3 ? '🥉' : '🏆'));
+        
+        var content = `
+        <style>
+            .result-card { text-align: center; padding: 30px 20px; }
+            .result-icon { font-size: 6rem; margin-bottom: 10px; display: block; animation: bounceIn 0.8s ease-out; }
+            @keyframes bounceIn { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+            .result-title { color: var(--dark); font-size: 1.5rem; margin-bottom: 25px; font-weight: 800; }
+            .score-circle-container { position: relative; width: 140px; height: 140px; margin: 0 auto 20px; }
+            .score-circle-bg { width: 100%; height: 100%; border-radius: 50%; background: #f1f5f9; position: absolute; top: 0; left: 0; }
+            .score-circle-fill { width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(${scoreColor} 0%, #f1f5f9 0%); position: absolute; top: 0; left: 0; transform: rotate(-90deg); transition: background 1.5s ease-out; }
+            .score-inner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; width: 110px; height: 110px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+            .score-num { font-size: 2.8rem; font-weight: 900; color: ${scoreColor}; line-height: 1; }
+            .score-label { font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px; }
+            .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin: 20px 0; }
+            .stat-box { background: var(--light-bg); border-radius: 16px; padding: 15px 10px; text-align: center; }
+            .stat-box .stat-icon { font-size: 1.5rem; margin-bottom: 5px; display: block; }
+            .stat-box .stat-val { font-size: 1.3rem; font-weight: 900; color: var(--dark); display: block; }
+            .stat-box .stat-lbl { font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 2px; }
+            .rank-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--gold-light); padding: 10px 25px; border-radius: 50px; font-size: 1.1rem; font-weight: 800; color: var(--gold-dark); margin-top: 10px; border: 1px solid var(--gold); }
+        </style>
+        
+        <div class="result-card">
+            <span class="result-icon">🏆</span>
+            <div class="result-title">تم تسليم البطولة بنجاح!</div>
+            
+            <div class="score-circle-container">
+                <div class="score-circle-bg"></div>
+                <div class="score-circle-fill" id="scoreFillAnim" style="background: conic-gradient(${scoreColor} 0%, #f1f5f9 0%);"></div>
+                <div class="score-inner">
+                    <span class="score-num" id="scoreNumAnim">0</span>
+                    <span class="score-label">النسبة</span>
+                </div>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span class="stat-icon">✅</span>
+                    <span class="stat-val" style="color: #059669;">${correctCount}</span>
+                    <span class="stat-lbl">صحيح</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-icon">❌</span>
+                    <span class="stat-val" style="color: #dc2626;">${wrongCount}</span>
+                    <span class="stat-lbl">خطأ</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-icon">⏱️</span>
+                    <span class="stat-val">${Math.floor(timeTaken/60)}:${String(timeTaken%60).padStart(2, '0')}</span>
+                    <span class="stat-lbl">الوقت</span>
+                </div>
+            </div>
+            
+            <div class="rank-badge">${rankEmoji} المركز ${result.rank}</div>
+            
+            <button class="modal-btn btn-close" onclick="closeModal('tournamentQuizModal'); openTournaments();" style="margin-top: 25px; padding: 12px 30px; font-size: 1rem; box-shadow: var(--shadow-md);">
+                عودة للبطولات
+            </button>
+        </div>
+        `;
         
         openModal('tournamentQuizModal', content);
-        if(result.success) addXP(10);
+        if(result.success) {
+            addXP(10);
+            // تشغيل أنيميشن النسبة والرقم
+            setTimeout(function() {
+                var fill = document.getElementById('scoreFillAnim');
+                if(fill) fill.style.background = 'conic-gradient(' + scoreColor + ' ' + result.score + '%, #f1f5f9 ' + result.score + '%)';
+                animateNumber('scoreNumAnim', 0, result.score, 1500);
+            }, 300);
+        }
         
     } catch (error) {
         handleTournamentError(error);
         
-        var content = '<div style="text-align:center;padding:30px 20px;">';
-        content += '<div style="font-size: 4rem;margin-bottom:15px;">⚠️</div>';
-        content += '<h2 style="color:var(--red);">لم يتم تسليم النتيجة!</h2>';
-        content += '<p style="color:var(--text-secondary); margin: 20px 0;">حاول مرة أخرى أو تأكد من اتصالك بالإنترنت.</p>';
-        content += '<div style="display: flex; justify-content: center; gap: 15px;">';
-        content += '<button class="modal-btn btn-danger" onclick="submitTournamentAnswers()" style="padding: 10px 25px;">إعادة المحاولة</button>';
-        content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\');" style="padding: 10px 25px;">إغلاق</button>';
-        content += '</div></div>';
+        var content = `
+        <div style="text-align:center;padding:40px 20px;">
+            <div style="font-size: 4rem;margin-bottom:20px;">⚠️</div>
+            <h2 style="color:var(--red); font-size: 1.3rem;">لم يتم تسليم النتيجة!</h2>
+            <p style="color:var(--text-secondary); margin: 25px 0; font-size: 1rem;">حدث خطأ أثناء الاتصال بالسيرفر.<br>يرجى التأكد من اتصالك بالإنترنت ومحاولة مرة أخرى.</p>
+            <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px;">
+                <button class="modal-btn btn-danger" onclick="submitTournamentAnswers()" style="padding: 12px 25px; font-size: 1rem;">
+                    <i class="fas fa-redo"></i> إعادة المحاولة
+                </button>
+                <button class="modal-btn btn-close" onclick="closeModal('tournamentQuizModal');" style="padding: 12px 25px; font-size: 1rem;">
+                    إغلاق
+                </button>
+            </div>
+        </div>`;
         
         openModal('tournamentQuizModal', content);
     }
+}
+
+// دالة مساعدة لعمل أنيميشن للرقم (العد التصاعدي)
+function animateNumber(elementId, start, end, duration) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    var range = end - start;
+    var minTimer = 20;
+    var stepTime = Math.max(Math.floor(duration / range), minTimer);
+    var current = start;
+    
+    var timer = setInterval(function() {
+        current++;
+        el.textContent = current + '%';
+        if (current >= end) {
+            clearInterval(timer);
+            el.textContent = end + '%';
+        }
+    }, stepTime);
 }
 
 async function finishTournament(tournamentId) {
