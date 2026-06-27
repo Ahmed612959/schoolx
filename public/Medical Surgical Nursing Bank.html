@@ -2716,20 +2716,6 @@ function handleTournamentError(error) {
     }
 }
 
-// دالة خاصة بالبطولات لتحديث الواجهة بدون تدمير المودال (حل نهائي لمشكلة اختفاء الأسئلة)
-function updateTournamentUI(content) {
-    var modal = document.getElementById('tournamentQuizModal');
-    if (modal) {
-        var inner = modal.querySelector('.modal-content');
-        if (inner) {
-            inner.innerHTML = content;
-            return;
-        }
-    }
-    // لو المودال غير موجود لأي سبب، نستدعي الدالة الأصلية كـ Backup
-    openModal('tournamentQuizModal', content);
-}
-
 
 // ====================== باقي كود البطولات ======================
 
@@ -2933,124 +2919,193 @@ async function createTournament() {
     }
 }
 
+
+// ====================== واجهة اختبار البطولة (كل الأسئلة في صفحة واحدة) ======================
+
 var tournamentState = {};
 var tournamentTimerInterval = null;
 
 function startTournamentQuiz(tournamentId, questions) {
     if(tournamentTimerInterval) clearInterval(tournamentTimerInterval);
-    tournamentState = { id: tournamentId, questions: questions, currentIndex: 0, answers: [], startTime: Date.now() };
-    renderTournamentQuestion();
+    tournamentState = { id: tournamentId, questions: questions, startTime: Date.now() };
+    renderFullTournamentPage();
 }
 
-function renderTournamentQuestion() {
+function renderFullTournamentPage() {
     var state = tournamentState;
-    if (state.currentIndex >= state.questions.length) {
-        submitTournamentAnswers();
-        return;
-    }
+    var content = `
+        <div style="text-align: right; direction: rtl;">
+            <!-- الهيدر الثابت -->
+            <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 15px 20px; border-radius: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                <div>
+                    <span style="font-size: 0.9rem; font-weight: 700;">🏆 اختبار البطولة</span>
+                    <span style="font-size: 0.8rem; color: #94a3b8; display: block;">مجموع الأسئلة: ${state.questions.length} سؤال</span>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.8rem; font-weight: 900; color: #ef4444;" id="tourTimer">10:00</div>
+                    <div style="font-size: 0.7rem; color: #94a3b8;">الوقت المتبقي</div>
+                </div>
+                <button class="modal-btn btn-danger" onclick="submitTournamentAnswers()" style="padding: 10px 20px; font-size: 0.9rem;">
+                    <i class="fas fa-paper-plane"></i> تسليم النتيجة
+                </button>
+            </div>
 
-    var q = state.questions[state.currentIndex];
-    var timeLeft = Math.max(0, 600 - Math.floor((Date.now() - state.startTime) / 1000));
-    var minutes = Math.floor(timeLeft / 60);
-    var seconds = timeLeft % 60;
-    var progress = Math.round((state.currentIndex / state.questions.length) * 100);
-
-    var optionsHtml = '';
-    var hasOptions = (q.options && q.options.length > 0);
+            <!-- قائمة الأسئلة -->
+            <div id="tournamentQuestionsContainer">
+                ${generateQuestionsHTML(state.questions)}
+            </div>
+        </div>
+    `;
     
-    if (hasOptions) {
-        for (var i = 0; i < q.options.length; i++) {
-            optionsHtml += '<button class="quiz-opt" data-index="' + i + '" onclick="selectTournamentOpt(this)">' + q.options[i] + '</button>';
+    openModal('tournamentQuizModal', content);
+    startTournamentTimer();
+}
+
+function generateQuestionsHTML(questions) {
+    var html = '';
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var hasOptions = (q.options && q.options.length > 0);
+        
+        html += '<div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm); transition: all 0.3s;" id="qCard_' + i + '">';
+        
+        // رأس السؤال
+        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid var(--gold-light); padding-bottom: 10px;">';
+        html += '<span style="background: var(--gold-light); color: var(--gold-dark); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">سؤال ' + (i + 1) + '</span>';
+        html += '<span style="font-size: 0.75rem; color: var(--text-secondary);">' + getCategoryLabel(q.cat) + '</span>';
+        html += '</div>';
+        
+        // نص السؤال
+        html += '<p style="font-size: 1rem; font-weight: 700; color: var(--dark); margin-bottom: 15px; line-height: 1.8;">' + (q.text || q.question) + '</p>';
+        
+        // الخيارات
+        if (hasOptions) {
+            html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+            for (var j = 0; j < q.options.length; j++) {
+                html += '<label style="display: flex; align-items: center; padding: 12px; border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--light-bg);" class="tour_option_label" id="optLabel_' + i + '_' + j + '" onclick="selectFullOption(this, ' + i + ', ' + j + ')">';
+                html += '<input type="radio" name="q_' + i + '" value="' + q.options[j] + '" style="display: none;">';
+                html += '<span style="width: 24px; height: 24px; border: 2px solid var(--border-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: 10px; transition: all 0.2s; flex-shrink: 0;" class="custom_radio" id="radioSpan_' + i + '_' + j + '"></span>';
+                html += '<span style="font-size: 0.9rem; color: var(--text-primary);">' + q.options[j] + '</span>';
+                html += '</label>';
+            }
+            html += '</div>';
+        } else {
+            // سؤال كتابي
+            html += '<textarea class="def-input tour_textarea" id="tourText_' + i + '" placeholder="اكتب إجابتك هنا..." style="height: 80px; width: 100%;"></textarea>';
         }
-    } else {
-        optionsHtml = '<textarea class="def-input" id="tourTextAnswer" placeholder="اكتب إجابتك..." style="height:80px;text-align:right;"></textarea>';
+        
+        html += '</div>';
     }
+    return html;
+}
 
-    var content = '<div style="text-align:right;">';
-    content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
-    content += '<span style="background:#fef2f2;color:#dc2626;padding:5px 12px;border-radius:20px;font-size:0.9rem;font-weight:800;" id="tourTimer"><i class="fas fa-clock"></i> ' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0') + '</span>';
-    content += '<span style="color:#64748b;font-size:0.85rem;">سؤال ' + (state.currentIndex + 1) + ' من ' + state.questions.length + '</span>';
-    content += '</div>';
-    content += '<div style="background:#e2e8f0;height:6px;border-radius:10px;margin-bottom:20px;overflow:hidden;">';
-    content += '<div style="background:linear-gradient(90deg,#ef4444,#f59e0b);height:100%;width:' + progress + '%;transition:width 0.4s;"></div></div>';
-    content += '<div class="quiz-q"><strong>' + (q.text || q.question) + '</strong></div>';
-    content += '<div id="tourOptContainer">' + optionsHtml + '</div>';
-    content += '<div style="text-align:center;margin-top:15px;">';
-    content += '<button id="tourNextBtn" class="modal-btn btn-danger" onclick="nextTournamentQ()" style="display:none;padding:10px 30px;">';
-    if (state.currentIndex < state.questions.length - 1) {
-        content += 'التالي <i class="fas fa-arrow-left"></i>';
-    } else {
-        content += 'تسليم النتيجة <i class="fas fa-paper-plane"></i>';
+window.selectFullOption = function(label, qIndex, optIndex) {
+    // إزالة التحديد من باقي خيارات نفس السؤال
+    var allLabels = document.querySelectorAll('[id^="optLabel_' + qIndex + '_"]');
+    for(var i=0; i<allLabels.length; i++) {
+        allLabels[i].style.borderColor = 'var(--border-color)';
+        allLabels[i].style.background = 'var(--light-bg)';
+        document.getElementById('radioSpan_' + qIndex + '_' + i).style.background = 'transparent';
+        document.getElementById('radioSpan_' + qIndex + '_' + i).style.borderColor = 'var(--border-color)';
     }
-    content += '</button></div></div>';
     
-    // استدعاء الدالة الذكية الجديدة بدل openModal العادية
-    updateTournamentUI(content);
+    // تحديد الخيار الحالي
+    label.style.borderColor = 'var(--gold)';
+    label.style.background = 'var(--gold-light)';
+    var radioSpan = document.getElementById('radioSpan_' + qIndex + '_' + optIndex);
+    radioSpan.style.background = 'var(--gold)';
+    radioSpan.style.borderColor = 'var(--gold)';
     
-    // إعادة تشغيل المؤقت
+    // إضافة علامة صح داخل الدائرة
+    radioSpan.innerHTML = '<i class="fas fa-check" style="font-size: 12px; color: white;"></i>';
+};
+
+function startTournamentTimer() {
     if(tournamentTimerInterval) clearInterval(tournamentTimerInterval);
+    
     tournamentTimerInterval = setInterval(function() {
-        var tLeft = Math.max(0, 600 - Math.floor((Date.now() - state.startTime) / 1000));
-        if (tLeft <= 0) { clearInterval(tournamentTimerInterval); submitTournamentAnswers(); return; }
+        var tLeft = Math.max(0, 600 - Math.floor((Date.now() - tournamentState.startTime) / 1000));
+        if (tLeft <= 0) { 
+            clearInterval(tournamentTimerInterval); 
+            submitTournamentAnswers(); 
+            return; 
+        }
         var m = Math.floor(tLeft / 60), s = tLeft % 60;
         var timerEl = document.getElementById('tourTimer');
-        if(timerEl) timerEl.innerHTML = '<i class="fas fa-clock"></i> ' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        if(timerEl) {
+            timerEl.innerHTML = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+            // تغيير اللون لما الوقت يقل
+            if(tLeft <= 60) timerEl.style.color = '#ef4444';
+            else if(tLeft <= 180) timerEl.style.color = '#f59e0b';
+        }
     }, 1000);
 }
 
-window.selectTournamentOpt = function(btn) {
-    var index = parseInt(btn.getAttribute('data-index'));
-    var selectedAnswer = tournamentState.questions[tournamentState.currentIndex].options[index];
-    var buttons = document.querySelectorAll('#tourOptContainer .quiz-opt');
-    for(var i=0; i<buttons.length; i++) buttons[i].disabled = true;
-    btn.style.border = '2px solid var(--gold)';
-    btn.style.background = 'var(--gold-light)';
-    tournamentState.answers.push({ questionIndex: tournamentState.currentIndex, answer: selectedAnswer });
-    document.getElementById('tourNextBtn').style.display = 'inline-block';
-};
-
-window.nextTournamentQ = function() {
-    var textAnswer = document.getElementById('tourTextAnswer');
-    if (textAnswer) {
-        var val = textAnswer.value.trim();
-        if (val === '') { showToast('اكتب الإجابة أولاً', 'warning'); return; }
-        tournamentState.answers.push({ questionIndex: tournamentState.currentIndex, answer: val });
+function collectTournamentAnswers() {
+    var answers = [];
+    var questions = tournamentState.questions;
+    
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var hasOptions = (q.options && q.options.length > 0);
+        var userAnswer = '';
+        
+        if (hasOptions) {
+            var selectedRadio = document.querySelector('input[name="q_' + i + '"]:checked');
+            if (selectedRadio) userAnswer = selectedRadio.value;
+        } else {
+            var textArea = document.getElementById('tourText_' + i);
+            if (textArea) userAnswer = textArea.value.trim();
+        }
+        
+        answers.push({ questionIndex: i, answer: userAnswer });
     }
-    tournamentState.currentIndex++;
-    renderTournamentQuestion();
-};
+    
+    return answers;
+}
 
 async function submitTournamentAnswers() {
     if(tournamentTimerInterval) clearInterval(tournamentTimerInterval);
+    
+    if (!confirm('هل أنت متأكد من التسليم؟ لا يمكنك التعديل بعد التسليم!')) {
+        startTournamentTimer(); // إعادة تشغيل المؤقت لو غيّر رأيه
+        return;
+    }
+    
     var timeTaken = Math.floor((Date.now() - tournamentState.startTime) / 1000);
+    var answers = collectTournamentAnswers();
     
     try {
         var result = await smartFetch('/api/tournaments/' + tournamentState.id + '/participate', {
             method: 'POST',
-            body: JSON.stringify({ answers: tournamentState.answers, timeTaken: timeTaken })
+            body: JSON.stringify({ answers: answers, timeTaken: timeTaken })
         });
         
-        var content = '<div style="text-align:center;padding:20px;">';
-        content += '<div style="font-size:4rem;margin-bottom:10px;">🏆</div>';
-        content += '<h2 style="color:var(--dark);">تم تسليم البطولة!</h2>';
-        content += '<div class="quiz-score">' + result.score + '%</div>';
-        content += '<p style="color:var(--text-secondary);">ترتيبك: المركز ' + result.rank + '</p>';
-        content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\'); openTournaments();" style="margin-top:20px;">عودة للبطولات</button>';
+        var content = '<div style="text-align:center;padding:30px 20px;">';
+        content += '<div style="font-size: 5rem;margin-bottom:15px;">🏆</div>';
+        content += '<h2 style="color:var(--dark); font-size: 1.5rem;">تم تسليم البطولة بنجاح!</h2>';
+        content += '<div class="quiz-score" style="font-size: 3rem;">' + result.score + '%</div>';
+        content += '<p style="color:var(--text-secondary); font-size: 1.1rem; margin-top: 10px;">ترتيبك: المركز ' + result.rank + '</p>';
+        content += '<p style="color:#94a3b8; font-size: 0.9rem; margin-top: 5px;">الوقت المستغرق: ' + Math.floor(timeTaken/60) + ' دقيقة و ' + (timeTaken%60) + ' ثانية</p>';
+        content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\'); openTournaments();" style="margin-top:25px; padding: 12px 30px; font-size: 1rem;">عودة للبطولات</button>';
         content += '</div>';
-        updateTournamentUI(content);
+        
+        openModal('tournamentQuizModal', content);
         if(result.success) addXP(10);
         
     } catch (error) {
         handleTournamentError(error);
         
-        var content = '<div style="text-align:center;padding:20px;">';
-        content += '<div style="font-size:4rem;margin-bottom:10px;">⚠️</div>';
+        var content = '<div style="text-align:center;padding:30px 20px;">';
+        content += '<div style="font-size: 4rem;margin-bottom:15px;">⚠️</div>';
         content += '<h2 style="color:var(--red);">لم يتم تسليم النتيجة!</h2>';
-        content += '<p style="color:var(--text-secondary);">حاول مرة أخرى أو تأكد من اتصالك بالإنترنت.</p>';
-        content += '<button class="modal-btn btn-danger" onclick="submitTournamentAnswers()" style="margin: 10px;">إعادة المحاولة</button>';
-        content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\');" style="margin: 10px;">إغلاق</button>';
-        content += '</div>';
-        updateTournamentUI(content);
+        content += '<p style="color:var(--text-secondary); margin: 20px 0;">حاول مرة أخرى أو تأكد من اتصالك بالإنترنت.</p>';
+        content += '<div style="display: flex; justify-content: center; gap: 15px;">';
+        content += '<button class="modal-btn btn-danger" onclick="submitTournamentAnswers()" style="padding: 10px 25px;">إعادة المحاولة</button>';
+        content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\');" style="padding: 10px 25px;">إغلاق</button>';
+        content += '</div></div>';
+        
+        openModal('tournamentQuizModal', content);
     }
 }
 
