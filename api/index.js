@@ -311,7 +311,7 @@ const HomeworkSubmission = mongoose.models.HomeworkSubmission || mongoose.model(
 
 const tournamentSchema = new mongoose.Schema({
     title: { type: String, required: true },
-    code: { type: String, unique: true, required: true }, // كود الانضمام الجديد
+    code: { type: String, unique: true, required: true },
     chapterId: { type: String, required: true },
     chapterName: { type: String, required: true },
     questionCount: { type: Number, default: 20 },
@@ -2381,7 +2381,6 @@ app.post('/api/tournaments', verifyToken, isAdmin, async (req, res) => {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
         
-        // توليد كود فريد للبطولة
         let uniqueCode = generateTournamentCode();
         let codeExists = await Tournament.findOne({ code: uniqueCode });
         while (codeExists) {
@@ -2391,7 +2390,7 @@ app.post('/api/tournaments', verifyToken, isAdmin, async (req, res) => {
 
         const newTournament = new Tournament({
             title,
-            code: uniqueCode, // حفظ الكود
+            code: uniqueCode,
             chapterId,
             chapterName: chapterName || 'فصل غير معروف',
             questionCount: questionCount || 20,
@@ -2411,7 +2410,7 @@ app.post('/api/tournaments', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// 2. جلب البطولات النشطة (تم تعديل المنطق ليظهرها بشكل صحيح)
+// 2. جلب البطولات النشطة (تم التعديل: إخفاء تفاصيل المشاركين لتخفيف الحمل وحماية البيانات)
 app.get('/api/tournaments/active', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -2425,8 +2424,12 @@ app.get('/api/tournaments/active', verifyToken, async (req, res) => {
         
         const tournamentsWithParticipation = tournaments.map(t => {
             const userParticipant = t.participants.find(p => p.studentId === req.user.username);
+            const tournamentData = t.toObject(); 
+            delete tournamentData.participants; // إزالة المصفوفة الثقيلة
+            
             return {
-                ...t._doc,
+                ...tournamentData,
+                participantsCount: t.participants.length, // إرسال العدد فقط
                 hasParticipated: !!userParticipant,
                 myScore: userParticipant ? userParticipant.score : null,
                 myTime: userParticipant ? userParticipant.timeTaken : null
@@ -2440,7 +2443,7 @@ app.get('/api/tournaments/active', verifyToken, async (req, res) => {
     }
 });
 
-// 3. الانضمام عن طريق كود البطولة (جديد)
+// 3. الانضمام عن طريق كود البطولة
 app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -2454,11 +2457,9 @@ app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
         if (tournament.startDate > today) return res.status(400).json({ error: 'البطولة لم تبدأ بعد' });
         if (tournament.endDate < today) return res.status(400).json({ error: 'البطولة انتهت' });
 
-        // التحقق من عدم المشاركة السابقة
         const alreadyJoined = tournament.participants.find(p => p.studentId === req.user.username);
         if (alreadyJoined) return res.status(400).json({ error: 'لقد شاركت في هذه البطولة بالفعل' });
 
-        // إرجاع بيانات البطولة للطالب عشان يبدأ الحل
         res.json({ 
             success: true, 
             tournamentId: tournament._id,
@@ -2470,7 +2471,6 @@ app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'خطأ في الانضمام: ' + error.message });
     }
 });
-
 
 // مسار جلب أسئلة البطولة للطالب للبدء في الحل
 app.get('/api/tournaments/:id/start', verifyToken, async (req, res) => {
@@ -2489,8 +2489,6 @@ app.get('/api/tournaments/:id/start', verifyToken, async (req, res) => {
     }
 });
 
-
-
 // 4. جلب جميع البطولات (للأدمن)
 app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
     try {
@@ -2502,7 +2500,7 @@ app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// 5. المشاركة في البطولة وإرسال الإجابات
+// 5. المشاركة في البطولة وإرسال الإجابات (تم إصلاح كارثة التصحيح)
 app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -2526,27 +2524,50 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
             const question = questions[answer.questionIndex];
             if (!question) continue;
             let isCorrect = false;
-            if (question.cat === 'mcq') isCorrect = answer.answer === question.correct;
-            else if (question.cat === 'truefalse') isCorrect = String(answer.answer).toLowerCase() === String(question.correct).toLowerCase();
-            else isCorrect = answer.answer && answer.answer.length > 3 && question.completion && answer.answer.toLowerCase().includes(question.completion.toLowerCase());
+            const qType = question.cat || 'mcq';
+            
+            if (qType === 'mcq') {
+                isCorrect = answer.answer === question.correct;
+            } 
+            else if (qType === 'truefalse') {
+                isCorrect = String(answer.answer).toLowerCase() === String(question.correct).toLowerCase();
+            } 
+            else if (qType === 'complete' && question.completion) {
+                // أسئلة التكملة تُصحح بالتطابق الجزئي
+                isCorrect = answer.answer && answer.answer.length > 2 && answer.answer.toLowerCase().includes(question.completion.toLowerCase());
+            }
+            else if (qType === 'list' || qType === 'explain' || qType === 'situations') {
+                // الأسئلة المقالية/النقاط تُعطى درجة كاملة إذا تجاوزت عدد أحرف معين (لتشجيع الكتابة)
+                isCorrect = answer.answer && answer.answer.trim().length > 5;
+            }
             
             if (isCorrect) correctCount++;
             detailedAnswers.push({ questionIndex: answer.questionIndex, answer: answer.answer || '', isCorrect });
         }
         
-        const score = Math.round((correctCount / questions.length) * 100);
+        const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
         const student = await Student.findOne({ username: req.user.username });
         
         tournament.participants.push({
             studentId: req.user.username,
             studentName: student ? student.fullName : req.user.username,
-            score, timeTaken: timeTaken || 0, answers: detailedAnswers
+            score, 
+            timeTaken: timeTaken || 0, 
+            answers: detailedAnswers
         });
         
+        // ترتيب المشاركين (الأعلى درجة أولاً، ثم الأسرع وقتاً)
         tournament.participants.sort((a, b) => b.score !== a.score ? b.score - a.score : a.timeTaken - b.timeTaken);
         await tournament.save();
         
-        res.json({ success: true, message: 'تم المشاركة بنجاح', score, rank: tournament.participants.findIndex(p => p.studentId === req.user.username) + 1 });
+        const userRank = tournament.participants.findIndex(p => p.studentId === req.user.username) + 1;
+        
+        res.json({ 
+            success: true, 
+            message: 'تم المشاركة بنجاح', 
+            score, 
+            rank: userRank 
+        });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في المشاركة: ' + error.message });
     }
@@ -2564,7 +2585,12 @@ app.get('/api/tournaments/:id/results', verifyToken, async (req, res) => {
             if (!isParticipant) return res.status(403).json({ error: 'غير مصرح بعرض نتائج هذه البطولة' });
         }
         
-        res.json({ title: tournament.title, participants: tournament.participants, top3: tournament.participants.slice(0, 3), totalParticipants: tournament.participants.length });
+        res.json({ 
+            title: tournament.title, 
+            participants: tournament.participants, 
+            top3: tournament.participants.slice(0, 3), 
+            totalParticipants: tournament.participants.length 
+        });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب النتائج' });
     }
