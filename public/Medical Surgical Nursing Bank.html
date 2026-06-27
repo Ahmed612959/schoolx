@@ -2649,7 +2649,7 @@ async function smartFetch(endpoint, options) {
             }
         });
 
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401 || response.status === 40ful) {
             var errData = await response.json().catch(() => ({}));
             throw new Error('AUTH_FAILED', errData.error || 'جلستك منتهية أو لا تملك صلاحيات (يجب تسجيل الدخول كطالب أو أدمن أولاً)');
         }
@@ -2980,7 +2980,6 @@ function getOptionsDesign(q, index, type) {
     var options = q.options || ['صواب (True)', 'خطأ (False)']; // افتراضي لـ صح وخطأ
     
     for (var i = 0; i < options.length; i++) {
-        var colSpan = (type === 'truefalse') ? 'span 1' : 'span 1';
         html += '<label class="tour-opt-label" id="optLabel_' + index + '_' + i + '" onclick="selectFullOption(this, ' + index + ', ' + i + ')">';
         html += '<input type="radio" name="q_' + index + '" value="' + options[i] + '" class="tour-radio-input">';
         html += '<span class="tour-opt-visual" id="optVisual_' + index + '_' + i + '"></span>';
@@ -2995,7 +2994,6 @@ function renderFullTournamentPage() {
     var state = tournamentState;
     var content = `
         <style>
-            /* CSS مخصص للاختبار داخل المودال */
             .tour-header {
                 background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
                 color: white; padding: 15px 25px; border-radius: 18px; margin-bottom: 25px;
@@ -3061,6 +3059,7 @@ function renderFullTournamentPage() {
                 padding: 14px 16px; border: 2px solid var(--border-color);
                 border-radius: 14px; cursor: pointer; transition: all 0.25s ease;
                 background: var(--light-bg); position: relative;
+                flex-direction: row;
             }
             .tour-opt-label:hover { border-color: var(--gold); background: var(--gold-light); }
             
@@ -3180,10 +3179,15 @@ function collectTournamentAnswers() {
         
         if (type === 'mcq' || type === 'truefalse') {
             var selectedRadio = document.querySelector('input[name="q_' + i + '"]:checked');
-            if (selectedRadio) userAnswer = selectedRadio.value;
+            if (selectedRadio) {
+                // تنظيف النص من المسافات الزائدة اللي ممكن المتصفح يضيفها
+                userAnswer = selectedRadio.value.trim();
+            }
         } else {
             var textEl = document.getElementById('tourText_' + i);
-            if (textEl) userAnswer = textEl.value.trim();
+            if (textEl) {
+                userAnswer = textEl.value.trim();
+            }
         }
         
         answers.push({ questionIndex: i, answer: userAnswer });
@@ -3317,25 +3321,6 @@ async function submitTournamentAnswers() {
         
         openModal('tournamentQuizModal', content);
     }
-}
-
-// دالة مساعدة لعمل أنيميشن للرقم (العد التصاعدي)
-function animateNumber(elementId, start, end, duration) {
-    var el = document.getElementById(elementId);
-    if (!el) return;
-    var range = end - start;
-    var minTimer = 20;
-    var stepTime = Math.max(Math.floor(duration / range), minTimer);
-    var current = start;
-    
-    var timer = setInterval(function() {
-        current++;
-        el.textContent = current + '%';
-        if (current >= end) {
-            clearInterval(timer);
-            el.textContent = end + '%';
-        }
-    }, stepTime);
 }
 
 async function finishTournament(tournamentId) {
