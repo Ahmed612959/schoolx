@@ -2613,13 +2613,11 @@ function generatePrintPreview() {
 }
 
 
-// ====================== البطولات الأسبوعية (المحسّن والذكي) ======================
+// ====================== البطولات الأسبوعية (المحسّن والذكي والمستقر) ======================
 
 // 1. جلب الرابط تلقائياً من الصفحة الحالية لتجنب أي مشاكل
 function getSmartApiBase() {
     if (API_BASE && API_BASE.trim() !== '') return API_BASE.trim().replace(/\/+$/, "");
-    
-    // محاولة استنتاج الرابط من الصفحة الحالية
     try {
         var currentUrl = window.location.href;
         if (currentUrl.includes('vercel.app') || currentUrl.includes('localhost')) {
@@ -2629,15 +2627,12 @@ function getSmartApiBase() {
             return smartBase;
         }
     } catch(e) {}
-    
     return null;
 }
 
 // 2. دالة الاتصال الذكية التي تظهر سبب الخطأ الحقيقي
 async function smartFetch(endpoint, options) {
     var api = getSmartApiBase();
-    
-    // أولاً: التحقق من وجود الرابط
     if (!api) {
         throw new Error('NO_BASE', 'لم يتم تحديد رابط السيرفر تلقائياً. تأكد أنك تفتح الصفحة من رابط صحيح (مثل vercel.app)');
     }
@@ -2654,7 +2649,6 @@ async function smartFetch(endpoint, options) {
             }
         });
 
-        // ثانياً: التحقق من حالة الاستجابة
         if (response.status === 401 || response.status === 403) {
             var errData = await response.json().catch(() => ({}));
             throw new Error('AUTH_FAILED', errData.error || 'جلستك منتهية أو لا تملك صلاحيات (يجب تسجيل الدخول كطالب أو أدمن أولاً)');
@@ -2673,15 +2667,12 @@ async function smartFetch(endpoint, options) {
             throw new Error('SERVER_ERROR', serverErr.error || 'خطأ من السيرفر: ' + response.status);
         }
 
-        // ثالثاً: التحقق من صحة البيانات الراجعة
         var data = await response.json();
         return data;
 
     } catch (error) {
-        // إذا كان الخطأ من صنعنا (throw new Error) نمرره كما هو
         if (error.message.includes('|')) throw error;
 
-        // إذا كان الخطأ شبكة (Network Error)
         if (error instanceof TypeError && error.message === "Failed to fetch") {
             throw new Error('NETWORK_ERROR', 'فشل الاتصال بالسيرفر. السبب الأرجح:\n1. السيرفر مغلق أو لا يستجيب.\n2. رابط السيرفر غير صحيح (الرابط المستخدم: ' + api + ')\n3. مشكلة في شبكتك أو الـ DNS.');
         }
@@ -2703,10 +2694,6 @@ function handleTournamentError(error) {
     if(code === 'BLOCKED') emoji = '⏳';
     if(code === 'NO_BASE') emoji = '⚠️';
 
-    // استبدال الأسطر الجديدة بـ <br> للعرض الصحيح في الـ HTML
-    var displayMsg = msg.replace(/\n/g, '<br>');
-    
-    // نستخدم Toast لو متاح، وإلا نستخدم Alert
     if (typeof Toastify !== 'undefined') {
         Toastify({
             text: emoji + ' ' + msg,
@@ -2729,6 +2716,20 @@ function handleTournamentError(error) {
     }
 }
 
+// دالة خاصة بالبطولات لتحديث الواجهة بدون تدمير المودال (حل نهائي لمشكلة اختفاء الأسئلة)
+function updateTournamentUI(content) {
+    var modal = document.getElementById('tournamentQuizModal');
+    if (modal) {
+        var inner = modal.querySelector('.modal-content');
+        if (inner) {
+            inner.innerHTML = content;
+            return;
+        }
+    }
+    // لو المودال غير موجود لأي سبب، نستدعي الدالة الأصلية كـ Backup
+    openModal('tournamentQuizModal', content);
+}
+
 
 // ====================== باقي كود البطولات ======================
 
@@ -2737,7 +2738,6 @@ function openTournaments() {
     btns += ' <button class="modal-btn btn-info" onclick="fetchActiveTournaments()" style="background:var(--blue);"><i class="fas fa-sync"></i> تحديث</button>';
     btns += ' <button class="modal-btn btn-primary" onclick="showJoinByCodeForm()"><i class="fas fa-key"></i> انضمام بكود</button>';
     
-    // عرض الرابط المستخدم للتصحيح (اختياري، يمكنك حذفه لاحقاً)
     var currentApi = getSmartApiBase() || 'غير محدد';
     
     var h = '<h2>🏆 البطولات الأسبوعية</h2>';
@@ -2984,8 +2984,10 @@ function renderTournamentQuestion() {
     }
     content += '</button></div></div>';
     
-    openModal('tournamentQuizModal', content);
+    // استدعاء الدالة الذكية الجديدة بدل openModal العادية
+    updateTournamentUI(content);
     
+    // إعادة تشغيل المؤقت
     if(tournamentTimerInterval) clearInterval(tournamentTimerInterval);
     tournamentTimerInterval = setInterval(function() {
         var tLeft = Math.max(0, 600 - Math.floor((Date.now() - state.startTime) / 1000));
@@ -3035,11 +3037,10 @@ async function submitTournamentAnswers() {
         content += '<p style="color:var(--text-secondary);">ترتيبك: المركز ' + result.rank + '</p>';
         content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\'); openTournaments();" style="margin-top:20px;">عودة للبطولات</button>';
         content += '</div>';
-        openModal('tournamentQuizModal', content);
+        updateTournamentUI(content);
         if(result.success) addXP(10);
         
     } catch (error) {
-        // لو فشل الإرسال نعرض رسالة خطوة واضحة
         handleTournamentError(error);
         
         var content = '<div style="text-align:center;padding:20px;">';
@@ -3049,7 +3050,7 @@ async function submitTournamentAnswers() {
         content += '<button class="modal-btn btn-danger" onclick="submitTournamentAnswers()" style="margin: 10px;">إعادة المحاولة</button>';
         content += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\');" style="margin: 10px;">إغلاق</button>';
         content += '</div>';
-        openModal('tournamentQuizModal', content);
+        updateTournamentUI(content);
     }
 }
 
