@@ -318,6 +318,7 @@ const tournamentSchema = new mongoose.Schema({
     categoryFilter: { type: String, default: 'all' },
     startDate: { type: String, required: true },
     endDate: { type: String, required: true },
+    timeLimitMinutes: { type: Number, default: 10 }, // وقت الاختبار بالدقائق
     createdBy: { type: String, default: 'admin' },
     isActive: { type: Boolean, default: true },
     questions: { type: Array, default: [] },
@@ -333,8 +334,6 @@ const tournamentSchema = new mongoose.Schema({
     winner2: { type: String, default: '' },
     winner3: { type: String, default: '' }
 }, { timestamps: true });
-
-const Tournament = mongoose.models.Tournament || mongoose.model('Tournament', tournamentSchema);
 // ====================== نموذج الملفات (File Schema) ======================
 const fileSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -2450,24 +2449,53 @@ app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
         const { code } = req.body;
         if (!code) return res.status(400).json({ error: 'يرجى إدخال كود البطولة' });
 
-        const tournament = await Tournament.findOne({ code: code.toUpperCase(), isActive: true });
+        const tournament = await Tournament.findOne({ 
+            code: code.toUpperCase().trim(), 
+            isActive: true 
+        });
         if (!tournament) return res.status(404).json({ error: 'كود البطولة غير صحيح أو البطولة منتهية' });
 
         const today = new Date().toISOString().split('T')[0];
-        if (tournament.startDate > today) return res.status(400).json({ error: 'البطولة لم تبدأ بعد' });
-        if (tournament.endDate < today) return res.status(400).json({ error: 'البطولة انتهت' });
+        if (tournament.startDate > today) {
+            return res.status(400).json({ error: `البطولة ستبدأ في ${tournament.startDate}` });
+        }
+        if (tournament.endDate < today) {
+            return res.status(400).json({ error: 'انتهت مدة البطولة' });
+        }
 
-        const alreadyJoined = tournament.participants.find(p => p.studentId === req.user.username);
-        if (alreadyJoined) return res.status(400).json({ error: 'لقد شاركت في هذه البطولة بالفعل' });
+        const alreadyJoined = tournament.participants.find(
+            p => p.studentId === req.user.username
+        );
+        if (alreadyJoined) {
+            return res.status(400).json({ 
+                error: 'لقد شاركت في هذه البطولة بالفعل',
+                score: alreadyJoined.score,
+                alreadyParticipated: true
+            });
+        }
+
+        // إرجاع الأسئلة بدون الإجابات الصحيحة
+        const questionsWithoutAnswers = (tournament.questions || []).map(q => ({
+            text: q.text,
+            translation: q.translation,
+            cat: q.cat,
+            options: q.options,
+            // لا نرجع correct أو completion أو answer
+        }));
 
         res.json({ 
             success: true, 
             tournamentId: tournament._id,
             title: tournament.title,
-            questions: tournament.questions,
-            message: 'تم الانضمام بنجاح، ابدأ الحل الآن!' 
+            chapterName: tournament.chapterName,
+            endDate: tournament.endDate,
+            questions: questionsWithoutAnswers,
+            totalQuestions: questionsWithoutAnswers.length,
+            message: 'تم التحقق بنجاح، ابدأ الحل الآن!'
         });
+        
     } catch (error) {
+        console.error('❌ خطأ في الانضمام:', error);
         res.status(500).json({ error: 'خطأ في الانضمام: ' + error.message });
     }
 });
@@ -2505,6 +2533,12 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const { answers, timeTaken } = req.body;
+        
+        // التحقق من صحة البيانات
+        if (!answers || !Array.isArray(answers)) {
+            return res.status(400).json({ error: 'بيانات الإجابات غير صحيحة' });
+        }
+        
         const tournament = await Tournament.findById(req.params.id);
         if (!tournament) return res.status(404).json({ error: 'البطولة غير موجودة' });
         
@@ -2516,59 +2550,132 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
         const existingParticipant = tournament.participants.find(p => p.studentId === req.user.username);
         if (existingParticipant) return res.status(400).json({ error: 'لقد شاركت بالفعل في هذه البطولة' });
         
+        // التحقق من الوقت (منع الغش - لازم يكون على الأقل 30 ثانية)
+        const minTime = Math.min(30, tournament.questions.length * 3);
+        if (timeTaken < minTime) {
+            return res.status(400).json({ error: 'وقت الحل غير منطقي، يبدو أن هناك محاولة غش' });
+        }
+        
         let correctCount = 0;
         const detailedAnswers = [];
         const questions = tournament.questions || [];
         
-        for (const answer of answers || []) {
+        for (const answer of answers) {
             const question = questions[answer.questionIndex];
             if (!question) continue;
+            
             let isCorrect = false;
             const qType = question.cat || 'mcq';
+            const userAns = String(answer.answer || '').trim().toLowerCase();
             
             if (qType === 'mcq') {
-                isCorrect = answer.answer === question.correct;
-            } 
+                // مقارنة نصية مع تجاهل المسافات
+                const correctAns = String(question.correct || '').trim().toLowerCase();
+                isCorrect = userAns === correctAns;
+                
+                // لو الإجابة تبدأ بحرف الاختيار (أ، ب، ج أو a, b, c)
+                if (!isCorrect && question.options) {
+                    const selectedOpt = question.options.find(opt => 
+                        String(opt).trim().toLowerCase() === userAns
+                    );
+                    if (selectedOpt) {
+                        isCorrect = String(selectedOpt).trim().toLowerCase() === correctAns;
+                    }
+                }
+            }
             else if (qType === 'truefalse') {
-                isCorrect = String(answer.answer).toLowerCase() === String(question.correct).toLowerCase();
-            } 
-            else if (qType === 'complete' && question.completion) {
-                // أسئلة التكملة تُصحح بالتطابق الجزئي
-                isCorrect = answer.answer && answer.answer.length > 2 && answer.answer.toLowerCase().includes(question.completion.toLowerCase());
+                // دعم كل أشكال صح/خطأ
+                const correctIsTrue = (
+                    question.correct === true || 
+                    String(question.correct).toLowerCase() === 'true'
+                );
+                const userIsTrue = (
+                    userAns === 'true' || 
+                    userAns === 'صواب' || 
+                    userAns === 'صح' ||
+                    userAns === '1'
+                );
+                const userIsFalse = (
+                    userAns === 'false' || 
+                    userAns === 'خطأ' || 
+                    userAns === 'غلط' ||
+                    userAns === '0'
+                );
+                
+                if (correctIsTrue) isCorrect = userIsTrue;
+                else isCorrect = userIsFalse;
+            }
+            else if (qType === 'complete') {
+                const completion = String(question.completion || '').trim().toLowerCase();
+                if (completion && userAns.length > 1) {
+                    // مقارنة بالكلمات المفتاحية
+                    const keywords = completion.split(/\s+/).filter(w => w.length > 3);
+                    if (keywords.length === 0) {
+                        isCorrect = userAns === completion;
+                    } else {
+                        const matchedKeywords = keywords.filter(kw => userAns.includes(kw));
+                        isCorrect = matchedKeywords.length / keywords.length >= 0.6;
+                    }
+                }
             }
             else if (qType === 'list' || qType === 'explain' || qType === 'situations') {
-                // الأسئلة المقالية/النقاط تُعطى درجة كاملة إذا تجاوزت عدد أحرف معين (لتشجيع الكتابة)
-                isCorrect = answer.answer && answer.answer.trim().length > 5;
+                // الأسئلة المقالية - درجة إذا كتب أكثر من 10 حروف
+                isCorrect = userAns.length > 10;
             }
             
             if (isCorrect) correctCount++;
-            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: answer.answer || '', isCorrect });
+            detailedAnswers.push({ 
+                questionIndex: answer.questionIndex, 
+                answer: answer.answer || '', 
+                isCorrect 
+            });
         }
         
-        const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        
         const student = await Student.findOne({ username: req.user.username });
         
         tournament.participants.push({
             studentId: req.user.username,
             studentName: student ? student.fullName : req.user.username,
-            score, 
-            timeTaken: timeTaken || 0, 
-            answers: detailedAnswers
+            score,
+            timeTaken: timeTaken || 0,
+            answers: detailedAnswers,
+            submittedAt: new Date()
         });
         
-        // ترتيب المشاركين (الأعلى درجة أولاً، ثم الأسرع وقتاً)
-        tournament.participants.sort((a, b) => b.score !== a.score ? b.score - a.score : a.timeTaken - b.timeTaken);
+        // ترتيب: الأعلى درجة أولاً، ثم الأسرع وقتاً
+        tournament.participants.sort((a, b) => 
+            b.score !== a.score ? b.score - a.score : a.timeTaken - b.timeTaken
+        );
+        
         await tournament.save();
         
-        const userRank = tournament.participants.findIndex(p => p.studentId === req.user.username) + 1;
+        const userRank = tournament.participants.findIndex(
+            p => p.studentId === req.user.username
+        ) + 1;
+        
+        // إضافة XP بناءً على الترتيب
+        const xpReward = userRank === 1 ? 50 : userRank === 2 ? 30 : userRank === 3 ? 20 : 10;
+        await Progress.findOneAndUpdate(
+            { userId: req.user.username },
+            { $inc: { xp: xpReward } },
+            { upsert: true }
+        );
         
         res.json({ 
-            success: true, 
-            message: 'تم المشاركة بنجاح', 
-            score, 
-            rank: userRank 
+            success: true,
+            score,
+            rank: userRank,
+            correctCount,
+            totalQuestions,
+            xpEarned: xpReward,
+            message: `أحسنت! حصلت على ${score}% وترتيبك ${userRank}`
         });
+        
     } catch (error) {
+        console.error('❌ خطأ في المشاركة:', error);
         res.status(500).json({ error: 'خطأ في المشاركة: ' + error.message });
     }
 });
