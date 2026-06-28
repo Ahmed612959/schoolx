@@ -3,7 +3,6 @@ var tournamentState = {};
 var tournamentTimerInterval = null;
 var tournamentSubmitted = false;
 var _tourSelectedAnswers = {};
-
 function startTournamentQuiz(tournamentId, questions, timeLimitMinutes, title) {
     if (tournamentTimerInterval) clearInterval(tournamentTimerInterval);
     tournamentState = {
