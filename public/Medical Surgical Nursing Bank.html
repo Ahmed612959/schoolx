@@ -324,6 +324,82 @@ var API_BASE = '';
 var isOnlineMode = false;
 
 
+   // ====================== نظام الاستماع للأسئلة ======================
+var _speakingBtnId = null;
+var _speakLang = localStorage.getItem('nb_speak_lang') || 'both';
+
+function speakQuestion(qId, enText, arText) {
+    if (!window.speechSynthesis) {
+        showToast('❌ المتصفح لا يدعم تشغيل الصوت', 'error');
+        return;
+    }
+    if (_speakingBtnId === qId) {
+        window.speechSynthesis.cancel();
+        resetSpeakBtn(qId);
+        return;
+    }
+    if (_speakingBtnId) {
+        window.speechSynthesis.cancel();
+        resetSpeakBtn(_speakingBtnId);
+    }
+    _speakingBtnId = qId;
+    var btn = document.getElementById('speak-' + qId);
+    if (!btn) return;
+    btn.innerHTML = '<i class="fas fa-stop-circle"></i>';
+    btn.style.color = '#ef4444';
+    btn.style.borderColor = '#ef4444';
+    btn.style.background = '#fef2f2';
+    btn.title = 'إيقاف';
+
+    function speak(text, lang, onEnd) {
+        var utt = new SpeechSynthesisUtterance(text);
+        utt.lang = lang;
+        utt.rate = 0.85;
+        utt.onend = onEnd || function() { resetSpeakBtn(qId); };
+        utt.onerror = function() { resetSpeakBtn(qId); };
+        window.speechSynthesis.speak(utt);
+    }
+
+    window.speechSynthesis.cancel();
+
+    if (_speakLang === 'en') {
+        speak(enText, 'en-US');
+    } else if (_speakLang === 'ar') {
+        speak(arText || enText, 'ar-EG');
+    } else {
+        speak(enText, 'en-US', function() {
+            if (arText && arText !== enText) {
+                setTimeout(function() { speak(arText, 'ar-EG'); }, 500);
+            } else {
+                resetSpeakBtn(qId);
+            }
+        });
+    }
+}
+
+function resetSpeakBtn(qId) {
+    _speakingBtnId = null;
+    var btn = document.getElementById('speak-' + qId);
+    if (!btn) return;
+    btn.innerHTML = '<i class="fas fa-volume-up"></i>';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+    btn.style.background = '';
+    btn.title = 'استمع للسؤال';
+}
+
+function setSpeakLang(lang) {
+    _speakLang = lang;
+    localStorage.setItem('nb_speak_lang', lang);
+    if (_speakingBtnId) {
+        window.speechSynthesis.cancel();
+        resetSpeakBtn(_speakingBtnId);
+    }
+    showToast('✅ لغة الاستماع: ' + (lang === 'en' ? 'إنجليزي' : lang === 'ar' ? 'عربي' : 'الاثنين'), 'success');
+} 
+    
+
+     
 // ==================== المتغيرات ====================
 var chaptersData = {chapter1: chapter1, chapter2: chapter2, chapter3: chapter3, chapter4: chapter4, chapter5: chapter5, chapter6: chapter6, chapter7: chapter7, chapter8: chapter8, chapter9: chapter9, chapter10: chapter10, chapter11: chapter11};
 var currentChapterId = 'all';
@@ -1404,90 +1480,7 @@ function initPage() {
         progressBar.style.width = scrollPercent + '%';
     });
 
-    // ====================== نظام الاستماع للأسئلة ======================
-var _currentSpeech = null;
-var _speakingBtnId = null;
-var _speakLang = localStorage.getItem('nb_speak_lang') || 'both';
-
-function speakQuestion(qId, enText, arText) {
-    if (!window.speechSynthesis) {
-        showToast('❌ المتصفح لا يدعم تشغيل الصوت', 'error');
-        return;
-    }
-
-    // لو نفس الزر اتضغط تاني، وقف الصوت
-    if (_speakingBtnId === qId) {
-        window.speechSynthesis.cancel();
-        resetSpeakBtn(qId);
-        return;
-    }
-
-    // وقف أي صوت شغال
-    if (_speakingBtnId) {
-        window.speechSynthesis.cancel();
-        resetSpeakBtn(_speakingBtnId);
-    }
-
-    _speakingBtnId = qId;
-    var btn = document.getElementById('speak-' + qId);
-    if (!btn) return;
-
-    // غيّر شكل الزر لـ "شغال"
-    btn.innerHTML = '<i class="fas fa-stop-circle"></i>';
-    btn.style.color = '#ef4444';
-    btn.style.borderColor = '#ef4444';
-    btn.style.background = '#fef2f2';
-    btn.title = 'إيقاف';
-
-    function speak(text, lang, onEnd) {
-        var utt = new SpeechSynthesisUtterance(text);
-        utt.lang = lang;
-        utt.rate = 0.85;
-        utt.pitch = 1;
-        utt.onend = onEnd || function() { resetSpeakBtn(qId); };
-        utt.onerror = function() { resetSpeakBtn(qId); };
-        window.speechSynthesis.speak(utt);
-    }
-
-    window.speechSynthesis.cancel();
-
-    if (_speakLang === 'en') {
-        speak(enText, 'en-US');
-    } else if (_speakLang === 'ar') {
-        speak(arText || enText, 'ar-EG');
-    } else {
-        // الاثنين: أول إنجليزي ثم عربي
-        speak(enText, 'en-US', function() {
-            if (arText && arText !== enText) {
-                setTimeout(function() { speak(arText, 'ar-EG'); }, 500);
-            } else {
-                resetSpeakBtn(qId);
-            }
-        });
-    }
-}
-
-function resetSpeakBtn(qId) {
-    _speakingBtnId = null;
-    var btn = document.getElementById('speak-' + qId);
-    if (!btn) return;
-    btn.innerHTML = '<i class="fas fa-volume-up"></i>';
-    btn.style.color = '';
-    btn.style.borderColor = '';
-    btn.style.background = '';
-    btn.title = 'استمع للسؤال';
-}
-
-function setSpeakLang(lang) {
-    _speakLang = lang;
-    localStorage.setItem('nb_speak_lang', lang);
-    // لو في صوت شغال وقفه
-    if (_speakingBtnId) {
-        window.speechSynthesis.cancel();
-        resetSpeakBtn(_speakingBtnId);
-    }
-    showToast('✅ تم ضبط لغة الاستماع: ' + (lang === 'en' ? 'إنجليزي' : lang === 'ar' ? 'عربي' : 'الاثنين'), 'success');
-}
+    
     
     document.getElementById('backToTop').addEventListener('click', function() { window.scrollTo({top: 0, behavior: 'smooth'}); });
     
