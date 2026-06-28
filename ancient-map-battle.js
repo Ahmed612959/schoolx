@@ -1,3 +1,405 @@
+// ====================== نظام البطولات ======================
+var tournamentState = {};
+var tournamentTimerInterval = null;
+var tournamentSubmitted = false;
+var _tourSelectedAnswers = {};
+
+function startTournamentQuiz(tournamentId, questions, timeLimitMinutes, title) {
+    if (tournamentTimerInterval) clearInterval(tournamentTimerInterval);
+    tournamentState = {
+        id: tournamentId,
+        questions: questions || [],
+        startTime: Date.now(),
+        timeLimitSeconds: (timeLimitMinutes || 10) * 60,
+        title: title || 'بطولة'
+    };
+    tournamentSubmitted = false;
+    _tourSelectedAnswers = {};
+    renderTournamentQuizPage();
+}
+
+function renderTournamentQuizPage() {
+    var questions = tournamentState.questions;
+    if (!questions || questions.length === 0) {
+        showToast('❌ لا توجد أسئلة في البطولة', 'error');
+        return;
+    }
+
+    var totalMins = Math.floor(tournamentState.timeLimitSeconds / 60);
+
+    var html = '';
+    // شريط العنوان والتايمر والتسليم
+    html += '<div style="position:sticky;top:0;z-index:10;background:var(--card-bg);padding:10px 15px;';
+    html += 'border-radius:12px;border:1px solid var(--border-color);margin-bottom:15px;';
+    html += 'display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">';
+    html += '<div style="font-size:0.85rem;font-weight:700;color:var(--dark);">🏆 ' + escapeHtml(tournamentState.title) + '</div>';
+    html += '<div id="tourProgress" style="font-size:0.75rem;color:var(--text-secondary);">0/' + questions.length + ' ✓</div>';
+    html += '<div class="modal-timer" id="tourTimer" style="margin:0;font-size:1.3rem;font-weight:900;color:var(--dark);">';
+    html += String(totalMins).padStart(2, '0') + ':00</div>';
+    html += '<button class="modal-btn btn-danger" id="tourSubmitBtn" onclick="submitTournamentAnswers(false)" ';
+    html += 'style="padding:6px 14px;font-size:0.8rem;">';
+    html += '<i class="fas fa-paper-plane"></i> تسليم</button>';
+    html += '</div>';
+
+    html += '<div style="max-height:60vh;overflow-y:auto;" id="tourScrollContainer">';
+
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var type = q.cat || 'mcq';
+        var badgeMap = {
+            truefalse: 'badge-tf',
+            complete: 'badge-complete',
+            explain: 'badge-explain',
+            list: 'badge-list',
+            situations: 'badge-situation',
+            mcq: 'badge-mcq'
+        };
+        var badgeClass = badgeMap[type] || 'badge-mcq';
+
+        html += '<div class="quiz-q" id="tourQ_' + i + '" ';
+        html += 'style="border:2px solid var(--border-color);border-right:4px solid var(--gold);';
+        html += 'border-radius:var(--radius-sm);margin-bottom:12px;padding:12px;background:var(--card-bg);">';
+
+        // هيدر السؤال
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+        html += '<span class="question-badge ' + badgeClass + '" style="font-size:0.65rem;">';
+        html += '<i class="fas ' + getCategoryIcon(type) + '"></i> ' + getCategoryLabel(type) + '</span>';
+        html += '<span style="font-size:0.7rem;color:#94a3b8;">#' + (i + 1) + '</span>';
+        html += '</div>';
+
+        // نص السؤال
+        html += '<div style="font-weight:700;font-size:0.9rem;color:var(--dark);line-height:1.8;margin-bottom:8px;">';
+        html += escapeHtml(q.text || '') + '</div>';
+
+        // الترجمة لو موجودة
+        if (q.translation) {
+            html += '<div class="translation-box" style="margin-bottom:8px;font-size:0.8rem;">';
+            html += '<i class="fas fa-language"></i> ' + escapeHtml(q.translation) + '</div>';
+        }
+
+        // الخيارات حسب نوع السؤال - بنفس طريقة الاختبار العادي
+        if (type === 'mcq' && q.options && q.options.length > 0) {
+            for (var j = 0; j < q.options.length; j++) {
+                var opt = q.options[j];
+                // نحفظ الـ value في data attribute
+                html += '<button class="quiz-opt" ';
+                html += 'data-qindex="' + i + '" ';
+                html += 'data-value="' + escapeHtml(opt) + '" ';
+                html += 'onclick="selectTournamentOpt(this,' + i + ')">';
+                html += escapeHtml(opt) + '</button>';
+            }
+        } else if (type === 'truefalse') {
+            html += '<button class="quiz-opt" data-qindex="' + i + '" data-value="صواب" ';
+            html += 'onclick="selectTournamentOpt(this,' + i + ')">✅ صواب (True)</button>';
+            html += '<button class="quiz-opt" data-qindex="' + i + '" data-value="خطأ" ';
+            html += 'onclick="selectTournamentOpt(this,' + i + ')">❌ خطأ (False)</button>';
+        } else {
+            // أسئلة مقالية
+            var placeholder = type === 'complete' ? 'أكمل الجملة...' :
+                type === 'list' ? 'اكتب النقاط...' :
+                type === 'explain' ? 'اكتب الشرح...' : 'اكتب إجابتك...';
+            var minH = (type === 'list' || type === 'explain' || type === 'situations') ? 'min-height:70px;' : '';
+            html += '<textarea class="def-input" id="tourText_' + i + '" ';
+            html += 'placeholder="' + placeholder + '" ';
+            html += 'oninput="updateTourProgress()" ';
+            html += 'style="width:100%;' + minH + 'padding:10px;border-radius:10px;';
+            html += 'border:2px solid var(--border-color);background:var(--card-bg);';
+            html += 'color:var(--text-primary);font-family:\'Tajawal\',sans-serif;resize:vertical;"></textarea>';
+        }
+
+        html += '</div>';
+    }
+
+    html += '</div>';
+
+    openModal('tournamentQuizModal', html);
+    startTournamentTimer();
+}
+
+// ====================== تحديد إجابة - مطابق للاختبار العادي ======================
+window.selectTournamentOpt = function(btn, qIndex) {
+    if (tournamentSubmitted) return;
+
+    // إزالة تمييز كل الخيارات في نفس السؤال
+    var opts = document.querySelectorAll('#tourQ_' + qIndex + ' .quiz-opt');
+    opts.forEach(function(b) {
+        b.classList.remove('correct', 'wrong');
+        b.style.borderColor = '';
+        b.style.background = '';
+        b.style.color = '';
+        b.style.fontWeight = '';
+    });
+
+    // تمييز الخيار المحدد - بنفس ستايل الاختبار العادي
+    btn.style.borderColor = 'var(--gold)';
+    btn.style.background = 'var(--gold-light)';
+    btn.style.color = 'var(--darker)';
+    btn.style.fontWeight = '700';
+
+    // حفظ الإجابة في الـ object - ده الأهم
+    _tourSelectedAnswers[qIndex] = btn.getAttribute('data-value');
+
+    updateTourProgress();
+};
+
+function updateTourProgress() {
+    var questions = tournamentState.questions || [];
+    var answered = 0;
+
+    for (var i = 0; i < questions.length; i++) {
+        var type = questions[i].cat || 'mcq';
+        if (type === 'mcq' || type === 'truefalse') {
+            if (_tourSelectedAnswers[i]) answered++;
+        } else {
+            var el = document.getElementById('tourText_' + i);
+            if (el && el.value.trim().length > 0) answered++;
+        }
+    }
+
+    var progressEl = document.getElementById('tourProgress');
+    if (progressEl) {
+        progressEl.textContent = answered + '/' + questions.length + ' ✓';
+        progressEl.style.color = answered === questions.length ? 'var(--green)' : 'var(--text-secondary)';
+    }
+}
+
+function startTournamentTimer() {
+    if (tournamentTimerInterval) clearInterval(tournamentTimerInterval);
+
+    tournamentTimerInterval = setInterval(function() {
+        var elapsed = Math.floor((Date.now() - tournamentState.startTime) / 1000);
+        var tLeft = Math.max(0, tournamentState.timeLimitSeconds - elapsed);
+
+        if (tLeft <= 0) {
+            clearInterval(tournamentTimerInterval);
+            showToast('⏰ انتهى الوقت! سيتم التسليم تلقائياً', 'warning');
+            setTimeout(function() { submitTournamentAnswers(true); }, 1000);
+            return;
+        }
+
+        var timerEl = document.getElementById('tourTimer');
+        if (timerEl) {
+            var m = Math.floor(tLeft / 60);
+            var s = tLeft % 60;
+            timerEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+
+            if (tLeft <= 60) {
+                timerEl.style.color = 'var(--red)';
+            } else if (tLeft <= 180) {
+                timerEl.style.color = 'var(--orange)';
+            } else {
+                timerEl.style.color = 'var(--dark)';
+            }
+        }
+    }, 1000);
+}
+
+// ====================== تسليم البطولة - مطابق للاختبار العادي ======================
+async function submitTournamentAnswers(autoSubmit) {
+    if (tournamentSubmitted) return;
+    if (tournamentTimerInterval) clearInterval(tournamentTimerInterval);
+
+    var questions = tournamentState.questions || [];
+
+    // حساب الأسئلة بدون إجابة
+    var unanswered = 0;
+    for (var i = 0; i < questions.length; i++) {
+        var type = questions[i].cat || 'mcq';
+        if (type === 'mcq' || type === 'truefalse') {
+            if (!_tourSelectedAnswers[i]) unanswered++;
+        } else {
+            var el = document.getElementById('tourText_' + i);
+            if (!el || el.value.trim().length === 0) unanswered++;
+        }
+    }
+
+    if (!autoSubmit && unanswered > 0) {
+        if (!confirm('⚠️ لديك ' + unanswered + ' سؤال(أسئلة) بدون إجابة.\nهل تريد التسليم على أي حال؟')) {
+            startTournamentTimer();
+            return;
+        }
+    }
+
+    var submitBtn = document.getElementById('tourSubmitBtn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التسليم...';
+    }
+
+    // ====================== جمع الإجابات وتصحيحها محلياً ======================
+    var answers = [];
+    var correctCount = 0;
+
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var type = q.cat || 'mcq';
+        var userAnswer = '';
+        var isCorrect = false;
+
+        if (type === 'mcq' || type === 'truefalse') {
+            // نجيب الإجابة من الـ object مش من الـ style
+            userAnswer = _tourSelectedAnswers[i] || '';
+
+            if (type === 'mcq') {
+                // مقارنة مطابقة للاختبار العادي
+                isCorrect = isAnswerCorrect(userAnswer, q.correct || '');
+            } else if (type === 'truefalse') {
+                var correctIsTrue = (q.correct === true || String(q.correct).toLowerCase() === 'true');
+                var userIsTrue = (userAnswer === 'صواب' || userAnswer === 'true');
+                var userIsFalse = (userAnswer === 'خطأ' || userAnswer === 'false');
+                if (correctIsTrue) isCorrect = userIsTrue;
+                else isCorrect = userIsFalse;
+            }
+        } else {
+            var textEl = document.getElementById('tourText_' + i);
+            userAnswer = textEl ? textEl.value.trim() : '';
+
+            if (type === 'complete' && q.completion) {
+                isCorrect = checkDefinitionAnswer(userAnswer, q.completion);
+            } else if (type === 'list' || type === 'explain' || type === 'situations') {
+                isCorrect = userAnswer.length > 5;
+            }
+        }
+
+        if (isCorrect) correctCount++;
+        answers.push({ questionIndex: i, answer: userAnswer, isCorrect: isCorrect });
+    }
+
+    // ====================== تلوين الإجابات بعد التسليم ======================
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var type = q.cat || 'mcq';
+
+        if (type === 'mcq' || type === 'truefalse') {
+            var opts = document.querySelectorAll('#tourQ_' + i + ' .quiz-opt');
+            opts.forEach(function(b) {
+                b.disabled = true;
+                var optVal = b.getAttribute('data-value') || b.textContent.trim();
+                var q_i = questions[parseInt(b.getAttribute('data-qindex') || i)];
+                var isThisCorrect = false;
+
+                if (type === 'mcq') {
+                    isThisCorrect = isAnswerCorrect(optVal, q.correct || '');
+                } else if (type === 'truefalse') {
+                    var correctIsTrue = (q.correct === true || String(q.correct).toLowerCase() === 'true');
+                    if (correctIsTrue) {
+                        isThisCorrect = (optVal === 'صواب' || optVal.includes('True'));
+                    } else {
+                        isThisCorrect = (optVal === 'خطأ' || optVal.includes('False'));
+                    }
+                }
+
+                if (isThisCorrect) {
+                    b.classList.add('correct');
+                } else if (_tourSelectedAnswers[i] === optVal || 
+                           (_tourSelectedAnswers[i] && b.textContent.trim().includes(_tourSelectedAnswers[i]))) {
+                    b.classList.add('wrong');
+                }
+            });
+        } else {
+            var textEl = document.getElementById('tourText_' + i);
+            if (textEl) {
+                textEl.disabled = true;
+                var ans = answers[i];
+                if (ans && ans.isCorrect) {
+                    textEl.classList.add('correct-input');
+                } else {
+                    textEl.classList.add('wrong-input');
+                }
+            }
+        }
+    }
+
+    // ====================== حساب النتيجة ======================
+    var totalCount = questions.length;
+    var score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+    var finalTimeTaken = Math.floor((Date.now() - tournamentState.startTime) / 1000);
+    var wrongCount = totalCount - correctCount;
+
+    tournamentSubmitted = true;
+
+    // ====================== إرسال للسيرفر ======================
+    try {
+        var result = await smartFetch('/api/tournaments/' + tournamentState.id + '/participate', {
+            method: 'POST',
+            body: JSON.stringify({ answers: answers, timeTaken: finalTimeTaken })
+        });
+
+        var serverScore = result.score !== undefined ? result.score : score;
+        var rank = result.rank || 0;
+        var xpEarned = result.xpEarned || 10;
+        var rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🏅';
+        var scoreColor = serverScore >= 70 ? 'var(--green)' : serverScore >= 40 ? 'var(--orange)' : 'var(--red)';
+        var timeStr = Math.floor(finalTimeTaken / 60) + ':' + String(finalTimeTaken % 60).padStart(2, '0');
+
+        var content = '<div style="text-align:center;padding:20px 10px;">';
+        content += '<div style="font-size:3.5rem;margin-bottom:10px;">' + rankEmoji + '</div>';
+        content += '<h2 style="color:var(--dark);margin-bottom:5px;">🎉 تم تسليم البطولة!</h2>';
+        content += '<div class="quiz-score" style="color:' + scoreColor + ';">' + serverScore + '%</div>';
+
+        content += '<div style="display:flex;justify-content:center;gap:15px;margin:15px 0;flex-wrap:wrap;">';
+        content += '<div style="padding:10px 15px;background:var(--light-bg);border-radius:12px;min-width:70px;">';
+        content += '<div style="font-size:1.3rem;font-weight:900;color:var(--green);">' + correctCount + '</div>';
+        content += '<div style="font-size:0.75rem;color:var(--text-secondary);">✅ صحيح</div></div>';
+        content += '<div style="padding:10px 15px;background:var(--light-bg);border-radius:12px;min-width:70px;">';
+        content += '<div style="font-size:1.3rem;font-weight:900;color:var(--red);">' + wrongCount + '</div>';
+        content += '<div style="font-size:0.75rem;color:var(--text-secondary);">❌ خطأ</div></div>';
+        content += '<div style="padding:10px 15px;background:var(--light-bg);border-radius:12px;min-width:70px;">';
+        content += '<div style="font-size:1.1rem;font-weight:900;color:var(--dark);">' + timeStr + '</div>';
+        content += '<div style="font-size:0.75rem;color:var(--text-secondary);">⏱️ الوقت</div></div>';
+        content += '</div>';
+
+        if (rank > 0) {
+            content += '<div style="display:inline-block;background:var(--gold-light);padding:8px 25px;';
+            content += 'border-radius:50px;font-size:1rem;font-weight:800;color:var(--gold-dark);';
+            content += 'border:1px solid var(--gold);margin:10px 0;">';
+            content += rankEmoji + ' المركز ' + rank + '</div><br>';
+        }
+
+        content += '<div style="background:var(--light-bg);padding:6px 20px;border-radius:10px;';
+        content += 'margin:8px auto;display:inline-block;">';
+        content += '<span style="color:var(--gold-dark);font-weight:700;">+' + xpEarned + ' XP 🌟</span></div>';
+
+        content += '<div style="display:flex;gap:8px;justify-content:center;margin-top:15px;flex-wrap:wrap;">';
+        content += '<button class="modal-btn btn-info" style="background:var(--blue);" ';
+        content += 'onclick="closeModal(\'tournamentQuizModal\');viewTournamentResults(\'' + tournamentState.id + '\');">';
+        content += '📊 عرض النتائج الكاملة</button>';
+        content += '<button class="modal-btn btn-close" ';
+        content += 'onclick="closeModal(\'tournamentQuizModal\');openTournaments();">🏆 عودة للبطولات</button>';
+        content += '</div></div>';
+
+        openModal('tournamentQuizModal', content);
+
+        if (typeof addXP === 'function') addXP(xpEarned);
+        if (serverScore >= 70) spawnConfetti();
+
+    } catch (error) {
+        handleTournamentError(error);
+
+        var errContent = '<div style="text-align:center;padding:30px;">';
+        errContent += '<div style="font-size:3rem;margin-bottom:15px;">⚠️</div>';
+        errContent += '<h2 style="color:var(--red);font-size:1.1rem;">لم يتم تسجيل النتيجة في السيرفر</h2>';
+        errContent += '<p style="color:var(--text-secondary);margin:15px 0;">درجتك المحلية: <b style="color:var(--dark);font-size:1.5rem;">' + score + '%</b></p>';
+        errContent += '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">';
+        errContent += '<button class="modal-btn btn-danger" ';
+        errContent += 'onclick="tournamentSubmitted=false;_tourSelectedAnswers={};submitTournamentAnswers(false)">';
+        errContent += '<i class="fas fa-redo"></i> إعادة المحاولة</button>';
+        errContent += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\');">إغلاق</button>';
+        errContent += '</div></div>';
+        openModal('tournamentQuizModal', errContent);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 // ====================== البطولات الأسبوعية ======================
 
 function escapeHtml(text) {
