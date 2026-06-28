@@ -2518,3 +2518,4 @@ app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
         res.status(500).json({ error: 'خطأ في جلب البطولات: ' + error.message });
     }
 });
+
