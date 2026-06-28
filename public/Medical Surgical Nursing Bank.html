@@ -3681,7 +3681,64 @@ async function viewTournamentResults(id) {
         openModal('tournamentResultsModal', html);
     } catch (error) { handleTournamentError(error); }
 }
+
+    var searchBoxVisible = false;
+
+function toggleSearchBox() {
+    var existing = document.getElementById('searchBoxContainer');
+    if (existing) {
+        existing.remove();
+        searchBoxVisible = false;
+        return;
+    }
     
+    var container = document.createElement('div');
+    container.id = 'searchBoxContainer';
+    container.style.cssText = 'margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;';
+    container.innerHTML = `
+        <input type="text" id="questionSearchInput" placeholder="🔍 ابحث عن سؤال..." 
+               style="flex:1;min-width:200px;padding:10px;border-radius:12px;border:2px solid var(--gold);background:var(--card-bg);color:var(--text-primary);font-family:'Tajawal',sans-serif;">
+        <button onclick="searchQuestions()" class="modal-btn btn-primary">بحث</button>
+        <button onclick="clearSearch()" class="modal-btn btn-close" style="padding:4px 12px;">✕</button>
+        <span id="searchResultsCount" style="font-size:0.8rem;color:var(--text-secondary);"></span>
+    `;
+    
+    var wrapper = document.getElementById('questionsWrapper');
+    if (wrapper) {
+        wrapper.parentNode.insertBefore(container, wrapper);
+    }
+    searchBoxVisible = true;
+    
+    // دعم البحث بالضغط على Enter
+    document.getElementById('questionSearchInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') searchQuestions();
+    });
+}
+
+function searchQuestions() {
+    var query = document.getElementById('questionSearchInput').value.trim().toLowerCase();
+    var cards = document.querySelectorAll('.question-card');
+    var count = 0;
+    
+    cards.forEach(function(card) {
+        var text = card.textContent.toLowerCase();
+        if (text.includes(query)) {
+            card.style.display = 'block';
+            // تمييز النتيجة
+            if (query.length > 0) {
+                card.style.borderColor = 'var(--gold)';
+                card.style.boxShadow = '0 0 20px rgba(212,175,90,0.2)';
+            }
+            count++;
+        } else {
+            card.style.display = query.length > 0 ? 'none' : 'block';
+            card.style.borderColor = '';
+            card.style.boxShadow = '';
+        }
+    });
+    
+    document.getElementById('searchResultsCount').textContent = `✅ ${count} نتيجة`;
+    }
 </script>
     
 </body>
