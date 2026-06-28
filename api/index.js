@@ -2366,38 +2366,53 @@ app.delete('/api/homework/:id', verifyToken, isAdmin, async (req, res) => {
 });
 
 
-// دالة لتوليد كود عشوائي مكون من 6 أحرف
+// ====================== دالة توليد الكود ======================
 function generateTournamentCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
-    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
     return code;
 }
 
-// 1. إنشاء بطولة جديدة (للأدمن)
+// ====================== 1. إنشاء بطولة (للأدمن) ======================
 app.post('/api/tournaments', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
-        const { title, chapterId, chapterName, questionCount, categoryFilter, startDate, endDate, questions } = req.body;
+        const { 
+            title, chapterId, chapterName, questionCount, 
+            categoryFilter, timeLimitMinutes, startDate, endDate, questions 
+        } = req.body;
         
-        if (!title || !chapterId || !startDate || !endDate || !questions || questions.length === 0) {
+        if (!title || !chapterId || !startDate || !endDate) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
+        if (!questions || questions.length === 0) {
+            return res.status(400).json({ error: 'يجب إضافة أسئلة للبطولة' });
+        }
+        if (startDate > endDate) {
+            return res.status(400).json({ error: 'تاريخ البداية يجب أن يكون قبل النهاية' });
+        }
         
+        // توليد كود فريد
         let uniqueCode = generateTournamentCode();
         let codeExists = await Tournament.findOne({ code: uniqueCode });
-        while (codeExists) {
+        let attempts = 0;
+        while (codeExists && attempts < 10) {
             uniqueCode = generateTournamentCode();
             codeExists = await Tournament.findOne({ code: uniqueCode });
+            attempts++;
         }
 
         const newTournament = new Tournament({
-            title,
+            title: title.trim(),
             code: uniqueCode,
             chapterId,
             chapterName: chapterName || 'فصل غير معروف',
-            questionCount: questionCount || 20,
+            questionCount: questions.length,
             categoryFilter: categoryFilter || 'all',
+            timeLimitMinutes: timeLimitMinutes || 10,
             startDate,
             endDate,
             createdBy: req.user.username,
@@ -2406,14 +2421,28 @@ app.post('/api/tournaments', verifyToken, isAdmin, async (req, res) => {
         });
         
         await newTournament.save();
-        res.json({ success: true, message: 'تم إنشاء البطولة بنجاح', tournament: newTournament });
+        console.log('✅ تم إنشاء بطولة:', uniqueCode, '| أسئلة:', questions.length);
+        
+        res.json({ 
+            success: true, 
+            message: 'تم إنشاء البطولة بنجاح',
+            tournament: {
+                _id: newTournament._id,
+                title: newTournament.title,
+                code: newTournament.code,
+                questionCount: newTournament.questionCount,
+                timeLimitMinutes: newTournament.timeLimitMinutes,
+                startDate: newTournament.startDate,
+                endDate: newTournament.endDate
+            }
+        });
     } catch (error) {
         console.error('❌ خطأ في إنشاء البطولة:', error);
         res.status(500).json({ error: 'خطأ في إنشاء البطولة: ' + error.message });
     }
 });
 
-// 2. جلب البطولات النشطة (تم التعديل: إخفاء تفاصيل المشاركين لتخفيف الحمل وحماية البيانات)
+// ====================== 2. جلب البطولات النشطة ======================
 app.get('/api/tournaments/active', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -2423,45 +2452,67 @@ app.get('/api/tournaments/active', verifyToken, async (req, res) => {
             isActive: true,
             startDate: { $lte: today },
             endDate: { $gte: today }
-        }).sort({ createdAt: -1 });
+        }).sort({ createdAt: -1 }).lean();
         
-        const tournamentsWithParticipation = tournaments.map(t => {
-            const userParticipant = t.participants.find(p => p.studentId === req.user.username);
-            const tournamentData = t.toObject(); 
-            delete tournamentData.participants; // إزالة المصفوفة الثقيلة
-            
-            return {
-                ...tournamentData,
-                participantsCount: t.participants.length, // إرسال العدد فقط
-                hasParticipated: !!userParticipant,
-                myScore: userParticipant ? userParticipant.score : null,
-                myTime: userParticipant ? userParticipant.timeTaken : null
-            };
-        });
+        const result = tournaments.map(t => {
+            try {
+                const participants = t.participants || [];
+                const userParticipant = participants.find(
+                    p => p.studentId === req.user.username
+                );
+                return {
+                    _id: t._id,
+                    title: t.title,
+                    code: t.code,
+                    chapterName: t.chapterName || '',
+                    questionCount: t.questionCount || 0,
+                    timeLimitMinutes: t.timeLimitMinutes || 10,
+                    startDate: t.startDate,
+                    endDate: t.endDate,
+                    participantsCount: participants.length,
+                    hasParticipated: !!userParticipant,
+                    myScore: userParticipant ? userParticipant.score : null,
+                    myTime: userParticipant ? userParticipant.timeTaken : null
+                };
+            } catch(err) {
+                console.error('خطأ في معالجة بطولة:', t._id, err);
+                return null;
+            }
+        }).filter(t => t !== null);
         
-        res.json(tournamentsWithParticipation);
+        res.json(result);
     } catch (error) {
         console.error('❌ خطأ في جلب البطولات:', error);
-        res.status(500).json({ error: 'خطأ في جلب البطولات' });
+        res.status(500).json({ error: 'خطأ في جلب البطولات: ' + error.message });
     }
 });
 
-// 3. الانضمام عن طريق كود البطولة
+// ====================== 3. الانضمام بكود البطولة ======================
 app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const { code } = req.body;
-        if (!code) return res.status(400).json({ error: 'يرجى إدخال كود البطولة' });
+        
+        if (!code) {
+            return res.status(400).json({ error: 'يرجى إدخال كود البطولة' });
+        }
 
         const tournament = await Tournament.findOne({ 
             code: code.toUpperCase().trim(), 
             isActive: true 
         });
-        if (!tournament) return res.status(404).json({ error: 'كود البطولة غير صحيح أو البطولة منتهية' });
+        
+        if (!tournament) {
+            return res.status(404).json({ 
+                error: 'كود البطولة غير صحيح أو البطولة منتهية' 
+            });
+        }
 
         const today = new Date().toISOString().split('T')[0];
         if (tournament.startDate > today) {
-            return res.status(400).json({ error: `البطولة ستبدأ في ${tournament.startDate}` });
+            return res.status(400).json({ 
+                error: 'البطولة لم تبدأ بعد، تبدأ في: ' + tournament.startDate 
+            });
         }
         if (tournament.endDate < today) {
             return res.status(400).json({ error: 'انتهت مدة البطولة' });
@@ -2473,18 +2524,17 @@ app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
         if (alreadyJoined) {
             return res.status(400).json({ 
                 error: 'لقد شاركت في هذه البطولة بالفعل',
-                score: alreadyJoined.score,
-                alreadyParticipated: true
+                alreadyParticipated: true,
+                score: alreadyJoined.score
             });
         }
 
         // إرجاع الأسئلة بدون الإجابات الصحيحة
         const questionsWithoutAnswers = (tournament.questions || []).map(q => ({
-            text: q.text,
-            translation: q.translation,
-            cat: q.cat,
-            options: q.options,
-            // لا نرجع correct أو completion أو answer
+            text: q.text || '',
+            translation: q.translation || '',
+            cat: q.cat || 'mcq',
+            options: q.options || []
         }));
 
         res.json({ 
@@ -2492,74 +2542,62 @@ app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
             tournamentId: tournament._id,
             title: tournament.title,
             chapterName: tournament.chapterName,
+            timeLimitMinutes: tournament.timeLimitMinutes || 10,
             endDate: tournament.endDate,
             questions: questionsWithoutAnswers,
             totalQuestions: questionsWithoutAnswers.length,
             message: 'تم التحقق بنجاح، ابدأ الحل الآن!'
         });
-        
     } catch (error) {
         console.error('❌ خطأ في الانضمام:', error);
         res.status(500).json({ error: 'خطأ في الانضمام: ' + error.message });
     }
 });
 
-// مسار جلب أسئلة البطولة للطالب للبدء في الحل
-app.get('/api/tournaments/:id/start', verifyToken, async (req, res) => {
-    try {
-        await connectToDatabase();
-        const tournament = await Tournament.findById(req.params.id);
-        if (!tournament) return res.status(404).json({ error: 'البطولة غير موجودة' });
-        if (!tournament.isActive) return res.status(400).json({ error: 'البطولة غير نشطة' });
-        
-        const alreadyJoined = tournament.participants.find(p => p.studentId === req.user.username);
-        if (alreadyJoined) return res.status(400).json({ error: 'لقد شاركت بالفعل' });
-
-        res.json({ success: true, questions: tournament.questions });
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ' });
-    }
-});
-
-// 4. جلب جميع البطولات (للأدمن)
-app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
-    try {
-        await connectToDatabase();
-        const tournaments = await Tournament.find().sort({ createdAt: -1 });
-        res.json(tournaments);
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب البطولات' });
-    }
-});
-
-// 5. المشاركة في البطولة وإرسال الإجابات (تم إصلاح كارثة التصحيح)
+// ====================== 4. المشاركة وإرسال الإجابات ======================
 app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         const { answers, timeTaken } = req.body;
         
-        // التحقق من صحة البيانات
         if (!answers || !Array.isArray(answers)) {
             return res.status(400).json({ error: 'بيانات الإجابات غير صحيحة' });
         }
         
         const tournament = await Tournament.findById(req.params.id);
-        if (!tournament) return res.status(404).json({ error: 'البطولة غير موجودة' });
-        
-        const today = new Date().toISOString().split('T')[0];
-        if (tournament.startDate > today) return res.status(400).json({ error: 'البطولة لم تبدأ بعد' });
-        if (tournament.endDate < today) return res.status(400).json({ error: 'البطولة انتهت' });
-        if (!tournament.isActive) return res.status(400).json({ error: 'البطولة مغلقة' });
-        
-        const existingParticipant = tournament.participants.find(p => p.studentId === req.user.username);
-        if (existingParticipant) return res.status(400).json({ error: 'لقد شاركت بالفعل في هذه البطولة' });
-        
-        // التحقق من الوقت (منع الغش - لازم يكون على الأقل 30 ثانية)
-        const minTime = Math.min(30, tournament.questions.length * 3);
-        if (timeTaken < minTime) {
-            return res.status(400).json({ error: 'وقت الحل غير منطقي، يبدو أن هناك محاولة غش' });
+        if (!tournament) {
+            return res.status(404).json({ error: 'البطولة غير موجودة' });
         }
         
+        const today = new Date().toISOString().split('T')[0];
+        if (tournament.startDate > today) {
+            return res.status(400).json({ error: 'البطولة لم تبدأ بعد' });
+        }
+        if (tournament.endDate < today) {
+            return res.status(400).json({ error: 'البطولة انتهت' });
+        }
+        if (!tournament.isActive) {
+            return res.status(400).json({ error: 'البطولة مغلقة' });
+        }
+        
+        const existingParticipant = tournament.participants.find(
+            p => p.studentId === req.user.username
+        );
+        if (existingParticipant) {
+            return res.status(400).json({ 
+                error: 'لقد شاركت بالفعل في هذه البطولة' 
+            });
+        }
+        
+        // التحقق من الوقت (منع الغش)
+        const minTime = Math.min(20, (tournament.questions || []).length * 2);
+        if (timeTaken < minTime) {
+            return res.status(400).json({ 
+                error: 'وقت الحل غير منطقي' 
+            });
+        }
+        
+        // تصحيح الإجابات
         let correctCount = 0;
         const detailedAnswers = [];
         const questions = tournament.questions || [];
@@ -2573,22 +2611,18 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
             const userAns = String(answer.answer || '').trim().toLowerCase();
             
             if (qType === 'mcq') {
-                // مقارنة نصية مع تجاهل المسافات
                 const correctAns = String(question.correct || '').trim().toLowerCase();
                 isCorrect = userAns === correctAns;
                 
-                // لو الإجابة تبدأ بحرف الاختيار (أ، ب، ج أو a, b, c)
+                // مقارنة بالخيارات
                 if (!isCorrect && question.options) {
-                    const selectedOpt = question.options.find(opt => 
-                        String(opt).trim().toLowerCase() === userAns
-                    );
-                    if (selectedOpt) {
-                        isCorrect = String(selectedOpt).trim().toLowerCase() === correctAns;
-                    }
+                    isCorrect = question.options.some(opt => {
+                        const optLower = String(opt).trim().toLowerCase();
+                        return optLower === userAns && optLower === correctAns;
+                    });
                 }
             }
             else if (qType === 'truefalse') {
-                // دعم كل أشكال صح/خطأ
                 const correctIsTrue = (
                     question.correct === true || 
                     String(question.correct).toLowerCase() === 'true'
@@ -2596,34 +2630,29 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
                 const userIsTrue = (
                     userAns === 'true' || 
                     userAns === 'صواب' || 
-                    userAns === 'صح' ||
-                    userAns === '1'
+                    userAns === 'صح'
                 );
                 const userIsFalse = (
                     userAns === 'false' || 
                     userAns === 'خطأ' || 
-                    userAns === 'غلط' ||
-                    userAns === '0'
+                    userAns === 'غلط'
                 );
-                
                 if (correctIsTrue) isCorrect = userIsTrue;
                 else isCorrect = userIsFalse;
             }
             else if (qType === 'complete') {
                 const completion = String(question.completion || '').trim().toLowerCase();
                 if (completion && userAns.length > 1) {
-                    // مقارنة بالكلمات المفتاحية
                     const keywords = completion.split(/\s+/).filter(w => w.length > 3);
                     if (keywords.length === 0) {
                         isCorrect = userAns === completion;
                     } else {
-                        const matchedKeywords = keywords.filter(kw => userAns.includes(kw));
-                        isCorrect = matchedKeywords.length / keywords.length >= 0.6;
+                        const matched = keywords.filter(kw => userAns.includes(kw));
+                        isCorrect = matched.length / keywords.length >= 0.6;
                     }
                 }
             }
             else if (qType === 'list' || qType === 'explain' || qType === 'situations') {
-                // الأسئلة المقالية - درجة إذا كتب أكثر من 10 حروف
                 isCorrect = userAns.length > 10;
             }
             
@@ -2660,13 +2689,20 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
             p => p.studentId === req.user.username
         ) + 1;
         
-        // إضافة XP بناءً على الترتيب
+        // مكافأة XP حسب الترتيب
         const xpReward = userRank === 1 ? 50 : userRank === 2 ? 30 : userRank === 3 ? 20 : 10;
-        await Progress.findOneAndUpdate(
-            { userId: req.user.username },
-            { $inc: { xp: xpReward } },
-            { upsert: true }
-        );
+        
+        try {
+            await Progress.findOneAndUpdate(
+                { userId: req.user.username },
+                { $inc: { xp: xpReward } },
+                { upsert: true }
+            );
+        } catch(xpErr) {
+            console.error('خطأ في تحديث XP:', xpErr);
+        }
+        
+        console.log(`✅ مشاركة: ${req.user.username} | درجة: ${score}% | ترتيب: ${userRank}`);
         
         res.json({ 
             success: true,
@@ -2675,7 +2711,7 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
             correctCount,
             totalQuestions,
             xpEarned: xpReward,
-            message: `أحسنت! حصلت على ${score}% وترتيبك ${userRank}`
+            message: `أحسنت! حصلت على ${score}%`
         });
         
     } catch (error) {
@@ -2684,52 +2720,128 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
     }
 });
 
-// 6. جلب نتائج البطولة
+// ====================== 5. جلب نتائج البطولة ======================
 app.get('/api/tournaments/:id/results', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
-        const tournament = await Tournament.findById(req.params.id);
-        if (!tournament) return res.status(404).json({ error: 'البطولة غير موجودة' });
-        
-        if (req.user.type !== 'admin') {
-            const isParticipant = tournament.participants.some(p => p.studentId === req.user.username);
-            if (!isParticipant) return res.status(403).json({ error: 'غير مصرح بعرض نتائج هذه البطولة' });
+        const tournament = await Tournament.findById(req.params.id).lean();
+        if (!tournament) {
+            return res.status(404).json({ error: 'البطولة غير موجودة' });
         }
         
+        // التحقق من الصلاحية
+        if (req.user.type !== 'admin') {
+            const isParticipant = (tournament.participants || []).some(
+                p => p.studentId === req.user.username
+            );
+            if (!isParticipant) {
+                return res.status(403).json({ 
+                    error: 'يجب المشاركة في البطولة أولاً لعرض النتائج' 
+                });
+            }
+        }
+        
+        const participants = tournament.participants || [];
+        
         res.json({ 
-            title: tournament.title, 
-            participants: tournament.participants, 
-            top3: tournament.participants.slice(0, 3), 
-            totalParticipants: tournament.participants.length 
+            title: tournament.title,
+            chapterName: tournament.chapterName,
+            participants: participants.map(p => ({
+                studentName: p.studentName,
+                score: p.score,
+                timeTaken: p.timeTaken,
+                submittedAt: p.submittedAt
+            })),
+            top3: participants.slice(0, 3),
+            totalParticipants: participants.length
         });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب النتائج' });
+        console.error('❌ خطأ في جلب النتائج:', error);
+        res.status(500).json({ error: 'خطأ في جلب النتائج: ' + error.message });
     }
 });
 
-// 7. إنهاء البطولة وإعلان الفائزين (للأدمن)
+// ====================== 6. إنهاء البطولة (للأدمن) ======================
 app.post('/api/tournaments/:id/finish', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
         const tournament = await Tournament.findById(req.params.id);
-        if (!tournament) return res.status(404).json({ error: 'البطولة غير موجودة' });
-        if (!tournament.isActive) return res.status(400).json({ error: 'البطولة منتهية بالفعل' });
+        if (!tournament) {
+            return res.status(404).json({ error: 'البطولة غير موجودة' });
+        }
+        if (!tournament.isActive) {
+            return res.status(400).json({ error: 'البطولة منتهية بالفعل' });
+        }
         
         tournament.isActive = false;
-        if (tournament.participants.length >= 1) {
-            tournament.winner1 = tournament.participants[0]?.studentId || '';
-            tournament.winner2 = tournament.participants[1]?.studentId || '';
-            tournament.winner3 = tournament.participants[2]?.studentId || '';
+        
+        const participants = tournament.participants || [];
+        if (participants.length >= 1) {
+            tournament.winner1 = participants[0]?.studentId || '';
+            tournament.winner2 = participants[1]?.studentId || '';
+            tournament.winner3 = participants[2]?.studentId || '';
             
-            if (tournament.winner1) await Progress.findOneAndUpdate({ userId: tournament.winner1 }, { $inc: { xp: 50 } });
-            if (tournament.winner2) await Progress.findOneAndUpdate({ userId: tournament.winner2 }, { $inc: { xp: 30 } });
-            if (tournament.winner3) await Progress.findOneAndUpdate({ userId: tournament.winner3 }, { $inc: { xp: 20 } });
+            // توزيع مكافآت الفائزين
+            const rewards = [
+                { id: tournament.winner1, xp: 100 },
+                { id: tournament.winner2, xp: 60 },
+                { id: tournament.winner3, xp: 30 }
+            ];
+            
+            for (const reward of rewards) {
+                if (reward.id) {
+                    try {
+                        await Progress.findOneAndUpdate(
+                            { userId: reward.id },
+                            { $inc: { xp: reward.xp } },
+                            { upsert: true }
+                        );
+                    } catch(err) {
+                        console.error('خطأ في مكافأة:', reward.id, err);
+                    }
+                }
+            }
         }
         
         await tournament.save();
-        res.json({ success: true, message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح' });
+        console.log('✅ تم إنهاء البطولة:', tournament.title);
+        
+        res.json({ 
+            success: true, 
+            message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح',
+            winner: participants[0]?.studentName || 'لا يوجد'
+        });
     } catch (error) {
+        console.error('❌ خطأ في إنهاء البطولة:', error);
         res.status(500).json({ error: 'خطأ في إنهاء البطولة: ' + error.message });
+    }
+});
+
+// ====================== 7. جلب كل البطولات (للأدمن) ======================
+app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const tournaments = await Tournament.find()
+            .sort({ createdAt: -1 })
+            .lean();
+            
+        const result = tournaments.map(t => ({
+            _id: t._id,
+            title: t.title,
+            code: t.code,
+            chapterName: t.chapterName,
+            questionCount: t.questionCount,
+            startDate: t.startDate,
+            endDate: t.endDate,
+            isActive: t.isActive,
+            participantsCount: (t.participants || []).length,
+            createdAt: t.createdAt
+        }));
+        
+        res.json(result);
+    } catch (error) {
+        console.error('❌ خطأ في جلب البطولات:', error);
+        res.status(500).json({ error: 'خطأ في جلب البطولات: ' + error.message });
     }
 });
 
