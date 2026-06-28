@@ -263,6 +263,10 @@
 <button class="control-btn" onclick="toggleSearchBox()" style="background:rgba(255,255,255,0.1);">
     <i class="fas fa-search"></i> بحث
 </button>
+
+  <button class="control-btn" onclick="setSpeakLang('both')" title="لغة الاستماع">
+    <i class="fas fa-volume-up"></i> استماع
+</button>          
             
         </div>
     </div>
@@ -614,7 +618,12 @@ function renderCard(q, cat, idx) {
     h += '<span class="question-number">#' + idx + ' | ' + (q.chapterName || '') + '</span>'; 
     if (diff) { h += '<span class="difficulty-badge diff-' + diff + '" onclick="cycleDifficulty(\'' + qId + '\')">' + (diff === 'easy' ? '🟢' : diff === 'medium' ? '🟡' : '🔴') + '</span>'; } 
     else { h += '<span class="difficulty-badge" onclick="cycleDifficulty(\'' + qId + '\')" style="cursor:pointer;opacity:0.4;">⚪</span>'; } 
-    h += '<div class="card-actions"><button class="action-btn" onclick="copyQuestion(\'' + qId + '\')"><i class="fas fa-copy"></i></button>'; 
+    h += '<div class="card-actions">';
+// زر الاستماع
+var enTxt = (q.text || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').substring(0, 200);
+var arTxt = (q.translation || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').substring(0, 200);
+h += '<button class="action-btn" id="speak-' + qId + '" onclick="speakQuestion(\'' + qId + '\',\'' + enTxt + '\',\'' + arTxt + '\')" title="استمع للسؤال"><i class="fas fa-volume-up"></i></button>';
+h += '<button class="action-btn" onclick="copyQuestion(\'' + qId + '\')"><i class="fas fa-copy"></i></button>';
     h += '<button class="action-btn ' + (isBookmarked ? 'bookmarked' : '') + '" onclick="toggleBookmark(\'' + qId + '\',this)"><i class="fas fa-star"></i></button>'; 
     h += '<button class="action-btn ' + (isHard ? 'hard-marked' : '') + '" onclick="toggleHard(\'' + qId + '\',this)"><i class="fas fa-exclamation-triangle"></i></button></div></div>'; 
     h += '<div class="question-content"><div class="question-text"><i class="fas fa-question-circle"></i> ' + q.text + '</div>'; 
@@ -1394,6 +1403,91 @@ function initPage() {
         var scrollPercent = (document.documentElement.scrollTop || document.body.scrollTop) / ((document.documentElement.scrollHeight || document.body.scrollHeight) - document.documentElement.clientHeight) * 100;
         progressBar.style.width = scrollPercent + '%';
     });
+
+    // ====================== نظام الاستماع للأسئلة ======================
+var _currentSpeech = null;
+var _speakingBtnId = null;
+var _speakLang = localStorage.getItem('nb_speak_lang') || 'both';
+
+function speakQuestion(qId, enText, arText) {
+    if (!window.speechSynthesis) {
+        showToast('❌ المتصفح لا يدعم تشغيل الصوت', 'error');
+        return;
+    }
+
+    // لو نفس الزر اتضغط تاني، وقف الصوت
+    if (_speakingBtnId === qId) {
+        window.speechSynthesis.cancel();
+        resetSpeakBtn(qId);
+        return;
+    }
+
+    // وقف أي صوت شغال
+    if (_speakingBtnId) {
+        window.speechSynthesis.cancel();
+        resetSpeakBtn(_speakingBtnId);
+    }
+
+    _speakingBtnId = qId;
+    var btn = document.getElementById('speak-' + qId);
+    if (!btn) return;
+
+    // غيّر شكل الزر لـ "شغال"
+    btn.innerHTML = '<i class="fas fa-stop-circle"></i>';
+    btn.style.color = '#ef4444';
+    btn.style.borderColor = '#ef4444';
+    btn.style.background = '#fef2f2';
+    btn.title = 'إيقاف';
+
+    function speak(text, lang, onEnd) {
+        var utt = new SpeechSynthesisUtterance(text);
+        utt.lang = lang;
+        utt.rate = 0.85;
+        utt.pitch = 1;
+        utt.onend = onEnd || function() { resetSpeakBtn(qId); };
+        utt.onerror = function() { resetSpeakBtn(qId); };
+        window.speechSynthesis.speak(utt);
+    }
+
+    window.speechSynthesis.cancel();
+
+    if (_speakLang === 'en') {
+        speak(enText, 'en-US');
+    } else if (_speakLang === 'ar') {
+        speak(arText || enText, 'ar-EG');
+    } else {
+        // الاثنين: أول إنجليزي ثم عربي
+        speak(enText, 'en-US', function() {
+            if (arText && arText !== enText) {
+                setTimeout(function() { speak(arText, 'ar-EG'); }, 500);
+            } else {
+                resetSpeakBtn(qId);
+            }
+        });
+    }
+}
+
+function resetSpeakBtn(qId) {
+    _speakingBtnId = null;
+    var btn = document.getElementById('speak-' + qId);
+    if (!btn) return;
+    btn.innerHTML = '<i class="fas fa-volume-up"></i>';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+    btn.style.background = '';
+    btn.title = 'استمع للسؤال';
+}
+
+function setSpeakLang(lang) {
+    _speakLang = lang;
+    localStorage.setItem('nb_speak_lang', lang);
+    // لو في صوت شغال وقفه
+    if (_speakingBtnId) {
+        window.speechSynthesis.cancel();
+        resetSpeakBtn(_speakingBtnId);
+    }
+    showToast('✅ تم ضبط لغة الاستماع: ' + (lang === 'en' ? 'إنجليزي' : lang === 'ar' ? 'عربي' : 'الاثنين'), 'success');
+}
     
     document.getElementById('backToTop').addEventListener('click', function() { window.scrollTo({top: 0, behavior: 'smooth'}); });
     
