@@ -309,6 +309,7 @@ const homeworkSubmissionSchema = new mongoose.Schema({
 const HomeworkSubmission = mongoose.models.HomeworkSubmission || mongoose.model('HomeworkSubmission', homeworkSubmissionSchema);
 
 
+// ====================== Schema البطولات ======================
 const tournamentSchema = new mongoose.Schema({
     title: { type: String, required: true },
     code: { type: String, unique: true, required: true },
@@ -316,9 +317,9 @@ const tournamentSchema = new mongoose.Schema({
     chapterName: { type: String, required: true },
     questionCount: { type: Number, default: 20 },
     categoryFilter: { type: String, default: 'all' },
+    timeLimitMinutes: { type: Number, default: 10 },
     startDate: { type: String, required: true },
     endDate: { type: String, required: true },
-    timeLimitMinutes: { type: Number, default: 10 }, // وقت الاختبار بالدقائق
     createdBy: { type: String, default: 'admin' },
     isActive: { type: Boolean, default: true },
     questions: { type: Array, default: [] },
@@ -334,6 +335,9 @@ const tournamentSchema = new mongoose.Schema({
     winner2: { type: String, default: '' },
     winner3: { type: String, default: '' }
 }, { timestamps: true });
+
+const Tournament = mongoose.models.Tournament || 
+    mongoose.model('Tournament', tournamentSchema);
 // ====================== نموذج الملفات (File Schema) ======================
 const fileSchema = new mongoose.Schema({
     name: { type: String, required: true },
