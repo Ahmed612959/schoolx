@@ -1000,7 +1000,6 @@ function startTournamentTimer() {
         }
     }, 1000);
 }
-
 async function submitTournamentAnswers(autoSubmit) {
     if (tournamentSubmitted) return;
     if (tournamentTimerInterval) clearInterval(tournamentTimerInterval);
