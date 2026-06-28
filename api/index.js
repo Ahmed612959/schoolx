@@ -309,10 +309,6 @@ const homeworkSubmissionSchema = new mongoose.Schema({
 const HomeworkSubmission = mongoose.models.HomeworkSubmission || mongoose.model('HomeworkSubmission', homeworkSubmissionSchema);
 
 
-//// ====================== نظام البطولات - نسخة محسنة للخادم ======================
-
-const mongoose = require('mongoose');
-
 // ====================== Schema البطولات ======================
 const tournamentSchema = new mongoose.Schema({
     title: { 
@@ -3277,8 +3273,6 @@ app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
         });
     }
 });
-
-module.exports = Tournament;
 // ====================== المراجعة الذكية (Smart Review) ======================
 app.post('/api/smart-review', verifyToken, async (req, res) => {
     try {
