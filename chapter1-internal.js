@@ -602,9 +602,9 @@ function startTournamentTimer() {
 async function submitTournamentAnswers(autoSubmit) {
     if (tournamentSubmitted) return;
     if (tournamentTimerInterval) clearInterval(tournamentTimerInterval);
-    
+
     var questions = tournamentState.questions || [];
-    
+
     // حساب الأسئلة بدون إجابة
     var unanswered = 0;
     for (var i = 0; i < questions.length; i++) {
@@ -616,185 +616,233 @@ async function submitTournamentAnswers(autoSubmit) {
             if (!el || el.value.trim().length === 0) unanswered++;
         }
     }
-    
+
     if (!autoSubmit && unanswered > 0) {
         if (!confirm('⚠️ لديك ' + unanswered + ' سؤال(أسئلة) بدون إجابة.\nهل تريد التسليم على أي حال؟')) {
             startTournamentTimer();
             return;
         }
     }
-    
+
     var submitBtn = document.getElementById('tourSubmitBtn');
-    if (submitBtn) { 
-        submitBtn.disabled = true; 
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التسليم...'; 
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التسليم...';
     }
-    
-    // جمع الإجابات
+
+    // ====================== جمع الإجابات وتصحيحها محلياً ======================
     var answers = [];
+    var correctCount = 0;
+
     for (var i = 0; i < questions.length; i++) {
-        var type = questions[i].cat || 'mcq';
+        var q = questions[i];
+        var type = q.cat || 'mcq';
         var userAnswer = '';
-        
+        var isCorrect = false;
+
         if (type === 'mcq' || type === 'truefalse') {
             userAnswer = _tourSelectedAnswers[i] || '';
         } else {
             var textEl = document.getElementById('tourText_' + i);
             userAnswer = textEl ? textEl.value.trim() : '';
         }
-        
-        answers.push({ questionIndex: i, answer: userAnswer });
+
+        // تصحيح بنفس طريقة الاختبار المؤقت
+        if (type === 'mcq') {
+            var correctAns = String(q.correct || '').trim();
+            isCorrect = userAnswer.trim() === correctAns;
+            // لو مطابقش كامل، جرب مطابقة جزئية
+            if (!isCorrect && correctAns) {
+                isCorrect = userAnswer.trim().startsWith(correctAns) || 
+                            correctAns.startsWith(userAnswer.trim());
+            }
+        } else if (type === 'truefalse') {
+            var correctIsTrue = (
+                q.correct === true || 
+                String(q.correct).toLowerCase() === 'true'
+            );
+            var userIsTrue = (
+                userAnswer === 'صواب' || 
+                userAnswer.toLowerCase() === 'true'
+            );
+            var userIsFalse = (
+                userAnswer === 'خطأ' || 
+                userAnswer.toLowerCase() === 'false'
+            );
+            if (correctIsTrue) isCorrect = userIsTrue;
+            else isCorrect = userIsFalse;
+        } else if (type === 'complete') {
+            var completion = String(q.completion || '').trim().toLowerCase();
+            var userLower = userAnswer.toLowerCase();
+            if (completion && userLower.length > 1) {
+                isCorrect = userLower.includes(completion) || 
+                            completion.includes(userLower);
+            }
+        } else {
+            // explain, list, situations
+            isCorrect = userAnswer.length > 5;
+        }
+
+        if (isCorrect) correctCount++;
+        answers.push({ questionIndex: i, answer: userAnswer, isCorrect: isCorrect });
     }
-    
+
+    // ====================== تلوين الإجابات بعد التسليم ======================
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var type = q.cat || 'mcq';
+
+        if (type === 'mcq' || type === 'truefalse') {
+            var opts = document.querySelectorAll('#tourQ_' + i + ' .quiz-opt');
+            opts.forEach(function(b) {
+                b.disabled = true;
+                b.classList.remove('tour-selected');
+                var bVal = b.getAttribute('data-value') || '';
+                var qType = b.closest('.quiz-q') ? 
+                    (questions[parseInt(b.getAttribute('data-qindex'))].cat || 'mcq') : 'mcq';
+                var qIdx = parseInt(b.getAttribute('data-qindex'));
+                var qObj = questions[qIdx];
+
+                var isCorrectOpt = false;
+                if (qObj.cat === 'mcq') {
+                    isCorrectOpt = bVal.trim() === String(qObj.correct || '').trim();
+                } else if (qObj.cat === 'truefalse') {
+                    var cTrue = (qObj.correct === true || String(qObj.correct).toLowerCase() === 'true');
+                    isCorrectOpt = cTrue ? (bVal === 'صواب') : (bVal === 'خطأ');
+                }
+
+                var wasSelected = (_tourSelectedAnswers[qIdx] === bVal);
+
+                if (isCorrectOpt) {
+                    b.classList.add('correct');
+                } else if (wasSelected && !isCorrectOpt) {
+                    b.classList.add('wrong');
+                }
+            });
+        } else {
+            var textEl = document.getElementById('tourText_' + i);
+            if (textEl) {
+                textEl.disabled = true;
+                var ans = answers[i];
+                if (ans && ans.isCorrect) {
+                    textEl.classList.add('correct-input');
+                } else {
+                    textEl.classList.add('wrong-input');
+                }
+            }
+        }
+    }
+
+    // ====================== حساب النتيجة ======================
+    var totalCount = questions.length;
+    var score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+    var wrongCount = totalCount - correctCount;
     var finalTimeTaken = Math.floor((Date.now() - tournamentState.startTime) / 1000);
+
     tournamentSubmitted = true;
-    
+
+    // ====================== إرسال للسيرفر ======================
     try {
         var result = await smartFetch('/api/tournaments/' + tournamentState.id + '/participate', {
             method: 'POST',
-            body: JSON.stringify({ 
-                answers: answers, 
-                timeTaken: finalTimeTaken 
+            body: JSON.stringify({
+                answers: answers,
+                timeTaken: finalTimeTaken
             })
         });
-        
-        var score = result.score || 0;
-        var correctCount = result.correctCount || 0;
-        var totalCount = questions.length;
-        var wrongCount = totalCount - correctCount;
+
+        // استخدام النتيجة من السيرفر لو موجودة، غير كده استخدم المحلية
+        var finalScore = result.score !== undefined ? result.score : score;
+        var finalCorrect = result.correctCount !== undefined ? result.correctCount : correctCount;
+        var finalWrong = totalCount - finalCorrect;
         var rank = result.rank || 0;
         var xpEarned = result.xpEarned || 10;
         var rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🏅';
-        var scoreColor = score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
-        var timeStr = Math.floor(finalTimeTaken/60) + ':' + String(finalTimeTaken%60).padStart(2,'0');
-        
+        var scoreColor = finalScore >= 70 ? 'var(--green)' : finalScore >= 40 ? 'var(--orange)' : 'var(--red)';
+        var timeStr = Math.floor(finalTimeTaken/60) + ':' + String(finalTimeTaken % 60).padStart(2, '0');
+
         var content = '<div style="text-align:center;padding:20px 10px;">';
         content += '<div style="font-size:3.5rem;margin-bottom:10px;">' + rankEmoji + '</div>';
         content += '<h2 style="color:var(--dark);margin-bottom:5px;">تم تسليم البطولة!</h2>';
         content += '<div style="font-size:3rem;font-weight:900;color:' + scoreColor + ';margin:15px 0;">';
-        content += score + '%</div>';
-        
+        content += finalScore + '%</div>';
+
         content += '<div style="display:flex;justify-content:center;gap:15px;margin:15px 0;flex-wrap:wrap;">';
+
         content += '<div style="padding:10px 15px;background:var(--light-bg);border-radius:12px;min-width:70px;">';
-        content += '<div style="font-size:1.3rem;font-weight:900;color:var(--green);">' + correctCount + '</div>';
+        content += '<div style="font-size:1.3rem;font-weight:900;color:var(--green);">' + finalCorrect + '</div>';
         content += '<div style="font-size:0.75rem;color:var(--text-secondary);">✅ صحيح</div></div>';
+
         content += '<div style="padding:10px 15px;background:var(--light-bg);border-radius:12px;min-width:70px;">';
-        content += '<div style="font-size:1.3rem;font-weight:900;color:var(--red);">' + wrongCount + '</div>';
+        content += '<div style="font-size:1.3rem;font-weight:900;color:var(--red);">' + finalWrong + '</div>';
         content += '<div style="font-size:0.75rem;color:var(--text-secondary);">❌ خطأ</div></div>';
+
         content += '<div style="padding:10px 15px;background:var(--light-bg);border-radius:12px;min-width:70px;">';
         content += '<div style="font-size:1.1rem;font-weight:900;color:var(--dark);">' + timeStr + '</div>';
         content += '<div style="font-size:0.75rem;color:var(--text-secondary);">⏱️ الوقت</div></div>';
+
         content += '</div>';
-        
+
         if (rank > 0) {
             content += '<div style="display:inline-block;background:var(--gold-light);padding:8px 25px;';
             content += 'border-radius:50px;font-size:1rem;font-weight:800;color:var(--gold-dark);';
             content += 'border:1px solid var(--gold);margin:10px 0;">';
             content += rankEmoji + ' المركز ' + rank + '</div><br>';
         }
-        
+
         content += '<div style="background:var(--light-bg);padding:6px 20px;border-radius:10px;';
         content += 'margin:8px auto;display:inline-block;">';
         content += '<span style="color:var(--gold-dark);font-weight:700;">+' + xpEarned + ' XP 🌟</span></div>';
-        
+
         content += '<div style="display:flex;gap:8px;justify-content:center;margin-top:15px;flex-wrap:wrap;">';
         content += '<button class="modal-btn btn-info" style="background:var(--blue);" ';
-        content += 'onclick="closeModal(\'tournamentQuizModal\');viewTournamentResults(\'' + tournamentState.id + '\');">';
+        content += 'onclick="closeModal(\'tournamentQuizModal\');';
+        content += 'viewTournamentResults(\'' + tournamentState.id + '\');">';
         content += '📊 عرض النتائج الكاملة</button>';
         content += '<button class="modal-btn btn-close" ';
         content += 'onclick="closeModal(\'tournamentQuizModal\');openTournaments();" ';
         content += 'style="padding:8px 20px;">🏆 عودة للبطولات</button>';
         content += '</div></div>';
-        
+
         openModal('tournamentQuizModal', content);
-        
+
         if (typeof addXP === 'function') addXP(xpEarned);
-        if (score >= 70) spawnConfetti();
-        
+        if (finalScore >= 70) spawnConfetti();
+
     } catch (error) {
+        // لو السيرفر فشل، عرض النتيجة المحلية
         handleTournamentError(error);
-        
+
+        var scoreColor2 = score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
+        var timeStr2 = Math.floor(finalTimeTaken/60) + ':' + String(finalTimeTaken % 60).padStart(2, '0');
+
         var errContent = '<div style="text-align:center;padding:30px;">';
-        errContent += '<div style="font-size:3rem;margin-bottom:15px;">⚠️</div>';
-        errContent += '<h2 style="color:var(--red);font-size:1.1rem;">لم يتم تسجيل النتيجة في السيرفر</h2>';
-        errContent += '<p style="color:var(--text-secondary);margin:15px 0;">';
-        errContent += 'الوقت المستغرق: ' + Math.floor(finalTimeTaken/60) + ':' + String(finalTimeTaken%60).padStart(2,'0') + '</p>';
-        errContent += '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">';
+        errContent += '<div style="font-size:3rem;margin-bottom:10px;">⚠️</div>';
+        errContent += '<h2 style="color:var(--red);font-size:1.1rem;margin-bottom:15px;">فشل تسجيل النتيجة في السيرفر</h2>';
+
+        errContent += '<div style="font-size:2rem;font-weight:900;color:' + scoreColor2 + ';margin:10px 0;">';
+        errContent += score + '%</div>';
+
+        errContent += '<div style="display:flex;justify-content:center;gap:15px;margin:10px 0;flex-wrap:wrap;">';
+        errContent += '<div style="padding:8px 12px;background:var(--light-bg);border-radius:10px;">';
+        errContent += '<div style="font-weight:900;color:var(--green);">' + correctCount + '</div>';
+        errContent += '<div style="font-size:0.7rem;color:var(--text-secondary);">✅ صحيح</div></div>';
+        errContent += '<div style="padding:8px 12px;background:var(--light-bg);border-radius:10px;">';
+        errContent += '<div style="font-weight:900;color:var(--red);">' + wrongCount + '</div>';
+        errContent += '<div style="font-size:0.7rem;color:var(--text-secondary);">❌ خطأ</div></div>';
+        errContent += '<div style="padding:8px 12px;background:var(--light-bg);border-radius:10px;">';
+        errContent += '<div style="font-weight:900;color:var(--dark);">' + timeStr2 + '</div>';
+        errContent += '<div style="font-size:0.7rem;color:var(--text-secondary);">⏱️ الوقت</div></div>';
+        errContent += '</div>';
+
+        errContent += '<div style="display:flex;gap:8px;justify-content:center;margin-top:15px;flex-wrap:wrap;">';
         errContent += '<button class="modal-btn btn-danger" ';
-        errContent += 'onclick="tournamentSubmitted=false;submitTournamentAnswers(false)">';
+        errContent += 'onclick="tournamentSubmitted=false;_tourSelectedAnswers={};submitTournamentAnswers(false)">';
         errContent += '<i class="fas fa-redo"></i> إعادة المحاولة</button>';
-        errContent += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentQuizModal\');">إغلاق</button>';
+        errContent += '<button class="modal-btn btn-close" ';
+        errContent += 'onclick="closeModal(\'tournamentQuizModal\');">إغلاق</button>';
         errContent += '</div></div>';
+
         openModal('tournamentQuizModal', errContent);
     }
-}
-
-// ====================== نتائج وإنهاء البطولة ======================
-async function finishTournament(id) {
-    if (!confirm('⚠️ هل أنت متأكد من إنهاء البطولة وتوزيع المكافآت؟')) return;
-    try {
-        var result = await smartFetch('/api/tournaments/' + id + '/finish', { method: 'POST' });
-        if (result.success) { 
-            spawnConfetti();
-            showToast('🎉 تم إنهاء البطولة! الفائز: ' + (result.winner || ''), 'success'); 
-            fetchActiveTournaments(); 
-        } else { 
-            showToast('❌ ' + (result.error || 'فشل'), 'error'); 
-        }
-    } catch (error) { handleTournamentError(error); }
-}
-
-async function viewTournamentResults(id) {
-    try {
-        var data = await smartFetch('/api/tournaments/' + id + '/results');
-        
-        var html = '<h2>📊 نتائج البطولة</h2>';
-        html += '<h4 style="color:var(--gold-dark);margin-bottom:15px;text-align:center;">';
-        html += escapeHtml(data.title || '') + '</h4>';
-        
-        if (data.top3 && data.top3.length > 0) {
-            var medals = ['🥇', '🥈', '🥉'];
-            var colors = ['#f59e0b', '#94a3b8', '#cd7f32'];
-            html += '<div style="display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">';
-            for (var i = 0; i < data.top3.length; i++) {
-                var p = data.top3[i];
-                html += '<div style="text-align:center;padding:12px 16px;background:var(--card-bg);';
-                html += 'border-radius:12px;border:2px solid ' + colors[i] + ';min-width:90px;">';
-                html += '<div style="font-size:1.8rem;">' + medals[i] + '</div>';
-                html += '<div style="font-weight:700;font-size:0.8rem;margin-top:4px;">';
-                html += escapeHtml(p.studentName || '') + '</div>';
-                html += '<div style="font-size:1rem;font-weight:900;color:' + colors[i] + ';">';
-                html += p.score + '%</div>';
-                html += '</div>';
-            }
-            html += '</div>';
-        }
-        
-        html += '<div style="max-height:40vh;overflow-y:auto;">';
-        html += '<table class="leaderboard-table" style="width:100%;">';
-        html += '<tr><th>#</th><th>👤 الطالب</th><th>📊 النتيجة</th><th>⏱️ الوقت</th></tr>';
-        
-        var participants = data.participants || [];
-        for (var j = 0; j < participants.length; j++) {
-            var p = participants[j];
-            var rowClass = j === 0 ? 'rank-1' : j === 1 ? 'rank-2' : j === 2 ? 'rank-3' : '';
-            var accClass = p.score >= 70 ? 'high' : p.score >= 40 ? 'medium' : 'low';
-            var tStr = Math.floor((p.timeTaken||0)/60) + ':' + String((p.timeTaken||0)%60).padStart(2,'0');
-            
-            html += '<tr class="' + rowClass + '">';
-            html += '<td>' + (j+1) + '</td>';
-            html += '<td>' + escapeHtml(p.studentName || '') + '</td>';
-            html += '<td class="lb-accuracy ' + accClass + '">' + p.score + '%</td>';
-            html += '<td>' + tStr + '</td>';
-            html += '</tr>';
-        }
-        
-        html += '</table></div>';
-        html += '<p style="text-align:center;font-size:0.8rem;color:var(--text-secondary);margin-top:10px;">';
-        html += 'إجمالي المشاركين: ' + (data.totalParticipants || 0) + '</p>';
-        html += '<button class="modal-btn btn-close" onclick="closeModal(\'tournamentResultsModal\')" ';
-        html += 'style="margin-top:10px;">إغلاق</button>';
-        
-        openModal('tournamentResultsModal', html);
-    } catch (error) { handleTournamentError(error); }
-}
+                }
