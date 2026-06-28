@@ -527,21 +527,25 @@ function renderTournamentQuizPage() {
 
 window.selectTournamentOpt = function(btn, qIndex) {
     if (tournamentSubmitted) return;
-    
+
+    // مسح تحديد كل الأزرار في نفس السؤال
     var opts = document.querySelectorAll('#tourQ_' + qIndex + ' .quiz-opt');
     opts.forEach(function(b) {
-        b.classList.remove('correct', 'wrong');
-        b.style.borderColor = '';
-        b.style.background = '';
-        b.style.color = '';
-        b.style.fontWeight = '';
+        b.classList.remove('correct', 'wrong', 'tour-selected');
+        b.style.borderColor = '#e2e8f0';
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-primary)';
+        b.style.fontWeight = 'normal';
     });
-    
+
+    // تحديد الزر المضغوط بنفس طريقة الاختبار العادي
+    btn.classList.add('tour-selected');
     btn.style.borderColor = 'var(--gold)';
     btn.style.background = 'var(--gold-light)';
     btn.style.color = 'var(--darker)';
     btn.style.fontWeight = '700';
-    
+
+    // تخزين الإجابة
     _tourSelectedAnswers[qIndex] = btn.getAttribute('data-value');
     updateTourProgress();
 };
