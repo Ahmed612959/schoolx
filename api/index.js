@@ -465,6 +465,72 @@ tournamentSchema.virtual('isStarted').get(function() {
 
 const Tournament = mongoose.models.Tournament || 
     mongoose.model('Tournament', tournamentSchema);
+
+
+
+// ====================== نموذج الفعاليات (Events Schema) ======================
+const eventSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    type: { type: String, enum: ['news', 'video', 'image', 'article', 'audio', 'post'], default: 'post' },
+    content: { type: String, required: true },
+    mediaUrl: { type: String, default: '' },
+    author: { type: String, default: 'admin' },
+    date: { type: Date, default: Date.now },
+    isActive: { type: Boolean, default: true }
+}, { timestamps: true });
+
+const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
+
+// ====================== APIs الفعاليات ======================
+// جلب الفعاليات (للجميع - الطلاب والزوار)
+app.get('/api/events', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const events = await Event.find({ isActive: true }).sort({ date: -1 });
+        res.json(events);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب الفعاليات' });
+    }
+});
+
+// إضافة فعالية (للأدمن فقط)
+app.post('/api/events', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, type, content, mediaUrl } = req.body;
+        if (!title || !content) return res.status(400).json({ error: 'العنوان والمحتوى مطلوبان' });
+        
+        const newEvent = new Event({
+            title,
+            type: type || 'post',
+            content,
+            mediaUrl: mediaUrl || '',
+            author: req.user?.username || 'admin',
+            date: new Date()
+        });
+        await newEvent.save();
+        res.json({ success: true, message: 'تم إضافة الفعالية بنجاح', event: newEvent });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إضافة الفعالية: ' + error.message });
+    }
+});
+
+// حذف فعالية (للأدمن فقط)
+app.delete('/api/events/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deleted = await Event.findByIdAndDelete(req.params.id);
+        if (!deleted) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        res.json({ success: true, message: 'تم حذف الفعالية بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف الفعالية' });
+    }
+});
+
+
+
+
+
 // ====================== نموذج الملفات (File Schema) ======================
 const fileSchema = new mongoose.Schema({
     name: { type: String, required: true },
