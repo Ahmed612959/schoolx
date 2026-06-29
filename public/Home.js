@@ -320,7 +320,49 @@ function setupSearchForm() {
 }
 
 // ====================== باقي الدوال ======================
-function renderNavbar() { const user = getLoggedInUser(); const navBar = document.getElementById('nav-bar'); if (!navBar) return; const links = [{ href: 'index.html', icon: 'fa-solid fa-house', title: 'الرئيسية' },{ href: 'Home.html', icon: 'fa-solid fa-chart-simple', title: 'النتائج' },{ href: 'profile.html', icon: 'fa-solid fa-user', title: 'الملف الشخصي' },   { href: 'events.html', icon: 'fa-bullhorn', title: 'الفعاليات' }, { href: 'search-monthly.html', icon: 'fa-solid fa-magnifying-glass', title: 'نتيجة الشهري' },{ href: 'First-Gards.html', icon: 'fa-solid fa-graduation-cap', title: 'نتيجة الصف الاول' },{ href: 'exams.html', icon: 'fa-solid fa-book-open', title: 'الاختبارات' },{ href: 'file-library.html', icon: 'fas fa-folder-open', title: 'المكتبة' },{ href: 'developer.html', icon: 'fa-solid fa-microchip', title: 'عن المطور' }]; if (user?.type === 'admin') links.push({ href: 'admin.html', icon: 'fas fa-cogs', title: 'لوحة التحكم' }); navBar.innerHTML = links.map(l => `<a href="${l.href}" title="${l.title}"><i class="${l.icon}"></i><span>${l.title}</span></a>`).join(''); }
+function renderNavbar() {
+    const user = getLoggedInUser();
+    const navBar = document.getElementById('nav-bar');
+    if (!navBar) return;
+
+    const links = [
+        { href: 'index.html', icon: 'fa-solid fa-house', title: 'الرئيسية' },
+        { href: 'Home.html', icon: 'fa-solid fa-chart-simple', title: 'النتائج' },
+        { href: 'profile.html', icon: 'fa-solid fa-user', title: 'الملف الشخصي' },
+        { href: 'search-monthly.html', icon: 'fa-solid fa-magnifying-glass', title: 'نتيجة الشهري' },
+        { href: 'First-Gards.html', icon: 'fa-solid fa-graduation-cap', title: 'نتيجة الصف الاول' },
+        { href: 'exams.html', icon: 'fa-solid fa-book-open', title: 'الاختبارات' },
+        // ✅ رابط صفحة الفعاليات الجديد
+        { href: 'events.html', icon: 'fa-solid fa-calendar-star', title: 'الفعاليات' },
+        { href: 'file-library.html', icon: 'fas fa-folder-open', title: 'المكتبة' },
+        { href: 'developer.html', icon: 'fa-solid fa-microchip', title: 'عن المطور' }
+    ];
+
+    // إضافة رابط لوحة التحكم للأدمن فقط
+    if (user?.type === 'admin') {
+        links.push({ href: 'admin.html', icon: 'fas fa-cogs', title: 'لوحة التحكم' });
+    }
+
+    // توليد روابط شريط التنقل
+    navBar.innerHTML = links.map(l => 
+        `<a href="${l.href}" title="${l.title}">
+            <i class="${l.icon}"></i>
+            <span>${l.title}</span>
+        </a>`
+    ).join('');
+
+    // ✅ تمييز الرابط النشط (Active Link)
+    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = navBar.querySelectorAll('a');
+    navLinks.forEach(link => {
+        const linkHref = link.getAttribute('href');
+        if (linkHref === currentPage) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
+        }
+    });
+}
 function renderWelcomeMessage() { const welcomeDiv = document.querySelector('.welcome-message'); const user = getLoggedInUser(); if (!welcomeDiv) return; if (user) { const name = user.fullName || user.username; welcomeDiv.textContent = user.type === 'admin' ? `👋 أهلًا يا قائد العمليات، ${name}! 🛠️` : `🎉 مرحبًا يا نجم، ${name}! نتايجك في انتظارك! 📚`; } else { welcomeDiv.textContent = '👋 مرحبًا بك! سجل الدخول لرؤية نتائجك'; } }
 async function verifySession() { try { const response = await fetch(`${BASE_URL}/api/verify-session`, { credentials: 'include' }); if (response.ok) return true; } catch (error) { console.error('❌ خطأ في التحقق من الجلسة:', error); if (window.location.hostname === 'localhost') return true; } window.location.href = 'login.html'; return false; }
 async function logout() { try { await fetch(`${BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' }); } catch (err) {} finally { sessionStorage.clear(); window.location.href = 'login.html'; } }
