@@ -12,6 +12,9 @@
             --secondary: #c4a35a; 
             --bg: #f4f7f6;
             --card-radius: 15px;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --info: #3498db;
         }
         
         * { box-sizing: border-box; }
@@ -33,74 +36,117 @@
             text-align: center; 
             position: relative;
         }
-        .header h1 { 
-            margin: 0; 
-            font-size: 1.6rem; 
-            font-weight: 800;
-            line-height: 1.4;
-        }
-        .header p { 
-            margin: 8px 0 0; 
-            opacity: 0.9; 
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
+        .header h1 { margin: 0; font-size: 1.6rem; font-weight: 800; line-height: 1.4; }
+        .header p { margin: 8px 0 0; opacity: 0.9; font-size: 0.95rem; line-height: 1.5; }
         
         .back-home { 
-            position: absolute; 
-            top: 15px; 
-            right: 15px; 
-            background: rgba(255,255,255,0.2); 
-            color: white; 
-            padding: 8px 14px; 
-            border-radius: 20px; 
-            text-decoration: none; 
-            font-weight: bold;
-            font-size: 0.85rem;
-            backdrop-filter: blur(5px);
-            transition: all 0.3s;
-            z-index: 10;
+            position: absolute; top: 15px; right: 15px; 
+            background: rgba(255,255,255,0.2); color: white; 
+            padding: 8px 14px; border-radius: 20px; 
+            text-decoration: none; font-weight: bold; font-size: 0.85rem;
+            backdrop-filter: blur(5px); transition: all 0.3s; z-index: 10;
         }
         .back-home:hover { background: rgba(255,255,255,0.3); }
         
         /* ====================== الحاوية ====================== */
-        .container { 
-            max-width: 1200px; 
-            margin: 20px auto; 
-            padding: 0 15px; 
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
+        
+        /* ====================== شريط البحث ====================== */
+        .search-section {
+            background: white;
+            padding: 20px;
+            border-radius: var(--card-radius);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .search-input-wrapper {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 45px 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-family: 'Tajawal';
+            transition: all 0.3s;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(196, 163, 90, 0.1);
+        }
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            font-size: 1.1rem;
         }
         
         /* ====================== أزرار الفلترة ====================== */
         .filters { 
-            display: flex; 
-            gap: 8px; 
-            flex-wrap: wrap; 
-            justify-content: center; 
-            margin-bottom: 25px;
+            display: flex; gap: 8px; flex-wrap: wrap; 
+            justify-content: center; margin-bottom: 20px;
             padding: 0 5px;
         }
         .filter-btn { 
-            padding: 10px 16px; 
-            border: none; 
-            background: white; 
-            color: var(--primary); 
-            border-radius: 20px; 
-            cursor: pointer; 
-            font-weight: bold; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
-            transition: all 0.3s; 
-            font-family: 'Tajawal';
-            font-size: 0.9rem;
-            min-height: 44px; /* حجم مناسب للمس */
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
+            padding: 10px 16px; border: none; background: white; 
+            color: var(--primary); border-radius: 20px; cursor: pointer; 
+            font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+            transition: all 0.3s; font-family: 'Tajawal'; font-size: 0.9rem;
+            min-height: 44px; display: inline-flex; align-items: center; gap: 5px;
         }
         .filter-btn.active, .filter-btn:hover { 
-            background: var(--secondary); 
-            color: white;
+            background: var(--secondary); color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 10px rgba(196, 163, 90, 0.3);
+        }
+        
+        /* ====================== الفعاليات المثبتة ====================== */
+        .pinned-section {
+            margin-bottom: 30px;
+        }
+        .pinned-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--secondary);
+        }
+        .pinned-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .pinned-card {
+            background: linear-gradient(135deg, #fff 0%, #fff9e6 100%);
+            border: 2px solid var(--secondary);
+            border-radius: var(--card-radius);
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(196, 163, 90, 0.2);
+            position: relative;
+        }
+        .pinned-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--secondary);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
         
         /* ====================== شبكة الفعاليات ====================== */
@@ -116,8 +162,8 @@
             overflow: hidden; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
             transition: transform 0.3s, box-shadow 0.3s; 
-            display: flex; 
-            flex-direction: column;
+            display: flex; flex-direction: column;
+            position: relative;
         }
         .event-card:hover { 
             transform: translateY(-5px); 
@@ -126,118 +172,237 @@
         
         /* ====================== الوسائط ====================== */
         .event-media { 
-            width: 100%; 
-            height: 200px; 
-            object-fit: cover; 
-            background: #eee; 
-            display: block; 
+            width: 100%; height: 200px; object-fit: cover; 
+            background: #eee; display: block; cursor: pointer;
         }
         
         .video-container { 
-            position: relative; 
-            padding-bottom: 56.25%; /* 16:9 */
-            height: 0; 
-            overflow: hidden;
-            background: #000;
+            position: relative; padding-bottom: 56.25%; height: 0; 
+            overflow: hidden; background: #000;
         }
         .video-container iframe { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            border: none;
+            position: absolute; top: 0; left: 0; 
+            width: 100%; height: 100%; border: none;
         }
         
         /* ====================== محتوى البطاقة ====================== */
-        .event-body { 
-            padding: 18px; 
-            flex: 1; 
-            display: flex; 
-            flex-direction: column; 
-        }
+        .event-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
         .event-type { 
-            display: inline-block; 
-            padding: 5px 12px; 
-            background: var(--secondary); 
-            color: white; 
-            border-radius: 15px; 
-            font-size: 0.8rem; 
-            margin-bottom: 10px; 
-            width: fit-content;
-            font-weight: 500;
+            display: inline-block; padding: 5px 12px; 
+            background: var(--secondary); color: white; 
+            border-radius: 15px; font-size: 0.8rem; 
+            margin-bottom: 10px; width: fit-content; font-weight: 500;
         }
         .event-title { 
-            font-size: 1.2rem; 
-            font-weight: 800; 
-            color: var(--primary); 
-            margin: 0 0 10px 0;
-            line-height: 1.4;
-            word-break: break-word;
+            font-size: 1.2rem; font-weight: 800; 
+            color: var(--primary); margin: 0 0 10px 0;
+            line-height: 1.4; word-break: break-word;
         }
         .event-content { 
-            color: #555; 
-            line-height: 1.7; 
-            flex: 1; 
-            margin-bottom: 15px; 
-            white-space: pre-wrap; 
-            font-size: 0.95rem;
-            word-break: break-word;
+            color: #555; line-height: 1.7; flex: 1; 
+            margin-bottom: 15px; white-space: pre-wrap; 
+            font-size: 0.95rem; word-break: break-word;
         }
-        .event-footer { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-            color: #888; 
-            font-size: 0.85rem; 
-            border-top: 1px solid #eee; 
-            padding-top: 12px;
-            gap: 10px;
+        
+        /* ✅ التصنيفات (Tags) */
+        .event-tags {
+            display: flex;
             flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 12px;
         }
-        .event-footer span {
-            display: inline-flex;
+        .event-tag {
+            background: #e8f4f8;
+            color: var(--primary);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .event-tag:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        /* ====================== التفاعلات ====================== */
+        .event-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 10px;
+        }
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
             align-items: center;
             gap: 5px;
+            padding: 8px 12px;
+            border-radius: 20px;
+            transition: all 0.3s;
+            font-family: 'Tajawal';
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .action-btn:hover {
+            background: #f5f5f5;
+        }
+        .like-btn.liked {
+            color: var(--danger);
+            background: #ffeaea;
+        }
+        .like-btn.liked i {
+            animation: heartBeat 0.5s ease;
+        }
+        @keyframes heartBeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+        }
+        
+        /* ====================== أزرار المشاركة ====================== */
+        .share-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .share-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        .share-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .share-whatsapp { background: #25D366; }
+        .share-facebook { background: #1877F2; }
+        .share-twitter { background: #1DA1F2; }
+        .share-telegram { background: #0088cc; }
+        .share-copy { background: #6c757d; }
+        
+        /* ====================== الفوتر ====================== */
+        .event-footer { 
+            display: flex; justify-content: space-between; align-items: center;
+            color: #888; font-size: 0.85rem; gap: 10px; flex-wrap: wrap;
+        }
+        .event-footer span {
+            display: inline-flex; align-items: center; gap: 5px;
         }
         
         /* ====================== حالات خاصة ====================== */
         .no-events { 
-            text-align: center; 
-            padding: 60px 20px; 
-            color: #888; 
-            font-size: 1.1rem; 
-            grid-column: 1 / -1;
-            background: white;
-            border-radius: var(--card-radius);
+            text-align: center; padding: 60px 20px; color: #888; 
+            font-size: 1.1rem; grid-column: 1 / -1;
+            background: white; border-radius: var(--card-radius);
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
         
-        audio { 
-            width: 100%; 
-            margin-top: 10px;
-            border-radius: 8px;
+        audio { width: 100%; margin-top: 10px; border-radius: 8px; }
+        
+        /* ====================== Lightbox للصور ====================== */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .lightbox.active {
+            display: flex;
+        }
+        .lightbox-content {
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+        }
+        .lightbox-img {
+            max-width: 100%;
+            max-height: 90vh;
+            border-radius: 10px;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+        }
+        .lightbox-close {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: white;
+            color: #333;
+            border: none;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .lightbox-caption {
+            position: absolute;
+            bottom: -40px;
+            left: 0;
+            right: 0;
+            color: white;
+            text-align: center;
+            font-size: 1rem;
         }
         
-        /* ====================== 📱 الشاشات الصغيرة (هواتف) ====================== */
+        /* ====================== Toast للإشعارات ====================== */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 10000;
+            transition: transform 0.3s;
+            font-family: 'Tajawal';
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        
+        /* ====================== 📱 الشاشات الصغيرة ====================== */
         @media (max-width: 768px) {
             .header { padding: 20px 12px; }
             .header h1 { font-size: 1.3rem; }
             .header p { font-size: 0.85rem; }
             
             .back-home {
-                top: 10px;
-                right: 10px;
-                padding: 6px 12px;
-                font-size: 0.8rem;
+                top: 10px; right: 10px;
+                padding: 6px 12px; font-size: 0.8rem;
             }
             
             .container { padding: 0 12px; margin: 15px auto; }
             
-            /* جعل الفلاتر قابلة للتمرير أفقياً */
             .filters {
-                flex-wrap: nowrap;
-                overflow-x: auto;
+                flex-wrap: nowrap; overflow-x: auto;
                 justify-content: flex-start;
                 padding: 5px 10px 15px;
                 margin: 0 -12px 20px;
@@ -247,32 +412,25 @@
             .filters::-webkit-scrollbar { display: none; }
             
             .filter-btn {
-                flex-shrink: 0;
-                padding: 8px 14px;
-                font-size: 0.85rem;
+                flex-shrink: 0; padding: 8px 14px; font-size: 0.85rem;
             }
             
-            .events-grid { 
-                grid-template-columns: 1fr; 
-                gap: 15px; 
-            }
+            .events-grid { grid-template-columns: 1fr; gap: 15px; }
+            .pinned-grid { grid-template-columns: 1fr; }
             
             .event-media { height: 180px; }
             .event-body { padding: 15px; }
             .event-title { font-size: 1.1rem; }
             .event-content { font-size: 0.9rem; }
+            
+            .share-btn { width: 32px; height: 32px; font-size: 0.85rem; }
         }
         
-        /* ====================== 📱 الشاشات الصغيرة جداً ====================== */
         @media (max-width: 480px) {
             .header h1 { font-size: 1.15rem; }
             .header p { font-size: 0.8rem; }
-            
-            .back-home {
-                padding: 5px 10px;
-                font-size: 0.75rem;
-            }
-            .back-home i { display: none; } /* إخفاء الأيقونة لتوفير المساحة */
+            .back-home { padding: 5px 10px; font-size: 0.75rem; }
+            .back-home i { display: none; }
             
             .event-media { height: 160px; }
             .event-body { padding: 12px; }
@@ -283,34 +441,22 @@
             .filter-btn { padding: 7px 12px; font-size: 0.8rem; }
         }
         
-        /* ====================== 💻 الشاشات الكبيرة ====================== */
         @media (min-width: 1024px) {
             .header h1 { font-size: 2.2rem; }
             .header p { font-size: 1.1rem; }
             .events-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
         }
         
-        /* ====================== 🌙 الوضع الداكن (اختياري) ====================== */
-        @media (prefers-color-scheme: dark) {
-            /* يمكن تفعيله لاحقاً */
-        }
-        
-        /* ====================== تحسينات الأداء ====================== */
-        .event-card, .filter-btn {
+        .event-card, .filter-btn, .share-btn, .action-btn {
             will-change: transform;
         }
         
-        /* منع التحديد المزعج على الموبايل */
-        .filter-btn, .back-home {
+        .filter-btn, .back-home, .action-btn, .share-btn {
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
         
-        /* تحسين الصور */
-        img {
-            max-width: 100%;
-            height: auto;
-        }
+        img { max-width: 100%; height: auto; }
     </style>
 </head>
 <body>
@@ -321,6 +467,15 @@
     </div>
 
     <div class="container">
+        <!-- ✅ شريط البحث -->
+        <div class="search-section">
+            <div class="search-input-wrapper">
+                <input type="text" id="search-input" class="search-input" placeholder="🔍 ابحث في العناوين، المحتوى، أو التصنيفات...">
+                <i class="fas fa-search search-icon"></i>
+            </div>
+        </div>
+
+        <!-- ✅ أزرار الفلترة -->
         <div class="filters">
             <button class="filter-btn active" data-type="all">📋 الكل</button>
             <button class="filter-btn" data-type="news">📰 أخبار</button>
@@ -331,77 +486,329 @@
             <button class="filter-btn" data-type="post">📌 منشور</button>
         </div>
 
+        <!-- ✅ الفعاليات المثبتة -->
+        <div class="pinned-section" id="pinned-section" style="display: none;">
+            <div class="pinned-title">
+                <i class="fas fa-thumbtack" style="color: var(--secondary);"></i>
+                <span>فعاليات مميزة</span>
+            </div>
+            <div class="pinned-grid" id="pinned-grid"></div>
+        </div>
+
+        <!-- ✅ جميع الفعاليات -->
         <div class="events-grid" id="events-grid">
             <div class="no-events">⏳ جاري تحميل الفعاليات...</div>
         </div>
     </div>
 
+    <!-- ✅ Lightbox للصور -->
+    <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+        <div class="lightbox-content">
+            <button class="lightbox-close" onclick="closeLightbox(event)">×</button>
+            <img src="" class="lightbox-img" id="lightbox-img" alt="">
+            <div class="lightbox-caption" id="lightbox-caption"></div>
+        </div>
+    </div>
+
+    <!-- ✅ Toast -->
+    <div class="toast" id="toast"></div>
+
     <script>
         const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
         let allEvents = [];
+        let pinnedEvents = [];
+        let currentUser = null;
+        let searchTimeout = null;
+
+        // ====================== تحميل البيانات ======================
+        async function init() {
+            await checkAuth();
+            await loadPinnedEvents();
+            await loadEvents();
+            setupEventListeners();
+        }
+
+        async function checkAuth() {
+            try {
+                const res = await fetch(`${BASE_URL}/api/check-auth-status`, { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.isLoggedIn) {
+                        currentUser = data;
+                    }
+                }
+            } catch (e) {
+                console.log('Not logged in');
+            }
+        }
+
+        async function loadPinnedEvents() {
+            try {
+                const res = await fetch(`${BASE_URL}/api/events/pinned`);
+                if (res.ok) {
+                    pinnedEvents = await res.json();
+                    renderPinnedEvents();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
 
         async function loadEvents() {
             try {
-                const res = await fetch(`${BASE_URL}/api/events`);
+                const searchQuery = document.getElementById('search-input')?.value || '';
+                const activeFilter = document.querySelector('.filter-btn.active')?.dataset.type || 'all';
+                
+                let url = `${BASE_URL}/api/events?`;
+                if (searchQuery) url += `search=${encodeURIComponent(searchQuery)}&`;
+                if (activeFilter !== 'all') url += `type=${activeFilter}`;
+                
+                const res = await fetch(url);
                 if (res.ok) {
                     allEvents = await res.json();
+                    // إزالة الفعاليات المثبتة من القائمة العادية
+                    allEvents = allEvents.filter(ev => !ev.isPinned);
                     renderEvents(allEvents);
                 }
             } catch (e) {
                 console.error(e);
                 document.getElementById('events-grid').innerHTML = 
-                    '<div class="no-events">❌ فشل تحميل الفعاليات. تحقق من اتصالك بالإنترنت.</div>';
+                    '<div class="no-events">❌ فشل تحميل الفعاليات</div>';
             }
         }
 
+        // ====================== عرض الفعاليات المثبتة ======================
+        function renderPinnedEvents() {
+            const section = document.getElementById('pinned-section');
+            const grid = document.getElementById('pinned-grid');
+            
+            if (!pinnedEvents || pinnedEvents.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            grid.innerHTML = pinnedEvents.map(ev => createEventCard(ev, true)).join('');
+        }
+
+        // ====================== عرض جميع الفعاليات ======================
         function renderEvents(events) {
             const grid = document.getElementById('events-grid');
             if (!events || events.length === 0) {
                 grid.innerHTML = '<div class="no-events">📭 لا توجد فعاليات حالياً</div>';
                 return;
             }
+            grid.innerHTML = events.map(ev => createEventCard(ev, false)).join('');
+        }
 
+        // ====================== إنشاء بطاقة فعالية ======================
+        function createEventCard(ev, isPinned) {
             const typeNames = {
                 'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
                 'image': '🖼️ صورة', 'video': '🎥 فيديو', 'audio': '🎙️ صوت'
             };
 
-            grid.innerHTML = events.map(ev => {
-                let mediaHtml = '';
-                if (ev.mediaUrl) {
-                    if (ev.type === 'video') {
-                        let videoId = ev.mediaUrl;
-                        if (ev.mediaUrl.includes('youtube.com') || ev.mediaUrl.includes('youtu.be')) {
-                            const match = ev.mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
-                            if (match) videoId = match[1];
-                            mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
-                        } else {
-                            mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
-                        }
-                    } else if (ev.type === 'audio') {
-                        mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}" preload="metadata"></audio></div>`;
+            let mediaHtml = '';
+            if (ev.mediaUrl) {
+                if (ev.type === 'video') {
+                    let videoId = ev.mediaUrl;
+                    if (ev.mediaUrl.includes('youtube.com') || ev.mediaUrl.includes('youtu.be')) {
+                        const match = ev.mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
+                        if (match) videoId = match[1];
+                        mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
                     } else {
-                        mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${escapeHtml(ev.title)}" loading="lazy" onerror="this.style.display='none'">`;
+                        mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
                     }
+                } else if (ev.type === 'audio') {
+                    mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}" preload="metadata"></audio></div>`;
+                } else {
+                    mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${escapeHtml(ev.title)}" loading="lazy" onclick="openLightbox('${ev.mediaUrl}', '${escapeHtml(ev.title)}')" onerror="this.style.display='none'">`;
                 }
+            }
 
-                return `
-                    <article class="event-card">
-                        ${mediaHtml}
-                        <div class="event-body">
-                            <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
-                            <h3 class="event-title">${escapeHtml(ev.title)}</h3>
-                            <p class="event-content">${escapeHtml(ev.content)}</p>
-                            <div class="event-footer">
-                                <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
-                                <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
-                            </div>
+            // التصنيفات
+            const tagsHtml = (ev.tags && ev.tags.length > 0) 
+                ? `<div class="event-tags">${ev.tags.map(t => `<span class="event-tag" onclick="filterByTag('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`).join('')}</div>`
+                : '';
+
+            // أزرار المشاركة
+            const shareUrl = encodeURIComponent(window.location.href + '?event=' + ev._id);
+            const shareText = encodeURIComponent(`${ev.title}\n\n${ev.content.substring(0, 100)}...`);
+            
+            const shareButtons = `
+                <div class="share-buttons">
+                    <button class="share-btn share-whatsapp" onclick="shareWhatsApp('${shareText}', '${shareUrl}')" title="واتساب">
+                        <i class="fab fa-whatsapp"></i>
+                    </button>
+                    <button class="share-btn share-facebook" onclick="shareFacebook('${shareUrl}')" title="فيسبوك">
+                        <i class="fab fa-facebook-f"></i>
+                    </button>
+                    <button class="share-btn share-twitter" onclick="shareTwitter('${shareText}', '${shareUrl}')" title="تويتر">
+                        <i class="fab fa-twitter"></i>
+                    </button>
+                    <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}')" title="تليجرام">
+                        <i class="fab fa-telegram-plane"></i>
+                    </button>
+                    <button class="share-btn share-copy" onclick="copyLink('${ev._id}')" title="نسخ الرابط">
+                        <i class="fas fa-link"></i>
+                    </button>
+                </div>
+            `;
+
+            return `
+                <article class="event-card ${isPinned ? 'pinned-card' : ''}" id="event-${ev._id}">
+                    ${isPinned ? '<div class="pinned-badge"><i class="fas fa-star"></i> مميز</div>' : ''}
+                    ${mediaHtml}
+                    <div class="event-body">
+                        <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
+                        <h3 class="event-title">${escapeHtml(ev.title)}</h3>
+                        <p class="event-content">${escapeHtml(ev.content)}</p>
+                        ${tagsHtml}
+                        
+                        <!-- ✅ أزرار التفاعل -->
+                        <div class="event-actions">
+                            <button class="action-btn like-btn" id="like-${ev._id}" onclick="toggleLike('${ev._id}')">
+                                <i class="far fa-heart"></i>
+                                <span id="likes-count-${ev._id}">${ev.likes || 0}</span>
+                            </button>
+                            <button class="action-btn">
+                                <i class="far fa-eye"></i>
+                                <span id="views-count-${ev._id}">${formatNumber(ev.views || 0)}</span>
+                            </button>
                         </div>
-                    </article>
-                `;
-            }).join('');
+                        
+                        ${shareButtons}
+                        
+                        <div class="event-footer" style="margin-top: 10px;">
+                            <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
+                            <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
+                        </div>
+                    </div>
+                </article>
+            `;
         }
 
+        // ====================== التفاعلات ======================
+        
+        // ✅ الإعجاب
+        async function toggleLike(eventId) {
+            if (!currentUser) {
+                showToast('⚠️ يرجى تسجيل الدخول أولاً', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById(`like-${eventId}`);
+            const icon = btn.querySelector('i');
+            const countEl = document.getElementById(`likes-count-${eventId}`);
+            
+            try {
+                const isLiked = btn.classList.contains('liked');
+                const endpoint = isLiked ? 'unlike' : 'like';
+                
+                const res = await fetch(`${BASE_URL}/api/events/${eventId}/${endpoint}`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    countEl.textContent = data.likes;
+                    
+                    if (data.liked) {
+                        btn.classList.add('liked');
+                        icon.classList.remove('far');
+                        icon.classList.add('fas');
+                        showToast('❤️ تم الإعجاب', 'success');
+                    } else {
+                        btn.classList.remove('liked');
+                        icon.classList.remove('fas');
+                        icon.classList.add('far');
+                        showToast('تم إلغاء الإعجاب', 'info');
+                    }
+                }
+            } catch (e) {
+                showToast('❌ حدث خطأ', 'error');
+            }
+        }
+
+        // ✅ زيادة عداد المشاهدات
+        async function incrementView(eventId) {
+            try {
+                await fetch(`${BASE_URL}/api/events/${eventId}/view`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } catch (e) {
+                console.log('View increment failed');
+            }
+        }
+
+        // ✅ المشاركة
+        function shareWhatsApp(text, url) {
+            window.open(`https://wa.me/?text=${text}%20${url}`, '_blank');
+            showToast('📱 جاري فتح واتساب...', 'success');
+        }
+
+        function shareFacebook(url) {
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+            showToast('📘 جاري فتح فيسبوك...', 'success');
+        }
+
+        function shareTwitter(text, url) {
+            window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+            showToast('🐦 جاري فتح تويتر...', 'success');
+        }
+
+        function shareTelegram(text, url) {
+            window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank');
+            showToast('✈️ جاري فتح تليجرام...', 'success');
+        }
+
+        function copyLink(eventId) {
+            const url = window.location.href.split('?')[0] + '?event=' + eventId;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('✅ تم نسخ الرابط!', 'success');
+            }).catch(() => {
+                // Fallback
+                const input = document.createElement('input');
+                input.value = url;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                showToast('✅ تم نسخ الرابط!', 'success');
+            });
+        }
+
+        // ✅ Lightbox للصور
+        function openLightbox(src, caption) {
+            const lightbox = document.getElementById('lightbox');
+            const img = document.getElementById('lightbox-img');
+            const cap = document.getElementById('lightbox-caption');
+            
+            img.src = src;
+            cap.textContent = caption;
+            lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox(event) {
+            if (event.target.classList.contains('lightbox') || event.target.classList.contains('lightbox-close')) {
+                const lightbox = document.getElementById('lightbox');
+                lightbox.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        // ✅ الفلترة بالتصنيف
+        function filterByTag(tag) {
+            document.getElementById('search-input').value = tag;
+            loadEvents();
+            showToast(`🏷️ عرض تصنيف: ${tag}`, 'info');
+        }
+
+        // ====================== دوال مساعدة ======================
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -409,20 +816,76 @@
             return div.innerHTML;
         }
 
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                const type = this.dataset.type;
-                if (type === 'all') {
-                    renderEvents(allEvents);
-                } else {
-                    renderEvents(allEvents.filter(ev => ev.type === type));
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // ====================== Event Listeners ======================
+        function setupEventListeners() {
+            // البحث
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    loadEvents();
+                }, 500); // Debounce
+            });
+
+            // الفلاتر
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    loadEvents();
+                });
+            });
+
+            // إغلاق Lightbox بـ ESC
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    document.getElementById('lightbox').classList.remove('active');
+                    document.body.style.overflow = '';
                 }
             });
-        });
 
-        loadEvents();
+            // زيادة عداد المشاهدات عند فتح فعالية
+            document.addEventListener('click', (e) => {
+                const card = e.target.closest('.event-card');
+                if (card && !e.target.closest('button') && !e.target.closest('a') && !e.target.closest('img')) {
+                    const eventId = card.id.replace('event-', '');
+                    incrementView(eventId);
+                }
+            });
+
+            // تحميل فعالية محددة من الرابط
+            const urlParams = new URLSearchParams(window.location.search);
+            const eventId = urlParams.get('event');
+            if (eventId) {
+                setTimeout(() => {
+                    const el = document.getElementById(`event-${eventId}`);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        el.style.boxShadow = '0 0 0 3px var(--secondary)';
+                        setTimeout(() => {
+                            el.style.boxShadow = '';
+                        }, 3000);
+                    }
+                }, 1000);
+            }
+        }
+
+        // بدء التشغيل
+        init();
     </script>
 </body>
 </html>
