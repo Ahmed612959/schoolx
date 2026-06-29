@@ -1,5 +1,5 @@
 const chapter1_internal = {
-   
+
     name: "❤️ الفصل الأول: Heart and Blood Vessels Diseases",
     icon: "fas fa-heart",
     definitions: [
