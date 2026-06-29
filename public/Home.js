@@ -1,7 +1,6 @@
 // Home.js - النسخة الكاملة النهائية (نظام حضور + بحث متعدد المستويات + دعم الطلاب + إخفاء النتائج الفارغة)
 
 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-
 // ====================== دوال مساعدة ======================
 function escapeHtml(text) {
     if (!text) return '';
