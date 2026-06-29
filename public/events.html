@@ -615,22 +615,54 @@
 
         let mediaHtml = '';
         if (ev.mediaUrl) {
-            if (ev.type === 'video') {
-                let videoId = ev.mediaUrl;
-                if (ev.mediaUrl.includes('youtube.com') || ev.mediaUrl.includes('youtu.be')) {
-                    const match = ev.mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
-                    if (match) videoId = match[1];
-                    mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
-                } else {
-                    mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
-                }
-            } else if (ev.type === 'audio') {
-                mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}" preload="metadata"></audio></div>`;
-            } else {
-                mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${escapeHtml(ev.title)}" loading="lazy" onclick="openLightbox('${ev.mediaUrl}', '${escapeHtml(ev.title)}')" onerror="this.style.display='none'">`;
-            }
+            if (ev.type === 'video' || ev.type === 'image') {
+    const mediaUrl = ev.mediaUrl;
+    
+    // ✅ YouTube
+    if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be')) {
+        const match = mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\?\/]+)/);
+        if (match) {
+            const videoId = match[1];
+            mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
         }
-
+    }
+    // ✅ Facebook (فيديو أو بوست)
+    else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
+        const encodedUrl = encodeURIComponent(mediaUrl);
+        if (mediaUrl.includes('/videos/') || mediaUrl.includes('watch?v=')) {
+            // فيديو فيسبوك
+            mediaHtml = `<div class="video-container" style="padding-bottom: 56.25%;"><iframe src="https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=560" frameborder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture;" loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe></div>`;
+        } else {
+            // بوست فيسبوك
+            mediaHtml = `<div class="video-container" style="padding-bottom: 120%; min-height: 400px;"><iframe src="https://www.facebook.com/plugins/post.php?href=${encodedUrl}&show_text=false&width=560" frameborder="0" allowfullscreen="true" allow="clipboard-write; encrypted-media;" loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe></div>`;
+        }
+    }
+    // ✅ Instagram (post, reel, tv, video)
+    else if (mediaUrl.includes('instagram.com')) {
+        // استخراج الـ ID من الرابط
+        const match = mediaUrl.match(/(?:instagram\.com\/(?:p|reel|tv)\/)([^\/\?]+)/);
+        if (match) {
+            const postId = match[1];
+            mediaHtml = `<div class="video-container" style="padding-bottom: 125%; min-height: 450px;"><iframe src="https://www.instagram.com/${postId}/embed" frameborder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media;" loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%; background: white;"></iframe></div>`;
+        } else {
+            // رابط مباشر بدون ID واضح
+            const encodedUrl = encodeURIComponent(mediaUrl);
+            mediaHtml = `<div class="video-container" style="padding-bottom: 125%; min-height: 450px;"><iframe src="https://www.instagram.com/embed?url=${encodedUrl}" frameborder="0" allowfullscreen="true" loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%; background: white;"></iframe></div>`;
+        }
+    }
+    // ✅ فيديو عادي (mp4, webm, etc.)
+    else if (mediaUrl.match(/\.(mp4|webm|ogg|mov)($|\?)/i)) {
+        mediaHtml = `<div class="video-container"><video controls preload="metadata" style="width:100%;height:100%;object-fit:cover;"><source src="${mediaUrl}" type="video/mp4">متصفحك لا يدعم تشغيل الفيديو</video></div>`;
+    }
+    // ✅ صورة (jpg, png, gif, webp)
+    else if (ev.type === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
+        mediaHtml = `<img src="${mediaUrl}" class="event-media" alt="${escapeHtml(ev.title)}" loading="lazy" onclick="openLightbox('${mediaUrl}', '${escapeHtml(ev.title)}')" onerror="this.style.display='none'">`;
+    }
+    // ✅ أي رابط آخر (iframe عادي)
+    else {
+        mediaHtml = `<div class="video-container"><iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
+    }
+}
         const tagsHtml = (ev.tags && ev.tags.length > 0) 
             ? `<div class="event-tags">${ev.tags.map(t => `<span class="event-tag" onclick="filterByTag('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`).join('')}</div>`
             : '';
