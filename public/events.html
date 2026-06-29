@@ -6,6 +6,11 @@
     <title>فعاليات المعهد - معهد رعاية الضبعية</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <!-- ✅ Facebook SDK - الحل النهائي للفيديوهات -->
+    <script async defer crossorigin="anonymous" 
+            src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"></script>
+    
     <style>
         :root { 
             --primary: #1a4f6e; 
@@ -109,7 +114,7 @@
             background: #eee; display: block; cursor: pointer;
         }
 
-        /* YouTube والفيديوهات العادية - aspect-ratio الحديث */
+        /* YouTube والفيديوهات العادية */
         .video-container { 
             position: relative; 
             width: 100%;
@@ -117,7 +122,6 @@
             aspect-ratio: 16 / 9;
             overflow: hidden;
         }
-        /* Fallback للمتصفحات القديمة */
         @supports not (aspect-ratio: 16 / 9) {
             .video-container { padding-bottom: 56.25%; height: 0; }
         }
@@ -126,14 +130,16 @@
             width: 100%; height: 100%; border: none;
         }
 
-        /* 🔥 🔥 🔥 الحل النهائي لفيديوهات Facebook - يظهر كاملاً بأي طول أو عرض 🔥 🔥 🔥 */
+        /* 🔥 🔥 🔥 الحل النهائي لفيديوهات Facebook 🔥 🔥 🔥 */
         .fb-video-wrapper {
             width: 100%;
             background: #f0f2f5;
             overflow: hidden;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
+            /* ✅ ارتفاع ديناميكي كبير جداً يسمح بظهور الفيديو كاملاً */
+            min-height: 600px;
+            height: auto;
         }
         
         .fb-video-wrapper iframe {
@@ -141,10 +147,24 @@
             max-width: 100%;
             border: none;
             display: block;
-            /* ✅ الارتفاع الديناميكي - يسمح للفيديو بالتمدد حسب محتواه */
-            min-height: 315px;
-            height: auto;
-            /* ✅ لا نستخدم position: absolute - نترك الـ iframe يأخذ ارتفاعه الطبيعي */
+            /* ✅ ارتفاع كبير جداً يظهر الفيديو كاملاً */
+            min-height: 600px;
+            height: 100%;
+        }
+
+        /* ✅ Facebook SDK Container */
+        .fb-sdk-container {
+            width: 100%;
+            background: #f0f2f5;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            min-height: 500px;
+        }
+        
+        .fb-sdk-container .fb-video {
+            width: 100%;
+            max-width: 100%;
         }
 
         /* Instagram */
@@ -248,7 +268,7 @@
         .toast.error { background: var(--danger); }
         .toast.info { background: var(--info); }
 
-        /* ====================== 📱 التجاوب - الهواتف ====================== */
+        /* ====================== 📱 التجاوب ====================== */
         @media (max-width: 768px) {
             .header { padding: 20px 12px; }
             .header h1 { font-size: 1.3rem; }
@@ -274,9 +294,12 @@
             .event-title { font-size: 1.1rem; }
             .event-content { font-size: 0.9rem; }
             
-            /* ✅ فيديوهات Facebook على الهاتف - ارتفاع أقل */
-            .fb-video-wrapper iframe {
-                min-height: 280px;
+            /* ✅ فيديوهات Facebook على الهاتف */
+            .fb-video-wrapper, .fb-video-wrapper iframe {
+                min-height: 500px;
+            }
+            .fb-sdk-container {
+                min-height: 450px;
             }
             
             .ig-container { min-height: 450px; }
@@ -293,8 +316,11 @@
             .filter-btn { padding: 7px 12px; font-size: 0.8rem; }
             
             /* ✅ فيديوهات Facebook على الهواتف الصغيرة */
-            .fb-video-wrapper iframe {
-                min-height: 240px;
+            .fb-video-wrapper, .fb-video-wrapper iframe {
+                min-height: 400px;
+            }
+            .fb-sdk-container {
+                min-height: 380px;
             }
             
             .ig-container { min-height: 400px; }
@@ -305,9 +331,12 @@
             .header h1 { font-size: 2.2rem; }
             .events-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
             
-            /* ✅ على الشاشات الكبيرة - ارتفاع أكبر */
-            .fb-video-wrapper iframe {
-                min-height: 400px;
+            /* ✅ على الشاشات الكبيرة */
+            .fb-video-wrapper, .fb-video-wrapper iframe {
+                min-height: 700px;
+            }
+            .fb-sdk-container {
+                min-height: 600px;
             }
         }
 
@@ -369,6 +398,13 @@
             await loadPinnedEvents();
             await loadEvents();
             setupEventListeners();
+            
+            // ✅ إعادة تحليل Facebook SDK بعد تحميل المحتوى
+            setTimeout(() => {
+                if (window.FB) {
+                    window.FB.XFBML.parse();
+                }
+            }, 1000);
         }
 
         async function loadPinnedEvents() {
@@ -394,6 +430,13 @@
                     allEvents = await res.json();
                     allEvents = allEvents.filter(ev => !ev.isPinned);
                     renderEvents(allEvents);
+                    
+                    // ✅ إعادة تحليل Facebook SDK
+                    setTimeout(() => {
+                        if (window.FB) {
+                            window.FB.XFBML.parse();
+                        }
+                    }, 500);
                 }
             } catch (e) {
                 document.getElementById('events-grid').innerHTML = 
@@ -418,7 +461,7 @@
             grid.innerHTML = events.map(ev => createEventCard(ev, false)).join('');
         }
 
-        // ====================== ✅ الدالة الأساسية - معالجة الوسائط بشكل صحيح ======================
+        // ====================== ✅ الدالة الأساسية - معالجة الوسائط ======================
         function createEventCard(ev, isPinned) {
             const typeNames = {
                 'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
@@ -441,29 +484,33 @@
                         </div>`;
                     }
                 }
-                // 📘 Facebook - ✅ الحل النهائي
+                // 📘 Facebook - ✅ الحل النهائي باستخدام Facebook SDK
                 else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
-                    const encodedUrl = encodeURIComponent(mediaUrl);
                     const isVideo = mediaUrl.includes('/videos/') || 
                                     mediaUrl.includes('watch?v=') || 
                                     mediaUrl.includes('fb.watch') ||
                                     mediaUrl.includes('/reel/');
                     
-                    const pluginType = isVideo ? 'video' : 'post';
-                    const width = 560;
-                    
-                    // ✅ الحل: لا نحدد ارتفاعاً ثابتاً - نترك Facebook يحدد الارتفاع المناسب
-                    mediaHtml = `<div class="fb-video-wrapper">
-                        <iframe 
-                            src="https://www.facebook.com/plugins/${pluginType}.php?href=${encodedUrl}&show_text=false&width=${width}&show_border=false&appId=" 
-                            scrolling="no" 
-                            frameborder="0" 
-                            allowfullscreen="true" 
-                            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" 
-                            loading="lazy"
-                            style="border:none;overflow:hidden;">
-                        </iframe>
-                    </div>`;
+                    if (isVideo) {
+                        // ✅ فيديو فيسبوك - استخدام Facebook SDK
+                        mediaHtml = `<div class="fb-sdk-container">
+                            <div class="fb-video" 
+                                 data-href="${mediaUrl}" 
+                                 data-width="560" 
+                                 data-show-text="true" 
+                                 data-allowfullscreen="true">
+                            </div>
+                        </div>`;
+                    } else {
+                        // ✅ بوست فيسبوك - استخدام Facebook SDK
+                        mediaHtml = `<div class="fb-sdk-container">
+                            <div class="fb-post" 
+                                 data-href="${mediaUrl}" 
+                                 data-width="500" 
+                                 data-show-text="true">
+                            </div>
+                        </div>`;
+                    }
                 }
                 // 📷 Instagram
                 else if (mediaUrl.includes('instagram.com')) {
