@@ -2,38 +2,319 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>فعاليات المعهد - معهد رعاية الضبعية</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #1a4f6e; --secondary: #c4a35a; --bg: #f4f7f6; }
-        body { font-family: 'Tajawal', sans-serif; background: var(--bg); margin: 0; padding: 0; color: #333; }
-        .header { background: linear-gradient(135deg, var(--primary), #0d3b54); color: white; padding: 30px 20px; text-align: center; }
-        .header h1 { margin: 0; font-size: 2.2rem; }
-        .header p { margin: 10px 0 0; opacity: 0.9; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .filters { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 30px; }
-        .filter-btn { padding: 10px 20px; border: none; background: white; color: var(--primary); border-radius: 20px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: 0.3s; font-family: 'Tajawal'; }
-        .filter-btn.active, .filter-btn:hover { background: var(--secondary); color: white; }
-        .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
-        .event-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: transform 0.3s; display: flex; flex-direction: column; }
-        .event-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
-        .event-media { width: 100%; height: 220px; object-fit: cover; background: #eee; display: block; }
-        .video-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; }
-        .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        .event-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
-        .event-type { display: inline-block; padding: 5px 12px; background: var(--secondary); color: white; border-radius: 15px; font-size: 0.8rem; margin-bottom: 10px; width: fit-content; }
-        .event-title { font-size: 1.3rem; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
-        .event-content { color: #555; line-height: 1.7; flex: 1; margin-bottom: 15px; white-space: pre-wrap; font-size: 0.95rem; }
-        .event-footer { display: flex; justify-content: space-between; color: #888; font-size: 0.85rem; border-top: 1px solid #eee; padding-top: 12px; }
-        .no-events { text-align: center; padding: 60px; color: #888; font-size: 1.2rem; grid-column: 1 / -1; }
-        audio { width: 100%; margin-top: 10px; }
-        .back-home { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.2); color: white; padding: 8px 15px; border-radius: 20px; text-decoration: none; font-weight: bold; }
+        :root { 
+            --primary: #1a4f6e; 
+            --secondary: #c4a35a; 
+            --bg: #f4f7f6;
+            --card-radius: 15px;
+        }
+        
+        * { box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Tajawal', sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            padding: 0; 
+            color: #333;
+            -webkit-text-size-adjust: 100%;
+        }
+        
+        /* ====================== الهيدر ====================== */
+        .header { 
+            background: linear-gradient(135deg, var(--primary), #0d3b54); 
+            color: white; 
+            padding: 25px 15px; 
+            text-align: center; 
+            position: relative;
+        }
+        .header h1 { 
+            margin: 0; 
+            font-size: 1.6rem; 
+            font-weight: 800;
+            line-height: 1.4;
+        }
+        .header p { 
+            margin: 8px 0 0; 
+            opacity: 0.9; 
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        .back-home { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            background: rgba(255,255,255,0.2); 
+            color: white; 
+            padding: 8px 14px; 
+            border-radius: 20px; 
+            text-decoration: none; 
+            font-weight: bold;
+            font-size: 0.85rem;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s;
+            z-index: 10;
+        }
+        .back-home:hover { background: rgba(255,255,255,0.3); }
+        
+        /* ====================== الحاوية ====================== */
+        .container { 
+            max-width: 1200px; 
+            margin: 20px auto; 
+            padding: 0 15px; 
+        }
+        
+        /* ====================== أزرار الفلترة ====================== */
+        .filters { 
+            display: flex; 
+            gap: 8px; 
+            flex-wrap: wrap; 
+            justify-content: center; 
+            margin-bottom: 25px;
+            padding: 0 5px;
+        }
+        .filter-btn { 
+            padding: 10px 16px; 
+            border: none; 
+            background: white; 
+            color: var(--primary); 
+            border-radius: 20px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+            transition: all 0.3s; 
+            font-family: 'Tajawal';
+            font-size: 0.9rem;
+            min-height: 44px; /* حجم مناسب للمس */
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .filter-btn.active, .filter-btn:hover { 
+            background: var(--secondary); 
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(196, 163, 90, 0.3);
+        }
+        
+        /* ====================== شبكة الفعاليات ====================== */
+        .events-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+            gap: 20px; 
+        }
+        
+        .event-card { 
+            background: white; 
+            border-radius: var(--card-radius); 
+            overflow: hidden; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            transition: transform 0.3s, box-shadow 0.3s; 
+            display: flex; 
+            flex-direction: column;
+        }
+        .event-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+        }
+        
+        /* ====================== الوسائط ====================== */
+        .event-media { 
+            width: 100%; 
+            height: 200px; 
+            object-fit: cover; 
+            background: #eee; 
+            display: block; 
+        }
+        
+        .video-container { 
+            position: relative; 
+            padding-bottom: 56.25%; /* 16:9 */
+            height: 0; 
+            overflow: hidden;
+            background: #000;
+        }
+        .video-container iframe { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            border: none;
+        }
+        
+        /* ====================== محتوى البطاقة ====================== */
+        .event-body { 
+            padding: 18px; 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .event-type { 
+            display: inline-block; 
+            padding: 5px 12px; 
+            background: var(--secondary); 
+            color: white; 
+            border-radius: 15px; 
+            font-size: 0.8rem; 
+            margin-bottom: 10px; 
+            width: fit-content;
+            font-weight: 500;
+        }
+        .event-title { 
+            font-size: 1.2rem; 
+            font-weight: 800; 
+            color: var(--primary); 
+            margin: 0 0 10px 0;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        .event-content { 
+            color: #555; 
+            line-height: 1.7; 
+            flex: 1; 
+            margin-bottom: 15px; 
+            white-space: pre-wrap; 
+            font-size: 0.95rem;
+            word-break: break-word;
+        }
+        .event-footer { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            color: #888; 
+            font-size: 0.85rem; 
+            border-top: 1px solid #eee; 
+            padding-top: 12px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .event-footer span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* ====================== حالات خاصة ====================== */
+        .no-events { 
+            text-align: center; 
+            padding: 60px 20px; 
+            color: #888; 
+            font-size: 1.1rem; 
+            grid-column: 1 / -1;
+            background: white;
+            border-radius: var(--card-radius);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        audio { 
+            width: 100%; 
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+        
+        /* ====================== 📱 الشاشات الصغيرة (هواتف) ====================== */
+        @media (max-width: 768px) {
+            .header { padding: 20px 12px; }
+            .header h1 { font-size: 1.3rem; }
+            .header p { font-size: 0.85rem; }
+            
+            .back-home {
+                top: 10px;
+                right: 10px;
+                padding: 6px 12px;
+                font-size: 0.8rem;
+            }
+            
+            .container { padding: 0 12px; margin: 15px auto; }
+            
+            /* جعل الفلاتر قابلة للتمرير أفقياً */
+            .filters {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                justify-content: flex-start;
+                padding: 5px 10px 15px;
+                margin: 0 -12px 20px;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .filters::-webkit-scrollbar { display: none; }
+            
+            .filter-btn {
+                flex-shrink: 0;
+                padding: 8px 14px;
+                font-size: 0.85rem;
+            }
+            
+            .events-grid { 
+                grid-template-columns: 1fr; 
+                gap: 15px; 
+            }
+            
+            .event-media { height: 180px; }
+            .event-body { padding: 15px; }
+            .event-title { font-size: 1.1rem; }
+            .event-content { font-size: 0.9rem; }
+        }
+        
+        /* ====================== 📱 الشاشات الصغيرة جداً ====================== */
+        @media (max-width: 480px) {
+            .header h1 { font-size: 1.15rem; }
+            .header p { font-size: 0.8rem; }
+            
+            .back-home {
+                padding: 5px 10px;
+                font-size: 0.75rem;
+            }
+            .back-home i { display: none; } /* إخفاء الأيقونة لتوفير المساحة */
+            
+            .event-media { height: 160px; }
+            .event-body { padding: 12px; }
+            .event-title { font-size: 1rem; }
+            .event-content { font-size: 0.88rem; line-height: 1.6; }
+            .event-footer { font-size: 0.78rem; }
+            
+            .filter-btn { padding: 7px 12px; font-size: 0.8rem; }
+        }
+        
+        /* ====================== 💻 الشاشات الكبيرة ====================== */
+        @media (min-width: 1024px) {
+            .header h1 { font-size: 2.2rem; }
+            .header p { font-size: 1.1rem; }
+            .events-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
+        }
+        
+        /* ====================== 🌙 الوضع الداكن (اختياري) ====================== */
+        @media (prefers-color-scheme: dark) {
+            /* يمكن تفعيله لاحقاً */
+        }
+        
+        /* ====================== تحسينات الأداء ====================== */
+        .event-card, .filter-btn {
+            will-change: transform;
+        }
+        
+        /* منع التحديد المزعج على الموبايل */
+        .filter-btn, .back-home {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        
+        /* تحسين الصور */
+        img {
+            max-width: 100%;
+            height: auto;
+        }
     </style>
 </head>
 <body>
-    <div class="header" style="position: relative;">
+    <div class="header">
         <a href="Home.html" class="back-home"><i class="fas fa-home"></i> الرئيسية</a>
         <h1><i class="fas fa-calendar-star"></i> فعاليات وأخبار المعهد</h1>
         <p>تابع آخر الأخبار والفعاليات في معهد رعاية الضبعية الفني للتمريض</p>
@@ -45,9 +326,9 @@
             <button class="filter-btn" data-type="news">📰 أخبار</button>
             <button class="filter-btn" data-type="article">📝 مقالات</button>
             <button class="filter-btn" data-type="image">🖼️ صور</button>
-            <button class="filter-btn" data-type="video">🎥 فيديوهات</button>
-            <button class="filter-btn" data-type="audio">🎙️ صوتيات</button>
-            <button class="filter-btn" data-type="post">📌 منشورات</button>
+            <button class="filter-btn" data-type="video">🎥 فيديو</button>
+            <button class="filter-btn" data-type="audio">🎙️ صوت</button>
+            <button class="filter-btn" data-type="post">📌 منشور</button>
         </div>
 
         <div class="events-grid" id="events-grid">
@@ -68,6 +349,8 @@
                 }
             } catch (e) {
                 console.error(e);
+                document.getElementById('events-grid').innerHTML = 
+                    '<div class="no-events">❌ فشل تحميل الفعاليات. تحقق من اتصالك بالإنترنت.</div>';
             }
         }
 
@@ -91,19 +374,19 @@
                         if (ev.mediaUrl.includes('youtube.com') || ev.mediaUrl.includes('youtu.be')) {
                             const match = ev.mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
                             if (match) videoId = match[1];
-                            mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe></div>`;
+                            mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
                         } else {
-                            mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen></iframe></div>`;
+                            mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
                         }
                     } else if (ev.type === 'audio') {
-                        mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}"></audio></div>`;
+                        mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}" preload="metadata"></audio></div>`;
                     } else {
-                        mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${ev.title}" onerror="this.style.display='none'">`;
+                        mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${escapeHtml(ev.title)}" loading="lazy" onerror="this.style.display='none'">`;
                     }
                 }
 
                 return `
-                    <div class="event-card">
+                    <article class="event-card">
                         ${mediaHtml}
                         <div class="event-body">
                             <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
@@ -114,7 +397,7 @@
                                 <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
                             </div>
                         </div>
-                    </div>
+                    </article>
                 `;
             }).join('');
         }
