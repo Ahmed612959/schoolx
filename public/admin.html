@@ -276,9 +276,33 @@
 
 
 
-    <!-- ====================== إدارة فعاليات المعهد ====================== -->
+   <!-- ====================== إدارة فعاليات المعهد ====================== -->
 <h2><i class="fas fa-calendar-star"></i> إدارة فعاليات المعهد</h2>
 <div class="events-section">
+    <!-- إحصائيات سريعة -->
+    <div class="events-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: white; padding: 15px; border-radius: 12px; text-align: center;">
+            <i class="fas fa-newspaper" style="font-size: 1.5rem;"></i>
+            <h3 id="stat-total-events" style="margin: 5px 0; font-size: 1.5rem;">0</h3>
+            <p style="margin: 0; font-size: 0.85rem;">إجمالي الفعاليات</p>
+        </div>
+        <div style="background: linear-gradient(135deg, #27ae60, #1e8449); color: white; padding: 15px; border-radius: 12px; text-align: center;">
+            <i class="fas fa-eye" style="font-size: 1.5rem;"></i>
+            <h3 id="stat-total-views" style="margin: 5px 0; font-size: 1.5rem;">0</h3>
+            <p style="margin: 0; font-size: 0.85rem;">إجمالي المشاهدات</p>
+        </div>
+        <div style="background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; padding: 15px; border-radius: 12px; text-align: center;">
+            <i class="fas fa-heart" style="font-size: 1.5rem;"></i>
+            <h3 id="stat-total-likes" style="margin: 5px 0; font-size: 1.5rem;">0</h3>
+            <p style="margin: 0; font-size: 0.85rem;">إجمالي الإعجابات</p>
+        </div>
+        <div style="background: linear-gradient(135deg, #c4a35a, #a07d3a); color: white; padding: 15px; border-radius: 12px; text-align: center;">
+            <i class="fas fa-thumbtack" style="font-size: 1.5rem;"></i>
+            <h3 id="stat-pinned" style="margin: 5px 0; font-size: 1.5rem;">0</h3>
+            <p style="margin: 0; font-size: 0.85rem;">مثبتة</p>
+        </div>
+    </div>
+    
     <form id="add-event-form">
         <div class="input-group">
             <label for="event-title"><i class="fas fa-heading"></i> عنوان الفعالية</label>
@@ -304,31 +328,66 @@
             <input type="url" id="event-media" placeholder="https://example.com/media.jpg">
             <small>💡 يمكنك وضع رابط صورة أو رابط YouTube للفيديو</small>
         </div>
+        
+        <!-- ✅ حقل التصنيفات الجديد -->
+        <div class="input-group">
+            <label for="event-tags"><i class="fas fa-tags"></i> التصنيفات (Tags)</label>
+            <input type="text" id="event-tags" placeholder="مثال: أكاديمي, ورشة عمل, تمريض">
+            <small>💡 افصل بين التصنيفات بفاصلة (,) - ستساعد الطلاب في البحث والفلترة</small>
+        </div>
+        
+        <!-- ✅ خيار التثبيت -->
+        <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" id="event-pinned" style="width: 20px; height: 20px;">
+            <label for="event-pinned" style="margin: 0;"><i class="fas fa-thumbtack"></i> تثبيت الفعالية في الأعلى</label>
+        </div>
+        
         <button type="submit" class="submit-btn"><i class="fas fa-plus-circle"></i> إضافة الفعالية</button>
+        <button type="button" id="cancelEditEventBtn" class="submit-btn" style="display:none; background:#6c757d;">❌ إلغاء التعديل</button>
     </form>
+
+    <!-- ✅ شريط البحث والفلترة -->
+    <h3><i class="fas fa-search"></i> البحث والفلترة</h3>
+    <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+        <input type="text" id="admin-event-search" placeholder="🔍 ابحث في الفعاليات..." 
+               style="flex: 1; min-width: 200px; padding: 10px; border-radius: 10px; border: 1px solid #ddd;">
+        <select id="admin-event-filter-type" style="padding: 10px; border-radius: 10px; border: 1px solid #ddd;">
+            <option value="all">📋 جميع الأنواع</option>
+            <option value="news">📰 أخبار</option>
+            <option value="article">📝 مقالات</option>
+            <option value="image">🖼️ صور</option>
+            <option value="video">🎥 فيديو</option>
+            <option value="audio">🎙️ صوت</option>
+            <option value="post">📌 منشور</option>
+        </select>
+        <select id="admin-event-filter-pinned" style="padding: 10px; border-radius: 10px; border: 1px solid #ddd;">
+            <option value="all">📋 الكل</option>
+            <option value="pinned">📌 المثبتة فقط</option>
+        </select>
+    </div>
 
     <h3><i class="fas fa-list-ul"></i> قائمة الفعاليات المنشورة</h3>
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
+                    <th>📌</th>
                     <th>العنوان</th>
                     <th>النوع</th>
-                    <th>المحتوى</th>
+                    <th>التصنيفات</th>
+                    <th>👁️ المشاهدات</th>
+                    <th>❤️ الإعجابات</th>
                     <th>التاريخ</th>
                     <th>الإجراءات</th>
                 </tr>
             </thead>
             <tbody id="events-table-body">
-                <tr><td colspan="5" style="text-align:center;">⏳ جاري تحميل الفعاليات...</td></tr>
+                <tr><td colspan="8" style="text-align:center;">⏳ جاري تحميل الفعاليات...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
-    
-
-    
 
     
     <!-- ====================== إنشاء اختبار إلكتروني ====================== -->
