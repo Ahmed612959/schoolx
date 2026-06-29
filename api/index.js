@@ -468,7 +468,7 @@ const Tournament = mongoose.models.Tournament ||
 
 
 
-// ====================== نموذج الفعاليات (Events Schema) ======================
+// ====================== تحديث نموذج الفعاليات (Events Schema) ======================
 const eventSchema = new mongoose.Schema({
     title: { type: String, required: true },
     type: { type: String, enum: ['news', 'video', 'image', 'article', 'audio', 'post'], default: 'post' },
@@ -476,29 +476,107 @@ const eventSchema = new mongoose.Schema({
     mediaUrl: { type: String, default: '' },
     author: { type: String, default: 'admin' },
     date: { type: Date, default: Date.now },
-    isActive: { type: Boolean, default: true }
+    isActive: { type: Boolean, default: true },
+    
+    // ✅ مميزات جديدة
+    views: { type: Number, default: 0 },
+    likes: { type: Number, default: 0 },
+    likedBy: [{ type: String }], // قائمة usernames الذين أعجبوا
+    isPinned: { type: Boolean, default: false }, // ✅ تثبيت الفعالية
+    tags: [{ type: String }], // ✅ التصنيفات
+    shareUrl: { type: String, default: '' }
 }, { timestamps: true });
 
 const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
 
-// ====================== APIs الفعاليات ======================
-// جلب الفعاليات (للجميع - الطلاب والزوار)
+// ====================== APIs الفعاليات المحسّنة ======================
+
+// جلب جميع الفعاليات (مع دعم البحث والفلترة)
 app.get('/api/events', async (req, res) => {
     try {
         await connectToDatabase();
-        const events = await Event.find({ isActive: true }).sort({ date: -1 });
+        const { search, tag, type, pinned } = req.query;
+        
+        let filter = { isActive: true };
+        
+        // البحث في العنوان والمحتوى
+        if (search) {
+            const searchRegex = new RegExp(search, 'i');
+            filter.$or = [
+                { title: searchRegex },
+                { content: searchRegex },
+                { tags: searchRegex }
+            ];
+        }
+        
+        // فلترة حسب التصنيف
+        if (tag && tag !== 'all') {
+            filter.tags = tag;
+        }
+        
+        // فلترة حسب النوع
+        if (type && type !== 'all') {
+            filter.type = type;
+        }
+        
+        // فلترة الفعاليات المثبتة فقط
+        if (pinned === 'true') {
+            filter.isPinned = true;
+        }
+        
+        const events = await Event.find(filter).sort({ 
+            isPinned: -1, // المثبتة أولاً
+            date: -1 
+        });
+        
         res.json(events);
     } catch (error) {
+        console.error('❌ خطأ في جلب الفعاليات:', error);
         res.status(500).json({ error: 'خطأ في جلب الفعاليات' });
     }
 });
 
-// إضافة فعالية (للأدمن فقط)
+// جلب الفعاليات المثبتة فقط (للعرض المميز)
+app.get('/api/events/pinned', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const events = await Event.find({ 
+            isActive: true, 
+            isPinned: true 
+        }).sort({ date: -1 }).limit(5);
+        res.json(events);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب الفعاليات المثبتة' });
+    }
+});
+
+// جلب جميع التصنيفات المستخدمة
+app.get('/api/events/tags', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const tags = await Event.distinct('tags', { isActive: true });
+        res.json(tags);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب التصنيفات' });
+    }
+});
+
+// إضافة فعالية (للأدمن)
 app.post('/api/events', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
-        const { title, type, content, mediaUrl } = req.body;
+        const { title, type, content, mediaUrl, tags, isPinned } = req.body;
         if (!title || !content) return res.status(400).json({ error: 'العنوان والمحتوى مطلوبان' });
+        
+        // معالجة التصنيفات
+        let processedTags = [];
+        if (tags) {
+            if (typeof tags === 'string') {
+                processedTags = tags.split(',').map(t => t.trim()).filter(t => t);
+            } else if (Array.isArray(tags)) {
+                processedTags = tags;
+            }
+        }
         
         const newEvent = new Event({
             title,
@@ -506,7 +584,12 @@ app.post('/api/events', verifyToken, isAdmin, async (req, res) => {
             content,
             mediaUrl: mediaUrl || '',
             author: req.user?.username || 'admin',
-            date: new Date()
+            date: new Date(),
+            tags: processedTags,
+            isPinned: isPinned || false,
+            views: 0,
+            likes: 0,
+            likedBy: []
         });
         await newEvent.save();
         res.json({ success: true, message: 'تم إضافة الفعالية بنجاح', event: newEvent });
@@ -515,7 +598,62 @@ app.post('/api/events', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// حذف فعالية (للأدمن فقط)
+// تحديث فعالية (للأدمن)
+app.put('/api/events/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, type, content, mediaUrl, tags, isPinned } = req.body;
+        
+        let processedTags = [];
+        if (tags) {
+            if (typeof tags === 'string') {
+                processedTags = tags.split(',').map(t => t.trim()).filter(t => t);
+            } else if (Array.isArray(tags)) {
+                processedTags = tags;
+            }
+        }
+        
+        const updated = await Event.findByIdAndUpdate(
+            req.params.id,
+            { 
+                title, 
+                type, 
+                content, 
+                mediaUrl, 
+                tags: processedTags,
+                isPinned: isPinned || false
+            },
+            { new: true }
+        );
+        
+        if (!updated) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        res.json({ success: true, message: 'تم تحديث الفعالية', event: updated });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث الفعالية' });
+    }
+});
+
+// تثبيت/إلغاء تثبيت فعالية
+app.put('/api/events/:id/pin', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const event = await Event.findById(req.params.id);
+        if (!event) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        
+        event.isPinned = !event.isPinned;
+        await event.save();
+        
+        res.json({ 
+            success: true, 
+            message: event.isPinned ? '✅ تم تثبيت الفعالية' : '📌 تم إلغاء التثبيت',
+            isPinned: event.isPinned
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تثبيت الفعالية' });
+    }
+});
+
+// حذف فعالية
 app.delete('/api/events/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -527,6 +665,141 @@ app.delete('/api/events/:id', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
+// ✅ زيادة عداد المشاهدات
+app.post('/api/events/:id/view', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const event = await Event.findById(req.params.id);
+        if (!event) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        
+        event.views = (event.views || 0) + 1;
+        await event.save();
+        
+        res.json({ success: true, views: event.views });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
+    }
+});
+
+// ✅ الإعجاب بفعالية
+app.post('/api/events/:id/like', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user?.username || req.user?.id || req.ip;
+        const event = await Event.findById(req.params.id);
+        if (!event) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        
+        // التحقق من عدم الإعجاب مسبقاً
+        if (event.likedBy.includes(userId)) {
+            return res.json({ 
+                success: true, 
+                message: 'لقد أعجبت بهذه الفعالية مسبقاً',
+                likes: event.likes,
+                liked: true
+            });
+        }
+        
+        event.likes = (event.likes || 0) + 1;
+        event.likedBy.push(userId);
+        await event.save();
+        
+        res.json({ 
+            success: true, 
+            message: '❤️ تم الإعجاب',
+            likes: event.likes,
+            liked: true
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في الإعجاب' });
+    }
+});
+
+// ✅ إلغاء الإعجاب
+app.post('/api/events/:id/unlike', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user?.username || req.user?.id || req.ip;
+        const event = await Event.findById(req.params.id);
+        if (!event) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        
+        if (!event.likedBy.includes(userId)) {
+            return res.json({ 
+                success: true, 
+                message: 'لم تعجب بهذه الفعالية',
+                likes: event.likes,
+                liked: false
+            });
+        }
+        
+        event.likes = Math.max(0, (event.likes || 0) - 1);
+        event.likedBy = event.likedBy.filter(id => id !== userId);
+        await event.save();
+        
+        res.json({ 
+            success: true, 
+            message: 'تم إلغاء الإعجاب',
+            likes: event.likes,
+            liked: false
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إلغاء الإعجاب' });
+    }
+});
+
+// ✅ التحقق من حالة الإعجاب
+app.get('/api/events/:id/liked', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user?.username || req.user?.id;
+        const event = await Event.findById(req.params.id);
+        if (!event) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        
+        const liked = event.likedBy.includes(userId);
+        res.json({ liked, likes: event.likes });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في التحقق' });
+    }
+});
+
+// ✅ إحصائيات الفعاليات (للأدمن)
+app.get('/api/events/stats', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const totalEvents = await Event.countDocuments({ isActive: true });
+        const totalViews = await Event.aggregate([
+            { $match: { isActive: true } },
+            { $group: { _id: null, total: { $sum: '$views' } } }
+        ]);
+        const totalLikes = await Event.aggregate([
+            { $match: { isActive: true } },
+            { $group: { _id: null, total: { $sum: '$likes' } } }
+        ]);
+        const pinnedCount = await Event.countDocuments({ isActive: true, isPinned: true });
+        
+        // أكثر الفعاليات مشاهدة
+        const topViewed = await Event.find({ isActive: true })
+            .sort({ views: -1 })
+            .limit(5)
+            .select('title views');
+        
+        // أكثر الفعاليات إعجاباً
+        const topLiked = await Event.find({ isActive: true })
+            .sort({ likes: -1 })
+            .limit(5)
+            .select('title likes');
+        
+        res.json({
+            totalEvents,
+            totalViews: totalViews[0]?.total || 0,
+            totalLikes: totalLikes[0]?.total || 0,
+            pinnedCount,
+            topViewed,
+            topLiked
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب الإحصائيات' });
+    }
+});
 
 
 
