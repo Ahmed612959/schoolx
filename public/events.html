@@ -513,379 +513,396 @@
     <!-- ✅ Toast -->
     <div class="toast" id="toast"></div>
 
-    <script>
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-        let allEvents = [];
-        let pinnedEvents = [];
-        let currentUser = null;
-        let searchTimeout = null;
+  <script>
+    const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+    let allEvents = [];
+    let pinnedEvents = [];
+    let isLoggedIn = false; // ✅ متغير بسيط لتتبع حالة الدخول
+    let searchTimeout = null;
 
-        // ====================== تحميل البيانات ======================
-        async function init() {
-            await checkAuth();
-            await loadPinnedEvents();
-            await loadEvents();
-            setupEventListeners();
-        }
+    // ====================== تحميل البيانات ======================
+    async function init() {
+        await checkAuth();
+        await loadPinnedEvents();
+        await loadEvents();
+        setupEventListeners();
+    }
 
-        async function checkAuth() {
-            try {
-                const res = await fetch(`${BASE_URL}/api/check-auth-status`, { credentials: 'include' });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.isLoggedIn) {
-                        currentUser = data;
-                    }
+    // ✅ دالة التحقق من الدخول (مُحسّنة)
+    async function checkAuth() {
+        try {
+            const res = await fetch(`${BASE_URL}/api/check-auth-status`, { 
+                credentials: 'include', // ✅ مهم جداً
+                headers: {
+                    'Content-Type': 'application/json'
                 }
-            } catch (e) {
-                console.log('Not logged in');
-            }
-        }
-
-        async function loadPinnedEvents() {
-            try {
-                const res = await fetch(`${BASE_URL}/api/events/pinned`);
-                if (res.ok) {
-                    pinnedEvents = await res.json();
-                    renderPinnedEvents();
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        async function loadEvents() {
-            try {
-                const searchQuery = document.getElementById('search-input')?.value || '';
-                const activeFilter = document.querySelector('.filter-btn.active')?.dataset.type || 'all';
-                
-                let url = `${BASE_URL}/api/events?`;
-                if (searchQuery) url += `search=${encodeURIComponent(searchQuery)}&`;
-                if (activeFilter !== 'all') url += `type=${activeFilter}`;
-                
-                const res = await fetch(url);
-                if (res.ok) {
-                    allEvents = await res.json();
-                    // إزالة الفعاليات المثبتة من القائمة العادية
-                    allEvents = allEvents.filter(ev => !ev.isPinned);
-                    renderEvents(allEvents);
-                }
-            } catch (e) {
-                console.error(e);
-                document.getElementById('events-grid').innerHTML = 
-                    '<div class="no-events">❌ فشل تحميل الفعاليات</div>';
-            }
-        }
-
-        // ====================== عرض الفعاليات المثبتة ======================
-        function renderPinnedEvents() {
-            const section = document.getElementById('pinned-section');
-            const grid = document.getElementById('pinned-grid');
-            
-            if (!pinnedEvents || pinnedEvents.length === 0) {
-                section.style.display = 'none';
-                return;
-            }
-            
-            section.style.display = 'block';
-            grid.innerHTML = pinnedEvents.map(ev => createEventCard(ev, true)).join('');
-        }
-
-        // ====================== عرض جميع الفعاليات ======================
-        function renderEvents(events) {
-            const grid = document.getElementById('events-grid');
-            if (!events || events.length === 0) {
-                grid.innerHTML = '<div class="no-events">📭 لا توجد فعاليات حالياً</div>';
-                return;
-            }
-            grid.innerHTML = events.map(ev => createEventCard(ev, false)).join('');
-        }
-
-        // ====================== إنشاء بطاقة فعالية ======================
-        function createEventCard(ev, isPinned) {
-            const typeNames = {
-                'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
-                'image': '🖼️ صورة', 'video': '🎥 فيديو', 'audio': '🎙️ صوت'
-            };
-
-            let mediaHtml = '';
-            if (ev.mediaUrl) {
-                if (ev.type === 'video') {
-                    let videoId = ev.mediaUrl;
-                    if (ev.mediaUrl.includes('youtube.com') || ev.mediaUrl.includes('youtu.be')) {
-                        const match = ev.mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
-                        if (match) videoId = match[1];
-                        mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
-                    } else {
-                        mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
-                    }
-                } else if (ev.type === 'audio') {
-                    mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}" preload="metadata"></audio></div>`;
-                } else {
-                    mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${escapeHtml(ev.title)}" loading="lazy" onclick="openLightbox('${ev.mediaUrl}', '${escapeHtml(ev.title)}')" onerror="this.style.display='none'">`;
-                }
-            }
-
-            // التصنيفات
-            const tagsHtml = (ev.tags && ev.tags.length > 0) 
-                ? `<div class="event-tags">${ev.tags.map(t => `<span class="event-tag" onclick="filterByTag('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`).join('')}</div>`
-                : '';
-
-            // أزرار المشاركة
-            const shareUrl = encodeURIComponent(window.location.href + '?event=' + ev._id);
-            const shareText = encodeURIComponent(`${ev.title}\n\n${ev.content.substring(0, 100)}...`);
-            
-            const shareButtons = `
-                <div class="share-buttons">
-                    <button class="share-btn share-whatsapp" onclick="shareWhatsApp('${shareText}', '${shareUrl}')" title="واتساب">
-                        <i class="fab fa-whatsapp"></i>
-                    </button>
-                    <button class="share-btn share-facebook" onclick="shareFacebook('${shareUrl}')" title="فيسبوك">
-                        <i class="fab fa-facebook-f"></i>
-                    </button>
-                    <button class="share-btn share-twitter" onclick="shareTwitter('${shareText}', '${shareUrl}')" title="تويتر">
-                        <i class="fab fa-twitter"></i>
-                    </button>
-                    <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}')" title="تليجرام">
-                        <i class="fab fa-telegram-plane"></i>
-                    </button>
-                    <button class="share-btn share-copy" onclick="copyLink('${ev._id}')" title="نسخ الرابط">
-                        <i class="fas fa-link"></i>
-                    </button>
-                </div>
-            `;
-
-            return `
-                <article class="event-card ${isPinned ? 'pinned-card' : ''}" id="event-${ev._id}">
-                    ${isPinned ? '<div class="pinned-badge"><i class="fas fa-star"></i> مميز</div>' : ''}
-                    ${mediaHtml}
-                    <div class="event-body">
-                        <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
-                        <h3 class="event-title">${escapeHtml(ev.title)}</h3>
-                        <p class="event-content">${escapeHtml(ev.content)}</p>
-                        ${tagsHtml}
-                        
-                        <!-- ✅ أزرار التفاعل -->
-                        <div class="event-actions">
-                            <button class="action-btn like-btn" id="like-${ev._id}" onclick="toggleLike('${ev._id}')">
-                                <i class="far fa-heart"></i>
-                                <span id="likes-count-${ev._id}">${ev.likes || 0}</span>
-                            </button>
-                            <button class="action-btn">
-                                <i class="far fa-eye"></i>
-                                <span id="views-count-${ev._id}">${formatNumber(ev.views || 0)}</span>
-                            </button>
-                        </div>
-                        
-                        ${shareButtons}
-                        
-                        <div class="event-footer" style="margin-top: 10px;">
-                            <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
-                            <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
-                        </div>
-                    </div>
-                </article>
-            `;
-        }
-
-        // ====================== التفاعلات ======================
-        
-        // ✅ الإعجاب
-        async function toggleLike(eventId) {
-            if (!currentUser) {
-                showToast('⚠️ يرجى تسجيل الدخول أولاً', 'error');
-                return;
-            }
-            
-            const btn = document.getElementById(`like-${eventId}`);
-            const icon = btn.querySelector('i');
-            const countEl = document.getElementById(`likes-count-${eventId}`);
-            
-            try {
-                const isLiked = btn.classList.contains('liked');
-                const endpoint = isLiked ? 'unlike' : 'like';
-                
-                const res = await fetch(`${BASE_URL}/api/events/${eventId}/${endpoint}`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (res.ok) {
-                    const data = await res.json();
-                    countEl.textContent = data.likes;
-                    
-                    if (data.liked) {
-                        btn.classList.add('liked');
-                        icon.classList.remove('far');
-                        icon.classList.add('fas');
-                        showToast('❤️ تم الإعجاب', 'success');
-                    } else {
-                        btn.classList.remove('liked');
-                        icon.classList.remove('fas');
-                        icon.classList.add('far');
-                        showToast('تم إلغاء الإعجاب', 'info');
-                    }
-                }
-            } catch (e) {
-                showToast('❌ حدث خطأ', 'error');
-            }
-        }
-
-        // ✅ زيادة عداد المشاهدات
-        async function incrementView(eventId) {
-            try {
-                await fetch(`${BASE_URL}/api/events/${eventId}/view`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-            } catch (e) {
-                console.log('View increment failed');
-            }
-        }
-
-        // ✅ المشاركة
-        function shareWhatsApp(text, url) {
-            window.open(`https://wa.me/?text=${text}%20${url}`, '_blank');
-            showToast('📱 جاري فتح واتساب...', 'success');
-        }
-
-        function shareFacebook(url) {
-            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
-            showToast('📘 جاري فتح فيسبوك...', 'success');
-        }
-
-        function shareTwitter(text, url) {
-            window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
-            showToast('🐦 جاري فتح تويتر...', 'success');
-        }
-
-        function shareTelegram(text, url) {
-            window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank');
-            showToast('✈️ جاري فتح تليجرام...', 'success');
-        }
-
-        function copyLink(eventId) {
-            const url = window.location.href.split('?')[0] + '?event=' + eventId;
-            navigator.clipboard.writeText(url).then(() => {
-                showToast('✅ تم نسخ الرابط!', 'success');
-            }).catch(() => {
-                // Fallback
-                const input = document.createElement('input');
-                input.value = url;
-                document.body.appendChild(input);
-                input.select();
-                document.execCommand('copy');
-                document.body.removeChild(input);
-                showToast('✅ تم نسخ الرابط!', 'success');
             });
-        }
-
-        // ✅ Lightbox للصور
-        function openLightbox(src, caption) {
-            const lightbox = document.getElementById('lightbox');
-            const img = document.getElementById('lightbox-img');
-            const cap = document.getElementById('lightbox-caption');
             
-            img.src = src;
-            cap.textContent = caption;
-            lightbox.classList.add('active');
-            document.body.style.overflow = 'hidden';
+            if (res.ok) {
+                const data = await res.json();
+                isLoggedIn = data.isLoggedIn === true;
+                console.log('🔐 حالة الدخول:', isLoggedIn);
+            } else {
+                isLoggedIn = false;
+            }
+        } catch (e) {
+            console.error('❌ خطأ في التحقق:', e);
+            isLoggedIn = false;
+        }
+    }
+
+    async function loadPinnedEvents() {
+        try {
+            const res = await fetch(`${BASE_URL}/api/events/pinned`, { credentials: 'include' });
+            if (res.ok) {
+                pinnedEvents = await res.json();
+                renderPinnedEvents();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function loadEvents() {
+        try {
+            const searchQuery = document.getElementById('search-input')?.value || '';
+            const activeFilter = document.querySelector('.filter-btn.active')?.dataset.type || 'all';
+            
+            let url = `${BASE_URL}/api/events?`;
+            if (searchQuery) url += `search=${encodeURIComponent(searchQuery)}&`;
+            if (activeFilter !== 'all') url += `type=${activeFilter}`;
+            
+            const res = await fetch(url, { credentials: 'include' });
+            if (res.ok) {
+                allEvents = await res.json();
+                allEvents = allEvents.filter(ev => !ev.isPinned);
+                renderEvents(allEvents);
+            }
+        } catch (e) {
+            console.error(e);
+            document.getElementById('events-grid').innerHTML = 
+                '<div class="no-events">❌ فشل تحميل الفعاليات</div>';
+        }
+    }
+
+    function renderPinnedEvents() {
+        const section = document.getElementById('pinned-section');
+        const grid = document.getElementById('pinned-grid');
+        
+        if (!pinnedEvents || pinnedEvents.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        
+        section.style.display = 'block';
+        grid.innerHTML = pinnedEvents.map(ev => createEventCard(ev, true)).join('');
+    }
+
+    function renderEvents(events) {
+        const grid = document.getElementById('events-grid');
+        if (!events || events.length === 0) {
+            grid.innerHTML = '<div class="no-events">📭 لا توجد فعاليات حالياً</div>';
+            return;
+        }
+        grid.innerHTML = events.map(ev => createEventCard(ev, false)).join('');
+    }
+
+    function createEventCard(ev, isPinned) {
+        const typeNames = {
+            'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
+            'image': '🖼️ صورة', 'video': '🎥 فيديو', 'audio': '🎙️ صوت'
+        };
+
+        let mediaHtml = '';
+        if (ev.mediaUrl) {
+            if (ev.type === 'video') {
+                let videoId = ev.mediaUrl;
+                if (ev.mediaUrl.includes('youtube.com') || ev.mediaUrl.includes('youtu.be')) {
+                    const match = ev.mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
+                    if (match) videoId = match[1];
+                    mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
+                } else {
+                    mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`;
+                }
+            } else if (ev.type === 'audio') {
+                mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}" preload="metadata"></audio></div>`;
+            } else {
+                mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${escapeHtml(ev.title)}" loading="lazy" onclick="openLightbox('${ev.mediaUrl}', '${escapeHtml(ev.title)}')" onerror="this.style.display='none'">`;
+            }
         }
 
-        function closeLightbox(event) {
-            if (event.target.classList.contains('lightbox') || event.target.classList.contains('lightbox-close')) {
-                const lightbox = document.getElementById('lightbox');
-                lightbox.classList.remove('active');
+        const tagsHtml = (ev.tags && ev.tags.length > 0) 
+            ? `<div class="event-tags">${ev.tags.map(t => `<span class="event-tag" onclick="filterByTag('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`).join('')}</div>`
+            : '';
+
+        const shareUrl = encodeURIComponent(window.location.href.split('?')[0] + '?event=' + ev._id);
+        const shareText = encodeURIComponent(`${ev.title}\n\n${ev.content.substring(0, 100)}...`);
+        
+        const shareButtons = `
+            <div class="share-buttons">
+                <button class="share-btn share-whatsapp" onclick="shareWhatsApp('${shareText}', '${shareUrl}')" title="واتساب">
+                    <i class="fab fa-whatsapp"></i>
+                </button>
+                <button class="share-btn share-facebook" onclick="shareFacebook('${shareUrl}')" title="فيسبوك">
+                    <i class="fab fa-facebook-f"></i>
+                </button>
+                <button class="share-btn share-twitter" onclick="shareTwitter('${shareText}', '${shareUrl}')" title="تويتر">
+                    <i class="fab fa-twitter"></i>
+                </button>
+                <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}')" title="تليجرام">
+                    <i class="fab fa-telegram-plane"></i>
+                </button>
+                <button class="share-btn share-copy" onclick="copyLink('${ev._id}')" title="نسخ الرابط">
+                    <i class="fas fa-link"></i>
+                </button>
+            </div>
+        `;
+
+        return `
+            <article class="event-card ${isPinned ? 'pinned-card' : ''}" id="event-${ev._id}">
+                ${isPinned ? '<div class="pinned-badge"><i class="fas fa-star"></i> مميز</div>' : ''}
+                ${mediaHtml}
+                <div class="event-body">
+                    <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
+                    <h3 class="event-title">${escapeHtml(ev.title)}</h3>
+                    <p class="event-content">${escapeHtml(ev.content)}</p>
+                    ${tagsHtml}
+                    
+                    <div class="event-actions">
+                        <button class="action-btn like-btn" id="like-${ev._id}" onclick="toggleLike('${ev._id}')">
+                            <i class="far fa-heart"></i>
+                            <span id="likes-count-${ev._id}">${ev.likes || 0}</span>
+                        </button>
+                        <button class="action-btn">
+                            <i class="far fa-eye"></i>
+                            <span id="views-count-${ev._id}">${formatNumber(ev.views || 0)}</span>
+                        </button>
+                    </div>
+                    
+                    ${shareButtons}
+                    
+                    <div class="event-footer" style="margin-top: 10px;">
+                        <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
+                        <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
+                    </div>
+                </div>
+            </article>
+        `;
+    }
+
+    // ✅ دالة الإعجاب المُصلّحة
+    async function toggleLike(eventId) {
+        const btn = document.getElementById(`like-${eventId}`);
+        const icon = btn.querySelector('i');
+        const countEl = document.getElementById(`likes-count-${eventId}`);
+        
+        // ✅ إظهار مؤشر التحميل
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        
+        try {
+            const isLiked = btn.classList.contains('liked');
+            const endpoint = isLiked ? 'unlike' : 'like';
+            
+            // ✅ إرسال الطلب مع credentials: include
+            const res = await fetch(`${BASE_URL}/api/events/${eventId}/${endpoint}`, {
+                method: 'POST',
+                credentials: 'include', // ✅ مهم جداً لإرسال الكوكي
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            // ✅ التعامل مع الاستجابة
+            if (res.status === 401) {
+                // المستخدم غير مسجل دخول
+                showToast('⚠️ يرجى تسجيل الدخول أولاً للإعجاب', 'error');
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 1500);
+                return;
+            }
+            
+            if (res.status === 403) {
+                showToast('⚠️ غير مصرح لك بهذه العملية', 'error');
+                return;
+            }
+            
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                showToast(errorData.error || '❌ حدث خطأ', 'error');
+                return;
+            }
+            
+            const data = await res.json();
+            
+            // ✅ تحديث الواجهة
+            countEl.textContent = data.likes;
+            
+            if (data.liked) {
+                btn.classList.add('liked');
+                icon.classList.remove('far');
+                icon.classList.add('fas');
+                showToast('❤️ تم الإعجاب', 'success');
+            } else {
+                btn.classList.remove('liked');
+                icon.classList.remove('fas');
+                icon.classList.add('far');
+                showToast('تم إلغاء الإعجاب', 'info');
+            }
+            
+        } catch (e) {
+            console.error('❌ خطأ في الإعجاب:', e);
+            showToast('❌ حدث خطأ في الاتصال', 'error');
+        } finally {
+            // ✅ إعادة تفعيل الزر
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        }
+    }
+
+    async function incrementView(eventId) {
+        try {
+            await fetch(`${BASE_URL}/api/events/${eventId}/view`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (e) {
+            console.log('View increment failed');
+        }
+    }
+
+    function shareWhatsApp(text, url) {
+        window.open(`https://wa.me/?text=${text}%20${url}`, '_blank');
+        showToast('📱 جاري فتح واتساب...', 'success');
+    }
+
+    function shareFacebook(url) {
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+        showToast('📘 جاري فتح فيسبوك...', 'success');
+    }
+
+    function shareTwitter(text, url) {
+        window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+        showToast('🐦 جاري فتح تويتر...', 'success');
+    }
+
+    function shareTelegram(text, url) {
+        window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank');
+        showToast('✈️ جاري فتح تليجرام...', 'success');
+    }
+
+    function copyLink(eventId) {
+        const url = window.location.href.split('?')[0] + '?event=' + eventId;
+        navigator.clipboard.writeText(url).then(() => {
+            showToast('✅ تم نسخ الرابط!', 'success');
+        }).catch(() => {
+            const input = document.createElement('input');
+            input.value = url;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            showToast('✅ تم نسخ الرابط!', 'success');
+        });
+    }
+
+    function openLightbox(src, caption) {
+        const lightbox = document.getElementById('lightbox');
+        const img = document.getElementById('lightbox-img');
+        const cap = document.getElementById('lightbox-caption');
+        
+        img.src = src;
+        cap.textContent = caption;
+        lightbox.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox(event) {
+        if (event.target.classList.contains('lightbox') || event.target.classList.contains('lightbox-close')) {
+            const lightbox = document.getElementById('lightbox');
+            lightbox.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+
+    function filterByTag(tag) {
+        document.getElementById('search-input').value = tag;
+        loadEvents();
+        showToast(`🏷️ عرض تصنيف: ${tag}`, 'info');
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    }
+
+    function showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = `toast ${type} show`;
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+
+    function setupEventListeners() {
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadEvents();
+            }, 500);
+        });
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                loadEvents();
+            });
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('lightbox').classList.remove('active');
                 document.body.style.overflow = '';
             }
-        }
+        });
 
-        // ✅ الفلترة بالتصنيف
-        function filterByTag(tag) {
-            document.getElementById('search-input').value = tag;
-            loadEvents();
-            showToast(`🏷️ عرض تصنيف: ${tag}`, 'info');
-        }
-
-        // ====================== دوال مساعدة ======================
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function formatNumber(num) {
-            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-            return num.toString();
-        }
-
-        function showToast(message, type = 'info') {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.className = `toast ${type} show`;
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
-        }
-
-        // ====================== Event Listeners ======================
-        function setupEventListeners() {
-            // البحث
-            document.getElementById('search-input').addEventListener('input', (e) => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    loadEvents();
-                }, 500); // Debounce
-            });
-
-            // الفلاتر
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    loadEvents();
-                });
-            });
-
-            // إغلاق Lightbox بـ ESC
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    document.getElementById('lightbox').classList.remove('active');
-                    document.body.style.overflow = '';
-                }
-            });
-
-            // زيادة عداد المشاهدات عند فتح فعالية
-            document.addEventListener('click', (e) => {
-                const card = e.target.closest('.event-card');
-                if (card && !e.target.closest('button') && !e.target.closest('a') && !e.target.closest('img')) {
-                    const eventId = card.id.replace('event-', '');
-                    incrementView(eventId);
-                }
-            });
-
-            // تحميل فعالية محددة من الرابط
-            const urlParams = new URLSearchParams(window.location.search);
-            const eventId = urlParams.get('event');
-            if (eventId) {
-                setTimeout(() => {
-                    const el = document.getElementById(`event-${eventId}`);
-                    if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        el.style.boxShadow = '0 0 0 3px var(--secondary)';
-                        setTimeout(() => {
-                            el.style.boxShadow = '';
-                        }, 3000);
-                    }
-                }, 1000);
+        document.addEventListener('click', (e) => {
+            const card = e.target.closest('.event-card');
+            if (card && !e.target.closest('button') && !e.target.closest('a') && !e.target.closest('img')) {
+                const eventId = card.id.replace('event-', '');
+                incrementView(eventId);
             }
-        }
+        });
 
-        // بدء التشغيل
-        init();
-    </script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('event');
+        if (eventId) {
+            setTimeout(() => {
+                const el = document.getElementById(`event-${eventId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.style.boxShadow = '0 0 0 3px var(--secondary)';
+                    setTimeout(() => {
+                        el.style.boxShadow = '';
+                    }, 3000);
+                }
+            }, 1000);
+        }
+    }
+
+    init();
+</script>
 </body>
 </html>
