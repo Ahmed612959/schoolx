@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فعاليات المعهد - معهد رعاية الضبعية</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #1a4f6e; --secondary: #c4a35a; --bg: #f4f7f6; }
+        body { font-family: 'Tajawal', sans-serif; background: var(--bg); margin: 0; padding: 0; color: #333; }
+        .header { background: linear-gradient(135deg, var(--primary), #0d3b54); color: white; padding: 30px 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 2.2rem; }
+        .header p { margin: 10px 0 0; opacity: 0.9; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .filters { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 30px; }
+        .filter-btn { padding: 10px 20px; border: none; background: white; color: var(--primary); border-radius: 20px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: 0.3s; font-family: 'Tajawal'; }
+        .filter-btn.active, .filter-btn:hover { background: var(--secondary); color: white; }
+        .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
+        .event-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: transform 0.3s; display: flex; flex-direction: column; }
+        .event-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .event-media { width: 100%; height: 220px; object-fit: cover; background: #eee; display: block; }
+        .video-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; }
+        .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .event-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
+        .event-type { display: inline-block; padding: 5px 12px; background: var(--secondary); color: white; border-radius: 15px; font-size: 0.8rem; margin-bottom: 10px; width: fit-content; }
+        .event-title { font-size: 1.3rem; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
+        .event-content { color: #555; line-height: 1.7; flex: 1; margin-bottom: 15px; white-space: pre-wrap; font-size: 0.95rem; }
+        .event-footer { display: flex; justify-content: space-between; color: #888; font-size: 0.85rem; border-top: 1px solid #eee; padding-top: 12px; }
+        .no-events { text-align: center; padding: 60px; color: #888; font-size: 1.2rem; grid-column: 1 / -1; }
+        audio { width: 100%; margin-top: 10px; }
+        .back-home { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.2); color: white; padding: 8px 15px; border-radius: 20px; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header" style="position: relative;">
+        <a href="Home.html" class="back-home"><i class="fas fa-home"></i> الرئيسية</a>
+        <h1><i class="fas fa-calendar-star"></i> فعاليات وأخبار المعهد</h1>
+        <p>تابع آخر الأخبار والفعاليات في معهد رعاية الضبعية الفني للتمريض</p>
+    </div>
+
+    <div class="container">
+        <div class="filters">
+            <button class="filter-btn active" data-type="all">📋 الكل</button>
+            <button class="filter-btn" data-type="news">📰 أخبار</button>
+            <button class="filter-btn" data-type="article">📝 مقالات</button>
+            <button class="filter-btn" data-type="image">🖼️ صور</button>
+            <button class="filter-btn" data-type="video">🎥 فيديوهات</button>
+            <button class="filter-btn" data-type="audio">🎙️ صوتيات</button>
+            <button class="filter-btn" data-type="post">📌 منشورات</button>
+        </div>
+
+        <div class="events-grid" id="events-grid">
+            <div class="no-events">⏳ جاري تحميل الفعاليات...</div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+        let allEvents = [];
+
+        async function loadEvents() {
+            try {
+                const res = await fetch(`${BASE_URL}/api/events`);
+                if (res.ok) {
+                    allEvents = await res.json();
+                    renderEvents(allEvents);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderEvents(events) {
+            const grid = document.getElementById('events-grid');
+            if (!events || events.length === 0) {
+                grid.innerHTML = '<div class="no-events">📭 لا توجد فعاليات حالياً</div>';
+                return;
+            }
+
+            const typeNames = {
+                'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
+                'image': '🖼️ صورة', 'video': '🎥 فيديو', 'audio': '🎙️ صوت'
+            };
+
+            grid.innerHTML = events.map(ev => {
+                let mediaHtml = '';
+                if (ev.mediaUrl) {
+                    if (ev.type === 'video') {
+                        let videoId = ev.mediaUrl;
+                        if (ev.mediaUrl.includes('youtube.com') || ev.mediaUrl.includes('youtu.be')) {
+                            const match = ev.mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
+                            if (match) videoId = match[1];
+                            mediaHtml = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe></div>`;
+                        } else {
+                            mediaHtml = `<div class="video-container"><iframe src="${ev.mediaUrl}" frameborder="0" allowfullscreen></iframe></div>`;
+                        }
+                    } else if (ev.type === 'audio') {
+                        mediaHtml = `<div style="padding: 15px; background: #f9f9f9;"><audio controls src="${ev.mediaUrl}"></audio></div>`;
+                    } else {
+                        mediaHtml = `<img src="${ev.mediaUrl}" class="event-media" alt="${ev.title}" onerror="this.style.display='none'">`;
+                    }
+                }
+
+                return `
+                    <div class="event-card">
+                        ${mediaHtml}
+                        <div class="event-body">
+                            <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
+                            <h3 class="event-title">${escapeHtml(ev.title)}</h3>
+                            <p class="event-content">${escapeHtml(ev.content)}</p>
+                            <div class="event-footer">
+                                <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
+                                <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const type = this.dataset.type;
+                if (type === 'all') {
+                    renderEvents(allEvents);
+                } else {
+                    renderEvents(allEvents.filter(ev => ev.type === type));
+                }
+            });
+        });
+
+        loadEvents();
+    </script>
+</body>
+</html>
