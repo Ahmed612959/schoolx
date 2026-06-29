@@ -555,9 +555,21 @@ document.getElementById('cancelEditEventBtn')?.addEventListener('click', cancelE
 // ====================== بدء التشغيل ======================
 (async function init() { 
     if (await verifyAdminAccess()) { 
-        renderNavbar(); renderAdminWelcomeMessage(); await loadInitialData(); await loadExamsList(); await loadEvents(); // ✅ إضافة تحميل الفعاليات
-        renderQuestionInputs(); window.toggleSubjects();
-        const analyzeBtn=document.getElementById('analyze-excel'); if(analyzeBtn){ analyzeBtn.addEventListener('click',window.analyzeExcel); console.log('✅ زر تحليل Excel مربوط'); }
-        const exportBtn=document.getElementById('export-excel'); if(exportBtn) exportBtn.addEventListener('click',exportToExcel);
+        renderNavbar(); 
+        renderAdminWelcomeMessage(); 
+        await loadInitialData(); 
+        await loadExamsList(); 
+        await loadEvents(); // ✅ تحميل الفعاليات
+        renderQuestionInputs(); 
+        window.toggleSubjects();
+        
+        const analyzeBtn = document.getElementById('analyze-excel'); 
+        if (analyzeBtn) { 
+            analyzeBtn.addEventListener('click', window.analyzeExcel); 
+            console.log('✅ زر تحليل Excel مربوط'); 
+        }
+        
+        const exportBtn = document.getElementById('export-excel'); 
+        if (exportBtn) exportBtn.addEventListener('click', exportToExcel);
     } 
 })();
