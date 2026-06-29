@@ -303,6 +303,107 @@ window.downloadCurrentCertificate = async function() { if(!currentCertificateStu
 window.printAllCertificates = function() { if(!topStudentsList.length) return; const pw=window.open('','_blank'); const cd=new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); let html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>شهادات</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet"><style>*{margin:0;padding:0}body{font-family:'Tajawal',sans-serif;background:#fff;padding:20px}.certificate-page{page-break-after:always;display:flex;justify-content:center;align-items:center;min-height:100vh}.certificate{background:linear-gradient(135deg,#fff 0%,#fdf8ed 100%);padding:40px;margin:20px;border:20px double #c4a35a;border-radius:28px;text-align:center;max-width:800px;width:100%}.certificate-logo img{width:80px;height:80px;border-radius:50%;border:3px solid #c4a35a}.certificate-title{font-size:2rem;font-weight:800;color:#1a4f6e;margin:20px 0}.certificate-subtitle{font-size:1rem;color:#64748b;margin-bottom:30px;border-bottom:2px solid #c4a35a;display:inline-block;padding-bottom:5px}.certificate-student-name{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#c4a35a,#a07d3a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:20px 0}.certificate-rank span{font-size:1.5rem;font-weight:800;color:gold}.certificate-percentage{font-size:1.4rem;font-weight:800;color:#1a4f6e;margin:15px 0}.certificate-date{margin-top:30px;padding-top:20px;border-top:1px dashed #cbd5e1}.certificate-signature{margin-top:30px;display:flex;justify-content:space-between;align-items:center;padding:0 20px}.certificate-signature hr{width:150px;margin:5px 0;border:1px solid #cbd5e1}@media print{.certificate-page{page-break-after:always}}</style></head><body>`; topStudentsList.forEach((s,i)=>{ const rt=getRankText(i+1); html+=`<div class="certificate-page"><div class="certificate"><div class="certificate-logo"><img src="logo.png" onerror="this.style.display='none'"></div><div class="certificate-title"><i class="fas fa-award"></i> شهادة تقدير</div><div class="certificate-subtitle">معهد رعاية الضبعية الفني للتمريض</div><div class="certificate-body"><p>تُمنح هذه الشهادة للطالب/ة</p><div class="certificate-student-name">${escapeHtml(s.fullName)}</div><p>رقم الجلوس: <strong>${s.studentCode}</strong></p><div class="certificate-rank">🏆 <span>${rt}</span> 🏆</div><div class="certificate-percentage">⭐ بنسبة نجاح ${s.percentage.toFixed(1)}% ⭐</div><p>📊 المجموع: ${s.total} / ${TOTAL_POSSIBLE_FIRST}</p></div><div class="certificate-date"><i class="far fa-calendar-alt"></i> التاريخ: ${cd}</div><div class="certificate-signature"><div><hr><p>مدير المعهد</p></div><div><hr><p>وكيل المعهد</p></div></div></div></div>`; }); html+=`<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()};<\/script></body></html>`; pw.document.write(html); pw.document.close(); };
 function updateTopStudentsAfterDataChange() { renderTopStudents(); }
 
+
+
+// ====================== إدارة الفعاليات ======================
+let events = [];
+async function loadEvents() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/events`, { credentials: 'include' });
+        if (r.ok) {
+            events = await r.json();
+            renderEvents();
+        }
+    } catch (e) {
+        console.error('Error loading events:', e);
+    }
+}
+
+function renderEvents() {
+    const tb = document.getElementById('events-table-body');
+    if (!tb) return;
+    if (!events || !events.length) {
+        tb.innerHTML = '<tr><td colspan="5">📭 لا توجد فعاليات منشورة</td></tr>';
+        return;
+    }
+    tb.innerHTML = events.map(ev => {
+        const typeIcons = { 'post': '📌', 'news': '📰', 'article': '📝', 'image': '🖼️', 'video': '🎥', 'audio': '🎙️' };
+        const typeNames = { 'post': 'منشور', 'news': 'خبر', 'article': 'مقال', 'image': 'صورة', 'video': 'فيديو', 'audio': 'صوت' };
+        const shortContent = ev.content.length > 50 ? ev.content.substring(0, 50) + '...' : ev.content;
+        return `
+            <tr>
+                <td><strong>${escapeHtml(ev.title)}</strong></td>
+                <td>${typeIcons[ev.type] || '📌'} ${typeNames[ev.type] || 'منشور'}</td>
+                <td style="max-width: 200px; word-break: break-word;">${escapeHtml(shortContent)}</td>
+                <td>${new Date(ev.date).toLocaleDateString('ar-EG')}</td>
+                <td>
+                    <button class="delete-btn" onclick="deleteEvent('${ev._id}')">
+                        <i class="fas fa-trash"></i> حذف
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+document.getElementById('add-event-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('event-title').value.trim();
+    const type = document.getElementById('event-type').value;
+    const content = document.getElementById('event-content').value.trim();
+    const mediaUrl = document.getElementById('event-media').value.trim();
+
+    if (!title || !content) return showToast('العنوان والمحتوى مطلوبان!', 'error');
+
+    try {
+        const csrfToken = await getCsrfToken();
+        const r = await fetch(`${BASE_URL}/api/events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            credentials: 'include',
+            body: JSON.stringify({ title, type, content, mediaUrl })
+        });
+        const d = await r.json();
+        if (r.ok && d.success) {
+            showToast('✅ تم إضافة الفعالية بنجاح!', 'success');
+            document.getElementById('add-event-form').reset();
+            await loadEvents();
+        } else {
+            showToast(d.error || 'فشل إضافة الفعالية', 'error');
+        }
+    } catch (er) {
+        showToast('حدث خطأ أثناء الإرسال', 'error');
+    }
+});
+
+window.deleteEvent = async function(id) {
+    const res = await Swal.fire({
+        title: '⚠️ تأكيد الحذف', text: 'هل أنت متأكد من حذف هذه الفعالية؟',
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء', confirmButtonColor: '#E74C3C'
+    });
+    if (res.isConfirmed) {
+        try {
+            const csrfToken = await getCsrfToken();
+            const r = await fetch(`${BASE_URL}/api/events/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+            const d = await r.json();
+            if (r.ok && d.success) {
+                showToast('🗑️ تم حذف الفعالية بنجاح.', 'success');
+                await loadEvents();
+            } else {
+                showToast(d.error || '❌ فشل حذف الفعالية', 'error');
+            }
+        } catch (er) {
+            showToast('حدث خطأ', 'error');
+        }
+    }
+};
+
+
 // ====================== بدء التشغيل ======================
 (async function init() { 
     if (await verifyAdminAccess()) { 
