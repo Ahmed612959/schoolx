@@ -305,40 +305,118 @@ function updateTopStudentsAfterDataChange() { renderTopStudents(); }
 
 
 
-// ====================== إدارة الفعاليات ======================
+// ====================== إدارة الفعاليات (نسخة محسّنة) ======================
 let events = [];
+let editingEventId = null;
+
 async function loadEvents() {
     try {
         const r = await fetch(`${BASE_URL}/api/events`, { credentials: 'include' });
         if (r.ok) {
             events = await r.json();
             renderEvents();
+            loadEventsStats();
         }
     } catch (e) {
         console.error('Error loading events:', e);
     }
 }
 
+// ✅ تحميل الإحصائيات
+async function loadEventsStats() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/events/stats`, { credentials: 'include' });
+        if (r.ok) {
+            const stats = await r.json();
+            document.getElementById('stat-total-events').textContent = stats.totalEvents || 0;
+            document.getElementById('stat-total-views').textContent = formatNumber(stats.totalViews || 0);
+            document.getElementById('stat-total-likes').textContent = formatNumber(stats.totalLikes || 0);
+            document.getElementById('stat-pinned').textContent = stats.pinnedCount || 0;
+        }
+    } catch (e) {
+        console.error('Error loading stats:', e);
+    }
+}
+
+// ✅ تنسيق الأرقام الكبيرة
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+}
+
 function renderEvents() {
     const tb = document.getElementById('events-table-body');
     if (!tb) return;
-    if (!events || !events.length) {
-        tb.innerHTML = '<tr><td colspan="5">📭 لا توجد فعاليات منشورة</td></tr>';
+    
+    // تطبيق الفلاتر
+    let filteredEvents = [...events];
+    
+    const searchQuery = document.getElementById('admin-event-search')?.value.trim().toLowerCase();
+    const typeFilter = document.getElementById('admin-event-filter-type')?.value;
+    const pinnedFilter = document.getElementById('admin-event-filter-pinned')?.value;
+    
+    if (searchQuery) {
+        filteredEvents = filteredEvents.filter(ev => 
+            ev.title.toLowerCase().includes(searchQuery) ||
+            ev.content.toLowerCase().includes(searchQuery) ||
+            (ev.tags && ev.tags.some(t => t.toLowerCase().includes(searchQuery)))
+        );
+    }
+    
+    if (typeFilter && typeFilter !== 'all') {
+        filteredEvents = filteredEvents.filter(ev => ev.type === typeFilter);
+    }
+    
+    if (pinnedFilter === 'pinned') {
+        filteredEvents = filteredEvents.filter(ev => ev.isPinned);
+    }
+    
+    if (!filteredEvents || !filteredEvents.length) {
+        tb.innerHTML = '<tr><td colspan="8">📭 لا توجد فعاليات منشورة</td></tr>';
         return;
     }
-    tb.innerHTML = events.map(ev => {
-        const typeIcons = { 'post': '📌', 'news': '📰', 'article': '📝', 'image': '🖼️', 'video': '🎥', 'audio': '🎙️' };
-        const typeNames = { 'post': 'منشور', 'news': 'خبر', 'article': 'مقال', 'image': 'صورة', 'video': 'فيديو', 'audio': 'صوت' };
-        const shortContent = ev.content.length > 50 ? ev.content.substring(0, 50) + '...' : ev.content;
+    
+    const typeIcons = { 'post': '📌', 'news': '📰', 'article': '📝', 'image': '🖼️', 'video': '🎥', 'audio': '🎙️' };
+    const typeNames = { 'post': 'منشور', 'news': 'خبر', 'article': 'مقال', 'image': 'صورة', 'video': 'فيديو', 'audio': 'صوت' };
+    
+    tb.innerHTML = filteredEvents.map(ev => {
+        const shortContent = ev.content.length > 40 ? ev.content.substring(0, 40) + '...' : ev.content;
+        const tagsHtml = (ev.tags && ev.tags.length > 0) 
+            ? ev.tags.map(t => `<span style="background:#e8f4f8; color:#1a4f6e; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin: 2px; display: inline-block;">${escapeHtml(t)}</span>`).join('')
+            : '<span style="color:#999;">-</span>';
+        
         return `
             <tr>
-                <td><strong>${escapeHtml(ev.title)}</strong></td>
-                <td>${typeIcons[ev.type] || '📌'} ${typeNames[ev.type] || 'منشور'}</td>
-                <td style="max-width: 200px; word-break: break-word;">${escapeHtml(shortContent)}</td>
-                <td>${new Date(ev.date).toLocaleDateString('ar-EG')}</td>
+                <td style="text-align: center;">
+                    ${ev.isPinned ? '<i class="fas fa-thumbtack" style="color: #c4a35a; font-size: 1.2rem;" title="مثبتة"></i>' : ''}
+                </td>
                 <td>
-                    <button class="delete-btn" onclick="deleteEvent('${ev._id}')">
-                        <i class="fas fa-trash"></i> حذف
+                    <strong>${escapeHtml(ev.title)}</strong>
+                    <br><small style="color: #666;">${escapeHtml(shortContent)}</small>
+                </td>
+                <td>${typeIcons[ev.type] || '📌'} ${typeNames[ev.type] || 'منشور'}</td>
+                <td>${tagsHtml}</td>
+                <td style="text-align: center;">
+                    <i class="fas fa-eye" style="color: #3498db;"></i> ${formatNumber(ev.views || 0)}
+                </td>
+                <td style="text-align: center;">
+                    <i class="fas fa-heart" style="color: #e74c3c;"></i> ${formatNumber(ev.likes || 0)}
+                </td>
+                <td>${new Date(ev.date).toLocaleDateString('ar-EG')}</td>
+                <td style="white-space: nowrap;">
+                    <button class="edit-btn" onclick="togglePinEvent('${ev._id}')" 
+                            style="background: ${ev.isPinned ? '#f39c12' : '#c4a35a'}; color: white; border: none; padding: 5px 10px; border-radius: 15px; margin: 2px; cursor: pointer;"
+                            title="${ev.isPinned ? 'إلغاء التثبيت' : 'تثبيت'}">
+                        <i class="fas fa-thumbtack"></i>
+                    </button>
+                    <button class="edit-btn" onclick="editEvent('${ev._id}')" 
+                            style="background: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 15px; margin: 2px; cursor: pointer;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="delete-btn" onclick="deleteEvent('${ev._id}')"
+                            style="background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 15px; margin: 2px; cursor: pointer;">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </td>
             </tr>
@@ -346,36 +424,101 @@ function renderEvents() {
     }).join('');
 }
 
+// ✅ تثبيت/إلغاء تثبيت
+window.togglePinEvent = async function(id) {
+    try {
+        const csrfToken = await getCsrfToken();
+        const r = await fetch(`${BASE_URL}/api/events/${id}/pin`, {
+            method: 'PUT',
+            headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+            credentials: 'include'
+        });
+        const d = await r.json();
+        if (r.ok && d.success) {
+            showToast(d.message, 'success');
+            await loadEvents();
+        } else {
+            showToast(d.error || 'فشل العملية', 'error');
+        }
+    } catch (er) {
+        showToast('حدث خطأ', 'error');
+    }
+};
+
+// ✅ تعديل فعالية
+window.editEvent = function(id) {
+    const ev = events.find(e => e._id === id);
+    if (!ev) return;
+    
+    editingEventId = id;
+    document.getElementById('event-title').value = ev.title;
+    document.getElementById('event-type').value = ev.type;
+    document.getElementById('event-content').value = ev.content;
+    document.getElementById('event-media').value = ev.mediaUrl || '';
+    document.getElementById('event-tags').value = (ev.tags || []).join(', ');
+    document.getElementById('event-pinned').checked = ev.isPinned || false;
+    
+    document.querySelector('#add-event-form button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> تحديث الفعالية';
+    document.getElementById('cancelEditEventBtn').style.display = 'inline-block';
+    
+    showToast('✏️ قم بتعديل البيانات ثم اضغط تحديث', 'info');
+    window.scrollTo(0, document.getElementById('add-event-form').offsetTop - 100);
+};
+
+// ✅ إلغاء التعديل
+window.cancelEditEvent = function() {
+    editingEventId = null;
+    document.getElementById('add-event-form').reset();
+    document.querySelector('#add-event-form button[type="submit"]').innerHTML = '<i class="fas fa-plus-circle"></i> إضافة الفعالية';
+    document.getElementById('cancelEditEventBtn').style.display = 'none';
+    showToast('✅ تم إلغاء التعديل', 'info');
+};
+
+// ✅ إضافة/تحديث فعالية
 document.getElementById('add-event-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = document.getElementById('event-title').value.trim();
     const type = document.getElementById('event-type').value;
     const content = document.getElementById('event-content').value.trim();
     const mediaUrl = document.getElementById('event-media').value.trim();
+    const tags = document.getElementById('event-tags').value.trim();
+    const isPinned = document.getElementById('event-pinned').checked;
 
     if (!title || !content) return showToast('العنوان والمحتوى مطلوبان!', 'error');
 
     try {
         const csrfToken = await getCsrfToken();
-        const r = await fetch(`${BASE_URL}/api/events`, {
-            method: 'POST',
+        let url = `${BASE_URL}/api/events`;
+        let method = 'POST';
+        
+        if (editingEventId) {
+            url = `${BASE_URL}/api/events/${editingEventId}`;
+            method = 'PUT';
+        }
+        
+        const r = await fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
             credentials: 'include',
-            body: JSON.stringify({ title, type, content, mediaUrl })
+            body: JSON.stringify({ title, type, content, mediaUrl, tags, isPinned })
         });
         const d = await r.json();
         if (r.ok && d.success) {
-            showToast('✅ تم إضافة الفعالية بنجاح!', 'success');
+            showToast(editingEventId ? '✅ تم التحديث بنجاح!' : '✅ تم الإضافة بنجاح!', 'success');
             document.getElementById('add-event-form').reset();
+            editingEventId = null;
+            document.querySelector('#add-event-form button[type="submit"]').innerHTML = '<i class="fas fa-plus-circle"></i> إضافة الفعالية';
+            document.getElementById('cancelEditEventBtn').style.display = 'none';
             await loadEvents();
         } else {
-            showToast(d.error || 'فشل إضافة الفعالية', 'error');
+            showToast(d.error || 'فشلت العملية', 'error');
         }
     } catch (er) {
         showToast('حدث خطأ أثناء الإرسال', 'error');
     }
 });
 
+// ✅ حذف فعالية
 window.deleteEvent = async function(id) {
     const res = await Swal.fire({
         title: '⚠️ تأكيد الحذف', text: 'هل أنت متأكد من حذف هذه الفعالية؟',
@@ -403,6 +546,11 @@ window.deleteEvent = async function(id) {
     }
 };
 
+// ✅ ربط الفلاتر
+document.getElementById('admin-event-search')?.addEventListener('input', renderEvents);
+document.getElementById('admin-event-filter-type')?.addEventListener('change', renderEvents);
+document.getElementById('admin-event-filter-pinned')?.addEventListener('change', renderEvents);
+document.getElementById('cancelEditEventBtn')?.addEventListener('click', cancelEditEvent);
 
 // ====================== بدء التشغيل ======================
 (async function init() { 
