@@ -168,41 +168,45 @@
         }
 
 
-        /* ====================== ✅ إخفاء النصوص من Facebook و Instagram ====================== */
+      /* ====================== ✅ إخفاء النصوص من Facebook و Instagram (آمن) ====================== */
 
-/* إخفاء جميع النصوص من Facebook SDK */
-.fb-sdk-container .fb-post span,
-.fb-sdk-container .fb-post div[class*="text"],
-.fb-sdk-container .fb-post p,
+/* إخفاء النصوص من Facebook Post */
 .fb-sdk-container .fb-post [data-testid="post_message"],
+.fb-sdk-container .fb-post [data-testid="story-subtitle"],
 .fb-sdk-container .fb-post [data-testid="post_message"] *,
-.fb-sdk-container .fb-video span,
-.fb-sdk-container .fb-video div[class*="text"],
-.fb-sdk-container .fb-video p {
+.fb-sdk-container .fb-post .userContent,
+.fb-sdk-container .fb-post .mtm,
+.fb-sdk-container .fb-post ._6ks,
+.fb-sdk-container .fb-post ._64-f {
     display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* إخفاء النصوص من Facebook Video */
+.fb-sdk-container .fb-video [data-testid="post_message"],
+.fb-sdk-container .fb-video .userContent {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
 }
 
 /* إخفاء النصوص من Instagram embed */
-.ig-container .instagram-media div[class*="content"],
-.ig-container .instagram-media p,
-.ig-container .instagram-media span,
+.ig-container .instagram-media .Aei63,
+.ig-container .instagram-media .QBXjF,
 .ig-container .instagram-media [class*="caption"],
-.ig-container .instagram-media [class*="description"] {
+.ig-container .instagram-media [class*="description"],
+.ig-container .instagram-media .k_Eng {
     display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
 }
 
-/* إخفاء أي نص داخل fb-sdk-container */
-.fb-sdk-container * {
-    color: transparent !important;
-}
-
-/* إعادة إظهار أزرار التحكم فقط */
-.fb-sdk-container button,
-.fb-sdk-container [role="button"],
-.fb-sdk-container [aria-label*="play"],
-.fb-sdk-container [aria-label*="Pause"] {
-    color: inherit !important;
-}
+/* ✅ مهم: لا تستخدم .fb-sdk-container * - فهي خطيرة جداً! */
         /* Instagram */
         .ig-container {
             width: 100%;
