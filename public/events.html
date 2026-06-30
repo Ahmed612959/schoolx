@@ -167,6 +167,42 @@
             max-width: 100%;
         }
 
+
+        /* ====================== ✅ إخفاء النصوص من Facebook و Instagram ====================== */
+
+/* إخفاء جميع النصوص من Facebook SDK */
+.fb-sdk-container .fb-post span,
+.fb-sdk-container .fb-post div[class*="text"],
+.fb-sdk-container .fb-post p,
+.fb-sdk-container .fb-post [data-testid="post_message"],
+.fb-sdk-container .fb-post [data-testid="post_message"] *,
+.fb-sdk-container .fb-video span,
+.fb-sdk-container .fb-video div[class*="text"],
+.fb-sdk-container .fb-video p {
+    display: none !important;
+}
+
+/* إخفاء النصوص من Instagram embed */
+.ig-container .instagram-media div[class*="content"],
+.ig-container .instagram-media p,
+.ig-container .instagram-media span,
+.ig-container .instagram-media [class*="caption"],
+.ig-container .instagram-media [class*="description"] {
+    display: none !important;
+}
+
+/* إخفاء أي نص داخل fb-sdk-container */
+.fb-sdk-container * {
+    color: transparent !important;
+}
+
+/* إعادة إظهار أزرار التحكم فقط */
+.fb-sdk-container button,
+.fb-sdk-container [role="button"],
+.fb-sdk-container [aria-label*="play"],
+.fb-sdk-container [aria-label*="Pause"] {
+    color: inherit !important;
+}
         /* Instagram */
         .ig-container {
             width: 100%;
