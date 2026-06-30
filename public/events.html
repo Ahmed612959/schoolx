@@ -7,15 +7,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     
-    <!-- ✅ Facebook SDK -->
+    <!-- ✅ Facebook SDK - الحل النهائي للفيديوهات -->
     <script async defer crossorigin="anonymous" 
             src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"></script>
-    
-    <!-- ✅ Meta tags لإصلاح أخطاء Permissions-Policy -->
-    <meta http-equiv="Permissions-Policy" content="accelerometer=*, autoplay=*, camera=*, gyroscope=*, magnetometer=*, microphone=*, usb=*">
-    
-    <!-- ✅ Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
     
     <style>
         :root { 
@@ -38,6 +32,7 @@
             -webkit-text-size-adjust: 100%;
         }
 
+        /* ====================== الهيدر ====================== */
         .header { 
             background: linear-gradient(135deg, var(--primary), #0d3b54); 
             color: white; padding: 25px 15px; 
@@ -56,6 +51,7 @@
 
         .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
 
+        /* ====================== البحث والفلترة ====================== */
         .search-section {
             background: white; padding: 20px; border-radius: var(--card-radius);
             box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px;
@@ -78,6 +74,7 @@
         }
         .filter-btn.active, .filter-btn:hover { background: var(--secondary); color: white; }
 
+        /* ====================== الفعاليات المثبتة ====================== */
         .pinned-section { margin-bottom: 30px; }
         .pinned-title {
             display: flex; align-items: center; gap: 10px;
@@ -99,6 +96,7 @@
             font-size: 0.8rem; font-weight: bold; z-index: 5;
         }
 
+        /* ====================== شبكة الفعاليات ====================== */
         .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
         .event-card { 
             background: white; border-radius: var(--card-radius); 
@@ -108,11 +106,15 @@
         }
         .event-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
 
+        /* ====================== ✅ الحل النهائي للوسائط ====================== */
+        
+        /* الصور */
         .event-media { 
             width: 100%; height: 200px; object-fit: cover; 
             background: #eee; display: block; cursor: pointer;
         }
 
+        /* YouTube والفيديوهات العادية */
         .video-container { 
             position: relative; 
             width: 100%;
@@ -128,7 +130,29 @@
             width: 100%; height: 100%; border: none;
         }
 
-        /* 🔥 Facebook SDK Container - بدون نص */
+        /* 🔥 🔥 🔥 الحل النهائي لفيديوهات Facebook 🔥 🔥 🔥 */
+        .fb-video-wrapper {
+            width: 100%;
+            background: #f0f2f5;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            /* ✅ ارتفاع ديناميكي كبير جداً يسمح بظهور الفيديو كاملاً */
+            min-height: 600px;
+            height: auto;
+        }
+        
+        .fb-video-wrapper iframe {
+            width: 100%;
+            max-width: 100%;
+            border: none;
+            display: block;
+            /* ✅ ارتفاع كبير جداً يظهر الفيديو كاملاً */
+            min-height: 600px;
+            height: 100%;
+        }
+
+        /* ✅ Facebook SDK Container */
         .fb-sdk-container {
             width: 100%;
             background: #f0f2f5;
@@ -138,20 +162,9 @@
             min-height: 500px;
         }
         
-        .fb-sdk-container .fb-video,
-        .fb-sdk-container .fb-post {
+        .fb-sdk-container .fb-video {
             width: 100%;
             max-width: 100%;
-        }
-
-        /* ✅ إخفاء النص من Facebook Video/Post */
-        .fb-sdk-container .fb-video span,
-        .fb-sdk-container .fb-video div[class*="text"],
-        .fb-sdk-container .fb-video p,
-        .fb-sdk-container .fb-post span,
-        .fb-sdk-container .fb-post div[class*="text"],
-        .fb-sdk-container .fb-post p {
-            display: none !important;
         }
 
         /* Instagram */
@@ -161,7 +174,6 @@
             display: flex;
             justify-content: center;
             min-height: 500px;
-            position: relative;
         }
         .ig-container iframe {
             width: 100%;
@@ -171,51 +183,7 @@
             background: white;
         }
 
-        /* ✅ إخفاء النص من Instagram */
-        .ig-container::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background: linear-gradient(to top, #fafafa, transparent);
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* ✅ زر التنزيل */
-        .download-btn {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: all 0.3s;
-            z-index: 10;
-            backdrop-filter: blur(5px);
-        }
-        .download-btn:hover {
-            background: rgba(0, 0, 0, 0.9);
-            transform: scale(1.05);
-        }
-        .download-btn i {
-            font-size: 1rem;
-        }
-
-        /* ✅ حاوية الوسائط مع زر التنزيل */
-        .media-wrapper {
-            position: relative;
-        }
-
+        /* ====================== محتوى البطاقة ====================== */
         .event-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
         .event-type { 
             display: inline-block; padding: 5px 12px; background: var(--secondary); color: white; 
@@ -232,6 +200,7 @@
         }
         .event-tag:hover { background: var(--primary); color: white; }
 
+        /* ====================== التفاعلات ====================== */
         .event-actions {
             display: flex; justify-content: space-between; align-items: center;
             padding: 12px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-bottom: 10px;
@@ -272,6 +241,7 @@
 
         audio { width: 100%; margin-top: 10px; border-radius: 8px; }
 
+        /* ====================== Lightbox ====================== */
         .lightbox {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.95); z-index: 9999;
@@ -286,6 +256,7 @@
             cursor: pointer; font-size: 1.5rem;
         }
 
+        /* ====================== Toast ====================== */
         .toast {
             position: fixed; bottom: 20px; left: 50%;
             transform: translateX(-50%) translateY(100px);
@@ -297,6 +268,7 @@
         .toast.error { background: var(--danger); }
         .toast.info { background: var(--info); }
 
+        /* ====================== 📱 التجاوب ====================== */
         @media (max-width: 768px) {
             .header { padding: 20px 12px; }
             .header h1 { font-size: 1.3rem; }
@@ -322,14 +294,16 @@
             .event-title { font-size: 1.1rem; }
             .event-content { font-size: 0.9rem; }
             
-            .fb-sdk-container { min-height: 450px; }
+            /* ✅ فيديوهات Facebook على الهاتف */
+            .fb-video-wrapper, .fb-video-wrapper iframe {
+                min-height: 500px;
+            }
+            .fb-sdk-container {
+                min-height: 450px;
+            }
+            
             .ig-container { min-height: 450px; }
             .ig-container iframe { min-height: 450px; }
-            
-            .download-btn {
-                padding: 6px 10px;
-                font-size: 0.8rem;
-            }
         }
 
         @media (max-width: 480px) {
@@ -341,7 +315,14 @@
             .event-content { font-size: 0.88rem; }
             .filter-btn { padding: 7px 12px; font-size: 0.8rem; }
             
-            .fb-sdk-container { min-height: 380px; }
+            /* ✅ فيديوهات Facebook على الهواتف الصغيرة */
+            .fb-video-wrapper, .fb-video-wrapper iframe {
+                min-height: 400px;
+            }
+            .fb-sdk-container {
+                min-height: 380px;
+            }
+            
             .ig-container { min-height: 400px; }
             .ig-container iframe { min-height: 400px; }
         }
@@ -349,7 +330,14 @@
         @media (min-width: 1024px) {
             .header h1 { font-size: 2.2rem; }
             .events-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
-            .fb-sdk-container { min-height: 600px; }
+            
+            /* ✅ على الشاشات الكبيرة */
+            .fb-video-wrapper, .fb-video-wrapper iframe {
+                min-height: 700px;
+            }
+            .fb-sdk-container {
+                min-height: 600px;
+            }
         }
 
         img { max-width: 100%; height: auto; }
@@ -411,6 +399,7 @@
             await loadEvents();
             setupEventListeners();
             
+            // ✅ إعادة تحليل Facebook SDK بعد تحميل المحتوى
             setTimeout(() => {
                 if (window.FB) {
                     window.FB.XFBML.parse();
@@ -442,6 +431,7 @@
                     allEvents = allEvents.filter(ev => !ev.isPinned);
                     renderEvents(allEvents);
                     
+                    // ✅ إعادة تحليل Facebook SDK
                     setTimeout(() => {
                         if (window.FB) {
                             window.FB.XFBML.parse();
@@ -471,22 +461,6 @@
             grid.innerHTML = events.map(ev => createEventCard(ev, false)).join('');
         }
 
-        // ====================== ✅ دالة التنزيل ======================
-        function downloadMedia(url, filename) {
-            if (url.startsWith('http') && !url.startsWith(window.location.origin)) {
-                window.open(url, '_blank');
-                showToast('📥 جاري فتح الملف للتحميل...', 'info');
-            } else {
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename || 'download';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                showToast('✅ بدأ التحميل', 'success');
-            }
-        }
-
         // ====================== ✅ الدالة الأساسية - معالجة الوسائط ======================
         function createEventCard(ev, isPinned) {
             const typeNames = {
@@ -495,32 +469,22 @@
             };
 
             let mediaHtml = '';
-            let hasMedia = false;
-
             if (ev.mediaUrl) {
                 const mediaUrl = ev.mediaUrl.trim();
-                hasMedia = true;
 
                 // 🎥 YouTube
                 if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be')) {
                     const match = mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\?\/]+)/);
                     if (match) {
-                        mediaHtml = `<div class="media-wrapper">
-                            <div class="video-container">
-                                <iframe src="https://www.youtube.com/embed/${match[1]}" 
-                                    frameborder="0" 
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                                    allowfullscreen 
-                                    referrerpolicy="no-referrer-when-downgrade"
-                                    loading="lazy"></iframe>
-                            </div>
-                            <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                                <i class="fas fa-download"></i> تحميل
-                            </button>
+                        mediaHtml = `<div class="video-container">
+                            <iframe src="https://www.youtube.com/embed/${match[1]}" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen loading="lazy"></iframe>
                         </div>`;
                     }
                 }
-                // 📘 Facebook - بدون نص
+                // 📘 Facebook - ✅ الحل النهائي باستخدام Facebook SDK
                 else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
                     const isVideo = mediaUrl.includes('/videos/') || 
                                     mediaUrl.includes('watch?v=') || 
@@ -528,31 +492,23 @@
                                     mediaUrl.includes('/reel/');
                     
                     if (isVideo) {
-                        mediaHtml = `<div class="media-wrapper">
-                            <div class="fb-sdk-container">
-                                <div class="fb-video" 
-                                     data-href="${mediaUrl}" 
-                                     data-width="560" 
-                                     data-show-text="false"
-                                     data-allowfullscreen="true">
-                                </div>
+                        // ✅ فيديو فيسبوك - استخدام Facebook SDK
+                        mediaHtml = `<div class="fb-sdk-container">
+                            <div class="fb-video" 
+                                 data-href="${mediaUrl}" 
+                                 data-width="560" 
+                              data-show-text="false"
+                                 data-allowfullscreen="true">
                             </div>
-                            <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                                <i class="fas fa-download"></i> تحميل
-                            </button>
                         </div>`;
                     } else {
-                        mediaHtml = `<div class="media-wrapper">
-                            <div class="fb-sdk-container">
-                                <div class="fb-post" 
-                                     data-href="${mediaUrl}" 
-                                     data-width="500" 
-                                     data-show-text="false">
-                                </div>
+                        // ✅ بوست فيسبوك - استخدام Facebook SDK
+                        mediaHtml = `<div class="fb-sdk-container">
+                            <div class="fb-post" 
+                                 data-href="${mediaUrl}" 
+                                 data-width="500" 
+                                 data-show-text="false"
                             </div>
-                            <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                                <i class="fas fa-download"></i> تحميل
-                            </button>
                         </div>`;
                     }
                 }
@@ -560,79 +516,49 @@
                 else if (mediaUrl.includes('instagram.com')) {
                     const match = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([^\/\?]+)/);
                     if (match) {
-                        mediaHtml = `<div class="media-wrapper">
-                            <div class="ig-container">
-                                <iframe src="https://www.instagram.com/p/${match[1]}/embed" 
-                                    frameborder="0" 
-                                    scrolling="no" 
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                    allowfullscreen 
-                                    referrerpolicy="no-referrer-when-downgrade"
-                                    loading="lazy"></iframe>
-                            </div>
-                            <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                                <i class="fas fa-download"></i> تحميل
-                            </button>
+                        mediaHtml = `<div class="ig-container">
+                            <iframe src="https://www.instagram.com/p/${match[1]}/embed" 
+                                frameborder="0" 
+                                scrolling="no" 
+                                allowfullscreen 
+                                loading="lazy"></iframe>
                         </div>`;
                     }
                 }
                 // 🎬 فيديو مباشر
                 else if (mediaUrl.match(/\.(mp4|webm|ogg|mov)($|\?)/i)) {
-                    mediaHtml = `<div class="media-wrapper">
-                        <div class="video-container">
-                            <video controls preload="metadata">
-                                <source src="${mediaUrl}" type="video/mp4">
-                            </video>
-                        </div>
-                        <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                            <i class="fas fa-download"></i> تحميل
-                        </button>
+                    mediaHtml = `<div class="video-container">
+                        <video controls preload="metadata">
+                            <source src="${mediaUrl}" type="video/mp4">
+                        </video>
                     </div>`;
                 }
                 // 🎵 صوت
                 else if (ev.type === 'audio' || mediaUrl.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
-                    mediaHtml = `<div class="media-wrapper">
-                        <div style="padding: 20px; background: linear-gradient(135deg, #f9f9f9, #e9e9e9);">
-                            <div style="text-align:center;margin-bottom:10px;">
-                                <i class="fas fa-music" style="font-size:2rem;color:var(--secondary);"></i>
-                            </div>
-                            <audio controls preload="metadata" style="width:100%;">
-                                <source src="${mediaUrl}">
-                            </audio>
+                    mediaHtml = `<div style="padding: 20px; background: linear-gradient(135deg, #f9f9f9, #e9e9e9);">
+                        <div style="text-align:center;margin-bottom:10px;">
+                            <i class="fas fa-music" style="font-size:2rem;color:var(--secondary);"></i>
                         </div>
-                        <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                            <i class="fas fa-download"></i> تحميل
-                        </button>
+                        <audio controls preload="metadata" style="width:100%;">
+                            <source src="${mediaUrl}">
+                        </audio>
                     </div>`;
                 }
                 // 🖼️ صورة
                 else if (ev.type === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
-                    mediaHtml = `<div class="media-wrapper">
-                        <img src="${mediaUrl}" class="event-media" 
-                            alt="${escapeHtml(ev.title)}" 
-                            loading="lazy" 
-                            onclick="openLightbox('${mediaUrl}')" 
-                            onerror="this.style.display='none'">
-                        <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                            <i class="fas fa-download"></i> تحميل
-                        </button>
-                    </div>`;
+                    mediaHtml = `<img src="${mediaUrl}" class="event-media" 
+                        alt="${escapeHtml(ev.title)}" 
+                        loading="lazy" 
+                        onclick="openLightbox('${mediaUrl}')" 
+                        onerror="this.style.display='none'">`;
                 }
                 // 🔗 أي رابط آخر
                 else {
-                    mediaHtml = `<div class="media-wrapper">
-                        <div class="video-container">
-                            <iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-                        </div>
-                        <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
-                            <i class="fas fa-download"></i> تحميل
-                        </button>
+                    mediaHtml = `<div class="video-container">
+                        <iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe>
                     </div>`;
                 }
             }
-
-            // ✅ إذا لم يكن هناك وسائط، اعرض المحتوى النصي فقط
-            const contentHtml = (!hasMedia && ev.content) ? `<p class="event-content">${escapeHtml(ev.content)}</p>` : '';
 
             const tagsHtml = (ev.tags?.length) 
                 ? `<div class="event-tags">${ev.tags.map(t => 
@@ -650,7 +576,7 @@
                     <div class="event-body">
                         <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
                         <h3 class="event-title">${escapeHtml(ev.title)}</h3>
-                        ${contentHtml}
+                        <p class="event-content">${escapeHtml(ev.content)}</p>
                         ${tagsHtml}
                         
                         <div class="event-actions">
@@ -681,6 +607,7 @@
             `;
         }
 
+        // ====================== التفاعلات ======================
         async function toggleLike(eventId) {
             const btn = document.getElementById(`like-${eventId}`);
             const icon = btn.querySelector('i');
