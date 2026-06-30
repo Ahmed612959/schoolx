@@ -41,44 +41,12 @@ app.use((req, res, next) => {
 });
 
 // ====================== Helmet ======================
-// ====================== Helmet - مُعدّل لدعم Facebook SDK ======================
 app.use(helmet({
-    // ✅ تعطيل Content Security Policy (يسبب مشاكل مع Facebook)
     contentSecurityPolicy: false,
-    
-    // ✅ تعطيل Cross-Origin policies
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    
-    // ✅ تعطيل Permissions-Policy تماماً (يسبب معظم الأخطاء)
-    permissionsPolicy: false,
-    
-    // ✅ تعطيل Document-Policy
-    referrerPolicy: { policy: 'no-referrer-when-downgrade' },
-    
-    // ✅ إخفاء X-Powered-By
-    hidePoweredBy: true,
-    
-    // ✅ تعطيل X-Frame-Options (مهم لـ Facebook embeds)
-    frameguard: false,
-    
-    // ✅ تعطيل X-Content-Type-Options للمشاكل مع iframes
-    crossOriginResourcePolicy: false
+    crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-
-// ✅ إزالة Headers الإضافية التي تسبب مشاكل مع Facebook
-app.use((req, res, next) => {
-    // إزالة Permissions-Policy إذا وُجد
-    res.removeHeader('Permissions-Policy');
-    res.removeHeader('Document-Policy');
-    res.removeHeader('Feature-Policy');
-    
-    // السماح بـ iframes من Facebook
-    res.setHeader('X-Frame-Options', 'ALLOWALL');
-    
-    next();
-});
 
 // ====================== Rate Limiting ======================
 const limiter = rateLimit({
