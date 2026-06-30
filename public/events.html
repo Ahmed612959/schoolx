@@ -7,10 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     
-    <!-- ✅ Facebook SDK - الحل النهائي للفيديوهات -->
-    <script async defer crossorigin="anonymous" 
-            src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"></script>
-    
     <style>
         :root { 
             --primary: #1a4f6e; 
@@ -32,7 +28,6 @@
             -webkit-text-size-adjust: 100%;
         }
 
-        /* ====================== الهيدر ====================== */
         .header { 
             background: linear-gradient(135deg, var(--primary), #0d3b54); 
             color: white; padding: 25px 15px; 
@@ -51,7 +46,6 @@
 
         .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
 
-        /* ====================== البحث والفلترة ====================== */
         .search-section {
             background: white; padding: 20px; border-radius: var(--card-radius);
             box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px;
@@ -74,7 +68,6 @@
         }
         .filter-btn.active, .filter-btn:hover { background: var(--secondary); color: white; }
 
-        /* ====================== الفعاليات المثبتة ====================== */
         .pinned-section { margin-bottom: 30px; }
         .pinned-title {
             display: flex; align-items: center; gap: 10px;
@@ -96,7 +89,6 @@
             font-size: 0.8rem; font-weight: bold; z-index: 5;
         }
 
-        /* ====================== شبكة الفعاليات ====================== */
         .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
         .event-card { 
             background: white; border-radius: var(--card-radius); 
@@ -106,21 +98,14 @@
         }
         .event-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
 
-        /* ====================== ✅ الحل النهائي للوسائط ====================== */
-        
-        /* الصور */
         .event-media { 
             width: 100%; height: 200px; object-fit: cover; 
             background: #eee; display: block; cursor: pointer;
         }
 
-        /* YouTube والفيديوهات العادية */
         .video-container { 
-            position: relative; 
-            width: 100%;
-            background: #000;
-            aspect-ratio: 16 / 9;
-            overflow: hidden;
+            position: relative; width: 100%; background: #000;
+            aspect-ratio: 16 / 9; overflow: hidden;
         }
         @supports not (aspect-ratio: 16 / 9) {
             .video-container { padding-bottom: 56.25%; height: 0; }
@@ -130,41 +115,22 @@
             width: 100%; height: 100%; border: none;
         }
 
-        /* 🔥 🔥 🔥 الحل النهائي لفيديوهات Facebook 🔥 🔥 🔥 */
+        /* ====================== 🔥 الحل الجذري لفيديوهات Facebook ====================== */
         .fb-video-wrapper {
             width: 100%;
             background: #f0f2f5;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            /* ✅ ارتفاع ديناميكي كبير جداً يسمح بظهور الفيديو كاملاً */
-            min-height: 600px;
-            height: auto;
-        }
-        
-        .fb-video-wrapper iframe {
-            width: 100%;
-            max-width: 100%;
-            border: none;
+            overflow: visible !important;
             display: block;
-            /* ✅ ارتفاع كبير جداً يظهر الفيديو كاملاً */
-            min-height: 600px;
-            height: 100%;
+            position: relative;
         }
 
-        /* ✅ Facebook SDK Container */
-        .fb-sdk-container {
-            width: 100%;
-            background: #f0f2f5;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
+        .fb-video-wrapper iframe {
+            width: 100% !important;
+            border: none !important;
+            display: block !important;
+            overflow: visible !important;
             min-height: 500px;
-        }
-        
-        .fb-sdk-container .fb-video {
-            width: 100%;
-            max-width: 100%;
+            height: auto;
         }
 
         /* Instagram */
@@ -183,68 +149,6 @@
             background: white;
         }
 
-
-        /* ====================== ✅ إخفاء النصوص من Facebook و Instagram ====================== */
-
-/* إخفاء جميع النصوص من Facebook SDK */
-.fb-sdk-container .fb-post span,
-.fb-sdk-container .fb-post div[class*="text"],
-.fb-sdk-container .fb-post p,
-.fb-sdk-container .fb-post [data-testid="post_message"],
-.fb-sdk-container .fb-video span,
-.fb-sdk-container .fb-video div[class*="text"],
-.fb-sdk-container .fb-video p {
-    display: none !important;
-}
-
-/* إخفاء النصوص من Instagram embed */
-.ig-container .instagram-media div[class*="content"],
-.ig-container .instagram-media p,
-.ig-container .instagram-media span {
-    display: none !important;
-}
-
-/* ====================== ✅ زر التنزيل ====================== */
-.download-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 8px 16px;
-    background: linear-gradient(135deg, var(--success), #1e8449);
-    color: white;
-    border: none;
-    border-radius: 20px;
-    cursor: pointer;
-    font-family: 'Tajawal';
-    font-size: 0.85rem;
-    font-weight: bold;
-    transition: all 0.3s;
-    margin-top: 10px;
-    text-decoration: none;
-}
-
-.download-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
-}
-
-.download-btn i {
-    font-size: 1rem;
-}
-
-/* زر التنزيل في الهواتف */
-@media (max-width: 768px) {
-    .download-btn {
-        padding: 6px 12px;
-        font-size: 0.8rem;
-    }
-}
-
-
-
-
-        
-        /* ====================== محتوى البطاقة ====================== */
         .event-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
         .event-type { 
             display: inline-block; padding: 5px 12px; background: var(--secondary); color: white; 
@@ -261,7 +165,6 @@
         }
         .event-tag:hover { background: var(--primary); color: white; }
 
-        /* ====================== التفاعلات ====================== */
         .event-actions {
             display: flex; justify-content: space-between; align-items: center;
             padding: 12px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-bottom: 10px;
@@ -290,6 +193,15 @@
         .share-telegram { background: #0088cc; }
         .share-copy { background: #6c757d; }
 
+        .download-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 8px 16px; background: linear-gradient(135deg, var(--success), #1e8449);
+            color: white; border: none; border-radius: 20px; cursor: pointer;
+            font-family: 'Tajawal'; font-size: 0.85rem; font-weight: bold;
+            transition: all 0.3s; margin-top: 10px; text-decoration: none;
+        }
+        .download-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4); }
+
         .event-footer { 
             display: flex; justify-content: space-between; align-items: center;
             color: #888; font-size: 0.85rem; gap: 10px; flex-wrap: wrap; margin-top: 10px;
@@ -302,7 +214,6 @@
 
         audio { width: 100%; margin-top: 10px; border-radius: 8px; }
 
-        /* ====================== Lightbox ====================== */
         .lightbox {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.95); z-index: 9999;
@@ -317,7 +228,6 @@
             cursor: pointer; font-size: 1.5rem;
         }
 
-        /* ====================== Toast ====================== */
         .toast {
             position: fixed; bottom: 20px; left: 50%;
             transform: translateX(-50%) translateY(100px);
@@ -329,7 +239,6 @@
         .toast.error { background: var(--danger); }
         .toast.info { background: var(--info); }
 
-        /* ====================== 📱 التجاوب ====================== */
         @media (max-width: 768px) {
             .header { padding: 20px 12px; }
             .header h1 { font-size: 1.3rem; }
@@ -355,14 +264,7 @@
             .event-title { font-size: 1.1rem; }
             .event-content { font-size: 0.9rem; }
             
-            /* ✅ فيديوهات Facebook على الهاتف */
-            .fb-video-wrapper, .fb-video-wrapper iframe {
-                min-height: 500px;
-            }
-            .fb-sdk-container {
-                min-height: 450px;
-            }
-            
+            .fb-video-wrapper iframe { min-height: 400px; }
             .ig-container { min-height: 450px; }
             .ig-container iframe { min-height: 450px; }
         }
@@ -376,14 +278,7 @@
             .event-content { font-size: 0.88rem; }
             .filter-btn { padding: 7px 12px; font-size: 0.8rem; }
             
-            /* ✅ فيديوهات Facebook على الهواتف الصغيرة */
-            .fb-video-wrapper, .fb-video-wrapper iframe {
-                min-height: 400px;
-            }
-            .fb-sdk-container {
-                min-height: 380px;
-            }
-            
+            .fb-video-wrapper iframe { min-height: 350px; }
             .ig-container { min-height: 400px; }
             .ig-container iframe { min-height: 400px; }
         }
@@ -391,14 +286,7 @@
         @media (min-width: 1024px) {
             .header h1 { font-size: 2.2rem; }
             .events-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
-            
-            /* ✅ على الشاشات الكبيرة */
-            .fb-video-wrapper, .fb-video-wrapper iframe {
-                min-height: 700px;
-            }
-            .fb-sdk-container {
-                min-height: 600px;
-            }
+            .fb-video-wrapper iframe { min-height: 600px; }
         }
 
         img { max-width: 100%; height: auto; }
@@ -459,13 +347,6 @@
             await loadPinnedEvents();
             await loadEvents();
             setupEventListeners();
-            
-            // ✅ إعادة تحليل Facebook SDK بعد تحميل المحتوى
-            setTimeout(() => {
-                if (window.FB) {
-                    window.FB.XFBML.parse();
-                }
-            }, 1000);
         }
 
         async function loadPinnedEvents() {
@@ -491,13 +372,6 @@
                     allEvents = await res.json();
                     allEvents = allEvents.filter(ev => !ev.isPinned);
                     renderEvents(allEvents);
-                    
-                    // ✅ إعادة تحليل Facebook SDK
-                    setTimeout(() => {
-                        if (window.FB) {
-                            window.FB.XFBML.parse();
-                        }
-                    }, 500);
                 }
             } catch (e) {
                 document.getElementById('events-grid').innerHTML = 
@@ -522,192 +396,193 @@
             grid.innerHTML = events.map(ev => createEventCard(ev, false)).join('');
         }
 
-        // ====================== ✅ الدالة الأساسية - معالجة الوسائط ======================
-      function createEventCard(ev, isPinned) {
-    const typeNames = {
-        'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
-        'image': '🖼️ صورة', 'video': '🎥 فيديو', 'audio': '🎙️ صوت'
-    };
+        function createEventCard(ev, isPinned) {
+            const typeNames = {
+                'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
+                'image': '🖼️ صورة', 'video': '🎥 فيديو', 'audio': '🎙️ صوت'
+            };
 
-    let mediaHtml = '';
-    let hasMedia = false; // ✅ تتبع وجود وسائط
-    let mediaUrl = ev.mediaUrl?.trim() || '';
-    let downloadUrl = ''; // ✅ رابط التنزيل
-
-    if (mediaUrl) {
-        // 🎥 YouTube
-        if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be')) {
-            const match = mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\?\/]+)/);
-            if (match) {
-                hasMedia = true;
-                mediaHtml = `<div class="video-container">
-                    <iframe src="https://www.youtube.com/embed/${match[1]}" 
-                        frameborder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        allowfullscreen loading="lazy"></iframe>
-                </div>`;
-                // YouTube لا يدعم التنزيل المباشر - نفتح في تبويب جديد
-                downloadUrl = `https://www.youtube.com/watch?v=${match[1]}`;
-            }
-        }
-        // 📘 Facebook
-        else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
-            hasMedia = true;
-            const isVideo = mediaUrl.includes('/videos/') || 
-                            mediaUrl.includes('watch?v=') || 
-                            mediaUrl.includes('fb.watch') ||
-                            mediaUrl.includes('/reel/');
+            let mediaHtml = '';
+            let hasMedia = false;
+            let downloadUrl = '';
             
-            if (isVideo) {
-                mediaHtml = `<div class="fb-sdk-container">
-                    <div class="fb-video" 
-                         data-href="${mediaUrl}" 
-                         data-width="560" 
-                         data-show-text="false"
-                         data-allowfullscreen="true">
-                    </div>
-                </div>`;
-                downloadUrl = mediaUrl;
-            } else {
-                mediaHtml = `<div class="fb-sdk-container">
-                    <div class="fb-post" 
-                         data-href="${mediaUrl}" 
-                         data-width="500" 
-                         data-show-text="false">
-                    </div>
-                </div>`;
-                downloadUrl = mediaUrl;
+            if (ev.mediaUrl) {
+                const mediaUrl = ev.mediaUrl.trim();
+
+                // 🎥 YouTube
+                if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be')) {
+                    const match = mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\?\/]+)/);
+                    if (match) {
+                        hasMedia = true;
+                        mediaHtml = `<div class="video-container">
+                            <iframe src="https://www.youtube.com/embed/${match[1]}" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen loading="lazy"></iframe>
+                        </div>`;
+                        downloadUrl = `https://www.youtube.com/watch?v=${match[1]}`;
+                    }
+                }
+                // 📘 Facebook - ✅ الحل الجذري باستخدام iframe مباشرة
+                else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
+                    hasMedia = true;
+                    const encodedUrl = encodeURIComponent(mediaUrl);
+                    const isVideo = mediaUrl.includes('/videos/') || 
+                                    mediaUrl.includes('watch?v=') || 
+                                    mediaUrl.includes('fb.watch') ||
+                                    mediaUrl.includes('/reel/') ||
+                                    mediaUrl.includes('/share/');
+                    
+                    if (isVideo) {
+                        mediaHtml = `<div class="fb-video-wrapper">
+                            <iframe 
+                                src="https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=560&show_border=false&t=0" 
+                                scrolling="yes"
+                                frameborder="0" 
+                                allowfullscreen="true" 
+                                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                                loading="lazy"
+                                style="border:none; overflow:visible;">
+                            </iframe>
+                        </div>`;
+                    } else {
+                        mediaHtml = `<div class="fb-video-wrapper">
+                            <iframe 
+                                src="https://www.facebook.com/plugins/post.php?href=${encodedUrl}&width=500&show_text=false&show_border=false" 
+                                scrolling="yes"
+                                frameborder="0" 
+                                allowfullscreen="true" 
+                                allow="clipboard-write; encrypted-media; web-share"
+                                loading="lazy"
+                                style="border:none; overflow:visible;">
+                            </iframe>
+                        </div>`;
+                    }
+                    downloadUrl = mediaUrl;
+                }
+                // 📷 Instagram
+                else if (mediaUrl.includes('instagram.com')) {
+                    const match = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([^\/\?]+)/);
+                    if (match) {
+                        hasMedia = true;
+                        mediaHtml = `<div class="ig-container">
+                            <iframe src="https://www.instagram.com/p/${match[1]}/embed" 
+                                frameborder="0" 
+                                scrolling="no" 
+                                allowfullscreen 
+                                loading="lazy"></iframe>
+                        </div>`;
+                        downloadUrl = mediaUrl;
+                    }
+                }
+                // 🎬 فيديو مباشر
+                else if (mediaUrl.match(/\.(mp4|webm|ogg|mov)($|\?)/i)) {
+                    hasMedia = true;
+                    mediaHtml = `<div class="video-container">
+                        <video controls preload="metadata">
+                            <source src="${mediaUrl}" type="video/mp4">
+                        </video>
+                    </div>`;
+                    downloadUrl = mediaUrl;
+                }
+                // 🎵 صوت
+                else if (ev.type === 'audio' || mediaUrl.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
+                    hasMedia = true;
+                    mediaHtml = `<div style="padding: 20px; background: linear-gradient(135deg, #f9f9f9, #e9e9e9);">
+                        <div style="text-align:center;margin-bottom:10px;">
+                            <i class="fas fa-music" style="font-size:2rem;color:var(--secondary);"></i>
+                        </div>
+                        <audio controls preload="metadata" style="width:100%;">
+                            <source src="${mediaUrl}">
+                        </audio>
+                    </div>`;
+                    downloadUrl = mediaUrl;
+                }
+                // 🖼️ صورة
+                else if (ev.type === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
+                    hasMedia = true;
+                    mediaHtml = `<img src="${mediaUrl}" class="event-media" 
+                        alt="${escapeHtml(ev.title)}" 
+                        loading="lazy" 
+                        onclick="openLightbox('${mediaUrl}')" 
+                        onerror="this.style.display='none'">`;
+                    downloadUrl = mediaUrl;
+                }
+                // 🔗 أي رابط آخر
+                else {
+                    hasMedia = true;
+                    mediaHtml = `<div class="video-container">
+                        <iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe>
+                    </div>`;
+                    downloadUrl = mediaUrl;
+                }
             }
-        }
-        // 📷 Instagram
-        else if (mediaUrl.includes('instagram.com')) {
-            const match = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([^\/\?]+)/);
-            if (match) {
-                hasMedia = true;
-                mediaHtml = `<div class="ig-container">
-                    <iframe src="https://www.instagram.com/p/${match[1]}/embed" 
-                        frameborder="0" 
-                        scrolling="no" 
-                        allowfullscreen 
-                        loading="lazy"></iframe>
-                </div>`;
-                downloadUrl = mediaUrl;
+
+            // ✅ زر التنزيل
+            let downloadBtn = '';
+            if (downloadUrl && downloadUrl.match(/\.(mp4|webm|ogg|mov|mp3|wav|ogg|m4a|jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
+                downloadBtn = `<a href="${downloadUrl}" download class="download-btn" target="_blank">
+                    <i class="fas fa-download"></i> تنزيل
+                </a>`;
+            } else if (downloadUrl && (downloadUrl.includes('facebook.com') || downloadUrl.includes('instagram.com') || downloadUrl.includes('youtube.com'))) {
+                downloadBtn = `<a href="${downloadUrl}" class="download-btn" target="_blank" rel="noopener noreferrer">
+                    <i class="fas fa-external-link-alt"></i> فتح في المنصة الأصلية
+                </a>`;
             }
+
+            // ✅ عرض المحتوى فقط إذا لم يكن هناك وسائط
+            const contentHtml = (!hasMedia && ev.content) 
+                ? `<p class="event-content">${escapeHtml(ev.content)}</p>`
+                : '';
+
+            const tagsHtml = (ev.tags?.length) 
+                ? `<div class="event-tags">${ev.tags.map(t => 
+                    `<span class="event-tag" onclick="filterByTag('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`
+                ).join('')}</div>`
+                : '';
+
+            const shareUrl = encodeURIComponent(window.location.href.split('?')[0] + '?event=' + ev._id);
+            const shareText = encodeURIComponent(`${ev.title}\n\n${ev.content.substring(0, 100)}...`);
+
+            return `
+                <article class="event-card ${isPinned ? 'pinned-card' : ''}" id="event-${ev._id}">
+                    ${isPinned ? '<div class="pinned-badge"><i class="fas fa-star"></i> مميز</div>' : ''}
+                    ${mediaHtml}
+                    <div class="event-body">
+                        <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
+                        <h3 class="event-title">${escapeHtml(ev.title)}</h3>
+                        ${contentHtml}
+                        ${tagsHtml}
+                        ${downloadBtn}
+                        
+                        <div class="event-actions">
+                            <button class="action-btn like-btn" id="like-${ev._id}" onclick="toggleLike('${ev._id}')">
+                                <i class="far fa-heart"></i>
+                                <span id="likes-count-${ev._id}">${ev.likes || 0}</span>
+                            </button>
+                            <button class="action-btn">
+                                <i class="far fa-eye"></i>
+                                <span>${formatNumber(ev.views || 0)}</span>
+                            </button>
+                        </div>
+                        
+                        <div class="share-buttons">
+                            <button class="share-btn share-whatsapp" onclick="shareWhatsApp('${shareText}', '${shareUrl}')"><i class="fab fa-whatsapp"></i></button>
+                            <button class="share-btn share-facebook" onclick="shareFacebook('${shareUrl}')"><i class="fab fa-facebook-f"></i></button>
+                            <button class="share-btn share-twitter" onclick="shareTwitter('${shareText}', '${shareUrl}')"><i class="fab fa-twitter"></i></button>
+                            <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}')"><i class="fab fa-telegram-plane"></i></button>
+                            <button class="share-btn share-copy" onclick="copyLink('${ev._id}')"><i class="fas fa-link"></i></button>
+                        </div>
+                        
+                        <div class="event-footer">
+                            <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
+                            <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
+                        </div>
+                    </div>
+                </article>
+            `;
         }
-        // 🎬 فيديو مباشر
-        else if (mediaUrl.match(/\.(mp4|webm|ogg|mov)($|\?)/i)) {
-            hasMedia = true;
-            mediaHtml = `<div class="video-container">
-                <video controls preload="metadata">
-                    <source src="${mediaUrl}" type="video/mp4">
-                </video>
-            </div>`;
-            downloadUrl = mediaUrl;
-        }
-        // 🎵 صوت
-        else if (ev.type === 'audio' || mediaUrl.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
-            hasMedia = true;
-            mediaHtml = `<div style="padding: 20px; background: linear-gradient(135deg, #f9f9f9, #e9e9e9);">
-                <div style="text-align:center;margin-bottom:10px;">
-                    <i class="fas fa-music" style="font-size:2rem;color:var(--secondary);"></i>
-                </div>
-                <audio controls preload="metadata" style="width:100%;">
-                    <source src="${mediaUrl}">
-                </audio>
-            </div>`;
-            downloadUrl = mediaUrl;
-        }
-        // 🖼️ صورة
-        else if (ev.type === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
-            hasMedia = true;
-            mediaHtml = `<img src="${mediaUrl}" class="event-media" 
-                alt="${escapeHtml(ev.title)}" 
-                loading="lazy" 
-                onclick="openLightbox('${mediaUrl}')" 
-                onerror="this.style.display='none'">`;
-            downloadUrl = mediaUrl;
-        }
-        // 🔗 أي رابط آخر
-        else {
-            hasMedia = true;
-            mediaHtml = `<div class="video-container">
-                <iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-            </div>`;
-            downloadUrl = mediaUrl;
-        }
-    }
 
-    // ✅ زر التنزيل (يظهر فقط إذا كان فيديو أو صورة مباشرة)
-    let downloadBtn = '';
-    if (downloadUrl && (
-        downloadUrl.match(/\.(mp4|webm|ogg|mov|mp3|wav|ogg|m4a|jpg|jpeg|png|gif|webp|svg)($|\?)/i) ||
-        downloadUrl.includes('cloudinary.com') ||
-        downloadUrl.includes('googleapis.com')
-    )) {
-        downloadBtn = `<a href="${downloadUrl}" download class="download-btn" target="_blank">
-            <i class="fas fa-download"></i> تنزيل
-        </a>`;
-    } else if (downloadUrl && (downloadUrl.includes('facebook.com') || downloadUrl.includes('instagram.com') || downloadUrl.includes('youtube.com'))) {
-        // للمنصات الاجتماعية - نفتح الرابط في تبويب جديد
-        downloadBtn = `<a href="${downloadUrl}" class="download-btn" target="_blank" rel="noopener noreferrer">
-            <i class="fas fa-external-link-alt"></i> فتح في المنصة الأصلية
-        </a>`;
-    }
-
-    // ✅ عرض المحتوى فقط إذا لم يكن هناك وسائط
-    const contentHtml = (!hasMedia && ev.content) 
-        ? `<p class="event-content">${escapeHtml(ev.content)}</p>`
-        : '';
-
-    const tagsHtml = (ev.tags?.length) 
-        ? `<div class="event-tags">${ev.tags.map(t => 
-            `<span class="event-tag" onclick="filterByTag('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`
-        ).join('')}</div>`
-        : '';
-
-    const shareUrl = encodeURIComponent(window.location.href.split('?')[0] + '?event=' + ev._id);
-    const shareText = encodeURIComponent(`${ev.title}\n\n${ev.content.substring(0, 100)}...`);
-
-    return `
-        <article class="event-card ${isPinned ? 'pinned-card' : ''}" id="event-${ev._id}">
-            ${isPinned ? '<div class="pinned-badge"><i class="fas fa-star"></i> مميز</div>' : ''}
-            ${mediaHtml}
-            <div class="event-body">
-                <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
-                <h3 class="event-title">${escapeHtml(ev.title)}</h3>
-                ${contentHtml}
-                ${tagsHtml}
-                ${downloadBtn}
-                
-                <div class="event-actions">
-                    <button class="action-btn like-btn" id="like-${ev._id}" onclick="toggleLike('${ev._id}')">
-                        <i class="far fa-heart"></i>
-                        <span id="likes-count-${ev._id}">${ev.likes || 0}</span>
-                    </button>
-                    <button class="action-btn">
-                        <i class="far fa-eye"></i>
-                        <span>${formatNumber(ev.views || 0)}</span>
-                    </button>
-                </div>
-                
-                <div class="share-buttons">
-                    <button class="share-btn share-whatsapp" onclick="shareWhatsApp('${shareText}', '${shareUrl}')"><i class="fab fa-whatsapp"></i></button>
-                    <button class="share-btn share-facebook" onclick="shareFacebook('${shareUrl}')"><i class="fab fa-facebook-f"></i></button>
-                    <button class="share-btn share-twitter" onclick="shareTwitter('${shareText}', '${shareUrl}')"><i class="fab fa-twitter"></i></button>
-                    <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}')"><i class="fab fa-telegram-plane"></i></button>
-                    <button class="share-btn share-copy" onclick="copyLink('${ev._id}')"><i class="fas fa-link"></i></button>
-                </div>
-                
-                <div class="event-footer">
-                    <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
-                    <span><i class="far fa-user"></i> ${escapeHtml(ev.author || 'الإدارة')}</span>
-                </div>
-            </div>
-        </article>
-    `;
-}
-
-        // ====================== التفاعلات ======================
         async function toggleLike(eventId) {
             const btn = document.getElementById(`like-${eventId}`);
             const icon = btn.querySelector('i');
