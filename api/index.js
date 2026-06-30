@@ -3967,7 +3967,52 @@ app.get('/api/check-auth-status', async (req, res) => {
         res.json({ isLoggedIn: false });
     }
 });
+// ====================== ✅ عداد المشاركات ======================
+app.post('/api/events/:id/share', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const event = await Event.findById(req.params.id);
+        if (!event) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        
+        event.shareCount = (event.shareCount || 0) + 1;
+        await event.save();
+        
+        res.json({ success: true, shareCount: event.shareCount });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث عداد المشاركات' });
+    }
+});
 
+// ====================== ✅ نظام التبليغ ======================
+app.post('/api/events/:id/report', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { reason, details } = req.body;
+        
+        const report = {
+            eventId: req.params.id,
+            userId: req.user.id || req.user.username,
+            reason,
+            details,
+            date: new Date()
+        };
+        
+        // حفظ البلاغ في قاعدة البيانات
+        const Report = mongoose.models.Report || mongoose.model('Report', new mongoose.Schema({
+            eventId: String,
+            userId: String,
+            reason: String,
+            details: String,
+            date: Date
+        }));
+        
+        await new Report(report).save();
+        
+        res.json({ success: true, message: 'تم إرسال البلاغ بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إرسال البلاغ' });
+    }
+});
 
 
 // ====================== Error Handling ======================
