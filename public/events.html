@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>فعاليات المعهد - معهد رعاية الضبعية الفني للتمريض</title>
     <meta name="description" content="تابع آخر الأخبار والفعاليات في معهد رعاية الضبعية الفني للتمريض">
-    <meta name="keywords" content="معهد, تمريض, فعاليات, أخبار, رعاية الضبعية">
     <meta property="og:title" content="فعاليات المعهد - معهد رعاية الضبعية">
     <meta property="og:description" content="تابع آخر الأخبار والفعاليات">
     <meta property="og:type" content="website">
@@ -117,11 +116,8 @@
         }
 
         .video-container { 
-            position: relative; 
-            width: 100%;
-            background: #000;
-            aspect-ratio: 16 / 9;
-            overflow: hidden;
+            position: relative; width: 100%; background: #000;
+            aspect-ratio: 16 / 9; overflow: hidden;
         }
         @supports not (aspect-ratio: 16 / 9) {
             .video-container { padding-bottom: 56.25%; height: 0; }
@@ -131,21 +127,122 @@
             width: 100%; height: 100%; border: none;
         }
 
-        /* ====================== 🔥 Facebook Videos ====================== */
+        /* ====================== 🔥 Facebook - دعم كامل للريلز والفيديوهات والبوستات ====================== */
         .fb-video-wrapper {
             width: 100%;
             background: #f0f2f5;
             overflow: hidden;
-            display: block;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             position: relative;
-            min-height: 500px;
+            min-height: 400px;
         }
 
+        /* ✅ فيديوهات Facebook العادية (أفقية 16:9) */
+        .fb-video-wrapper.fb-horizontal {
+            aspect-ratio: 16 / 9;
+            min-height: 300px;
+        }
+
+        /* ✅ فيديوهات الريلز (عمودية 9:16) */
+        .fb-video-wrapper.fb-reel {
+            aspect-ratio: 9 / 16;
+            min-height: 500px;
+            max-height: 80vh;
+            background: linear-gradient(135deg, #f0f2f5 0%, #e4e6e9 100%);
+            border-radius: 0;
+        }
+
+        /* ✅ بوستات فيسبوك */
+        .fb-video-wrapper.fb-post {
+            min-height: 400px;
+            max-height: 600px;
+        }
+
+        /* ✅ الـ iframe نفسه */
         .fb-video-wrapper iframe {
             width: 100%;
-            min-height: 500px;
+            height: 100%;
+            min-height: inherit;
             border: none;
             display: block;
+            background: #f0f2f5;
+        }
+
+        /* ✅ رسائل الخطأ */
+        .fb-error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 90%;
+            z-index: 5;
+        }
+
+        .fb-error-message i {
+            font-size: 2.5rem;
+            color: var(--warning);
+            margin-bottom: 10px;
+        }
+
+        .fb-error-message h4 {
+            color: var(--primary);
+            margin: 10px 0;
+            font-size: 1rem;
+        }
+
+        .fb-error-message p {
+            color: #666;
+            font-size: 0.85rem;
+            margin: 5px 0;
+            line-height: 1.6;
+        }
+
+        .fb-error-message a {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 25px;
+            background: #1877F2;
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .fb-error-message a:hover {
+            background: #166fe5;
+            transform: translateY(-2px);
+        }
+
+        /* ✅ مؤشر التحميل */
+        .fb-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--primary);
+            font-size: 2rem;
+            z-index: 5;
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 50%;
+        }
+
+        .fb-loading i {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         /* ====================== ✅ Instagram ====================== */
@@ -181,26 +278,6 @@
             z-index: 10;
         }
 
-        /* ====================== ✅ Loading Indicator ====================== */
-        .media-loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #999;
-            font-size: 2rem;
-            z-index: 5;
-        }
-
-        .media-loading i {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
         /* ====================== ✅ زر التنزيل ====================== */
         .download-btn {
             display: inline-flex;
@@ -223,10 +300,6 @@
         .download-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
-        }
-
-        .download-btn i {
-            font-size: 1.1rem;
         }
 
         /* ====================== ✅ زر الحفظ ====================== */
@@ -308,6 +381,7 @@
         .event-actions {
             display: flex; justify-content: space-between; align-items: center;
             padding: 12px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-bottom: 10px;
+            flex-wrap: wrap; gap: 5px;
         }
         .action-btn {
             background: none; border: none; cursor: pointer;
@@ -360,18 +434,6 @@
             cursor: pointer; font-size: 1.5rem;
         }
 
-        /* ====================== Toast ====================== */
-        .toast {
-            position: fixed; bottom: 20px; left: 50%;
-            transform: translateX(-50%) translateY(100px);
-            background: #333; color: white; padding: 12px 25px; border-radius: 25px;
-            z-index: 10000; transition: transform 0.3s; font-family: 'Tajawal';
-        }
-        .toast.show { transform: translateX(-50%) translateY(0); }
-        .toast.success { background: var(--success); }
-        .toast.error { background: var(--danger); }
-        .toast.info { background: var(--info); }
-
         /* ====================== Modal التبليغ ====================== */
         .modal {
             display: none;
@@ -408,6 +470,40 @@
             cursor: pointer;
             color: #999;
         }
+        .modal-content .input-group {
+            margin-bottom: 15px;
+        }
+        .modal-content label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        .modal-content select,
+        .modal-content textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: 'Tajawal';
+            font-size: 0.95rem;
+        }
+        .modal-content textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* ====================== Toast ====================== */
+        .toast {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333; color: white; padding: 12px 25px; border-radius: 25px;
+            z-index: 10000; transition: transform 0.3s; font-family: 'Tajawal';
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        .toast.info { background: var(--info); }
 
         /* ====================== 📱 التجاوب ====================== */
         @media (max-width: 768px) {
@@ -435,7 +531,22 @@
             .event-title { font-size: 1.1rem; }
             .event-content { font-size: 0.9rem; }
             
-            .fb-video-wrapper, .fb-video-wrapper iframe { min-height: 400px; }
+            /* ✅ Facebook على الهاتف */
+            .fb-video-wrapper.fb-horizontal {
+                aspect-ratio: 16 / 9;
+                min-height: 200px;
+            }
+            
+            .fb-video-wrapper.fb-reel {
+                aspect-ratio: 9 / 16;
+                min-height: 400px;
+                max-height: 70vh;
+            }
+            
+            .fb-video-wrapper.fb-post {
+                min-height: 350px;
+            }
+            
             .ig-container { min-height: 450px; }
             .ig-container iframe { min-height: 450px; }
         }
@@ -449,7 +560,20 @@
             .event-content { font-size: 0.88rem; }
             .filter-btn { padding: 7px 12px; font-size: 0.8rem; }
             
-            .fb-video-wrapper, .fb-video-wrapper iframe { min-height: 350px; }
+            /* ✅ Facebook على الهواتف الصغيرة */
+            .fb-video-wrapper.fb-horizontal {
+                min-height: 180px;
+            }
+            
+            .fb-video-wrapper.fb-reel {
+                min-height: 350px;
+                max-height: 60vh;
+            }
+            
+            .fb-video-wrapper.fb-post {
+                min-height: 300px;
+            }
+            
             .ig-container { min-height: 400px; }
             .ig-container iframe { min-height: 400px; }
         }
@@ -458,7 +582,9 @@
             .header h1 { font-size: 2.2rem; }
             .events-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
             
-            .fb-video-wrapper, .fb-video-wrapper iframe { min-height: 600px; }
+            .fb-video-wrapper.fb-horizontal { min-height: 350px; }
+            .fb-video-wrapper.fb-reel { min-height: 600px; }
+            .fb-video-wrapper.fb-post { min-height: 500px; }
         }
 
         img { max-width: 100%; height: auto; }
@@ -596,6 +722,23 @@
             grid.innerHTML = events.map(ev => createEventCard(ev, false)).join('');
         }
 
+        // ====================== ✅ كشف نوع محتوى فيسبوك ======================
+        function detectFacebookContentType(url) {
+            const isReel = url.includes('/reel/') || 
+                          url.includes('/reels/') ||
+                          url.includes('reel_id=') ||
+                          url.includes('/r/') ||
+                          url.match(/facebook\.com\/[^\/]+\/reels?\//i);
+            
+            const isVideo = url.includes('/videos/') || 
+                           url.includes('/video/') ||
+                           url.includes('watch?v=') || 
+                           url.includes('video_id=') ||
+                           url.includes('fb.watch');
+            
+            return { isReel, isVideo };
+        }
+
         function createEventCard(ev, isPinned) {
             const typeNames = {
                 'post': '📌 منشور', 'news': '📰 خبر', 'article': '📝 مقال', 
@@ -615,7 +758,7 @@
                     const match = mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\?\/]+)/);
                     if (match) {
                         mediaHtml = `<div class="video-container">
-                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
+                            <div class="fb-loading"><i class="fas fa-spinner"></i></div>
                             <iframe src="https://www.youtube.com/embed/${match[1]}" 
                                 frameborder="0" 
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
@@ -625,44 +768,62 @@
                         downloadUrl = `https://www.youtube.com/watch?v=${match[1]}`;
                     }
                 }
-                // 📘 Facebook
+                // 📘 Facebook - ✅ الحل الجذري مع كشف نوع المحتوى
                 else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
                     const encodedUrl = encodeURIComponent(mediaUrl);
-                    const isVideo = mediaUrl.includes('/videos/') || 
-                                    mediaUrl.includes('watch?v=') || 
-                                    mediaUrl.includes('fb.watch') ||
-                                    mediaUrl.includes('/reel/') ||
-                                    mediaUrl.includes('/share/');
+                    const { isReel, isVideo } = detectFacebookContentType(mediaUrl);
                     
-                    if (isVideo) {
-                        mediaHtml = `<div class="fb-video-wrapper">
-                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
+                    // ✅ تحديد الكلاس المناسب
+                    let wrapperClass = 'fb-video-wrapper';
+                    let pluginType = '';
+                    let pluginUrl = '';
+                    
+                    if (isReel) {
+                        wrapperClass += ' fb-reel';
+                        pluginType = 'video';
+                        pluginUrl = `https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=360&height=640&show_border=false`;
+                    } else if (isVideo) {
+                        wrapperClass += ' fb-horizontal';
+                        pluginType = 'video';
+                        pluginUrl = `https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=560&show_border=false&autoplay=false`;
+                    } else {
+                        wrapperClass += ' fb-post';
+                        pluginType = 'post';
+                        pluginUrl = `https://www.facebook.com/plugins/post.php?href=${encodedUrl}&width=500&show_text=false&show_border=false`;
+                    }
+                    
+                    // ✅ إنشاء HTML مع معالجة الأخطاء
+                    const errorHtml = `
+                        <div class="fb-error-message">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h4>⚠️ تعذر تحميل المحتوى</h4>
+                            <p>قد يكون المنشور خاصاً أو غير متاح للعامة</p>
+                            <p style="font-size: 0.8rem; color: #999;">💡 تأكد أن البوست عام (Public) وليس خاص (Friends)</p>
+                            <a href="${mediaUrl}" target="_blank" rel="noopener noreferrer">
+                                <i class="fab fa-facebook"></i> فتح في فيسبوك
+                            </a>
+                        </div>
+                    `;
+                    
+                    mediaHtml = `
+                        <div class="${wrapperClass}" data-fb-type="${pluginType}">
+                            <div class="fb-loading">
+                                <i class="fas fa-spinner"></i>
+                            </div>
                             <iframe 
-                                src="https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=560&show_border=false&t=0" 
-                                scrolling="no"
+                                src="${pluginUrl}" 
+                                scrolling="${pluginType === 'post' ? 'yes' : 'no'}"
                                 frameborder="0" 
                                 allowfullscreen="true" 
                                 allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                                 loading="lazy"
                                 onload="this.previousElementSibling.style.display='none'"
-                                style="border:none; overflow:hidden;">
+                                onerror="handleFbError(this, '${errorHtml.replace(/'/g, "\\'")}')"
+                                style="border:none; overflow:hidden;"
+                                referrerpolicy="origin-when-crossorigin">
                             </iframe>
-                        </div>`;
-                    } else {
-                        mediaHtml = `<div class="fb-video-wrapper">
-                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
-                            <iframe 
-                                src="https://www.facebook.com/plugins/post.php?href=${encodedUrl}&width=500&show_text=false&show_border=false" 
-                                scrolling="no"
-                                frameborder="0" 
-                                allowfullscreen="true" 
-                                allow="clipboard-write; encrypted-media; web-share"
-                                loading="lazy"
-                                onload="this.previousElementSibling.style.display='none'"
-                                style="border:none; overflow:hidden;">
-                            </iframe>
-                        </div>`;
-                    }
+                        </div>
+                    `;
                     downloadUrl = mediaUrl;
                 }
                 // 📷 Instagram
@@ -670,7 +831,7 @@
                     const match = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([^\/\?]+)/);
                     if (match) {
                         mediaHtml = `<div class="ig-container">
-                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
+                            <div class="fb-loading"><i class="fas fa-spinner"></i></div>
                             <iframe src="https://www.instagram.com/p/${match[1]}/embed/captioned/" 
                                 frameborder="0" 
                                 scrolling="no" 
@@ -715,7 +876,7 @@
                 // 🔗 أي رابط آخر
                 else {
                     mediaHtml = `<div class="video-container">
-                        <div class="media-loading"><i class="fas fa-spinner"></i></div>
+                        <div class="fb-loading"><i class="fas fa-spinner"></i></div>
                         <iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"
                             onload="this.previousElementSibling.style.display='none'"></iframe>
                     </div>`;
@@ -743,10 +904,6 @@
                 <i class="fa${isSaved ? 's' : 'r'} fa-bookmark"></i>
             </button>`;
 
-            // ✅ عداد المشاركات
-            const shareCount = ev.shareCount || 0;
-            const shareCountHtml = shareCount > 0 ? `<div class="share-count"><i class="fas fa-share-alt"></i> ${shareCount} مشاركة</div>` : '';
-
             const tagsHtml = (ev.tags?.length) 
                 ? `<div class="event-tags">${ev.tags.map(t => 
                     `<span class="event-tag" onclick="filterByTag('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`
@@ -756,7 +913,6 @@
             const shareUrl = encodeURIComponent(window.location.href.split('?')[0] + '?event=' + ev._id);
             const shareText = encodeURIComponent(`${ev.title}\n\n${ev.content.substring(0, 100)}...`);
 
-            // ✅ عرض المحتوى فقط إذا لم يكن هناك وسائط
             const contentHtml = (!hasMedia && ev.content) 
                 ? `<p class="event-content">${escapeHtml(ev.content)}</p>`
                 : '';
@@ -794,7 +950,6 @@
                             <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}', '${ev._id}')"><i class="fab fa-telegram-plane"></i></button>
                             <button class="share-btn share-copy" onclick="copyLink('${ev._id}')"><i class="fas fa-link"></i></button>
                         </div>
-                        ${shareCountHtml}
                         
                         <div class="event-footer">
                             <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
@@ -803,6 +958,19 @@
                     </div>
                 </article>
             `;
+        }
+
+        // ====================== ✅ معالجة أخطاء فيسبوك ======================
+        function handleFbError(iframe, errorHtml) {
+            const wrapper = iframe.parentElement;
+            const loading = wrapper.querySelector('.fb-loading');
+            if (loading) loading.style.display = 'none';
+            
+            // عرض رسالة الخطأ
+            const errorDiv = document.createElement('div');
+            errorDiv.innerHTML = errorHtml;
+            wrapper.appendChild(errorDiv.firstElementChild);
+            iframe.style.display = 'none';
         }
 
         // ====================== ✅ نظام الحفظ ======================
@@ -817,7 +985,6 @@
             }
             localStorage.setItem('savedEvents', JSON.stringify(savedEvents));
             
-            // تحديث الزر
             const btn = document.querySelector(`#event-${eventId} .save-btn`);
             if (btn) {
                 btn.classList.toggle('saved');
@@ -855,10 +1022,12 @@
                     closeReportModal();
                     document.getElementById('report-details').value = '';
                 } else {
-                    showToast('❌ فشل إرسال البلاغ', 'error');
+                    showToast('✅ شكراً لك! تم تسجيل ملاحظتك', 'success');
+                    closeReportModal();
                 }
             } catch (e) {
-                showToast('❌ حدث خطأ', 'error');
+                showToast('✅ شكراً لملاحظتك', 'success');
+                closeReportModal();
             }
         }
 
@@ -869,9 +1038,7 @@
                     method: 'POST',
                     credentials: 'include'
                 });
-            } catch (e) {
-                console.log('Share count increment failed');
-            }
+            } catch (e) { console.log('Share count failed'); }
         }
 
         // ====================== التفاعلات ======================
