@@ -11,6 +11,12 @@
     <script async defer crossorigin="anonymous" 
             src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"></script>
     
+    <!-- ✅ Meta tags لإصلاح أخطاء Permissions-Policy -->
+    <meta http-equiv="Permissions-Policy" content="accelerometer=*, autoplay=*, camera=*, gyroscope=*, magnetometer=*, microphone=*, usb=*">
+    
+    <!-- ✅ Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
+    
     <style>
         :root { 
             --primary: #1a4f6e; 
@@ -467,12 +473,10 @@
 
         // ====================== ✅ دالة التنزيل ======================
         function downloadMedia(url, filename) {
-            // فتح الرابط في تاب جديد (للروابط الخارجية)
             if (url.startsWith('http') && !url.startsWith(window.location.origin)) {
                 window.open(url, '_blank');
                 showToast('📥 جاري فتح الملف للتحميل...', 'info');
             } else {
-                // تنزيل مباشر للملفات المحلية
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = filename || 'download';
@@ -505,8 +509,10 @@
                             <div class="video-container">
                                 <iframe src="https://www.youtube.com/embed/${match[1]}" 
                                     frameborder="0" 
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                    allowfullscreen loading="lazy"></iframe>
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                    allowfullscreen 
+                                    referrerpolicy="no-referrer-when-downgrade"
+                                    loading="lazy"></iframe>
                             </div>
                             <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
                                 <i class="fas fa-download"></i> تحميل
@@ -559,7 +565,9 @@
                                 <iframe src="https://www.instagram.com/p/${match[1]}/embed" 
                                     frameborder="0" 
                                     scrolling="no" 
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                     allowfullscreen 
+                                    referrerpolicy="no-referrer-when-downgrade"
                                     loading="lazy"></iframe>
                             </div>
                             <button class="download-btn" onclick="downloadMedia('${mediaUrl}', '${escapeHtml(ev.title)}')">
