@@ -7,9 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     
-    <!-- ✅ Facebook SDK - الحل النهائي للفيديوهات -->
-    <script async defer crossorigin="anonymous" 
-            src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"></script>
+ 
     
     <style>
         :root { 
@@ -152,58 +150,81 @@
             height: 100%;
         }
 
-        /* ✅ Facebook SDK Container */
-        .fb-sdk-container {
-            width: 100%;
-            background: #f0f2f5;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            min-height: 500px;
-        }
-        
-        .fb-sdk-container .fb-video {
-            width: 100%;
-            max-width: 100%;
-        }
-
-
-      /* ====================== ✅ إخفاء النصوص من Facebook و Instagram (آمن) ====================== */
-
-/* إخفاء النصوص من Facebook Post */
-.fb-sdk-container .fb-post [data-testid="post_message"],
-.fb-sdk-container .fb-post [data-testid="story-subtitle"],
-.fb-sdk-container .fb-post [data-testid="post_message"] *,
-.fb-sdk-container .fb-post .userContent,
-.fb-sdk-container .fb-post .mtm,
-.fb-sdk-container .fb-post ._6ks,
-.fb-sdk-container .fb-post ._64-f {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    max-height: 0 !important;
-    overflow: hidden !important;
+        /* ====================== 🔥 الحل الجذري لفيديوهات Facebook (بدون SDK) ====================== */
+.fb-video-wrapper {
+    width: 100%;
+    background: #f0f2f5;
+    overflow: hidden;
+    display: block;
+    position: relative;
+    min-height: 500px;
 }
 
-/* إخفاء النصوص من Facebook Video */
-.fb-sdk-container .fb-video [data-testid="post_message"],
-.fb-sdk-container .fb-video .userContent {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    max-height: 0 !important;
+.fb-video-wrapper iframe {
+    width: 100%;
+    min-height: 500px;
+    border: none;
+    display: block;
+}
+
+/* ✅ على الهواتف */
+@media (max-width: 768px) {
+    .fb-video-wrapper, .fb-video-wrapper iframe {
+        min-height: 400px;
+    }
+}
+
+@media (max-width: 480px) {
+    .fb-video-wrapper, .fb-video-wrapper iframe {
+        min-height: 350px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .fb-video-wrapper, .fb-video-wrapper iframe {
+        min-height: 600px;
+    }
+}
+    /* ====================== ✅ إخفاء النصوص من Instagram ====================== */
+.ig-container {
+    width: 100%;
+    background: #fafafa;
+    overflow: hidden;
+    min-height: 500px;
+    position: relative;
+}
+
+.ig-container iframe {
+    width: 100%;
+    max-width: 400px;
+    min-height: 500px;
+    border: none;
+    background: white;
+    margin: 0 auto;
+    display: block;
 }
 
 /* إخفاء النصوص من Instagram embed */
-.ig-container .instagram-media .Aei63,
-.ig-container .instagram-media .QBXjF,
-.ig-container .instagram-media [class*="caption"],
-.ig-container .instagram-media [class*="description"],
-.ig-container .instagram-media .k_Eng {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    max-height: 0 !important;
+.ig-container::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, transparent, #fafafa);
+    pointer-events: none;
+    z-index: 10;
+}
+
+@media (max-width: 768px) {
+    .ig-container { min-height: 450px; }
+    .ig-container iframe { min-height: 450px; }
+}
+
+@media (max-width: 480px) {
+    .ig-container { min-height: 400px; }
+    .ig-container iframe { min-height: 400px; }
 }
 
 /* ✅ مهم: لا تستخدم .fb-sdk-container * - فهي خطيرة جداً! */
@@ -524,47 +545,57 @@
                         </div>`;
                     }
                 }
-                // 📘 Facebook - ✅ الحل النهائي باستخدام Facebook SDK
-                else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
-                    const isVideo = mediaUrl.includes('/videos/') || 
-                                    mediaUrl.includes('watch?v=') || 
-                                    mediaUrl.includes('fb.watch') ||
-                                    mediaUrl.includes('/reel/');
-                    
-                    if (isVideo) {
-                        // ✅ فيديو فيسبوك - استخدام Facebook SDK
-                        mediaHtml = `<div class="fb-sdk-container">
-                            <div class="fb-video" 
-                                 data-href="${mediaUrl}" 
-                                 data-width="560" 
-                              data-show-text="false"
-                                 data-allowfullscreen="true">
-                            </div>
-                        </div>`;
-                    } else {
-                // ✅ بوست فيسبوك - استخدام Facebook SDK
-mediaHtml = `<div class="fb-sdk-container">
-    <div class="fb-post" 
-         data-href="${mediaUrl}" 
-         data-width="500" 
-         data-show-text="false">  // ✅ تم التغيير
-    </div>
-</div>`;
-                    }
-                }
-                // 📷 Instagram
-                else if (mediaUrl.includes('instagram.com')) {
-                    const match = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([^\/\?]+)/);
-                    if (match) {
-                        mediaHtml = `<div class="ig-container">
-                            <iframe src="https://www.instagram.com/p/${match[1]}/embed" 
-                                frameborder="0" 
-                                scrolling="no" 
-                                allowfullscreen 
-                                loading="lazy"></iframe>
-                        </div>`;
-                    }
-                }
+// 📘 Facebook - ✅ الحل الجذري باستخدام iframe مباشرة (بدون SDK)
+else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
+    const encodedUrl = encodeURIComponent(mediaUrl);
+    const isVideo = mediaUrl.includes('/videos/') || 
+                    mediaUrl.includes('watch?v=') || 
+                    mediaUrl.includes('fb.watch') ||
+                    mediaUrl.includes('/reel/') ||
+                    mediaUrl.includes('/share/');
+    
+    if (isVideo) {
+        // ✅ فيديو فيسبوك - iframe مباشر بدون نص
+        mediaHtml = `<div class="fb-video-wrapper">
+            <iframe 
+                src="https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=560&show_border=false&t=0" 
+                scrolling="no"
+                frameborder="0" 
+                allowfullscreen="true" 
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                loading="lazy"
+                style="border:none; overflow:hidden;">
+            </iframe>
+        </div>`;
+    } else {
+        // ✅ بوست فيسبوك - iframe مباشر بدون نص
+        mediaHtml = `<div class="fb-video-wrapper">
+            <iframe 
+                src="https://www.facebook.com/plugins/post.php?href=${encodedUrl}&width=500&show_text=false&show_border=false" 
+                scrolling="no"
+                frameborder="0" 
+                allowfullscreen="true" 
+                allow="clipboard-write; encrypted-media; web-share"
+                loading="lazy"
+                style="border:none; overflow:hidden;">
+            </iframe>
+        </div>`;
+    }
+}
+              // 📷 Instagram - iframe مباشر مع إخفاء النص
+else if (mediaUrl.includes('instagram.com')) {
+    const match = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([^\/\?]+)/);
+    if (match) {
+        mediaHtml = `<div class="ig-container">
+            <iframe src="https://www.instagram.com/p/${match[1]}/embed/captioned/" 
+                frameborder="0" 
+                scrolling="no" 
+                allowfullscreen 
+                loading="lazy"
+                style="border:none; overflow:hidden;"></iframe>
+        </div>`;
+    }
+}
                 // 🎬 فيديو مباشر
                 else if (mediaUrl.match(/\.(mp4|webm|ogg|mov)($|\?)/i)) {
                     mediaHtml = `<div class="video-container">
