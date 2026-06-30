@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>فعاليات المعهد - معهد رعاية الضبعية</title>
+    <title>فعاليات المعهد - معهد رعاية الضبعية الفني للتمريض</title>
+    <meta name="description" content="تابع آخر الأخبار والفعاليات في معهد رعاية الضبعية الفني للتمريض">
+    <meta name="keywords" content="معهد, تمريض, فعاليات, أخبار, رعاية الضبعية">
+    <meta property="og:title" content="فعاليات المعهد - معهد رعاية الضبعية">
+    <meta property="og:description" content="تابع آخر الأخبار والفعاليات">
+    <meta property="og:type" content="website">
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     
@@ -16,6 +22,7 @@
             --success: #27ae60;
             --danger: #e74c3c;
             --info: #3498db;
+            --warning: #f39c12;
         }
 
         * { box-sizing: border-box; }
@@ -99,6 +106,7 @@
             overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
             transition: transform 0.3s, box-shadow 0.3s; 
             display: flex; flex-direction: column;
+            position: relative;
         }
         .event-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
 
@@ -123,7 +131,7 @@
             width: 100%; height: 100%; border: none;
         }
 
-        /* ====================== 🔥 Facebook Videos (iframe مباشر بدون نص) ====================== */
+        /* ====================== 🔥 Facebook Videos ====================== */
         .fb-video-wrapper {
             width: 100%;
             background: #f0f2f5;
@@ -140,7 +148,7 @@
             display: block;
         }
 
-        /* ====================== ✅ Instagram (iframe مع إخفاء النص) ====================== */
+        /* ====================== ✅ Instagram ====================== */
         .ig-container {
             width: 100%;
             background: #fafafa;
@@ -161,7 +169,6 @@
             display: block;
         }
 
-        /* تدرج لإخفاء النص في الأسفل */
         .ig-container::after {
             content: '';
             position: absolute;
@@ -172,6 +179,112 @@
             background: linear-gradient(to bottom, transparent, #fafafa);
             pointer-events: none;
             z-index: 10;
+        }
+
+        /* ====================== ✅ Loading Indicator ====================== */
+        .media-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #999;
+            font-size: 2rem;
+            z-index: 5;
+        }
+
+        .media-loading i {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* ====================== ✅ زر التنزيل ====================== */
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--success), #1e8449);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-family: 'Tajawal';
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: all 0.3s;
+            text-decoration: none;
+            margin: 10px 0;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+        }
+
+        .download-btn i {
+            font-size: 1.1rem;
+        }
+
+        /* ====================== ✅ زر الحفظ ====================== */
+        .save-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: #666;
+            transition: all 0.3s;
+            z-index: 20;
+        }
+
+        .save-btn:hover {
+            background: white;
+            transform: scale(1.1);
+        }
+
+        .save-btn.saved {
+            color: var(--danger);
+            background: white;
+        }
+
+        /* ====================== ✅ عداد المشاركات ====================== */
+        .share-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        /* ====================== ✅ نظام التبليغ ====================== */
+        .report-btn {
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 5px 10px;
+            transition: all 0.3s;
+        }
+
+        .report-btn:hover {
+            color: var(--danger);
         }
 
         /* ====================== محتوى البطاقة ====================== */
@@ -258,6 +371,43 @@
         .toast.success { background: var(--success); }
         .toast.error { background: var(--danger); }
         .toast.info { background: var(--info); }
+
+        /* ====================== Modal التبليغ ====================== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 10001;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: var(--card-radius);
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+        }
 
         /* ====================== 📱 التجاوب ====================== */
         @media (max-width: 768px) {
@@ -357,6 +507,32 @@
         <img src="" class="lightbox-img" id="lightbox-img" alt="">
     </div>
 
+    <!-- Modal التبليغ -->
+    <div class="modal" id="report-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🚨 الإبلاغ عن محتوى</h3>
+                <button class="modal-close" onclick="closeReportModal()">×</button>
+            </div>
+            <div class="input-group">
+                <label>سبب الإبلاغ</label>
+                <select id="report-reason">
+                    <option value="spam">محتوى مزعج</option>
+                    <option value="inappropriate">محتوى غير لائق</option>
+                    <option value="false">معلومات خاطئة</option>
+                    <option value="other">أخرى</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>تفاصيل إضافية (اختياري)</label>
+                <textarea id="report-details" rows="4" placeholder="اكتب تفاصيل إضافية..."></textarea>
+            </div>
+            <button class="download-btn" onclick="submitReport()" style="width: 100%;">
+                <i class="fas fa-paper-plane"></i> إرسال البلاغ
+            </button>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
@@ -364,6 +540,8 @@
         let allEvents = [];
         let pinnedEvents = [];
         let searchTimeout = null;
+        let savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
+        let currentReportEventId = null;
 
         async function init() {
             await loadPinnedEvents();
@@ -425,22 +603,29 @@
             };
 
             let mediaHtml = '';
+            let downloadUrl = '';
+            let hasMedia = false;
+
             if (ev.mediaUrl) {
                 const mediaUrl = ev.mediaUrl.trim();
+                hasMedia = true;
 
                 // 🎥 YouTube
                 if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be')) {
                     const match = mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\?\/]+)/);
                     if (match) {
                         mediaHtml = `<div class="video-container">
+                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
                             <iframe src="https://www.youtube.com/embed/${match[1]}" 
                                 frameborder="0" 
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                allowfullscreen loading="lazy"></iframe>
+                                allowfullscreen loading="lazy"
+                                onload="this.previousElementSibling.style.display='none'"></iframe>
                         </div>`;
+                        downloadUrl = `https://www.youtube.com/watch?v=${match[1]}`;
                     }
                 }
-                // 📘 Facebook - iframe مباشر بدون نص
+                // 📘 Facebook
                 else if (mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch')) {
                     const encodedUrl = encodeURIComponent(mediaUrl);
                     const isVideo = mediaUrl.includes('/videos/') || 
@@ -451,6 +636,7 @@
                     
                     if (isVideo) {
                         mediaHtml = `<div class="fb-video-wrapper">
+                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
                             <iframe 
                                 src="https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=560&show_border=false&t=0" 
                                 scrolling="no"
@@ -458,11 +644,13 @@
                                 allowfullscreen="true" 
                                 allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                                 loading="lazy"
+                                onload="this.previousElementSibling.style.display='none'"
                                 style="border:none; overflow:hidden;">
                             </iframe>
                         </div>`;
                     } else {
                         mediaHtml = `<div class="fb-video-wrapper">
+                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
                             <iframe 
                                 src="https://www.facebook.com/plugins/post.php?href=${encodedUrl}&width=500&show_text=false&show_border=false" 
                                 scrolling="no"
@@ -470,23 +658,28 @@
                                 allowfullscreen="true" 
                                 allow="clipboard-write; encrypted-media; web-share"
                                 loading="lazy"
+                                onload="this.previousElementSibling.style.display='none'"
                                 style="border:none; overflow:hidden;">
                             </iframe>
                         </div>`;
                     }
+                    downloadUrl = mediaUrl;
                 }
-                // 📷 Instagram - iframe مع إخفاء النص
+                // 📷 Instagram
                 else if (mediaUrl.includes('instagram.com')) {
                     const match = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([^\/\?]+)/);
                     if (match) {
                         mediaHtml = `<div class="ig-container">
+                            <div class="media-loading"><i class="fas fa-spinner"></i></div>
                             <iframe src="https://www.instagram.com/p/${match[1]}/embed/captioned/" 
                                 frameborder="0" 
                                 scrolling="no" 
                                 allowfullscreen 
                                 loading="lazy"
+                                onload="this.previousElementSibling.style.display='none'"
                                 style="border:none; overflow:hidden;"></iframe>
                         </div>`;
+                        downloadUrl = mediaUrl;
                     }
                 }
                 // 🎬 فيديو مباشر
@@ -496,6 +689,7 @@
                             <source src="${mediaUrl}" type="video/mp4">
                         </video>
                     </div>`;
+                    downloadUrl = mediaUrl;
                 }
                 // 🎵 صوت
                 else if (ev.type === 'audio' || mediaUrl.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
@@ -507,6 +701,7 @@
                             <source src="${mediaUrl}">
                         </audio>
                     </div>`;
+                    downloadUrl = mediaUrl;
                 }
                 // 🖼️ صورة
                 else if (ev.type === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
@@ -515,14 +710,42 @@
                         loading="lazy" 
                         onclick="openLightbox('${mediaUrl}')" 
                         onerror="this.style.display='none'">`;
+                    downloadUrl = mediaUrl;
                 }
                 // 🔗 أي رابط آخر
                 else {
                     mediaHtml = `<div class="video-container">
-                        <iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe>
+                        <div class="media-loading"><i class="fas fa-spinner"></i></div>
+                        <iframe src="${mediaUrl}" frameborder="0" allowfullscreen loading="lazy"
+                            onload="this.previousElementSibling.style.display='none'"></iframe>
                     </div>`;
+                    downloadUrl = mediaUrl;
                 }
             }
+
+            // ✅ زر التنزيل
+            let downloadBtn = '';
+            if (downloadUrl) {
+                if (downloadUrl.match(/\.(mp4|webm|ogg|mov|mp3|wav|ogg|m4a|jpg|jpeg|png|gif|webp|svg)($|\?)/i)) {
+                    downloadBtn = `<a href="${downloadUrl}" download class="download-btn" target="_blank">
+                        <i class="fas fa-download"></i> تنزيل
+                    </a>`;
+                } else {
+                    downloadBtn = `<a href="${downloadUrl}" class="download-btn" target="_blank" rel="noopener noreferrer">
+                        <i class="fas fa-external-link-alt"></i> فتح في المنصة الأصلية
+                    </a>`;
+                }
+            }
+
+            // ✅ زر الحفظ
+            const isSaved = savedEvents.includes(ev._id);
+            const saveBtn = `<button class="save-btn ${isSaved ? 'saved' : ''}" onclick="toggleSave('${ev._id}')" title="${isSaved ? 'إزالة من المحفوظات' : 'حفظ للمتابعة'}">
+                <i class="fa${isSaved ? 's' : 'r'} fa-bookmark"></i>
+            </button>`;
+
+            // ✅ عداد المشاركات
+            const shareCount = ev.shareCount || 0;
+            const shareCountHtml = shareCount > 0 ? `<div class="share-count"><i class="fas fa-share-alt"></i> ${shareCount} مشاركة</div>` : '';
 
             const tagsHtml = (ev.tags?.length) 
                 ? `<div class="event-tags">${ev.tags.map(t => 
@@ -533,15 +756,22 @@
             const shareUrl = encodeURIComponent(window.location.href.split('?')[0] + '?event=' + ev._id);
             const shareText = encodeURIComponent(`${ev.title}\n\n${ev.content.substring(0, 100)}...`);
 
+            // ✅ عرض المحتوى فقط إذا لم يكن هناك وسائط
+            const contentHtml = (!hasMedia && ev.content) 
+                ? `<p class="event-content">${escapeHtml(ev.content)}</p>`
+                : '';
+
             return `
                 <article class="event-card ${isPinned ? 'pinned-card' : ''}" id="event-${ev._id}">
+                    ${saveBtn}
                     ${isPinned ? '<div class="pinned-badge"><i class="fas fa-star"></i> مميز</div>' : ''}
                     ${mediaHtml}
                     <div class="event-body">
                         <span class="event-type">${typeNames[ev.type] || '📌 منشور'}</span>
                         <h3 class="event-title">${escapeHtml(ev.title)}</h3>
-                        <p class="event-content">${escapeHtml(ev.content)}</p>
+                        ${contentHtml}
                         ${tagsHtml}
+                        ${downloadBtn}
                         
                         <div class="event-actions">
                             <button class="action-btn like-btn" id="like-${ev._id}" onclick="toggleLike('${ev._id}')">
@@ -552,15 +782,19 @@
                                 <i class="far fa-eye"></i>
                                 <span>${formatNumber(ev.views || 0)}</span>
                             </button>
+                            <button class="report-btn" onclick="openReportModal('${ev._id}')">
+                                <i class="fas fa-flag"></i> إبلاغ
+                            </button>
                         </div>
                         
                         <div class="share-buttons">
-                            <button class="share-btn share-whatsapp" onclick="shareWhatsApp('${shareText}', '${shareUrl}')"><i class="fab fa-whatsapp"></i></button>
-                            <button class="share-btn share-facebook" onclick="shareFacebook('${shareUrl}')"><i class="fab fa-facebook-f"></i></button>
-                            <button class="share-btn share-twitter" onclick="shareTwitter('${shareText}', '${shareUrl}')"><i class="fab fa-twitter"></i></button>
-                            <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}')"><i class="fab fa-telegram-plane"></i></button>
+                            <button class="share-btn share-whatsapp" onclick="shareWhatsApp('${shareText}', '${shareUrl}', '${ev._id}')"><i class="fab fa-whatsapp"></i></button>
+                            <button class="share-btn share-facebook" onclick="shareFacebook('${shareUrl}', '${ev._id}')"><i class="fab fa-facebook-f"></i></button>
+                            <button class="share-btn share-twitter" onclick="shareTwitter('${shareText}', '${shareUrl}', '${ev._id}')"><i class="fab fa-twitter"></i></button>
+                            <button class="share-btn share-telegram" onclick="shareTelegram('${shareText}', '${shareUrl}', '${ev._id}')"><i class="fab fa-telegram-plane"></i></button>
                             <button class="share-btn share-copy" onclick="copyLink('${ev._id}')"><i class="fas fa-link"></i></button>
                         </div>
+                        ${shareCountHtml}
                         
                         <div class="event-footer">
                             <span><i class="far fa-calendar-alt"></i> ${new Date(ev.date).toLocaleDateString('ar-EG')}</span>
@@ -571,6 +805,76 @@
             `;
         }
 
+        // ====================== ✅ نظام الحفظ ======================
+        function toggleSave(eventId) {
+            const index = savedEvents.indexOf(eventId);
+            if (index > -1) {
+                savedEvents.splice(index, 1);
+                showToast('❌ تم إزالة من المحفوظات', 'info');
+            } else {
+                savedEvents.push(eventId);
+                showToast('✅ تم الحفظ للمتابعة', 'success');
+            }
+            localStorage.setItem('savedEvents', JSON.stringify(savedEvents));
+            
+            // تحديث الزر
+            const btn = document.querySelector(`#event-${eventId} .save-btn`);
+            if (btn) {
+                btn.classList.toggle('saved');
+                const icon = btn.querySelector('i');
+                icon.classList.toggle('far');
+                icon.classList.toggle('fas');
+            }
+        }
+
+        // ====================== ✅ نظام التبليغ ======================
+        function openReportModal(eventId) {
+            currentReportEventId = eventId;
+            document.getElementById('report-modal').classList.add('active');
+        }
+
+        function closeReportModal() {
+            document.getElementById('report-modal').classList.remove('active');
+            currentReportEventId = null;
+        }
+
+        async function submitReport() {
+            const reason = document.getElementById('report-reason').value;
+            const details = document.getElementById('report-details').value;
+
+            try {
+                const res = await fetch(`${BASE_URL}/api/events/${currentReportEventId}/report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ reason, details })
+                });
+
+                if (res.ok) {
+                    showToast('✅ تم إرسال البلاغ بنجاح', 'success');
+                    closeReportModal();
+                    document.getElementById('report-details').value = '';
+                } else {
+                    showToast('❌ فشل إرسال البلاغ', 'error');
+                }
+            } catch (e) {
+                showToast('❌ حدث خطأ', 'error');
+            }
+        }
+
+        // ====================== ✅ عداد المشاركات ======================
+        async function incrementShareCount(eventId) {
+            try {
+                await fetch(`${BASE_URL}/api/events/${eventId}/share`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } catch (e) {
+                console.log('Share count increment failed');
+            }
+        }
+
+        // ====================== التفاعلات ======================
         async function toggleLike(eventId) {
             const btn = document.getElementById(`like-${eventId}`);
             const icon = btn.querySelector('i');
@@ -610,13 +914,32 @@
             try { await fetch(`${BASE_URL}/api/events/${eventId}/view`, { method: 'POST', credentials: 'include' }); } catch (e) {}
         }
 
-        function shareWhatsApp(t, u) { window.open(`https://wa.me/?text=${t}%20${u}`, '_blank'); }
-        function shareFacebook(u) { window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, '_blank'); }
-        function shareTwitter(t, u) { window.open(`https://twitter.com/intent/tweet?text=${t}&url=${u}`, '_blank'); }
-        function shareTelegram(t, u) { window.open(`https://t.me/share/url?url=${u}&text=${t}`, '_blank'); }
-        function copyLink(id) {
-            const url = window.location.href.split('?')[0] + '?event=' + id;
-            navigator.clipboard?.writeText(url).then(() => showToast('✅ تم النسخ', 'success'));
+        function shareWhatsApp(t, u, eventId) { 
+            window.open(`https://wa.me/?text=${t}%20${u}`, '_blank');
+            incrementShareCount(eventId);
+            showToast('📱 جاري فتح واتساب...', 'success');
+        }
+        function shareFacebook(u, eventId) { 
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, '_blank');
+            incrementShareCount(eventId);
+            showToast('📘 جاري فتح فيسبوك...', 'success');
+        }
+        function shareTwitter(t, u, eventId) { 
+            window.open(`https://twitter.com/intent/tweet?text=${t}&url=${u}`, '_blank');
+            incrementShareCount(eventId);
+            showToast('🐦 جاري فتح تويتر...', 'success');
+        }
+        function shareTelegram(t, u, eventId) { 
+            window.open(`https://t.me/share/url?url=${u}&text=${t}`, '_blank');
+            incrementShareCount(eventId);
+            showToast('✈️ جاري فتح تليجرام...', 'success');
+        }
+        function copyLink(eventId) {
+            const url = window.location.href.split('?')[0] + '?event=' + eventId;
+            navigator.clipboard?.writeText(url).then(() => {
+                incrementShareCount(eventId);
+                showToast('✅ تم النسخ', 'success');
+            });
         }
 
         function openLightbox(src) {
@@ -658,7 +981,10 @@
             });
 
             document.addEventListener('keydown', e => {
-                if (e.key === 'Escape') document.getElementById('lightbox').classList.remove('active');
+                if (e.key === 'Escape') {
+                    document.getElementById('lightbox').classList.remove('active');
+                    closeReportModal();
+                }
             });
 
             document.addEventListener('click', e => {
