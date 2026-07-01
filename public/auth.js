@@ -241,6 +241,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.csrfToken) saveCsrfToken(data.csrfToken);
                 if (data.user) saveUserData(data.user);
                 
+                // ✅ التحقق من وجود بصمة مسجلة
+                const biometricCheck = await fetch(`${BASE_URL}/api/biometric/check/${encodeURIComponent(username)}`)
+                    .then(r => r.json())
+                    .catch(() => ({ hasBiometric: false }));
+                
+                // ✅ إذا لم يكن لديه بصمة مسجلة والجهاز يدعم البصمة
+                if (!biometricCheck.hasBiometric && window.biometricAuth?.isSupported) {
+                    // ✅ التحقق من عدم إظهار الـ popup سابقاً
+                    const skipBiometric = localStorage.getItem('skipBiometric_' + username);
+                    
+                    if (!skipBiometric) {
+                        // عرض popup لتفعيل البصمة
+                        showBiometricEnrollmentPopup(data.user);
+                        
+                        // إعادة الزر لحالته الأصلية
+                        if (submitBtn) {
+                            submitBtn.innerHTML = originalText;
+                            submitBtn.disabled = false;
+                        }
+                        return; // لا تتنقل الآن
+                    }
+                }
+                
+                // ✅ لو عنده بصمة مسجلة أو تجاهل الـ popup، انتقل مباشرة
                 showToastMessage(`🎉 مرحباً ${data.user?.fullName || username}!`, 'success');
                 
                 setTimeout(() => {
@@ -264,6 +288,244 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// ====================== ✅ Popup لتفعيل البصمة بعد تسجيل الدخول ======================
+function showBiometricEnrollmentPopup(userData) {
+    // إزالة أي popup سابق
+    const existingPopup = document.getElementById('biometricEnrollmentPopup');
+    if (existingPopup) existingPopup.remove();
+    
+    const popup = document.createElement('div');
+    popup.id = 'biometricEnrollmentPopup';
+    popup.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);animation:fadeIn 0.3s ease;';
+    
+    popup.innerHTML = `
+        <div style="background:white;border-radius:24px;padding:30px;max-width:440px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);animation:popupSlide 0.4s ease;">
+            <div style="font-size:60px;margin-bottom:15px;">🔐</div>
+            <h3 style="color:#1a4f6e;margin-bottom:10px;font-size:1.3rem;font-family:'Tajawal',sans-serif;">تفعيل الدخول بالبصمة؟</h3>
+            <p style="color:#64748b;font-size:0.95rem;margin-bottom:25px;line-height:1.6;font-family:'Tajawal',sans-serif;">
+                مرحباً <strong>${userData.fullName || userData.username}</strong>! 👋<br>
+                يمكنك تسجيل بصمتك لتسجيل الدخول بسرعة في المرات القادمة
+            </p>
+            <div style="background:#f0f9ff;border-radius:12px;padding:15px;margin-bottom:20px;border:1px solid #bae6fd;">
+                <p style="color:#0369a1;font-size:0.85rem;margin:0;font-family:'Tajawal',sans-serif;">
+                    💡 <strong>ميزة:</strong> الدخول ببصمة الإصبع أو Face ID في ثانيتين فقط!
+                </p>
+            </div>
+            <div style="display:flex;gap:10px;flex-direction:column;">
+                <button id="enrollBiometricBtn" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;padding:14px 24px;border-radius:50px;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:1rem;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.3s;">
+                    <i class="fas fa-fingerprint"></i> نعم، فعّل البصمة
+                </button>
+                <button id="skipBiometricBtn" style="background:#f0f0f0;color:#666;border:none;padding:12px 24px;border-radius:50px;font-weight:600;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.9rem;transition:all 0.3s;">
+                    لاحقاً
+                </button>
+                <button id="neverShowBiometricBtn" style="background:transparent;color:#999;border:none;padding:8px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.8rem;">
+                    لا تظهر لي مرة أخرى
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(popup);
+    
+    // حفظ بيانات المستخدم للاستخدام لاحقاً
+    window.pendingUserData = userData;
+    
+    // إضافة الأحداث
+    document.getElementById('enrollBiometricBtn').addEventListener('click', enrollBiometricFromPopup);
+    document.getElementById('skipBiometricBtn').addEventListener('click', () => {
+        closeBiometricPopup(false);
+    });
+    document.getElementById('neverShowBiometricBtn').addEventListener('click', () => {
+        localStorage.setItem('skipBiometric_' + userData.username, 'true');
+        closeBiometricPopup(false);
+    });
+    
+    // إغلاق عند النقر خارج الـ popup
+    popup.addEventListener('click', (e) => {
+        if (e.target === popup) {
+            closeBiometricPopup(false);
+        }
+    });
+}
+
+// ====================== ✅ تفعيل البصمة من الـ Popup ======================
+async function enrollBiometricFromPopup() {
+    const userData = window.pendingUserData;
+    if (!userData) return;
+    
+    const popup = document.getElementById('biometricEnrollmentPopup');
+    const button = document.getElementById('enrollBiometricBtn');
+    
+    if (!button) return;
+    
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ضع إصبعك على المستشعر...';
+    button.disabled = true;
+    button.style.opacity = '0.7';
+    
+    try {
+        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+        
+        // 1. بدء تسجيل البصمة
+        const startRes = await fetch(`${BASE_URL}/api/biometric/register-start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
+        });
+        
+        const startData = await startRes.json();
+        
+        if (!startData.success) {
+            throw new Error(startData.error || 'فشل بدء التسجيل');
+        }
+        
+        // 2. إعداد الخيارات
+        const options = {
+            ...startData.options,
+            challenge: window.biometricAuth.base64ToBuffer(startData.options.challenge),
+            user: {
+                ...startData.options.user,
+                id: typeof startData.options.user.id === 'string'
+                    ? window.biometricAuth.base64ToBuffer(startData.options.user.id)
+                    : new Uint8Array(startData.options.user.id)
+            }
+        };
+        
+        // 3. طلب البصمة من المستخدم
+        const credential = await navigator.credentials.create({ publicKey: options });
+        
+        if (!credential) {
+            throw new Error('تم إلغاء العملية');
+        }
+        
+        // 4. إرسال البصمة للسيرفر
+        const finishRes = await fetch(`${BASE_URL}/api/biometric/register-finish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                credential: {
+                    id: credential.id,
+                    rawId: window.biometricAuth.bufferToBase64(credential.rawId),
+                    response: {
+                        attestationObject: window.biometricAuth.bufferToBase64(credential.response.attestationObject),
+                        clientDataJSON: window.biometricAuth.bufferToBase64(credential.response.clientDataJSON)
+                    },
+                    type: credential.type
+                }
+            })
+        });
+        
+        const finishData = await finishRes.json();
+        
+        if (finishData.success) {
+            button.innerHTML = '<i class="fas fa-check-circle"></i> تم التفعيل بنجاح!';
+            button.style.background = 'linear-gradient(135deg, #2d6a4f, #1b4d3b)';
+            button.style.opacity = '1';
+            
+            showToastMessage('🎉 تم تفعيل البصمة بنجاح!', 'success');
+            
+            // الانتقال للصفحة الرئيسية بعد 1.5 ثانية
+            setTimeout(() => {
+                popup.remove();
+                window.location.href = userData.type === 'admin' ? 'admin.html' : 'Home.html';
+            }, 1500);
+        } else {
+            throw new Error(finishData.error || 'فشل تسجيل البصمة');
+        }
+        
+    } catch (error) {
+        console.error('❌ خطأ في تسجيل البصمة:', error);
+        
+        // عرض رسالة الخطأ
+        button.innerHTML = '<i class="fas fa-times"></i> فشل - حاول مرة أخرى';
+        button.style.background = '#dc3545';
+        button.style.opacity = '1';
+        
+        showToastMessage('❌ ' + (error.message || 'فشل تسجيل البصمة'), 'error');
+        
+        // إعادة الزر لحالته الأصلية بعد 2 ثانية
+        setTimeout(() => {
+            button.innerHTML = '<i class="fas fa-fingerprint"></i> نعم، فعّل البصمة';
+            button.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+            button.disabled = false;
+        }, 2000);
+    }
+}
+
+// ====================== ✅ إغلاق الـ Popup ======================
+function closeBiometricPopup(shouldNavigate = true) {
+    const popup = document.getElementById('biometricEnrollmentPopup');
+    if (popup) {
+        popup.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => {
+            popup.remove();
+            
+            // الانتقال للصفحة الرئيسية
+            if (shouldNavigate) {
+                const userData = window.pendingUserData;
+                if (userData) {
+                    window.location.href = userData.type === 'admin' ? 'admin.html' : 'Home.html';
+                }
+            }
+        }, 300);
+    }
+}
+
+// ====================== ✅ CSS للـ Popup ======================
+(function addBiometricPopupStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        @keyframes popupSlide {
+            from { 
+                opacity: 0; 
+                transform: translateY(-30px) scale(0.9); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0) scale(1); 
+            }
+        }
+        
+        #biometricEnrollmentPopup button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        #biometricEnrollmentPopup button:disabled {
+            cursor: not-allowed;
+        }
+        
+        #neverShowBiometricBtn:hover {
+            color: #666;
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 480px) {
+            #biometricEnrollmentPopup > div {
+                padding: 20px !important;
+                max-width: 95% !important;
+            }
+            
+            #biometricEnrollmentPopup h3 {
+                font-size: 1.1rem !important;
+            }
+            
+            #biometricEnrollmentPopup p {
+                font-size: 0.85rem !important;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+})();
 
 // دالة عرض الإشعارات المتوافقة مع الحماية
 function showToastMessage(message, type = 'success') {
