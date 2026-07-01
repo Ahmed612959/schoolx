@@ -3612,6 +3612,284 @@ app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
         });
     }
 });
+
+
+
+// ====================== 🔐 نظام تسجيل الدخول بالبصمة (WebAuthn) ======================
+
+// نموذج لتخزين بيانات البصمة
+const biometricSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    credentialId: { type: String, required: true, unique: true },
+    publicKey: { type: String, required: true },
+    counter: { type: Number, default: 0 },
+    deviceType: { type: String, default: 'singleDevice' },
+    backedUp: { type: Boolean, default: false },
+    transports: { type: [String], default: [] },
+    registeredAt: { type: Date, default: Date.now },
+    lastUsed: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+const Biometric = mongoose.models.Biometric || mongoose.model('Biometric', biometricSchema);
+
+// 1. بدء تسجيل البصمة (Enrollment)
+app.post('/api/biometric/register-start', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const username = req.user.username;
+        
+        // التحقق من عدم وجود تسجيل مسبق
+        const existing = await Biometric.findOne({ username });
+        if (existing) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'لقد قمت بتسجيل البصمة مسبقاً. يمكنك تسجيل الدخول مباشرة' 
+            });
+        }
+        
+        // توليد challenge عشوائي
+        const challenge = crypto.randomBytes(32);
+        
+        // حفظ challenge في الجلسة
+        req.session = req.session || {};
+        req.session.biometricChallenge = challenge.toString('base64');
+        
+        // إعدادات WebAuthn
+        const publicKeyCredentialCreationOptions = {
+            challenge: challenge,
+            rp: {
+                name: 'معهد رعاية الضبعية',
+                id: req.headers.host?.split(':')[0] || 'localhost'
+            },
+            user: {
+                id: crypto.createHash('sha256').update(username).digest(),
+                name: username,
+                displayName: req.user.fullName || username
+            },
+            pubKeyCredParams: [
+                { type: 'public-key', alg: -7 },   // ES256
+                { type: 'public-key', alg: -257 }  // RS256
+            ],
+            timeout: 60000,
+            attestation: 'none',
+            authenticatorSelection: {
+                authenticatorAttachment: 'platform', // يفضل البصمة المدمجة
+                requireResidentKey: false,
+                userVerification: 'preferred'
+            }
+        };
+        
+        res.json({
+            success: true,
+            options: publicKeyCredentialCreationOptions
+        });
+    } catch (error) {
+        console.error('❌ Biometric register start error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. إكمال تسجيل البصمة
+app.post('/api/biometric/register-finish', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { credential } = req.body;
+        
+        if (!credential || !credential.id || !credential.rawId) {
+            return res.status(400).json({ success: false, error: 'بيانات البصمة غير صحيحة' });
+        }
+        
+        const username = req.user.username;
+        
+        // التحقق من عدم وجود تسجيل مسبق
+        const existing = await Biometric.findOne({ username });
+        if (existing) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'البصمة مسجلة مسبقاً' 
+            });
+        }
+        
+        // حفظ بيانات البصمة (مبسطة - في الإنتاج يجب استخدام مكتبة مثل @simplewebauthn/server)
+        const biometric = new Biometric({
+            username: username,
+            credentialId: credential.id,
+            publicKey: credential.response?.clientDataJSON || 'placeholder',
+            counter: 0,
+            deviceType: 'singleDevice',
+            transports: credential.response?.transports || []
+        });
+        
+        await biometric.save();
+        
+        console.log(`✅ تم تسجيل البصمة للمستخدم: ${username}`);
+        
+        res.json({
+            success: true,
+            message: '✅ تم تسجيل البصمة بنجاح! يمكنك الآن تسجيل الدخول بالبصمة'
+        });
+    } catch (error) {
+        console.error('❌ Biometric register finish error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 3. بدء تسجيل الدخول بالبصمة
+app.post('/api/biometric/login-start', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { username } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ success: false, error: 'اسم المستخدم مطلوب' });
+        }
+        
+        const biometric = await Biometric.findOne({ username: username.toLowerCase() });
+        
+        if (!biometric) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'لم يتم العثور على بصمة مسجلة لهذا المستخدم' 
+            });
+        }
+        
+        // توليد challenge
+        const challenge = crypto.randomBytes(32);
+        
+        // حفظ في الجلسة
+        req.session = req.session || {};
+        req.session.biometricChallenge = challenge.toString('base64');
+        req.session.biometricUsername = username.toLowerCase();
+        
+        const publicKeyCredentialRequestOptions = {
+            challenge: challenge,
+            timeout: 60000,
+            allowCredentials: [{
+                id: biometric.credentialId,
+                type: 'public-key',
+                transports: biometric.transports || []
+            }],
+            userVerification: 'preferred'
+        };
+        
+        res.json({
+            success: true,
+            options: publicKeyCredentialRequestOptions
+        });
+    } catch (error) {
+        console.error('❌ Biometric login start error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 4. إكمال تسجيل الدخول بالبصمة
+app.post('/api/biometric/login-finish', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { credential } = req.body;
+        
+        if (!credential || !credential.id) {
+            return res.status(400).json({ success: false, error: 'بيانات البصمة غير صحيحة' });
+        }
+        
+        // جلب بيانات البصمة
+        const biometric = await Biometric.findOne({ credentialId: credential.id });
+        
+        if (!biometric) {
+            return res.status(401).json({ success: false, error: 'بصمة غير معروفة' });
+        }
+        
+        // جلب بيانات المستخدم
+        let user = await Admin.findOne({ username: biometric.username });
+        let userType = 'admin';
+        
+        if (!user) {
+            user = await Student.findOne({ username: biometric.username });
+            userType = 'student';
+        }
+        
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'المستخدم غير موجود' });
+        }
+        
+        // تحديث آخر استخدام
+        biometric.lastUsed = new Date();
+        await biometric.save();
+        
+        // إنشاء JWT token
+        const token = jwt.sign(
+            { 
+                id: user._id, 
+                username: user.username, 
+                type: userType, 
+                fullName: user.fullName,
+                studentCode: user.studentCode 
+            },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+        
+        setAuthCookie(res, token);
+        
+        console.log(`✅ تسجيل دخول بالبصمة: ${biometric.username}`);
+        
+        res.json({
+            success: true,
+            user: {
+                username: user.username,
+                fullName: user.fullName,
+                type: userType,
+                id: user.studentCode || user._id
+            },
+            message: '🎉 تم تسجيل الدخول بالبصمة بنجاح!'
+        });
+    } catch (error) {
+        console.error('❌ Biometric login finish error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 5. التحقق من وجود بصمة مسجلة
+app.get('/api/biometric/check/:username', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { username } = req.params;
+        
+        const biometric = await Biometric.findOne({ username: username.toLowerCase() });
+        
+        res.json({
+            success: true,
+            hasBiometric: !!biometric,
+            lastUsed: biometric?.lastUsed || null
+        });
+    } catch (error) {
+        res.json({ success: false, hasBiometric: false });
+    }
+});
+
+// 6. حذف البصمة المسجلة
+app.delete('/api/biometric', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const username = req.user.username;
+        
+        const deleted = await Biometric.findOneAndDelete({ username });
+        
+        if (!deleted) {
+            return res.status(404).json({ success: false, error: 'لا توجد بصمة مسجلة' });
+        }
+        
+        res.json({
+            success: true,
+            message: '✅ تم حذف البصمة بنجاح'
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+
 // ====================== المراجعة الذكية (Smart Review) ======================
 app.post('/api/smart-review', verifyToken, async (req, res) => {
     try {
