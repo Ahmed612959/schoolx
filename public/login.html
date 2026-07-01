@@ -149,6 +149,39 @@
                     </div>
                 </div>
 
+
+<!-- ====================== 🔐 زر تسجيل الدخول بالبصمة ====================== -->
+<div class="biometric-section">
+    <button type="button" class="biometric-btn" id="biometricLoginBtn" onclick="startBiometricLogin()">
+        <i class="fas fa-fingerprint"></i>
+        <span>تسجيل الدخول بالبصمة</span>
+    </button>
+    <button type="button" class="biometric-register-btn" id="biometricRegisterBtn" onclick="registerBiometric()" style="display: none;">
+        <i class="fas fa-plus-circle"></i>
+        <span>تسجيل بصمتي</span>
+    </button>
+    <div class="biometric-status" id="biometricStatus"></div>
+</div>
+
+<!-- ====================== 🎓 Tutorial التفاعلي ====================== -->
+<div class="tutorial-overlay" id="tutorialOverlay" style="display: none;">
+    <div class="tutorial-step" id="tutorialStep">
+        <div class="tutorial-header">
+            <span class="tutorial-progress" id="tutorialProgress">1/4</span>
+            <button class="tutorial-close" onclick="closeTutorial()">×</button>
+        </div>
+        <div class="tutorial-icon" id="tutorialIcon">👋</div>
+        <h3 class="tutorial-title" id="tutorialTitle">مرحباً بك!</h3>
+        <p class="tutorial-text" id="tutorialText">سأساعدك في التعرف على صفحة تسجيل الدخول</p>
+        <div class="tutorial-actions">
+            <button class="tutorial-btn secondary" onclick="skipTutorial()">تخطي</button>
+            <button class="tutorial-btn primary" onclick="nextTutorial()">التالي <i class="fas fa-arrow-left"></i></button>
+        </div>
+    </div>
+    <div class="tutorial-highlight" id="tutorialHighlight"></div>
+</div>
+
+                
                 <!-- تم إزالة الكابتشا نهائياً -->
 
                 <button type="submit" class="submit-btn">
