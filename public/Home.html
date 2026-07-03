@@ -159,6 +159,30 @@
             <div class="notifications-section"><h3>الإشعارات</h3><div class="table-wrapper notifications-table"><table><thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead><tbody id="notifications-table-body"><tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr></tbody></table></div></div>
         </div>
     </div>
+<!-- ====================== 🏆 الطلاب المتفوقون ====================== -->
+<section class="top-students-section" id="topStudentsSection">
+    <div class="top-students-header">
+        <i class="fas fa-trophy"></i>
+        <h2>الطلاب المتفوقون</h2>
+        <p>تكريم العشرة الأوائل في الصف الأول والثاني</p>
+    </div>
+    <div class="top-grade-tabs">
+        <button class="top-grade-tab active" data-grade="first" onclick="switchTopGradeTab('first')">
+            <i class="fas fa-graduation-cap"></i> <span>الصف الأول</span>
+        </button>
+        <button class="top-grade-tab" data-grade="second" onclick="switchTopGradeTab('second')">
+            <i class="fas fa-book-reader"></i> <span>الصف الثاني</span>
+        </button>
+    </div>
+    <div class="top-students-container">
+        <div class="top-grade-list active" id="firstGradeTopList">
+            <div class="loading-top-students"><i class="fas fa-spinner fa-spin"></i><p>جاري التحميل...</p></div>
+        </div>
+        <div class="top-grade-list" id="secondGradeTopList" style="display: none;">
+            <div class="loading-top-students"><i class="fas fa-spinner fa-spin"></i><p>جاري التحميل...</p></div>
+        </div>
+    </div>
+</section>
 
     <footer><p>Developed by Ahmed Moussa <span class="heart">❤</span></p></footer>
 
