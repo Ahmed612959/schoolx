@@ -388,6 +388,168 @@ class SmartAssistantBot {
     welcomeUser() { setTimeout(() => { const hour = new Date().getHours(); let greeting = ''; if (hour < 12) greeting = 'صباح الخير'; else if (hour < 16) greeting = 'أهلاً بك'; else greeting = 'مساء الخير'; this.speak(`${greeting} يا ${this.userName}! 👋 أنا مساعدك. اكتب اسم الطالب ورقم الجلوس واضغط عرض النتيجة`, 5000); this.pointTo(this.fields.name); }, 1500); }
 }
 
+
+// ====================== 🏆 العشرة الأوائل (بيانات مدمجة من صفحة الشهادات) ======================
+
+let topStudentsData = { first: [], second: [] };
+let currentTopGradeTab = 'first';
+
+// ✅ بيانات الطلاب المتفوقين (مطابقة لصفحة الشهادات)
+const TOP_STUDENTS_FIRST = [
+    { rank: 1, code: '542', name: 'منه أحمد عبد الفتاح أحمد' },
+    { rank: 2, code: '531', name: 'محمد أحمد محمد أحمد' },
+    { rank: 3, code: '539', name: 'فاطمه خيرى عبدالله حسن' },
+    { rank: 4, code: '541', name: 'ملك محمد أحمد محمد' },
+    { rank: 5, code: '533', name: 'داليا عبد السلام بدرى محمد' },
+    { rank: 6, code: '535', name: 'زمزم مصطفى فؤاد محمود' },
+    { rank: 7, code: '536', name: 'زينب محمد عبد الدليم محمد' },
+    { rank: 8, code: '532', name: 'ايه سعد الله عبد الله على' },
+    { rank: 9, code: '538', name: 'شاهندا صابر سيد سعدى أحمد' },
+    { rank: 10, code: '540', name: 'ملك تيسير محمد الزاهر' }
+];
+
+const TOP_STUDENTS_SECOND = [
+    { rank: 1, code: '1096', name: 'مرفت مصطفى على يوسف' },
+    { rank: 2, code: '1081', name: 'ريتاج محمد الطاهر مشهد عبد المجيد' },
+    { rank: 3, code: '1095', name: 'لمياء احمد محمد عبد الراضي' },
+    { rank: 4, code: '1013', name: 'عبد الرحمن اشرف سيد احمد' },
+    { rank: 5, code: '1098', name: 'مروة حسن احمد فرشوطي' },
+    { rank: 6, code: '1109', name: 'هاجر قرني خيري عرفات' },
+    { rank: 7, code: '1094', name: 'فرحة سالم ابراهيم سالم' },
+    { rank: 8, code: '1014', name: 'عبد الرحمن جابر عبد القادر احمد' },
+    { rank: 9, code: '1097', name: 'مروة احمد حامد قناوي' },
+    { rank: 10, code: '1074', name: 'جهاد هاني عبد الجواد مصطفى' }
+];
+
+// تحميل الطلاب المتفوقين
+async function loadTopStudents() {
+    const section = document.getElementById('topStudentsSection');
+    if (!section) return;
+    
+    try {
+        // ✅ استخدام البيانات المدمجة مباشرة
+        topStudentsData.first = TOP_STUDENTS_FIRST;
+        topStudentsData.second = TOP_STUDENTS_SECOND;
+        
+        // عرض الطلاب
+        renderTopStudentsList('first');
+        renderTopStudentsList('second');
+        
+        console.log('✅ تم تحميل العشرة الأوائل من البيانات المدمجة');
+    } catch (error) {
+        console.error('❌ خطأ في تحميل الطلاب المتفوقين:', error);
+        renderNoTopStudents('first');
+        renderNoTopStudents('second');
+    }
+}
+
+// تبديل التبويبات
+window.switchTopGradeTab = function(grade) {
+    currentTopGradeTab = grade;
+    
+    document.querySelectorAll('.top-grade-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.grade === grade);
+    });
+    
+    document.querySelectorAll('.top-grade-list').forEach(list => {
+        list.style.display = 'none';
+    });
+    
+    const targetList = document.getElementById(`${grade}GradeTopList`);
+    if (targetList) targetList.style.display = 'block';
+};
+
+// عرض قائمة الطلاب
+function renderTopStudentsList(grade) {
+    const container = document.getElementById(`${grade}GradeTopList`);
+    if (!container) return;
+    
+    const students = topStudentsData[grade];
+    
+    if (!students || students.length === 0) {
+        renderNoTopStudents(grade);
+        return;
+    }
+    
+    let html = `<div class="top-students-grid">`;
+    
+    students.forEach((student) => {
+        const rank = student.rank;
+        let medalClass = 'normal';
+        let cardClass = 'rank-other';
+        let medalIcon = rank;
+        
+        if (rank === 1) { medalClass = 'gold'; cardClass = 'rank-1'; medalIcon = '🥇'; }
+        else if (rank === 2) { medalClass = 'silver'; cardClass = 'rank-2'; medalIcon = '🥈'; }
+        else if (rank === 3) { medalClass = 'bronze'; cardClass = 'rank-3'; medalIcon = '🥉'; }
+        
+        html += `
+            <div class="top-student-card ${cardClass}" onclick="viewTopStudentDetails('${student.code}')">
+                <div class="top-medal ${medalClass}">${medalIcon}</div>
+                <div class="top-student-info">
+                    <div class="top-student-name" title="${escapeHtml(student.name)}">${escapeHtml(student.name)}</div>
+                    <div class="top-student-code"><i class="fas fa-id-card"></i> <span>${student.code}</span></div>
+                </div>
+                <div class="top-student-percentage">
+                    <div class="top-percentage-value">#${rank}</div>
+                    <div class="top-percentage-label">المركز</div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+// عرض رسالة عدم وجود طلاب
+function renderNoTopStudents(grade) {
+    const container = document.getElementById(`${grade}GradeTopList`);
+    if (!container) return;
+    const gradeName = grade === 'first' ? 'الصف الأول' : 'الصف الثاني';
+    container.innerHTML = `
+        <div class="no-top-students">
+            <i class="fas fa-user-graduate"></i>
+            <h3>لا يوجد طلاب متفوقون في ${gradeName}</h3>
+            <p>لم يتم تسجيل أي بيانات للطلاب في هذا الصف بعد</p>
+        </div>
+    `;
+}
+
+// عرض تفاصيل الطالب المتفوق
+window.viewTopStudentDetails = async function(studentCode) {
+    try {
+        const allTopStudents = [...TOP_STUDENTS_FIRST, ...TOP_STUDENTS_SECOND];
+        const student = allTopStudents.find(s => s.code === studentCode);
+        
+        if (student) {
+            const nameInput = document.getElementById('search-name');
+            const codeInput = document.getElementById('search-id');
+            
+            if (nameInput && codeInput) {
+                nameInput.value = student.name;
+                codeInput.value = student.code;
+                
+                const form = document.getElementById('search-form');
+                if (form) form.dispatchEvent(new Event('submit'));
+                
+                setTimeout(() => {
+                    const resultSection = document.querySelector('.result-table');
+                    if (resultSection) resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 500);
+                
+                showToast(`📊 عرض نتيجة: ${student.name}`, 'info');
+            }
+        } else {
+            showToast('❌ لم يتم العثور على الطالب', 'error');
+        }
+    } catch (error) {
+        console.error('خطأ في عرض تفاصيل الطالب:', error);
+        showToast('❌ حدث خطأ', 'error');
+    }
+};
+
 // ====================== التشغيل ======================
-async function init() { if (!(await verifySession())) return; await loadNotifications(); renderNavbar(); renderWelcomeMessage(); await renderDashboard(); setupSearchForm(); setupLogoutButton(); initLibraryTour(); setupAttendanceChannel(); setInterval(async () => { try { await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' }); } catch (e) {} }, 55 * 60 * 1000); setTimeout(() => { if (document.getElementById('liveBot')) window.smartBot = new SmartAssistantBot(); }, 800); }
+async function init() { if (!(await verifySession())) return; await loadNotifications(); renderNavbar(); renderWelcomeMessage(); await renderDashboard(); setupSearchForm(); setupLogoutButton(); initLibraryTour(); setupAttendanceChannel();
+await loadTopStudents(); setInterval(async () => { try { await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' }); } catch (e) {} }, 55 * 60 * 1000); setTimeout(() => { if (document.getElementById('liveBot')) window.smartBot = new SmartAssistantBot(); }, 800); }
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
