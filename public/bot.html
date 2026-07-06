@@ -1,0 +1,35 @@
+Enter<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ذكاء الاصطناعي للتمريض</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🩺 مساعد التمريض الذكي</h1>
+            <p>مدعوم بتقنية Qwen AI</p>
+            <button id="clear-btn" class="clear-btn" title="مسح المحادثة">🗑️</button>
+        </div>
+        
+        <div id="chat-messages" class="chat-messages"></div>
+        
+        <div id="model-status" class="model-status">
+            النموذج النشط: <span id="active-model">جاري التحديد...</span>
+        </div>
+        
+        <div class="input-area">
+            <textarea 
+                id="user-input" 
+                placeholder="اسأل عن أي استفسار تمريضي أو طبي..."
+                rows="3"
+            ></textarea>
+            <button id="send-btn">إرسال</button>
+        </div>
+    </div>
+    
+    <script src="scrip.js"></script>
+</body>
+</html>
