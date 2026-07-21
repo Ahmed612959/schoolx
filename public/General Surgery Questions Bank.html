@@ -1117,7 +1117,7 @@ function printExamSheet() {
     var content = document.getElementById('examPrintArea').innerHTML;
     if (!content) { showToast('❌ لا يوجد امتحان للطباعة', 'error'); return; }
     var w = window.open('', '_blank');
-    w.document.write('<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ورقة امتحان - Medical Surgical Nursing</title><style>body{font-family:Tajawal,sans-serif;padding:20px;line-height:2;background:white;}</style></head><body><div style="text-align:center;margin-bottom:15px;"><h2>📝 Medical Surgical Nursing - ورقة امتحان</h2></div>' + content + '</body></html>');
+    w.document.write('<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ورقة امتحان - Surgery Questions Bank</title><style>body{font-family:Tajawal,sans-serif;padding:20px;line-height:2;background:white;}</style></head><body><div style="text-align:center;margin-bottom:15px;"><h2>📝 Medical Surgical Nursing - ورقة امتحان</h2></div>' + content + '</body></html>');
     w.document.close();
     setTimeout(function() { w.print(); }, 500);
 }
@@ -2391,7 +2391,7 @@ function generatePrintPreview() {
         <html dir="rtl">
         <head>
             <meta charset="UTF-8">
-            <title>ورقة أسئلة - Medical Surgical Nursing</title>
+            <title>ورقة أسئلة - Surgery Questions Bank</title>
             <style>
                 @page { margin: 2cm; }
                 body { font-family: 'Tajawal', Arial, sans-serif; font-size: 14px; line-height: 1.8; padding: 20px; }
