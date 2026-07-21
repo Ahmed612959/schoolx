@@ -1117,7 +1117,7 @@ function printExamSheet() {
     var content = document.getElementById('examPrintArea').innerHTML;
     if (!content) { showToast('❌ لا يوجد امتحان للطباعة', 'error'); return; }
     var w = window.open('', '_blank');
-    w.document.write('<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ورقة امتحان - Surgery Questions Bank</title><style>body{font-family:Tajawal,sans-serif;padding:20px;line-height:2;background:white;}</style></head><body><div style="text-align:center;margin-bottom:15px;"><h2>📝 Medical Surgical Nursing - ورقة امتحان</h2></div>' + content + '</body></html>');
+    w.document.write('<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ورقة امتحان - Surgery Questions Bank</title><style>body{font-family:Tajawal,sans-serif;padding:20px;line-height:2;background:white;}</style></head><body><div style="text-align:center;margin-bottom:15px;"><h2>📝 Surgery Questions Bank - ورقة امتحان</h2></div>' + content + '</body></html>');
     w.document.close();
     setTimeout(function() { w.print(); }, 500);
 }
@@ -2426,7 +2426,7 @@ function generatePrintPreview() {
         </head>
         <body>
             <div class="print-header">
-                <h1>📝 Medical Surgical Nursing</h1>
+                <h1>📝 Surgery Questions Bank</h1>
                 <p>معهد رعاية الضبعية الفني للتمريض</p>
                 <p style="font-size:12px;">${new Date().toLocaleDateString('ar-EG')} | ${printMode === 'withoutAnswers' ? '📋 ورقة أسئلة (بدون إجابات)' : printMode === 'withAnswers' ? '📖 ورقة أسئلة مع الإجابات' : '✏️ ورقة أسئلة مع مساحات للإجابة'}</p>
             </div>
