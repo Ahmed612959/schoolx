@@ -1097,7 +1097,7 @@ function generateExam() {
     var incAns = document.getElementById('exAnswers')?.checked;
     var examQ = getAllQuestions(chId, catFilter).sort(function() { return Math.random() - 0.5; }).slice(0, count);
     window._examQuestions = examQ;
-    var h = '<div style="text-align:center;margin-bottom:15px;"><h3>📝 الامتحان - Medical Surgical Nursing</h3><p style="font-size:0.85rem;color:var(--text-secondary);">عدد الأسئلة: ' + examQ.length + '</p></div>';
+    var h = '<div style="text-align:center;margin-bottom:15px;"><h3>📝 الامتحان - Surgery Questions Bank</h3><p style="font-size:0.85rem;color:var(--text-secondary);">عدد الأسئلة: ' + examQ.length + '</p></div>';
     for (var i = 0; i < examQ.length; i++) {
         var q = examQ[i];
         h += '<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;"><strong>' + (i+1) + '. ' + q.text + '</strong>';
