@@ -71,17 +71,16 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 
-// ====================== Cloudinary و Multer ======================
+// ====================== Supabase Storage و Multer ======================
 const multer = require('multer');
-const { Readable } = require('stream');
-const cloudinary = require('cloudinary').v2;
+const { createClient } = require('@supabase/supabase-js');
 
-// تكوين Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'di47of300',
-    api_key: process.env.CLOUDINARY_API_KEY || '344972868721826',
-    api_secret: process.env.CLOUDINARY_API_SECRET || 'HkoDVSfeDHmRQJjd4Q_B1uEQlpA'
-});
+// تكوين Supabase (SUPABASE_SERVICE_ROLE_KEY = مفتاح sb_secret_... من الداشبورد)
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'files';
 
 // ====================== إعداد Multer ======================
 const storage = multer.memoryStorage();
@@ -89,7 +88,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
     limits: { 
-        fileSize: 4 * 1024 * 1024, // 4MB (حد Vercel)
+        fileSize: 50 * 1024 * 1024, // 50MB (حد الخطة المجانية في Supabase)
         files: 10
     },
     fileFilter: (req, file, cb) => {
@@ -103,28 +102,31 @@ const upload = multer({
     }
 });
 
-// دالة رفع ملف إلى Cloudinary من Buffer
-const uploadToCloudinary = (buffer, folder, fileName) => {
-    return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-            {
-                folder: folder || 'school-files',
-                resource_type: 'auto',
-                public_id: fileName ? `${Date.now()}-${fileName.split('.')[0].replace(/\s+/g, '_')}` : undefined,
-                unique_filename: true,
-                overwrite: false
-            },
-            (error, result) => {
-                if (error) reject(error);
-                else resolve(result);
-            }
-        );
-        
-        const readableStream = new Readable();
-        readableStream.push(buffer);
-        readableStream.push(null);
-        readableStream.pipe(uploadStream);
-    });
+// دالة رفع ملف إلى Supabase Storage من Buffer
+const uploadToCloudinary = async (buffer, folder, fileName) => {
+    const safeName = `${Date.now()}-${fileName.replace(/\s+/g, '_')}`;
+    const path = folder ? `${folder}/${safeName}` : safeName;
+
+    const { error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(path, buffer, { upsert: false });
+
+    if (error) throw error;
+
+    const { data: publicUrlData } = supabase.storage
+        .from(SUPABASE_BUCKET)
+        .getPublicUrl(path);
+
+    return {
+        secure_url: publicUrlData.publicUrl, // نفس اسم الحقل القديم عشان الكود اللي بيستخدمها متتغيرش
+        public_id: path
+    };
+};
+
+// دالة حذف ملف من Supabase Storage
+const deleteFromSupabase = async (path) => {
+    const { error } = await supabase.storage.from(SUPABASE_BUCKET).remove([path]);
+    if (error) throw error;
 };
 
 // ====================== دالة حفظ معلومات الملف في قاعدة البيانات ======================
@@ -158,8 +160,9 @@ const saveFileInfo = async (fileData, user) => {
 
 // ====================== تصدير الدوال ======================
 module.exports = {
-    cloudinary,
+    supabase,
     uploadToCloudinary,
+    deleteFromSupabase,
     saveFileInfo
 };
 // ====================== اتصال MongoDB مُعاد استخدامه ======================
@@ -2854,7 +2857,7 @@ app.get('/api/files', verifyToken, async (req, res) => {
     }
 });
 
-// ====================== تحميل ملف (إعادة توجيه إلى Cloudinary) ======================
+// ====================== تحميل ملف (إعادة توجيه إلى Supabase Storage) ======================
 app.get('/api/files/download/:id', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -2882,14 +2885,12 @@ app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
             return res.status(404).json({ error: 'الملف غير موجود' });
         }
 
-        // حذف من Cloudinary
+        // حذف من Supabase Storage
         try {
-            await cloudinary.uploader.destroy(file.publicId, {
-                resource_type: 'auto'
-            });
-            console.log('✅ تم حذف الملف من Cloudinary:', file.publicId);
+            await deleteFromSupabase(file.publicId);
+            console.log('✅ تم حذف الملف من Supabase:', file.publicId);
         } catch (e) {
-            console.log('⚠️ Cloudinary delete error:', e.message);
+            console.log('⚠️ Supabase delete error:', e.message);
         }
 
         await File.findByIdAndDelete(req.params.id);
@@ -2925,7 +2926,7 @@ app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// ====================== حفظ معلومات الملف من Cloudinary (للرفع المباشر) ======================
+// ====================== حفظ معلومات الملف (احتياطي للرفع المباشر من الفرونت إند لو استخدمته) ======================
 app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -2974,34 +2975,9 @@ app.post('/api/files/view/:id', verifyToken, async (req, res) => {
     }
 });
 
-// ====================== إنشاء توقيع للرفع (Signature) ======================
-app.get('/api/upload/signature', verifyToken, (req, res) => {
-    try {
-        const timestamp = Math.floor(Date.now() / 1000);
-        const folder = req.query.folder || 'school';
-        
-        // إنشاء التوقيع
-        const signature = cloudinary.utils.api_sign_request(
-            {
-                timestamp: timestamp,
-                folder: folder,
-                upload_preset: 'school_preset'
-            },
-            process.env.CLOUDINARY_API_SECRET || 'HkoDVSfeDHmRQJjd4Q_B1uEQlpA'
-        );
-        
-        res.json({
-            signature: signature,
-            timestamp: timestamp,
-            cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'di47of300',
-            apiKey: process.env.CLOUDINARY_API_KEY || '344972868721826',
-            uploadPreset: 'school_preset'
-        });
-    } catch (error) {
-        console.error('❌ Signature error:', error);
-        res.status(500).json({ error: 'خطأ في إنشاء التوقيع' });
-    }
-});
+// ملحوظة: تم حذف مسار /api/upload/signature (كان خاص بتوقيع Cloudinary
+// وغير مستخدم فعليًا في الفرونت إند). الرفع دلوقتي بيتم عن طريق
+// /api/files/upload-multiple اللي بيرفع مباشرة على Supabase Storage.
 
 
 // 1. إنشاء واجب جديد (للأدمن)
