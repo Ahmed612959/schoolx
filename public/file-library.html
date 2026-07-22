@@ -723,7 +723,9 @@ async function uploadOneFile(file, grade, subject) {
     const sb = window.supabase.createClient(urlData.supabaseUrl, urlData.supabaseAnonKey);
     const { error: uploadError } = await sb.storage
         .from(urlData.bucket)
-        .uploadToSignedUrl(urlData.path, urlData.token, file);
+        .uploadToSignedUrl(urlData.path, urlData.token, file, {
+            contentType: file.type || 'application/octet-stream'
+        });
 
     if (uploadError) {
         throw new Error(`فشل رفع ملف ${file.name}: ${uploadError.message}`);
