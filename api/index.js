@@ -106,10 +106,23 @@ const upload = multer({
     }
 });
 
+// تنضيف أي جزء من المسار (اسم ملف أو فولدر) عشان يبقى متوافق مع Supabase Storage
+// (بيرفض أي حروف عربية أو رموز غريبة في الـ key)
+function sanitizeForStorage(str) {
+    const safe = String(str)
+        .replace(/[^\x00-\x7F]/g, '')   // شيل أي حروف عربية/غير ASCII
+        .replace(/\s+/g, '_')            // مسافات -> underscore
+        .replace(/[^\w\-.]/g, '_')       // أي رمز غريب -> underscore
+        .replace(/_+/g, '_')
+        .replace(/^[_.]+|[_.]+$/g, '');
+    return safe || 'file';
+}
+
 // دالة رفع ملف إلى Supabase Storage من Buffer
 const uploadToCloudinary = async (buffer, folder, fileName) => {
-    const safeName = `${Date.now()}-${fileName.replace(/\s+/g, '_')}`;
-    const path = folder ? `${folder}/${safeName}` : safeName;
+    const safeFolder = folder ? folder.split('/').map(sanitizeForStorage).join('/') : '';
+    const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
+    const path = safeFolder ? `${safeFolder}/${safeName}` : safeName;
 
     const { error } = await supabase.storage
         .from(SUPABASE_BUCKET)
@@ -2818,11 +2831,13 @@ app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files
         const uploadedFiles = [];
 
         for (const file of req.files) {
+            // ✅ تصحيح ترميز اسم الملف (multer بيقرأ أسماء الملفات العربية بترميز غلط أحيانًا)
+            const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
             const folder = `school/${grade}/${subject}`;
-            const result = await uploadToCloudinary(file.buffer, folder, file.originalname);
+            const result = await uploadToCloudinary(file.buffer, folder, originalName);
 
             const fileData = new File({
-                name: file.originalname,
+                name: originalName,
                 url: result.secure_url,
                 publicId: result.public_id,
                 size: file.size,
