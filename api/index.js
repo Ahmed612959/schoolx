@@ -74,11 +74,15 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 // ====================== Supabase Storage و Multer ======================
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws'); // مطلوب لأن Node.js 20 (Vercel) مفيهوش WebSocket built-in
 
 // تكوين Supabase (SUPABASE_SERVICE_ROLE_KEY = مفتاح sb_secret_... من الداشبورد)
 const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+        realtime: { transport: ws } // بنستخدمش Realtime أصلاً، لكن لازم نديها transport عشان متكرشش وقت الإنشاء
+    }
 );
 const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'files';
 
