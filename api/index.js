@@ -2814,7 +2814,47 @@ app.post('/api/captcha/verify', (req, res) => {
 // ====================== مسارات الملفات ======================
 // ⬇⬇⬇⬇⬇ يجب أن تكون قبل app.get('*') ⬇⬇⬇⬇⬇
 
-// رفع ملفات متعددة (عن طريق السيرفر - للاستخدام الاحتياطي)
+// إنشاء رابط رفع موقّع (Signed URL) - الفرونت إند بيرفع بيه مباشرة على Supabase
+// عشان نتخطى حد الـ4.5MB بتاع Vercel Functions. الرابط بيتولد بس لأدمن مسجل دخول،
+// وبيبقى صالح لملف واحد بس لمدة قصيرة.
+app.post('/api/files/upload-url', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const { fileName, grade, subject } = req.body;
+
+        if (!fileName || !grade || !subject) {
+            return res.status(400).json({ error: 'اسم الملف والصف والمادة مطلوبين' });
+        }
+
+        const safeFolder = `school/${grade}/${subject}`.split('/').map(sanitizeForStorage).join('/');
+        const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
+        const path = `${safeFolder}/${safeName}`;
+
+        const { data, error } = await supabase.storage
+            .from(SUPABASE_BUCKET)
+            .createSignedUploadUrl(path);
+
+        if (error) throw error;
+
+        const { data: publicUrlData } = supabase.storage
+            .from(SUPABASE_BUCKET)
+            .getPublicUrl(path);
+
+        res.json({
+            success: true,
+            path,
+            token: data.token,
+            publicUrl: publicUrlData.publicUrl,
+            supabaseUrl: process.env.SUPABASE_URL,
+            supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+            bucket: SUPABASE_BUCKET
+        });
+    } catch (error) {
+        console.error('❌ Upload URL error:', error);
+        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' + error.message });
+    }
+});
+
+// رفع ملفات متعددة (عن طريق السيرفر - احتياطي لملفات أصغر من 4.5MB فقط، حد Vercel الصارم)
 app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files', 20), async (req, res) => {
     try {
         await connectToDatabase();
