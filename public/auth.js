@@ -247,7 +247,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     .catch(() => ({ hasBiometric: false }));
                 
                 // ✅ إذا لم يكن لديه بصمة مسجلة والجهاز يدعم البصمة
-                if (!biometricCheck.hasBiometric && window.biometricAuth?.isSupported) {
+                const biometricSupported = window.biometricAuth?.isSupported ??
+                    (window.SimpleWebAuthnBrowser?.browserSupportsWebAuthn() &&
+                        await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable().catch(() => false));
+
+                if (!biometricCheck.hasBiometric && biometricSupported) {
                     // ✅ التحقق من عدم إظهار الـ popup سابقاً
                     const skipBiometric = localStorage.getItem('skipBiometric_' + username);
                     
@@ -334,17 +338,17 @@ function showBiometricEnrollmentPopup(userData) {
     // إضافة الأحداث
     document.getElementById('enrollBiometricBtn').addEventListener('click', enrollBiometricFromPopup);
     document.getElementById('skipBiometricBtn').addEventListener('click', () => {
-        closeBiometricPopup(false);
+        closeBiometricPopup(true);
     });
     document.getElementById('neverShowBiometricBtn').addEventListener('click', () => {
         localStorage.setItem('skipBiometric_' + userData.username, 'true');
-        closeBiometricPopup(false);
+        closeBiometricPopup(true);
     });
     
     // إغلاق عند النقر خارج الـ popup
     popup.addEventListener('click', (e) => {
         if (e.target === popup) {
-            closeBiometricPopup(false);
+            closeBiometricPopup(true);
         }
     });
 }
@@ -379,23 +383,23 @@ async function enrollBiometricFromPopup() {
             throw new Error(startData.error || 'فشل بدء التسجيل');
         }
         
-        // 2. إعداد الخيارات
-        const options = {
-            ...startData.options,
-            challenge: window.biometricAuth.base64ToBuffer(startData.options.challenge),
-            user: {
-                ...startData.options.user,
-                id: typeof startData.options.user.id === 'string'
-                    ? window.biometricAuth.base64ToBuffer(startData.options.user.id)
-                    : new Uint8Array(startData.options.user.id)
-            }
-        };
+        // 2. التأكد إن الجهاز فعلاً بيدعم مصادقة بيومترية (بصمة/Face ID)
+        if (!window.SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.browserSupportsWebAuthn()) {
+            throw new Error('الجهاز أو المتصفح ده مش بيدعم البصمة');
+        }
+        const platformAvailable = await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable();
+        if (!platformAvailable) {
+            throw new Error('مفيش بصمة أو Face ID متاح على الجهاز ده');
+        }
         
-        // 3. طلب البصمة من المستخدم
-        const credential = await navigator.credentials.create({ publicKey: options });
-        
-        if (!credential) {
-            throw new Error('تم إلغاء العملية');
+        // 3. طلب البصمة من المستخدم (المكتبة بتتولى كل تحويلات base64url تلقائيًا)
+        let attResp;
+        try {
+            attResp = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: startData.options });
+        } catch (err) {
+            if (err.name === 'NotAllowedError') throw new Error('تم إلغاء العملية');
+            if (err.name === 'InvalidStateError') throw new Error('البصمة مسجلة مسبقاً على هذا الجهاز');
+            throw err;
         }
         
         // 4. إرسال البصمة للسيرفر
@@ -403,17 +407,7 @@ async function enrollBiometricFromPopup() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-                credential: {
-                    id: credential.id,
-                    rawId: window.biometricAuth.bufferToBase64(credential.rawId),
-                    response: {
-                        attestationObject: window.biometricAuth.bufferToBase64(credential.response.attestationObject),
-                        clientDataJSON: window.biometricAuth.bufferToBase64(credential.response.clientDataJSON)
-                    },
-                    type: credential.type
-                }
-            })
+            body: JSON.stringify({ credential: attResp })
         });
         
         const finishData = await finishRes.json();
