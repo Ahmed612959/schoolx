@@ -4653,15 +4653,6 @@ app.post('/api/smart-review/save-progress', verifyToken, async (req, res) => {
 });
 
 
-// ====================== مسار افتراضي ======================
-app.get('*', (req, res) => {
-    res.json({ 
-        message: 'معهد رعاية الضبعية - API', 
-        status: 'running', 
-        version: '3.0.0', 
-        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
-    });
-});
 
 
 // ====================== ✅ رفع الدرجات من Excel (مع معالجة duplicate username) ======================
@@ -4883,6 +4874,17 @@ app.get('/api/csrf-token', (req, res) => {
     res.cookie('csrfToken', csrfToken, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
     res.json({ csrfToken });
 });
+
+// ====================== مسار افتراضي ======================
+app.get('*', (req, res) => {
+    res.json({ 
+        message: 'معهد رعاية الضبعية - API', 
+        status: 'running', 
+        version: '3.0.0', 
+        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
+    });
+});
+
 
 // ====================== تصدير لـ Vercel ======================
 module.exports = app;
