@@ -19,7 +19,8 @@
     "cookie-parser": "^1.4.6",
     "multer": "^1.4.5-lts.1",
     "@supabase/supabase-js": "^2.45.4",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "@simplewebauthn/server": "^11.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
