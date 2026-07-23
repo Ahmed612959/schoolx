@@ -247,9 +247,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     .catch(() => ({ hasBiometric: false }));
                 
                 // ✅ إذا لم يكن لديه بصمة مسجلة والجهاز يدعم البصمة
-                const biometricSupported = window.biometricAuth?.isSupported ??
-                    (window.SimpleWebAuthnBrowser?.browserSupportsWebAuthn() &&
-                        await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable().catch(() => false));
+                // (لازم ننتظر initPromise الأول - isSupported بتبدأ false فمينفعش نعتمد على ?? معاها)
+                if (window.biometricAuth?.initPromise) {
+                    await window.biometricAuth.initPromise;
+                }
+                let biometricSupported = window.biometricAuth?.isSupported;
+                if (biometricSupported === undefined) {
+                    biometricSupported = window.SimpleWebAuthnBrowser?.browserSupportsWebAuthn() &&
+                        await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable().catch(() => false);
+                }
 
                 if (!biometricCheck.hasBiometric && biometricSupported) {
                     // ✅ التحقق من عدم إظهار الـ popup سابقاً
