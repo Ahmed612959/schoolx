@@ -2262,4 +2262,2652 @@ function saveConversationContext(userId, userMessage, botResponse) {
 }
 
 function getConversationContext(userId) {
-    const history = conversationHistory.get(userId) || [
+    const history = conversationHistory.get(userId) || [];
+    const facts = importantFacts.get(userId) || [];
+    const preferences = userPreferences.get(userId) || {};
+    let context = '';
+    if (history.length > 0) {
+        context += '\n【آخر المحادثات】\n';
+        history.slice(-6).forEach(msg => {
+            context += `${msg.role === 'user' ? '👤 الطالب' : '🤖 المساعد'}: ${msg.content.substring(0, 100)}\n`;
+        });
+    }
+    if (facts.length > 0) {
+        context += '\n【معلومات مهمة】\n';
+        facts.slice(-2).forEach(fact => context += `📌 ${fact.fact.substring(0, 80)}\n`);
+    }
+    if (preferences.level) context += `\n🎓 مستوى الطالب: ${preferences.level}\n`;
+    return context;
+}
+
+function getFallbackResponse(prompt) {
+    const p = prompt.toLowerCase();
+    if (p.includes('مرحب') || p.includes('السلام') || p.includes('هلا')) return `👋 **وعليكم السلام ورحمة الله!**\n\nأنا 🤖 **مساعدك الذكي في معهد رعاية الضبعية**\n\n📚 **أقدر أساعدك في:**\n• شرح الرعاية التلطيفية (Palliative Care)\n• شرح الموت الدماغي (Brain Death)\n• معلومات عن التمريض\n• الاستعلام عن النتائج والدرجات\n\n🎯 **إيه اللي محتاج مساعدة فيه النهاردة؟**`;
+    if (p.includes('palliative') || p.includes('رعاية تلطيفية')) return `🏥 **الرعاية التلطيفية (Palliative Care)**\n\n📌 **تعريفها:** نهج طبي متخصص لتحسين جودة حياة مرضى الأمراض الخطيرة.\n\n📌 **المبادئ الأساسية:**\n• تخفيف الألم والأعراض\n• الدعم النفسي والاجتماعي للمريض والأسرة\n• تحسين التواصل مع الفريق الطبي\n\nهل تريد تفاصيل أكثر عن أي نقطة؟`;
+    if (p.includes('brain death') || p.includes('موت دماغي')) return `🧠 **الموت الدماغي (Brain Death)**\n\n📌 **التعريف:** التوقف الكامل والنهائي لوظائف الدماغ بأكمله، بما في ذلك جذع الدماغ.\n\n📌 **المعايير التشخيصية:**\n• غيبوبة عميقة بدون استجابة\n• انعدام التنفس التلقائي تماماً\n• اختفاء ردود أفعال جذع الدماغ\n• ثبوت النتائج بعد 6-24 ساعة\n\nهل تريد شرح أكثر تفصيلاً؟`;
+    if (p.includes('تمريض') || p.includes('nursing')) return `🩺 **التمريض - مهنة إنسانية نبيلة**\n\n📌 **المهام الأساسية للممرض:**\n• تقديم الرعاية المباشرة للمرضى\n• مراقبة العلامات الحيوية\n• إعطاء الأدوية حسب الوصفات الطبية\n• التثقيف الصحي للمرضى وأسرهم\n• التعاون مع الفريق الطبي\n\nهل تريد معلومات عن مجال معين؟`;
+    if (p.includes('نتيجة') || p.includes('درجة') || p.includes('امتحان')) return `📊 **النتائج والدرجات**\n\nللاستعلام عن نتيجتك:\n\n1️⃣ **اذهب إلى صفحة "النتائج"** من القائمة السفلية\n2️⃣ **أدخل كود الطالب الخاص بك** (رقم الجلوس)\n3️⃣ **ستظهر جميع درجاتك**\n\nإذا نسيت الكود، تواصل مع إدارة المعهد.`;
+    if (p.includes('شكر')) return `🙏 **العفو! أنا سعيد بخدمتك**\n\nاتمنى لك التوفيق في دراستك 🌟\n\nفي خدمتك دايماً 🤗`;
+    return `📚 **أنا هنا لمساعدتك!**\n\n🎯 **يمكنك سؤالي عن:**\n• الرعاية التلطيفية (Palliative Care)\n• الموت الدماغي (Brain Death)\n• التمريض الجراحي والباطني\n• النتائج والدرجات\n\nكيف أقدر أساعدك أكثر اليوم؟`;
+}
+
+app.post('/api/gemini', async (req, res) => {
+    try {
+        const { prompt, userId = req.user?.id || req.ip || 'anonymous' } = req.body;
+        if (!prompt || prompt.trim() === '') return res.status(400).json({ error: 'الرسالة مطلوبة' });
+        const conversationContext = getConversationContext(userId);
+        const systemPrompt = `أنت مساعد تعليمي ذكي لمعهد رعاية الضبعية للتمريض.\n\n📌 تعليمات مهمة:\n- رد باللغة العربية (مصري أو فصحى)\n- تخصصك: التمريض، الرعاية التلطيفية، Palliative care, Brain death, Hospice care\n- كن ودوداً ومفيداً ومحترفاً\n- قدم إجابات دقيقة ومبسطة مع أمثلة عملية\n- إذا سأل عن النتيجة: "روح على صفحة النتائج وادخل الكود بتاعك"\n- استخدم السياق المقدم من المحادثات السابقة\n\n${conversationContext ? `\n📚 **سياق المحادثة السابقة مع هذا الطالب:**\n${conversationContext}\n` : ''}\n\n💬 **سؤال الطالب الحالي:** ${prompt}\n\nقدم رداً مفيداً وطبيعياً وودوداً باللغة العربية:`;
+        let reply = null;
+        if (DEEPSEEK_API_KEY && DEEPSEEK_API_KEY !== '') {
+            try {
+                const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }], temperature: 0.7, max_tokens: 1000 })
+                });
+                if (response.ok) { const data = await response.json(); reply = data.choices?.[0]?.message?.content; }
+            } catch (error) { console.log('⚠️ DeepSeek API error:', error.message); }
+        }
+        if (!reply) reply = getFallbackResponse(prompt);
+        saveConversationContext(userId, prompt, reply);
+        res.json({ reply: reply });
+    } catch (error) { res.json({ reply: getFallbackResponse(req.body.prompt) }); }
+});
+
+app.post('/api/gemini/clear-memory', verifyToken, (req, res) => {
+    const userId = req.user?.id || req.ip;
+    conversationHistory.delete(userId);
+    importantFacts.delete(userId);
+    res.json({ success: true, message: '✅ تم مسح ذاكرة المحادثة بنجاح' });
+});
+
+app.get('/api/gemini/stats', verifyToken, (req, res) => {
+    const userId = req.user?.id || req.ip;
+    res.json({ conversationLength: (conversationHistory.get(userId) || []).length / 2, factsShared: (importantFacts.get(userId) || []).length, preferences: userPreferences.get(userId) || {}, progress: userProgress.get(userId) || {} });
+});
+
+app.get('/api/gemini/tips', verifyToken, (req, res) => {
+    const userId = req.user?.id || req.ip;
+    const progress = userProgress.get(userId) || {};
+    let tip = '';
+    if (progress.understandingLevel === 'مبتدئ') tip = '📚 **نصيحة مخصصة لك:**\n\nأنصحك بمراجعة الأساسيات أولاً، ثم الانتقال تدريجياً للموضوعات الأعمق. خصص 30 دقيقة يومياً للمراجعة.\n\n💪 أنت قادر على التقدم بسرعة!';
+    else if (progress.understandingLevel === 'متوسط') tip = '🎯 **نصيحة مخصصة لك:**\n\nأنت في الطريق الصحيح! ركز على حل التمارين والتطبيقات العملية لتعزيز فهمك.\n\n🌟 استمر بهذا المستوى الرائع!';
+    else tip = '⭐ **نصيحة مخصصة لك:**\n\nمستواك ممتاز! أنصحك الآن بتدريس ما تعلمته لزملائك - هذا سيعزز فهمك أكثر.\n\n🏆 أنت قدوة لزملائك!';
+    res.json({ tip });
+});
+
+app.post('/api/gemini/vision', async (req, res) => {
+    res.json({ reply: '🖼️ **خدمة تحليل الصور**\n\nهذه الخدمة قيد التطوير. قريباً سأتمكن من تحليل صورك وشرح محتواها!\n\n📌 في الوقت الحالي، يمكنك وصف الصورة وسأحاول مساعدتك.' });
+});
+
+app.post('/api/gemini/file', async (req, res) => {
+    const { filename } = req.body;
+    res.json({ reply: `📄 **تم استلام ملف: ${filename || 'الملف'}**\n\nخدمة تحليل الملفات قيد التطوير.\n\n📌 قريباً سأتمكن من:\n• قراءة ملفات PDF\n• تلخيص المستندات\n• استخراج المعلومات المهمة\n• إنشاء أسئلة من المحتوى` });
+});
+
+app.post('/api/gemini/questions', async (req, res) => {
+    const { questionCount = 5, filename } = req.body;
+    res.json({ reply: `📝 **طلب إنشاء ${questionCount} سؤال**\n\nمن ملف: ${filename || 'الملف'}\n\nهذه الخدمة قيد التطوير.\n\n📌 قريباً سأتمكن من إنشاء:\n• أسئلة اختيار من متعدد\n• أسئلة صح/خطأ\n• أسئلة مقالية\n\nعلى حسب المحتوى الذي ترفعه!` });
+});
+
+
+
+
+// ====================== مسارات تقدم الطالب ======================
+
+// جلب تقدم الطالب
+app.get('/api/progress', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.id || req.user.username;
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+            await progress.save();
+        }
+        res.json(progress);
+    } catch (error) {
+        console.error('❌ خطأ في جلب التقدم:', error);
+        res.status(500).json({ error: 'خطأ في جلب التقدم' });
+    }
+});
+
+// تحديث نقاط XP
+app.post('/api/progress/xp', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { amount } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.xp = (progress.xp || 0) + amount;
+        await progress.save();
+        
+        res.json({ success: true, xp: progress.xp });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث XP:', error);
+        res.status(500).json({ error: 'خطأ في تحديث XP' });
+    }
+});
+
+// تحديث المفضلة
+app.post('/api/progress/bookmarks', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body; // action: 'add' or 'remove'
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        if (action === 'add') {
+            if (!progress.bookmarks.includes(questionId)) {
+                progress.bookmarks.push(questionId);
+            }
+        } else {
+            progress.bookmarks = progress.bookmarks.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, bookmarks: progress.bookmarks });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث المفضلة:', error);
+        res.status(500).json({ error: 'خطأ في تحديث المفضلة' });
+    }
+});
+
+// تحديث الأسئلة الصعبة
+app.post('/api/progress/hard', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        if (action === 'add') {
+            if (!progress.hardQuestions.includes(questionId)) {
+                progress.hardQuestions.push(questionId);
+            }
+        } else {
+            progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, hardQuestions: progress.hardQuestions });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الأسئلة الصعبة:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' });
+    }
+});
+
+// حفظ الملاحظات
+app.post('/api/progress/notes', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, note } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.notes.set(questionId, note);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الملاحظة:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الملاحظة' });
+    }
+});
+
+// حفظ سجل الاختبارات
+app.post('/api/progress/quiz', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { total, correct, score, chapter } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.quizHistory.push({
+            date: new Date().toISOString(),
+            total,
+            correct,
+            score,
+            chapter: chapter || 'all'
+        });
+        
+        // حفظ الأسئلة الخاطئة
+        if (req.body.wrongQuestions) {
+            progress.wrongQuestions = progress.wrongQuestions.concat(req.body.wrongQuestions);
+            if (progress.wrongQuestions.length > 200) {
+                progress.wrongQuestions = progress.wrongQuestions.slice(-200);
+            }
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ سجل الاختبار:', error);
+        res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' });
+    }
+});
+
+// حفظ الإنجازات
+app.post('/api/progress/achievements', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { achievementId } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        if (!progress.achievements.includes(achievementId)) {
+            progress.achievements.push(achievementId);
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الإنجاز:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الإنجاز' });
+    }
+});
+
+// تحديث صعوبة السؤال
+app.post('/api/progress/difficulty', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, difficulty } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        progress.difficulties.set(questionId, difficulty);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الصعوبة:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الصعوبة' });
+    }
+});
+
+// ====================== مسارات Internal Medicine (طب باطنة) ======================
+
+// جلب تقدم الطالب في Internal Medicine
+app.get('/api/progress-internal', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.id || req.user.username;
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ 
+                userId: userId + '_internal',
+                xp: 0,
+                bookmarks: [],
+                hardQuestions: [],
+                notes: {},
+                difficulties: {},
+                achievements: [],
+                quizHistory: [],
+                wrongQuestions: []
+            });
+            await progress.save();
+        }
+        res.json(progress);
+    } catch (error) {
+        console.error('❌ خطأ في جلب تقدم Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في جلب التقدم' });
+    }
+});
+
+// تحديث نقاط XP في Internal Medicine
+app.post('/api/progress-internal/xp', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { amount } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.xp = (progress.xp || 0) + amount;
+        await progress.save();
+        
+        res.json({ success: true, xp: progress.xp });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث XP Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث XP' });
+    }
+});
+
+// تحديث المفضلة في Internal Medicine
+app.post('/api/progress-internal/bookmarks', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        if (action === 'add') {
+            if (!progress.bookmarks.includes(questionId)) {
+                progress.bookmarks.push(questionId);
+            }
+        } else {
+            progress.bookmarks = progress.bookmarks.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, bookmarks: progress.bookmarks });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث المفضلة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث المفضلة' });
+    }
+});
+
+// تحديث الأسئلة الصعبة في Internal Medicine
+app.post('/api/progress-internal/hard', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        if (action === 'add') {
+            if (!progress.hardQuestions.includes(questionId)) {
+                progress.hardQuestions.push(questionId);
+            }
+        } else {
+            progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true, hardQuestions: progress.hardQuestions });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الأسئلة الصعبة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' });
+    }
+});
+
+// حفظ الملاحظات في Internal Medicine
+app.post('/api/progress-internal/notes', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, note } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.notes.set(questionId, note);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الملاحظة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الملاحظة' });
+    }
+});
+
+// حفظ سجل الاختبارات في Internal Medicine
+app.post('/api/progress-internal/quiz', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { total, correct, score, chapter } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.quizHistory.push({
+            date: new Date().toISOString(),
+            total: total || 0,
+            correct: correct || 0,
+            score: score || 0,
+            chapter: chapter || 'all'
+        });
+        
+        if (req.body.wrongQuestions) {
+            progress.wrongQuestions = progress.wrongQuestions.concat(req.body.wrongQuestions);
+            if (progress.wrongQuestions.length > 200) {
+                progress.wrongQuestions = progress.wrongQuestions.slice(-200);
+            }
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ سجل الاختبار Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' });
+    }
+});
+
+// حفظ الإنجازات في Internal Medicine
+app.post('/api/progress-internal/achievements', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { achievementId } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        if (!progress.achievements.includes(achievementId)) {
+            progress.achievements.push(achievementId);
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ الإنجاز Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الإنجاز' });
+    }
+});
+
+// تحديث صعوبة السؤال في Internal Medicine
+app.post('/api/progress-internal/difficulty', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, difficulty } = req.body;
+        const userId = req.user.id || req.user.username;
+        
+        let progress = await Progress.findOne({ userId: userId + '_internal' });
+        if (!progress) {
+            progress = new Progress({ userId: userId + '_internal' });
+        }
+        
+        progress.difficulties.set(questionId, difficulty);
+        await progress.save();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث الصعوبة Internal Medicine:', error);
+        res.status(500).json({ error: 'خطأ في تحديث الصعوبة' });
+    }
+});
+
+
+
+// ====================== الكابتشا ======================
+const captchaStore = new Map();
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of captchaStore.entries()) {
+        if (now - value.timestamp > 5 * 60 * 1000) captchaStore.delete(key);
+    }
+}, 60 * 60 * 1000);
+
+function generateCaptcha(sessionId) {
+    const operations = [{ symbol: '+', func: (a, b) => a + b }, { symbol: '-', func: (a, b) => a - b }, { symbol: '×', func: (a, b) => a * b }];
+    const num1 = Math.floor(Math.random() * 20) + 1;
+    const num2 = Math.floor(Math.random() * 20) + 1;
+    const operation = operations[Math.floor(Math.random() * operations.length)];
+    let result = operation.func(num1, num2);
+    if (result < 0) result = Math.abs(result);
+    const captchaText = `${num1} ${operation.symbol} ${num2} = ?`;
+    captchaStore.set(sessionId, { answer: result.toString(), timestamp: Date.now(), attempts: 0 });
+    return { text: captchaText, sessionId };
+}
+
+function verifyCaptcha(sessionId, userAnswer) {
+    const captchaData = captchaStore.get(sessionId);
+    if (!captchaData) return { valid: false, error: 'انتهت صلاحية الكابتشا، يرجى تحديث الصفحة' };
+    if (captchaData.attempts >= 3) { captchaStore.delete(sessionId); return { valid: false, error: '太多 المحاولات الخاطئة، يرجى تحديث الكابتشا' }; }
+    const isValid = captchaData.answer.toString() === userAnswer.toString().trim();
+    if (!isValid) { captchaData.attempts++; captchaStore.set(sessionId, captchaData); return { valid: false, error: 'رمز التحقق غير صحيح' }; }
+    captchaStore.delete(sessionId);
+    return { valid: true, error: null };
+}
+
+app.get('/api/captcha', (req, res) => {
+    let sessionId = req.cookies?.captchaSession || crypto.randomBytes(32).toString('hex');
+    const captcha = generateCaptcha(sessionId);
+    res.cookie('captchaSession', sessionId, { httpOnly: true, maxAge: 5 * 60 * 1000, sameSite: 'lax' });
+    res.json({ success: true, captchaText: captcha.text, sessionId: captcha.sessionId });
+});
+
+app.post('/api/captcha/verify', (req, res) => {
+    const { sessionId, answer } = req.body;
+    const result = verifyCaptcha(sessionId, answer);
+    res.json(result);
+});
+
+// ====================== مسارات الملفات ======================
+// ⬇⬇⬇⬇⬇ يجب أن تكون قبل app.get('*') ⬇⬇⬇⬇⬇
+
+// إنشاء رابط رفع موقّع (Signed URL) - الفرونت إند بيرفع بيه مباشرة على Supabase
+// عشان نتخطى حد الـ4.5MB بتاع Vercel Functions. الرابط بيتولد بس لأدمن مسجل دخول،
+// وبيبقى صالح لملف واحد بس لمدة قصيرة.
+app.post('/api/files/upload-url', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const { fileName, grade, subject } = req.body;
+
+        if (!fileName || !grade || !subject) {
+            return res.status(400).json({ error: 'اسم الملف والصف والمادة مطلوبين' });
+        }
+
+        const safeFolder = `school/${grade}/${subject}`.split('/').map(sanitizeForStorage).join('/');
+        const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
+        const path = `${safeFolder}/${safeName}`;
+
+        const { data, error } = await supabase.storage
+            .from(SUPABASE_BUCKET)
+            .createSignedUploadUrl(path);
+
+        if (error) throw error;
+
+        const { data: publicUrlData } = supabase.storage
+            .from(SUPABASE_BUCKET)
+            .getPublicUrl(path);
+
+        res.json({
+            success: true,
+            path,
+            token: data.token,
+            publicUrl: publicUrlData.publicUrl,
+            supabaseUrl: process.env.SUPABASE_URL,
+            supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+            bucket: SUPABASE_BUCKET
+        });
+    } catch (error) {
+        console.error('❌ Upload URL error:', error);
+        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' + error.message });
+    }
+});
+
+// رفع ملفات متعددة (عن طريق السيرفر - احتياطي لملفات أصغر من 4.5MB فقط، حد Vercel الصارم)
+app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files', 20), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { grade, subject } = req.body;
+        
+        if (!grade || !subject) {
+            return res.status(400).json({ error: 'الصف والمادة مطلوبان' });
+        }
+        
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: 'يرجى اختيار ملفات للرفع' });
+        }
+
+        const uploadedFiles = [];
+
+        for (const file of req.files) {
+            // ✅ تصحيح ترميز اسم الملف (multer بيقرأ أسماء الملفات العربية بترميز غلط أحيانًا)
+            const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+            const folder = `school/${grade}/${subject}`;
+            const result = await uploadToCloudinary(file.buffer, folder, originalName);
+
+            const fileData = new File({
+                name: originalName,
+                url: result.secure_url,
+                publicId: result.public_id,
+                size: file.size,
+                type: file.mimetype || file.originalname.split('.').pop().toLowerCase(),
+                grade: grade,
+                subject: subject,
+                uploadedBy: req.user?.username || 'admin'
+            });
+
+            await fileData.save();
+            uploadedFiles.push(fileData);
+        }
+
+        res.json({
+            success: true,
+            message: `تم رفع ${uploadedFiles.length} ملف(ات) بنجاح`,
+            files: uploadedFiles
+        });
+
+    } catch (error) {
+        console.error('❌ Upload error:', error);
+        res.status(500).json({ error: 'خطأ في رفع الملفات: ' + error.message });
+    }
+});
+
+// ====================== جلب جميع الملفات ======================
+app.get('/api/files', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const files = await File.find().sort({ createdAt: -1 });
+        console.log('📁 عدد الملفات في DB:', files.length);
+        res.json(files);
+    } catch (error) {
+        console.error('❌ خطأ في جلب الملفات:', error);
+        res.status(500).json({ error: 'خطأ في جلب الملفات: ' + error.message });
+    }
+});
+
+// ====================== تحميل ملف (إعادة توجيه إلى Supabase Storage) ======================
+app.get('/api/files/download/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ error: 'الملف غير موجود' });
+        }
+
+        file.downloads = (file.downloads || 0) + 1;
+        await file.save();
+
+        return res.redirect(file.url);
+    } catch (error) {
+        console.error('❌ خطأ في تحميل الملف:', error);
+        res.status(500).json({ error: 'خطأ في تحميل الملف' });
+    }
+});
+
+// ====================== حذف ملف ======================
+app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ error: 'الملف غير موجود' });
+        }
+
+        // حذف من Supabase Storage
+        try {
+            await deleteFromSupabase(file.publicId);
+            console.log('✅ تم حذف الملف من Supabase:', file.publicId);
+        } catch (e) {
+            console.log('⚠️ Supabase delete error:', e.message);
+        }
+
+        await File.findByIdAndDelete(req.params.id);
+        res.json({ success: true, message: 'تم حذف الملف بنجاح' });
+    } catch (error) {
+        console.error('❌ خطأ في حذف الملف:', error);
+        res.status(500).json({ error: 'خطأ في حذف الملف' });
+    }
+});
+
+// ====================== إحصائيات الملفات ======================
+app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const totalFiles = await File.countDocuments();
+        const totalDownloads = await File.aggregate([
+            { $group: { _id: null, total: { $sum: '$downloads' } } }
+        ]);
+        const subjects = await File.distinct('subject');
+        const grades = await File.aggregate([
+            { $group: { _id: '$grade', count: { $sum: 1 } } }
+        ]);
+
+        res.json({
+            totalFiles,
+            totalDownloads: totalDownloads[0]?.total || 0,
+            subjects: subjects.length,
+            grades: grades
+        });
+    } catch (error) {
+        console.error('❌ خطأ في جلب الإحصائيات:', error);
+        res.status(500).json({ error: 'خطأ في جلب الإحصائيات' });
+    }
+});
+
+// ====================== حفظ معلومات الملف (احتياطي للرفع المباشر من الفرونت إند لو استخدمته) ======================
+app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { name, url, publicId, size, type, grade, subject } = req.body;
+        
+        console.log('📥 استلام معلومات ملف:', { name, grade, subject });
+        
+        if (!name || !url || !grade || !subject) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+        }
+
+        const fileData = new File({
+            name: name,
+            url: url,
+            publicId: publicId,
+            size: size || 0,
+            type: type || name.split('.').pop().toLowerCase(),
+            grade: grade,
+            subject: subject,
+            uploadedBy: req.user?.username || 'admin'
+        });
+
+        await fileData.save();
+        console.log('✅ تم حفظ الملف في DB:', fileData.name);
+        res.json({ success: true, file: fileData });
+    } catch (error) {
+        console.error('❌ Save file error:', error);
+        res.status(500).json({ error: 'خطأ في حفظ معلومات الملف: ' + error.message });
+    }
+});
+
+// ====================== تحديث عدد المشاهدات ======================
+app.post('/api/files/view/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ error: 'الملف غير موجود' });
+        }
+        file.views = (file.views || 0) + 1;
+        await file.save();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث المشاهدات:', error);
+        res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
+    }
+});
+
+// ملحوظة: تم حذف مسار /api/upload/signature (كان خاص بتوقيع Cloudinary
+// وغير مستخدم فعليًا في الفرونت إند). الرفع دلوقتي بيتم عن طريق
+// /api/files/upload-multiple اللي بيرفع مباشرة على Supabase Storage.
+
+
+// 1. إنشاء واجب جديد (للأدمن)
+app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, targetGrade, questions } = req.body;
+        
+        console.log('📝 إنشاء واجب جديد:', { title, chapterId, questionCount });
+        
+        if (!title || !chapterId || !questionCount || !deadline || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة، ويجب اختيار الأسئلة' });
+        }
+
+        const newHomework = new Homework({
+            title,
+            chapterId,
+            chapterName: chapterName || 'فصل غير معروف',
+            questionCount,
+            categoryFilter: categoryFilter || 'all',
+            deadline,
+            targetGrade: targetGrade || 'first',
+            createdBy: req.user.username || 'admin',
+            questions: questions,
+            isActive: true
+        });
+
+        await newHomework.save();
+        console.log('✅ تم إنشاء الواجب:', newHomework._id);
+        res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
+    } catch (error) {
+        console.error('❌ خطأ في إنشاء الواجب:', error);
+        res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' + error.message });
+    }
+});
+
+// 2. جلب كل الواجبات (للأدمن)
+app.get('/api/homework/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log('📋 جلب كل الواجبات...');
+        
+        const homeworks = await Homework.find().sort({ createdAt: -1 });
+        console.log(`✅ تم جلب ${homeworks.length} واجب من قاعدة البيانات`);
+        
+        if (!homeworks || homeworks.length === 0) {
+            console.log('⚠️ لا توجد واجبات في قاعدة البيانات');
+            return res.status(200).json([]);
+        }
+        
+        const homeworkWithStats = await Promise.all(homeworks.map(async (hw) => {
+            try {
+                const submissions = await HomeworkSubmission.find({ homeworkId: hw._id });
+                const totalStudents = await Student.countDocuments({ grade: hw.targetGrade || 'first' });
+                
+                let avgScore = '0';
+                if (submissions.length > 0) {
+                    const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                    avgScore = (totalScore / submissions.length).toFixed(1);
+                }
+                
+                console.log(`📊 واجب "${hw.title}": ${submissions.length} تسليم من ${totalStudents} طالب`);
+                
+                return {
+                    _id: hw._id,
+                    id: hw._id,
+                    title: hw.title || 'بدون عنوان',
+                    chapterId: hw.chapterId || '',
+                    chapterName: hw.chapterName || 'فصل غير معروف',
+                    questionCount: hw.questionCount || 0,
+                    categoryFilter: hw.categoryFilter || 'all',
+                    deadline: hw.deadline || new Date().toISOString().split('T')[0],
+                    targetGrade: hw.targetGrade || 'first',
+                    createdBy: hw.createdBy || 'admin',
+                    isActive: hw.isActive !== undefined ? hw.isActive : true,
+                    questions: hw.questions || [],
+                    totalStudents: totalStudents || 0,
+                    submittedCount: submissions.length || 0,
+                    avgScore: avgScore,
+                    createdAt: hw.createdAt || new Date(),
+                    updatedAt: hw.updatedAt || new Date()
+                };
+            } catch (err) {
+                console.error(`❌ خطأ في معالجة واجب ${hw._id}:`, err);
+                return {
+                    _id: hw._id,
+                    id: hw._id,
+                    title: hw.title || 'واجب (خطأ في المعالجة)',
+                    chapterName: hw.chapterName || 'فصل غير معروف',
+                    questionCount: hw.questionCount || 0,
+                    deadline: hw.deadline || new Date().toISOString().split('T')[0],
+                    targetGrade: hw.targetGrade || 'first',
+                    isActive: true,
+                    totalStudents: 0,
+                    submittedCount: 0,
+                    avgScore: '0',
+                    questions: []
+                };
+            }
+        }));
+
+        console.log(`✅ تم تجهيز ${homeworkWithStats.length} واجب للإرسال`);
+        return res.status(200).json(homeworkWithStats);
+        
+    } catch (error) {
+        console.error('❌ خطأ في جلب الواجبات:', error);
+        return res.status(500).json({ 
+            error: 'خطأ في جلب الواجبات: ' + error.message,
+            details: error.stack
+        });
+    }
+});
+
+// 3. جلب الواجبات المعلقة للطالب
+app.get('/api/homework/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log('📚 جلب الواجبات المعلقة للطالب:', req.user.username);
+        
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) {
+            console.log('❌ الطالب غير موجود');
+            return res.status(404).json({ error: 'الطالب غير موجود' });
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        console.log(`🎯 الصف: ${student.grade}, التاريخ: ${today}`);
+
+        const homeworks = await Homework.find({
+            targetGrade: student.grade,
+            isActive: true,
+            deadline: { $gte: today }
+        }).sort({ deadline: 1 });
+
+        console.log(`✅ تم جلب ${homeworks.length} واجب معلق`);
+
+        const pendingHomeworks = await Promise.all(homeworks.map(async (hw) => {
+            const submission = await HomeworkSubmission.findOne({ 
+                homeworkId: hw._id, 
+                studentId: req.user.username 
+            });
+            return {
+                ...hw._doc,
+                id: hw._id,
+                isSubmitted: !!submission,
+                hasSubmission: !!submission,
+                myScore: submission ? submission.score : null
+            };
+        }));
+
+        return res.status(200).json(pendingHomeworks);
+    } catch (error) {
+        console.error('❌ خطأ في جلب الواجبات المعلقة:', error);
+        res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message });
+    }
+});
+
+// 4. جلب واجب معين لحله (للطالب)
+app.get('/api/homework/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log('📥 جلب واجب:', req.params.id);
+        
+        const homework = await Homework.findById(req.params.id);
+        if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
+
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        
+        if (student.grade !== homework.targetGrade) {
+            return res.status(403).json({ error: 'هذا الواجب ليس لصفك' });
+        }
+
+        const existingSubmission = await HomeworkSubmission.findOne({ 
+            homeworkId: homework._id, 
+            studentId: req.user.username 
+        });
+        if (existingSubmission) {
+            return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
+        }
+
+        // إرجاع الأسئلة بدون الإجابات الصحيحة
+        const questionsWithoutAnswers = (homework.questions || []).map(q => ({
+            ...q,
+            correct: undefined,
+            correctAnswer: undefined,
+            completion: undefined,
+            answer: undefined
+        }));
+
+        return res.status(200).json({
+            ...homework._doc,
+            id: homework._id,
+            questions: questionsWithoutAnswers
+        });
+    } catch (error) {
+        console.error('❌ خطأ في جلب الواجب:', error);
+        res.status(500).json({ error: 'خطأ في جلب الواجب: ' + error.message });
+    }
+});
+
+// 5. تسليم الواجب (للطالب)
+app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const homeworkId = req.params.id;
+        const { answers, timeTaken, tabSwitches } = req.body;
+        
+        console.log('📤 تسليم واجب:', homeworkId);
+        console.log('📝 الإجابات المستلمة:', JSON.stringify(answers, null, 2));
+        
+        const homework = await Homework.findById(homeworkId);
+        if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
+
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+        const existingSubmission = await HomeworkSubmission.findOne({ 
+            homeworkId, 
+            studentId: req.user.username 
+        });
+        if (existingSubmission) {
+            return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
+        }
+
+        // حساب الدرجة
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = homework.questions || [];
+        
+        console.log(`📚 عدد الأسئلة في الواجب: ${questions.length}`);
+        
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) {
+                console.log(`⚠️ سؤال غير موجود في الفهرس ${answer.questionIndex}`);
+                continue;
+            }
+            
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            let correctAnswer = '';
+            
+            if (question.cat === 'mcq') {
+                correctAnswer = (question.correct || '').toString().trim();
+                isCorrect = userAnswer === correctAnswer;
+                console.log(`📊 MCQ - السؤال ${answer.questionIndex + 1}: "${userAnswer}" === "${correctAnswer}" => ${isCorrect}`);
+            } else if (question.cat === 'truefalse') {
+                const correctStr = String(question.correct).toLowerCase().trim();
+                const answerStr = userAnswer.toLowerCase().trim();
+                isCorrect = correctStr === answerStr;
+                console.log(`📊 True/False - السؤال ${answer.questionIndex + 1}: "${answerStr}" === "${correctStr}" => ${isCorrect}`);
+            } else {
+                // مقارنة تقريبية للإجابات المقالية
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 && 
+                           userAnswer.toLowerCase().includes(correctStr) || 
+                           correctStr.includes(userAnswer.toLowerCase());
+                console.log(`📊 Essay - السؤال ${answer.questionIndex + 1}: "${userAnswer}" ~ "${correctStr}" => ${isCorrect}`);
+            }
+            
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({
+                questionIndex: answer.questionIndex,
+                answer: userAnswer,
+                isCorrect: isCorrect
+            });
+        }
+
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        
+        console.log(`✅ النتيجة: ${correctCount}/${totalQuestions} = ${score}%`);
+
+        const submission = new HomeworkSubmission({
+            homeworkId: homework._id,
+            studentId: req.user.username,
+            studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---',
+            answers: detailedAnswers,
+            score: score,
+            totalQuestions: totalQuestions,
+            timeTaken: timeTaken || 0,
+            tabSwitches: tabSwitches || 0
+        });
+
+        await submission.save();
+        console.log(`✅ تم تسليم الواجب ${homeworkId} من الطالب ${req.user.username} بنتيجة ${score}%`);
+        
+        res.json({ 
+            success: true, 
+            message: 'تم تسليم الواجب بنجاح', 
+            score: score 
+        });
+    } catch (error) {
+        console.error('❌ خطأ في تسليم الواجب:', error);
+        res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message });
+    }
+});
+
+// 6. جلب تفاصيل تسليم واجب معين (للأدمن أو للطالب نفسه)
+app.get('/api/homework/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log('📊 جلب تسليمات الواجب:', req.params.id);
+        
+        // إذا كان المستخدم أدمن، يجيب كل التسليمات
+        if (req.user.type === 'admin') {
+            const submissions = await HomeworkSubmission.find({ homeworkId: req.params.id })
+                .sort({ submittedAt: -1 });
+            
+            console.log(`✅ تم جلب ${submissions.length} تسليم للأدمن`);
+            
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return {
+                    ...sub._doc,
+                    id: sub._id,
+                    studentName: student ? student.fullName : sub.studentName || 'غير معروف',
+                    studentCode: student ? student.studentCode : sub.studentCode || '---'
+                };
+            }));
+            
+            return res.json(detailedSubmissions);
+        }
+        
+        // إذا كان المستخدم طالب، يجيب تسليمه هو فقط
+        const submission = await HomeworkSubmission.findOne({ 
+            homeworkId: req.params.id, 
+            studentId: req.user.username 
+        });
+        
+        if (!submission) {
+            return res.status(404).json({ error: 'لم تجد تسليم لهذا الواجب' });
+        }
+        
+        console.log(`✅ تم جلب تسليم الطالب ${req.user.username}`);
+        return res.json([submission]); // إرجاع كمصفوفة للتوافق مع الواجهة
+        
+    } catch (error) {
+        console.error('❌ خطأ في جلب التسليمات:', error);
+        res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message });
+    }
+});
+
+// 7. حذف/إلغاء واجب (للأدمن)
+app.delete('/api/homework/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log('🗑️ حذف واجب:', req.params.id);
+        
+        const deletedHomework = await Homework.findByIdAndDelete(req.params.id);
+        if (!deletedHomework) {
+            return res.status(404).json({ error: 'الواجب غير موجود' });
+        }
+        
+        const deletedSubmissions = await HomeworkSubmission.deleteMany({ homeworkId: req.params.id });
+        console.log(`✅ تم حذف الواجب و ${deletedSubmissions.deletedCount} تسليم`);
+        
+        res.json({ 
+            success: true, 
+            message: 'تم حذف الواجب وجميع التسليمات المرتبطة به',
+            deletedSubmissions: deletedSubmissions.deletedCount
+        });
+    } catch (error) {
+        console.error('❌ خطأ في حذف الواجب:', error);
+        res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message });
+    }
+});
+
+
+// ====================== دالة توليد كود فريد ======================
+function generateTournamentCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // تجنب الأحرف المتشابهة (0,O,1,I)
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
+async function generateUniqueCode() {
+    let code;
+    let exists = true;
+    let attempts = 0;
+    
+    while (exists && attempts < 20) {
+        code = generateTournamentCode();
+        exists = await Tournament.findOne({ code });
+        attempts++;
+    }
+    
+    if (exists) {
+        throw new Error('فشل توليد كود فريد بعد عدة محاولات');
+    }
+    
+    return code;
+}
+
+// ====================== دوال تصحيح الإجابات ======================
+function correctAnswer(question, userAnswer) {
+    if (!userAnswer) return false;
+    
+    const qType = question.cat || 'mcq';
+    const userAnsLower = userAnswer.trim().toLowerCase();
+    
+    switch (qType) {
+        case 'mcq':
+            return correctMCQ(question, userAnswer, userAnsLower);
+        
+        case 'truefalse':
+            return correctTrueFalse(question, userAnsLower);
+        
+        case 'complete':
+            return correctComplete(question, userAnsLower);
+        
+        case 'list':
+            return correctList(userAnsLower);
+        
+        case 'explain':
+        case 'situations':
+            return correctOpenEnded(userAnsLower);
+        
+        default:
+            return false;
+    }
+}
+
+function correctMCQ(question, userAnswer, userAnsLower) {
+    const correctAns = String(question.correct || '').trim().toLowerCase();
+    
+    // مقارنة مباشرة
+    if (userAnswer.trim().toLowerCase() === correctAns) return true;
+    
+    // مقارنة مع الخيارات
+    if (question.options) {
+        return question.options.some(opt => {
+            const optLower = String(opt).trim().toLowerCase();
+            return optLower === userAnsLower && optLower === correctAns;
+        });
+    }
+    
+    return false;
+}
+
+function correctTrueFalse(question, userAnsLower) {
+    const correctIsTrue = (
+        question.correct === true || 
+        String(question.correct).toLowerCase() === 'true'
+    );
+    
+    const trueAnswers = ['صواب', 'true', 'صح', 'نعم', 'yes'];
+    const falseAnswers = ['خطأ', 'false', 'غلط', 'لا', 'no'];
+    
+    const userIsTrue = trueAnswers.includes(userAnsLower);
+    const userIsFalse = falseAnswers.includes(userAnsLower);
+    
+    if (correctIsTrue) return userIsTrue;
+    return userIsFalse;
+}
+
+function correctComplete(question, userAnsLower) {
+    const completion = String(question.completion || '').trim().toLowerCase();
+    if (!completion || userAnsLower.length < 2) return false;
+    
+    // تطابق تام
+    if (userAnsLower === completion) return true;
+    
+    // تطابق جزئي
+    if (userAnsLower.includes(completion) || completion.includes(userAnsLower)) return true;
+    
+    // تحليل الكلمات المفتاحية (للكلمات الطويلة فقط)
+    const keywords = completion.split(/\s+/).filter(w => w.length > 3);
+    if (keywords.length === 0) return false;
+    
+    const matched = keywords.filter(kw => userAnsLower.includes(kw));
+    return (matched.length / keywords.length) >= 0.6;
+}
+
+function correctList(userAnsLower) {
+    // التحقق من وجود 3 نقاط على الأقل مفصولة بأسطر أو فواصل
+    const lines = userAnsLower.split(/[\n,،]/).filter(l => l.trim().length > 3);
+    return lines.length >= 3;
+}
+
+function correctOpenEnded(userAnsLower) {
+    // إجابة طويلة بما فيه الكفاية
+    return userAnsLower.length > 15;
+}
+
+// ====================== 1. إنشاء بطولة (للأدمن) ======================
+app.post('/api/tournaments', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const { 
+            title, chapterId, chapterName, questionCount, 
+            categoryFilter, timeLimitMinutes, startDate, endDate, questions 
+        } = req.body;
+        
+        // التحقق من البيانات
+        if (!title || !chapterId || !startDate || !endDate) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'جميع الحقول المطلوبة يجب ملؤها' 
+            });
+        }
+        
+        if (!questions || !Array.isArray(questions) || questions.length === 0) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'يجب إضافة سؤال واحد على الأقل للبطولة' 
+            });
+        }
+        
+        if (startDate > endDate) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية' 
+            });
+        }
+        
+        // التحقق من صحة الأسئلة
+        const invalidQuestions = questions.filter(q => !q.text || !q.cat);
+        if (invalidQuestions.length > 0) {
+            return res.status(400).json({
+                success: false,
+                error: `يوجد ${invalidQuestions.length} سؤال غير صالح`
+            });
+        }
+        
+        // توليد كود فريد
+        const uniqueCode = await generateUniqueCode();
+        
+        // إنشاء البطولة
+        const newTournament = new Tournament({
+            title: title.trim(),
+            code: uniqueCode,
+            chapterId,
+            chapterName: chapterName || 'فصل غير معروف',
+            questionCount: questions.length,
+            categoryFilter: categoryFilter || 'all',
+            timeLimitMinutes: Math.min(Math.max(timeLimitMinutes || 10, 5), 120),
+            startDate,
+            endDate,
+            createdBy: req.user.username || 'admin',
+            questions,
+            isActive: true
+        });
+        
+        await newTournament.save();
+        
+        console.log(`✅ بطولة جديدة: ${uniqueCode} | ${questions.length} سؤال | ${newTournament.title}`);
+        
+        res.status(201).json({ 
+            success: true, 
+            message: 'تم إنشاء البطولة بنجاح',
+            tournament: {
+                _id: newTournament._id,
+                title: newTournament.title,
+                code: newTournament.code,
+                chapterName: newTournament.chapterName,
+                questionCount: newTournament.questionCount,
+                timeLimitMinutes: newTournament.timeLimitMinutes,
+                startDate: newTournament.startDate,
+                endDate: newTournament.endDate
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في إنشاء البطولة:', error);
+        
+        // خطأ تكرار الكود
+        if (error.code === 11000) {
+            return res.status(500).json({ 
+                success: false,
+                error: 'حدث خطأ في توليد كود البطولة، يرجى المحاولة مرة أخرى' 
+            });
+        }
+        
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في إنشاء البطولة: ' + error.message 
+        });
+    }
+});
+
+// ====================== 2. جلب البطولات النشطة ======================
+app.get('/api/tournaments/active', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        const tournaments = await Tournament.find({
+            isActive: true,
+            startDate: { $lte: today },
+            endDate: { $gte: today }
+        })
+        .select('title code chapterName questionCount timeLimitMinutes startDate endDate participants')
+        .sort({ createdAt: -1 })
+        .lean();
+        
+        const result = tournaments.map(t => {
+            try {
+                const participants = t.participants || [];
+                const userParticipant = participants.find(
+                    p => p.studentId === req.user.username
+                );
+                
+                return {
+                    _id: t._id,
+                    title: t.title,
+                    code: t.code,
+                    chapterName: t.chapterName || '',
+                    questionCount: t.questionCount || 0,
+                    timeLimitMinutes: t.timeLimitMinutes || 10,
+                    startDate: t.startDate,
+                    endDate: t.endDate,
+                    participantsCount: participants.length,
+                    hasParticipated: !!userParticipant,
+                    myScore: userParticipant ? userParticipant.score : null,
+                    myTime: userParticipant ? userParticipant.timeTaken : null,
+                    myCorrectCount: userParticipant ? userParticipant.correctCount : null
+                };
+            } catch (err) {
+                console.error('خطأ في معالجة بطولة:', t._id, err.message);
+                return null;
+            }
+        }).filter(t => t !== null);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ خطأ في جلب البطولات:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في جلب البطولات النشطة: ' + error.message 
+        });
+    }
+});
+
+// ====================== 3. الانضمام بكود البطولة ======================
+app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const { code } = req.body;
+        
+        if (!code || typeof code !== 'string') {
+            return res.status(400).json({ 
+                success: false,
+                error: 'يرجى إدخال كود البطولة' 
+            });
+        }
+        
+        const cleanCode = code.toUpperCase().trim();
+        
+        if (!/^[A-Z0-9]{6}$/.test(cleanCode)) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'صيغة الكود غير صحيحة' 
+            });
+        }
+        
+        const tournament = await Tournament.findOne({ 
+            code: cleanCode,
+            isActive: true 
+        });
+        
+        if (!tournament) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'كود البطولة غير صحيح أو البطولة غير متاحة' 
+            });
+        }
+        
+        // التحقق من التواريخ
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (tournament.startDate > today) {
+            return res.status(400).json({ 
+                success: false,
+                error: `البطولة لم تبدأ بعد. ستبدأ في ${tournament.startDate}` 
+            });
+        }
+        
+        if (tournament.endDate < today) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'انتهت مدة البطولة' 
+            });
+        }
+        
+        // التحقق من المشاركة السابقة
+        const alreadyJoined = tournament.participants.find(
+            p => p.studentId === req.user.username
+        );
+        
+        if (alreadyJoined) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'لقد شاركت في هذه البطولة مسبقاً',
+                alreadyParticipated: true,
+                score: alreadyJoined.score
+            });
+        }
+        
+        // تجهيز الأسئلة بدون الإجابات الصحيحة
+        const questionsWithoutAnswers = tournament.questions.map(q => ({
+            text: q.text || '',
+            translation: q.translation || '',
+            cat: q.cat || 'mcq',
+            options: q.options || []
+        }));
+        
+        console.log(`🔑 انضمام للبطولة: ${req.user.username} | ${cleanCode}`);
+        
+        res.json({ 
+            success: true,
+            tournamentId: tournament._id,
+            title: tournament.title,
+            chapterName: tournament.chapterName,
+            timeLimitMinutes: tournament.timeLimitMinutes || 10,
+            endDate: tournament.endDate,
+            questions: questionsWithoutAnswers,
+            totalQuestions: questionsWithoutAnswers.length,
+            message: 'تم التحقق بنجاح. ابدأ الحل الآن!'
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في الانضمام:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في الانضمام للبطولة: ' + error.message 
+        });
+    }
+});
+
+// ====================== 4. المشاركة وإرسال الإجابات ======================
+app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const { answers, timeTaken } = req.body;
+        const tournamentId = req.params.id;
+        
+        // التحقق من صحة المعرف
+        if (!mongoose.Types.ObjectId.isValid(tournamentId)) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'معرف البطولة غير صحيح' 
+            });
+        }
+        
+        if (!answers || !Array.isArray(answers)) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'بيانات الإجابات غير صحيحة' 
+            });
+        }
+        
+        const tournament = await Tournament.findById(tournamentId);
+        
+        if (!tournament) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'البطولة غير موجودة' 
+            });
+        }
+        
+        // التحقق من حالة البطولة
+        if (!tournament.isActive) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'البطولة مغلقة وغير متاحة للمشاركة' 
+            });
+        }
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (tournament.startDate > today) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'البطولة لم تبدأ بعد' 
+            });
+        }
+        
+        if (tournament.endDate < today) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'انتهت مدة البطولة' 
+            });
+        }
+        
+        // التحقق من عدم المشاركة المسبقة
+        const existingParticipant = tournament.participants.find(
+            p => p.studentId === req.user.username
+        );
+        
+        if (existingParticipant) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'لقد شاركت بالفعل في هذه البطولة' 
+            });
+        }
+        
+        // التحقق من وقت الحل (منع الغش)
+        const totalQuestions = tournament.questions.length;
+        const minExpectedTime = Math.max(30, totalQuestions * 3); // 3 ثواني لكل سؤال كحد أدنى
+        
+        if (timeTaken < minExpectedTime) {
+            console.warn(`⚠️ وقت مشبوه: ${req.user.username} | ${timeTaken}ثانية | الحد الأدنى: ${minExpectedTime}ثانية`);
+            return res.status(400).json({ 
+                success: false,
+                error: 'وقت الحل غير منطقي. يرجى إعادة المحاولة بتركيز.' 
+            });
+        }
+        
+        // التحقق من عدد الإجابات
+        if (answers.length > totalQuestions) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'عدد الإجابات أكثر من عدد الأسئلة' 
+            });
+        }
+        
+        // تصحيح الإجابات
+        let correctCount = 0;
+        const detailedAnswers = [];
+        
+        for (const answer of answers) {
+            const question = tournament.questions[answer.questionIndex];
+            
+            if (!question) {
+                detailedAnswers.push({
+                    questionIndex: answer.questionIndex,
+                    answer: answer.answer || '',
+                    isCorrect: false
+                });
+                continue;
+            }
+            
+            const isCorrect = correctAnswer(question, answer.answer || '');
+            if (isCorrect) correctCount++;
+            
+            detailedAnswers.push({
+                questionIndex: answer.questionIndex,
+                answer: answer.answer || '',
+                isCorrect
+            });
+        }
+        
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const wrongCount = totalQuestions - correctCount;
+        
+        // جلب معلومات الطالب
+        let studentName = req.user.username;
+        try {
+            const student = await Student.findOne({ username: req.user.username });
+            if (student) {
+                studentName = student.fullName || student.username;
+            }
+        } catch (err) {
+            console.warn('تعذر جلب اسم الطالب:', err.message);
+        }
+        
+        // إضافة المشارك
+        tournament.participants.push({
+            studentId: req.user.username,
+            studentName,
+            score,
+            correctCount,
+            wrongCount,
+            timeTaken: timeTaken || 0,
+            answers: detailedAnswers,
+            submittedAt: new Date()
+        });
+        
+        // ترتيب المشاركين (الأعلى درجة ثم الأسرع)
+        tournament.participants.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return a.timeTaken - b.timeTaken;
+        });
+        
+        await tournament.save();
+        
+        // حساب ترتيب المستخدم
+        const userRank = tournament.participants.findIndex(
+            p => p.studentId === req.user.username
+        ) + 1;
+        
+        // مكافأة XP
+        const xpRewards = {
+            1: 50,
+            2: 30,
+            3: 20
+        };
+        const xpReward = xpRewards[userRank] || 10;
+        
+        // تحديث XP
+        try {
+            await Progress.findOneAndUpdate(
+                { userId: req.user.username },
+                { $inc: { xp: xpReward } },
+                { upsert: true, new: true }
+            );
+        } catch (xpErr) {
+            console.error('خطأ في تحديث XP:', xpErr.message);
+        }
+        
+        console.log(`✅ مشاركة: ${req.user.username} | ${score}% | ترتيب: ${userRank} | XP: +${xpReward}`);
+        
+        res.json({
+            success: true,
+            score,
+            rank: userRank,
+            correctCount,
+            wrongCount,
+            totalQuestions,
+            xpEarned: xpReward,
+            message: `أحسنت! حصلت على ${score}%`
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في المشاركة:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في معالجة المشاركة: ' + error.message 
+        });
+    }
+});
+
+// ====================== 5. جلب نتائج البطولة ======================
+app.get('/api/tournaments/:id/results', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const tournamentId = req.params.id;
+        
+        if (!mongoose.Types.ObjectId.isValid(tournamentId)) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'معرف البطولة غير صحيح' 
+            });
+        }
+        
+        const tournament = await Tournament.findById(tournamentId)
+            .select('title chapterName participants winner1 winner2 winner3')
+            .lean();
+        
+        if (!tournament) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'البطولة غير موجودة' 
+            });
+        }
+        
+        // التحقق من صلاحية العرض
+        if (req.user.type !== 'admin') {
+            const isParticipant = (tournament.participants || []).some(
+                p => p.studentId === req.user.username
+            );
+            if (!isParticipant) {
+                return res.status(403).json({ 
+                    success: false,
+                    error: 'يجب المشاركة في البطولة أولاً لعرض النتائج' 
+                });
+            }
+        }
+        
+        const participants = (tournament.participants || []).map((p, index) => ({
+            rank: index + 1,
+            studentName: p.studentName,
+            score: p.score,
+            correctCount: p.correctCount || 0,
+            wrongCount: p.wrongCount || 0,
+            timeTaken: p.timeTaken,
+            submittedAt: p.submittedAt
+        }));
+        
+        const top3 = participants.slice(0, 3);
+        
+        // إخفاء أسماء الفائزين إذا لم ينتهِ الوقت
+        const isFinished = !tournament.isActive;
+        
+        res.json({
+            success: true,
+            title: tournament.title,
+            chapterName: tournament.chapterName,
+            participants,
+            top3,
+            totalParticipants: participants.length,
+            winners: isFinished ? {
+                first: tournament.winner1 || '',
+                second: tournament.winner2 || '',
+                third: tournament.winner3 || ''
+            } : null
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في جلب النتائج:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في جلب نتائج البطولة: ' + error.message 
+        });
+    }
+});
+
+// ====================== 6. إنهاء البطولة (للأدمن) ======================
+app.post('/api/tournaments/:id/finish', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const tournamentId = req.params.id;
+        
+        if (!mongoose.Types.ObjectId.isValid(tournamentId)) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'معرف البطولة غير صحيح' 
+            });
+        }
+        
+        const tournament = await Tournament.findById(tournamentId);
+        
+        if (!tournament) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'البطولة غير موجودة' 
+            });
+        }
+        
+        if (!tournament.isActive) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'البطولة منتهية بالفعل' 
+            });
+        }
+        
+        // إنهاء البطولة
+        tournament.isActive = false;
+        
+        const participants = tournament.participants || [];
+        
+        // تحديد الفائزين
+        if (participants.length >= 1) {
+            tournament.winner1 = participants[0].studentId;
+        }
+        if (participants.length >= 2) {
+            tournament.winner2 = participants[1].studentId;
+        }
+        if (participants.length >= 3) {
+            tournament.winner3 = participants[2].studentId;
+        }
+        
+        // توزيع مكافآت XP إضافية للفائزين
+        const winnerRewards = [
+            { id: tournament.winner1, xp: 100, rank: 1 },
+            { id: tournament.winner2, xp: 60, rank: 2 },
+            { id: tournament.winner3, xp: 30, rank: 3 }
+        ];
+        
+        for (const reward of winnerRewards) {
+            if (reward.id) {
+                try {
+                    await Progress.findOneAndUpdate(
+                        { userId: reward.id },
+                        { $inc: { xp: reward.xp } },
+                        { upsert: true }
+                    );
+                    console.log(`🏆 مكافأة المركز ${reward.rank}: ${reward.id} +${reward.xp}XP`);
+                } catch (err) {
+                    console.error(`خطأ في مكافأة ${reward.id}:`, err.message);
+                }
+            }
+        }
+        
+        await tournament.save();
+        
+        console.log(`✅ تم إنهاء البطولة: ${tournament.title} | الفائز: ${participants[0]?.studentName || 'لا يوجد'}`);
+        
+        res.json({
+            success: true,
+            message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح',
+            winners: {
+                first: participants[0]?.studentName || 'لا يوجد',
+                second: participants[1]?.studentName || 'لا يوجد',
+                third: participants[2]?.studentName || 'لا يوجد'
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في إنهاء البطولة:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في إنهاء البطولة: ' + error.message 
+        });
+    }
+});
+
+// ====================== 7. جلب جميع البطولات (للأدمن) ======================
+app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+        
+        const [tournaments, total] = await Promise.all([
+            Tournament.find()
+                .select('title code chapterName questionCount startDate endDate isActive participants createdAt')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Tournament.countDocuments()
+        ]);
+        
+        const result = tournaments.map(t => ({
+            _id: t._id,
+            title: t.title,
+            code: t.code,
+            chapterName: t.chapterName,
+            questionCount: t.questionCount,
+            startDate: t.startDate,
+            endDate: t.endDate,
+            isActive: t.isActive,
+            participantsCount: (t.participants || []).length,
+            createdAt: t.createdAt
+        }));
+        
+        res.json({
+            success: true,
+            tournaments: result,
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(total / limit),
+                totalItems: total,
+                itemsPerPage: limit
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في جلب جميع البطولات:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في جلب البطولات: ' + error.message 
+        });
+    }
+});
+
+
+
+// ====================== 🔐 نظام تسجيل الدخول بالبصمة (WebAuthn) ======================
+const {
+    generateRegistrationOptions,
+    verifyRegistrationResponse,
+    generateAuthenticationOptions,
+    verifyAuthenticationResponse
+} = require('@simplewebauthn/server');
+
+// اسم/معرف الموقع لازم يكون ثابت (نفس الدومين اللي المستخدم بيسجل دخول منه)
+const RP_NAME = 'معهد رعاية الضبعية';
+function getRpID(req) {
+    return (req.headers.host || 'localhost').split(':')[0];
+}
+function getOrigin(req) {
+    return `${req.protocol}://${req.headers.host}`;
+}
+
+// نموذج لتخزين بيانات البصمة (مفتاح عام حقيقي + عداد لمنع إعادة التشغيل)
+const biometricSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    credentialId: { type: String, required: true, unique: true }, // base64url
+    publicKey: { type: String, required: true }, // base64 من credentialPublicKey الحقيقي
+    counter: { type: Number, default: 0 },
+    deviceType: { type: String, default: 'singleDevice' },
+    backedUp: { type: Boolean, default: false },
+    transports: { type: [String], default: [] },
+    registeredAt: { type: Date, default: Date.now },
+    lastUsed: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+const Biometric = mongoose.models.Biometric || mongoose.model('Biometric', biometricSchema);
+
+// تخزين التحدي (challenge) في قاعدة البيانات بدل الجلسة
+// (السيرفر Serverless - مفيش ذاكرة ثابتة بين الطلبات، فمينفعش نعتمد على req.session)
+const challengeSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    challenge: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now, expires: 300 } // تنتهي صلاحيتها بعد 5 دقايق
+});
+const WebAuthnChallenge = mongoose.models.WebAuthnChallenge || mongoose.model('WebAuthnChallenge', challengeSchema);
+
+// 1. بدء تسجيل البصمة (Enrollment)
+app.post('/api/biometric/register-start', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const username = req.user.username;
+
+        const existing = await Biometric.findOne({ username });
+        if (existing) {
+            return res.status(400).json({
+                success: false,
+                error: 'لقد قمت بتسجيل البصمة مسبقاً. يمكنك تسجيل الدخول مباشرة'
+            });
+        }
+
+        const options = await generateRegistrationOptions({
+            rpName: RP_NAME,
+            rpID: getRpID(req),
+            userID: crypto.createHash('sha256').update(username).digest(),
+            userName: username,
+            userDisplayName: req.user.fullName || username,
+            attestationType: 'none',
+            authenticatorSelection: {
+                authenticatorAttachment: 'platform',
+                residentKey: 'preferred',
+                userVerification: 'preferred'
+            }
+        });
+
+        await WebAuthnChallenge.findOneAndUpdate(
+            { username },
+            { challenge: options.challenge, createdAt: new Date() },
+            { upsert: true }
+        );
+
+        res.json({ success: true, options });
+    } catch (error) {
+        console.error('❌ Biometric register start error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. إكمال تسجيل البصمة (بالتحقق الفعلي من التوقيع)
+app.post('/api/biometric/register-finish', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { credential } = req.body;
+        const username = req.user.username;
+
+        if (!credential) {
+            return res.status(400).json({ success: false, error: 'بيانات البصمة غير صحيحة' });
+        }
+
+        const existing = await Biometric.findOne({ username });
+        if (existing) {
+            return res.status(400).json({ success: false, error: 'البصمة مسجلة مسبقاً' });
+        }
+
+        const pending = await WebAuthnChallenge.findOne({ username });
+        if (!pending) {
+            return res.status(400).json({ success: false, error: 'انتهت صلاحية طلب التسجيل، حاول تاني' });
+        }
+
+        const verification = await verifyRegistrationResponse({
+            response: credential,
+            expectedChallenge: pending.challenge,
+            expectedOrigin: getOrigin(req),
+            expectedRPID: getRpID(req)
+        });
+
+        if (!verification.verified || !verification.registrationInfo) {
+            return res.status(400).json({ success: false, error: 'فشل التحقق من البصمة' });
+        }
+
+        const { credential: regCred, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+
+        await new Biometric({
+            username,
+            credentialId: regCred.id,
+            publicKey: Buffer.from(regCred.publicKey).toString('base64'),
+            counter: regCred.counter,
+            deviceType: credentialDeviceType,
+            backedUp: credentialBackedUp,
+            transports: credential.response?.transports || []
+        }).save();
+
+        await WebAuthnChallenge.deleteOne({ username });
+
+        console.log(`✅ تم تسجيل البصمة للمستخدم: ${username}`);
+        res.json({ success: true, message: '✅ تم تسجيل البصمة بنجاح! يمكنك الآن تسجيل الدخول بالبصمة' });
+    } catch (error) {
+        console.error('❌ Biometric register finish error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 3. بدء تسجيل الدخول بالبصمة
+app.post('/api/biometric/login-start', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { username } = req.body;
+
+        if (!username) {
+            return res.status(400).json({ success: false, error: 'اسم المستخدم مطلوب' });
+        }
+
+        const biometric = await Biometric.findOne({ username: username.toLowerCase() });
+        if (!biometric) {
+            return res.status(404).json({ success: false, error: 'لم يتم العثور على بصمة مسجلة لهذا المستخدم' });
+        }
+
+        const options = await generateAuthenticationOptions({
+            rpID: getRpID(req),
+            allowCredentials: [{
+                id: biometric.credentialId,
+                transports: biometric.transports || []
+            }],
+            userVerification: 'preferred'
+        });
+
+        await WebAuthnChallenge.findOneAndUpdate(
+            { username: username.toLowerCase() },
+            { challenge: options.challenge, createdAt: new Date() },
+            { upsert: true }
+        );
+
+        res.json({ success: true, options });
+    } catch (error) {
+        console.error('❌ Biometric login start error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 4. إكمال تسجيل الدخول بالبصمة (بالتحقق الفعلي من التوقيع والعداد)
+app.post('/api/biometric/login-finish', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { credential } = req.body;
+
+        if (!credential || !credential.id) {
+            return res.status(400).json({ success: false, error: 'بيانات البصمة غير صحيحة' });
+        }
+
+        const biometric = await Biometric.findOne({ credentialId: credential.id });
+        if (!biometric) {
+            return res.status(401).json({ success: false, error: 'بصمة غير معروفة' });
+        }
+
+        const pending = await WebAuthnChallenge.findOne({ username: biometric.username });
+        if (!pending) {
+            return res.status(400).json({ success: false, error: 'انتهت صلاحية الطلب، حاول تاني' });
+        }
+
+        const verification = await verifyAuthenticationResponse({
+            response: credential,
+            expectedChallenge: pending.challenge,
+            expectedOrigin: getOrigin(req),
+            expectedRPID: getRpID(req),
+            credential: {
+                id: biometric.credentialId,
+                publicKey: Buffer.from(biometric.publicKey, 'base64'),
+                counter: biometric.counter,
+                transports: biometric.transports || []
+            }
+        });
+
+        if (!verification.verified) {
+            return res.status(401).json({ success: false, error: 'فشل التحقق من البصمة' });
+        }
+
+        // تحديث العداد (يمنع إعادة استخدام نفس التوقيع - replay attack)
+        biometric.counter = verification.authenticationInfo.newCounter;
+        biometric.lastUsed = new Date();
+        await biometric.save();
+        await WebAuthnChallenge.deleteOne({ username: biometric.username });
+
+        let user = await Admin.findOne({ username: biometric.username });
+        let userType = 'admin';
+        if (!user) {
+            user = await Student.findOne({ username: biometric.username });
+            userType = 'student';
+        }
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'المستخدم غير موجود' });
+        }
+
+        const token = jwt.sign(
+            {
+                id: user._id,
+                username: user.username,
+                type: userType,
+                fullName: user.fullName,
+                studentCode: user.studentCode
+            },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        setAuthCookie(res, token);
+
+        console.log(`✅ تسجيل دخول بالبصمة: ${biometric.username}`);
+        res.json({
+            success: true,
+            user: {
+                username: user.username,
+                fullName: user.fullName,
+                type: userType,
+                id: user.studentCode || user._id
+            },
+            message: '🎉 تم تسجيل الدخول بالبصمة بنجاح!'
+        });
+    } catch (error) {
+        console.error('❌ Biometric login finish error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 5. التحقق من وجود بصمة مسجلة
+app.get('/api/biometric/check/:username', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { username } = req.params;
+        
+        const biometric = await Biometric.findOne({ username: username.toLowerCase() });
+        
+        res.json({
+            success: true,
+            hasBiometric: !!biometric,
+            lastUsed: biometric?.lastUsed || null
+        });
+    } catch (error) {
+        res.json({ success: false, hasBiometric: false });
+    }
+});
+
+// 6. حذف البصمة المسجلة
+app.delete('/api/biometric', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const username = req.user.username;
+        
+        const deleted = await Biometric.findOneAndDelete({ username });
+        
+        if (!deleted) {
+            return res.status(404).json({ success: false, error: 'لا توجد بصمة مسجلة' });
+        }
+        
+        res.json({
+            success: true,
+            message: '✅ تم حذف البصمة بنجاح'
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+
+// ====================== المراجعة الذكية (Smart Review) ======================
+app.post('/api/smart-review', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.username || req.user.id;
+        const { questions: allQuestions, chapterId } = req.body;
+        
+        console.log('🧠 جلب أسئلة المراجعة الذكية للمستخدم:', userId);
+        console.log(`📚 عدد الأسئلة المستلمة: ${allQuestions?.length || 0}`);
+        console.log(`📖 الفصل المختار: ${chapterId || 'جميع الفصول'}`);
+        
+        if (!allQuestions || allQuestions.length === 0) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'لا توجد أسئلة مرسلة من الواجهة' 
+            });
+        }
+        
+        // جلب تقدم الطالب
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+            await progress.save();
+            console.log('✅ تم إنشاء تقدم جديد للمستخدم');
+        }
+        
+        // جلب الأسئلة الخاطئة
+        const wrongQuestions = progress.wrongQuestions || [];
+        console.log(`📝 عدد الأسئلة الخاطئة: ${wrongQuestions.length}`);
+        
+        // جلب الأسئلة الصعبة
+        const difficulties = progress.difficulties || {};
+        const hardQuestionIds = [];
+        for (const [key, value] of Object.entries(difficulties)) {
+            if (value === 'hard') hardQuestionIds.push(key);
+        }
+        console.log(`🔴 عدد الأسئلة الصعبة: ${hardQuestionIds.length}`);
+        
+        // جلب سجل الاختبارات
+        const quizHistory = progress.quizHistory || [];
+        console.log(`📊 عدد الاختبارات السابقة: ${quizHistory.length}`);
+        
+        // تصفية الأسئلة للمراجعة
+        const reviewQuestions = [];
+        const now = new Date();
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const oneWeekAgoStr = oneWeekAgo.toISOString();
+        
+        // قائمة الأسئلة التي تم حلها مؤخراً
+        const recentlySolved = new Set();
+        for (const history of quizHistory) {
+            if (history.date && history.date > oneWeekAgoStr) {
+                if (history.questionId) {
+                    recentlySolved.add(history.questionId);
+                }
+            }
+        }
+        
+        // قائمة الأسئلة التي تم حلها بشكل عام
+        const solvedQuestions = new Set();
+        for (const history of quizHistory) {
+            if (history.questionId) {
+                solvedQuestions.add(history.questionId);
+            }
+        }
+        
+        for (const q of allQuestions) {
+            // 1. أسئلة خاطئة - أولوية عالية جداً
+            if (wrongQuestions.some(w => w.questionId === q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '❌ أجبت عليها خطأ' });
+                continue;
+            }
+            
+            // 2. أسئلة صعبة - أولوية عالية
+            if (hardQuestionIds.includes(q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '🔴 صنفتها صعبة' });
+                continue;
+            }
+            
+            // 3. أسئلة لم تراجع منذ أسبوع
+            if (!recentlySolved.has(q.questionId) && solvedQuestions.has(q.questionId)) {
+                reviewQuestions.push({ ...q, reason: '⏰ مر أكثر من أسبوع' });
+                continue;
+            }
+            
+            // 4. أسئلة لم تحل من قبل (للطلاب الجدد)
+            if (!solvedQuestions.has(q.questionId) && reviewQuestions.length < 30) {
+                reviewQuestions.push({ ...q, reason: '🆕 لم تحل من قبل' });
+            }
+        }
+        
+        console.log(`📋 عدد أسئلة المراجعة: ${reviewQuestions.length}`);
+        
+        // اختيار 10-20 سؤال عشوائي
+        const shuffled = reviewQuestions.sort(() => Math.random() - 0.5);
+        const selected = shuffled.slice(0, Math.min(20, Math.max(10, shuffled.length)));
+        const reasons = selected.map(q => q.reason);
+        
+        // إزالة الإجابات
+        const questionsWithoutAnswers = selected.map(q => {
+            const newQ = { ...q };
+            delete newQ.correct;
+            delete newQ.correctAnswer;
+            delete newQ.completion;
+            delete newQ.answer;
+            delete newQ.reason;
+            return newQ;
+        });
+        
+        // الحصول على اسم الفصل
+        let chapterName = 'جميع الفصول';
+        if (chapterId && chapterId !== 'all' && allQuestions.length > 0) {
+            const firstQ = allQuestions.find(q => q.chapterId === chapterId);
+            if (firstQ) chapterName = firstQ.chapterName || chapterId;
+        }
+        
+        console.log(`✅ تم اختيار ${questionsWithoutAnswers.length} سؤال للمراجعة من ${chapterName}`);
+        console.log(`📊 أسباب الاختيار: ${reasons.join(', ')}`);
+        
+        res.json({
+            success: true,
+            questions: questionsWithoutAnswers,
+            total: selected.length,
+            reasons: reasons,
+            chapterName: chapterName,
+            message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية من ${chapterName}`
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في المراجعة الذكية:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'خطأ في جلب أسئلة المراجعة: ' + error.message
+        });
+    }
+});
+
+// حفظ تقدم المراجعة الذكية
+app.post('/api/smart-review/save-progress', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = req.user.username || req.user.id;
+        const { questionId, isCorrect, chapterId } = req.body;
+        
+        if (!questionId) {
+            return res.status(400).json({ error: 'معرف السؤال مطلوب' });
+        }
+        
+        let progress = await Progress.findOne({ userId });
+        if (!progress) {
+            progress = new Progress({ userId });
+        }
+        
+        // تحديث سجل الاختبارات
+        progress.quizHistory.push({
+            date: new Date().toISOString(),
+            questionId: questionId,
+            correct: isCorrect,
+            type: 'smart_review',
+            chapterId: chapterId || 'all'
+        });
+        
+        // إذا كانت الإجابة خاطئة، أضفها إلى الأسئلة الخاطئة
+        if (!isCorrect) {
+            const exists = progress.wrongQuestions.some(w => w.questionId === questionId);
+            if (!exists) {
+                progress.wrongQuestions.push({
+                    questionId: questionId,
+                    date: new Date().toISOString(),
+                    source: 'smart_review'
+                });
+            }
+        } else {
+            // إذا كانت صحيحة، أزل من الأسئلة الخاطئة
+            progress.wrongQuestions = progress.wrongQuestions.filter(w => w.questionId !== questionId);
+        }
+        
+        await progress.save();
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ خطأ في حفظ تقدم المراجعة:', error);
+        res.status(500).json({ error: 'خطأ في حفظ التقدم: ' + error.message });
+    }
+});
+
+
+
+
+// ====================== ✅ رفع الدرجات من Excel (مع معالجة duplicate username) ======================
+app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { students } = req.body;
+        
+        if (!students || !Array.isArray(students) || students.length === 0) {
+            return res.status(400).json({ error: 'لا توجد بيانات صالحة للرفع' });
+        }
+        
+        console.log(`📥 استلام ${students.length} طالب للرفع`);
+        
+        let updatedCount = 0;
+        let addedCount = 0;
+        const errors = [];
+        
+        for (const studentData of students) {
+            try {
+                const { studentCode, fullName, subjects, grade, semester } = studentData;
+                
+                if (!studentCode || !fullName) {
+                    errors.push(`تخطي صف: بيانات غير مكتملة`);
+                    continue;
+                }
+                
+                let student = await Student.findOne({ studentCode });
+                
+                if (student) {
+                    // تحديث الطالب الموجود
+                    await Student.updateOne(
+                        { studentCode },
+                        { 
+                            $set: { 
+                                fullName, 
+                                subjects: subjects || [], 
+                                grade: grade || student.grade || 'first',
+                                semester: semester || student.semester || 'first'
+                            } 
+                        }
+                    );
+                    updatedCount++;
+                } else {
+                    // ✅ إضافة طالب جديد مع username = studentCode
+                    // ✅ لو username موجود (يعني طالب تاني بنفس الاسم)، نضيف رقم عشوائي
+                    let username = studentCode;
+                    let existingUser = await Student.findOne({ username });
+                    
+                    if (existingUser) {
+                        // اسم المستخدم موجود، نضيف رقم عشوائي
+                        username = studentCode + '_' + Math.floor(Math.random() * 1000);
+                    }
+                    
+                    await Student.create({
+                        fullName,
+                        studentCode,
+                        username: username,
+                        password: await hashPassword('123456'),
+                        grade: grade || 'first',
+                        semester: semester || 'first',
+                        subjects: subjects || [],
+                        role: 'student'
+                    });
+                    addedCount++;
+                }
+            } catch (err) {
+                // ✅ لو حصل duplicate، نجرب من غير username
+                if (err.code === 11000) {
+                    try {
+                        await Student.create({
+                            fullName: studentData.fullName,
+                            studentCode: studentData.studentCode,
+                            grade: studentData.grade || 'first',
+                            semester: studentData.semester || 'first',
+                            subjects: studentData.subjects || [],
+                            role: 'student'
+                            // بدون username
+                        });
+                        addedCount++;
+                    } catch (err2) {
+                        errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err2.message}`);
+                    }
+                } else {
+                    errors.push(`خطأ في الطالب ${studentData.studentCode}: ${err.message}`);
+                }
+            }
+        }
+        
+        const message = `✅ تم تحديث ${updatedCount} طالب وإضافة ${addedCount} طالب جديد`;
+        console.log(message);
+        
+        res.json({ 
+            success: true, 
+            message: message,
+            updated: updatedCount,
+            added: addedCount,
+            errors: errors.length > 0 ? errors.slice(0, 5) : undefined // أول 5 أخطاء فقط
+        });
+        
+    } catch (error) {
+        console.error('❌ Upload grades error:', error);
+        res.status(500).json({ error: 'خطأ في رفع الدرجات: ' + error.message });
+    }
+});
+
+// ====================== ✅ جلب مخالفات طالب محدد ======================
+app.get('/api/violations/student/:studentId', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { studentId } = req.params;
+        
+        // الطالب يشوف مخالفاته هو بس
+        if (req.user.type === 'student' && req.user.studentCode !== studentId) {
+            return res.status(403).json({ error: 'لا يمكنك عرض مخالفات طالب آخر' });
+        }
+        
+        const violations = await Violation.find({ studentId }).sort({ createdAt: -1 });
+        res.json(violations);
+    } catch (error) {
+        console.error('❌ خطأ في جلب مخالفات الطالب:', error);
+        res.status(500).json({ error: 'خطأ في جلب المخالفات' });
+    }
+});
+
+
+ // ====================== ✅ التحقق من حالة تسجيل الدخول (للصفحات العامة) ======================
+app.get('/api/check-auth-status', async (req, res) => {
+    try {
+        // نحاول نتحقق من التوكن
+        let token = req.cookies?.authToken;
+        if (!token) {
+            const authHeader = req.headers['authorization'];
+            token = authHeader?.split(' ')[1];
+        }
+        
+        if (!token) {
+            // مفيش توكن خالص
+            return res.json({ isLoggedIn: false });
+        }
+        
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            // التوكن سليم - المستخدم مسجل دخول
+            return res.json({ 
+                isLoggedIn: true, 
+                userType: decoded.type,
+                username: decoded.username 
+            });
+        } catch (error) {
+            // التوكن موجود لكن منتهي الصلاحية
+            return res.json({ isLoggedIn: false, expired: true });
+        }
+        
+    } catch (error) {
+        // لو حصل أي خطأ، نعتبره مش مسجل
+        res.json({ isLoggedIn: false });
+    }
+});
+// ====================== ✅ عداد المشاركات ======================
+app.post('/api/events/:id/share', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const event = await Event.findById(req.params.id);
+        if (!event) return res.status(404).json({ error: 'الفعالية غير موجودة' });
+        
+        event.shareCount = (event.shareCount || 0) + 1;
+        await event.save();
+        
+        res.json({ success: true, shareCount: event.shareCount });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث عداد المشاركات' });
+    }
+});
+
+// ====================== ✅ نظام التبليغ ======================
+app.post('/api/events/:id/report', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { reason, details } = req.body;
+        
+        const report = {
+            eventId: req.params.id,
+            userId: req.user.id || req.user.username,
+            reason,
+            details,
+            date: new Date()
+        };
+        
+        // حفظ البلاغ في قاعدة البيانات
+        const Report = mongoose.models.Report || mongoose.model('Report', new mongoose.Schema({
+            eventId: String,
+            userId: String,
+            reason: String,
+            details: String,
+            date: Date
+        }));
+        
+        await new Report(report).save();
+        
+        res.json({ success: true, message: 'تم إرسال البلاغ بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إرسال البلاغ' });
+    }
+});
+
+
+// ====================== Error Handling ======================
+app.use((err, req, res, next) => {
+    console.error('❌ Unhandled Error:', err);
+    if (res.headersSent) return next(err);
+    res.status(500).json({ error: 'حدث خطأ داخلي في السيرفر' });
+});
+
+// ====================== نقطة نهاية لإرجاع CSRF Token ======================
+app.get('/api/csrf-token', (req, res) => {
+    // إنشاء توكن عشوائي وتخزينه في الجلسة (أو cookie)
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+    res.cookie('csrfToken', csrfToken, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+    res.json({ csrfToken });
+});
+
+// ====================== مسار افتراضي ======================
+app.get('*', (req, res) => {
+    res.json({ 
+        message: 'معهد رعاية الضبعية - API', 
+        status: 'running', 
+        version: '3.0.0', 
+        endpoints: ['/api/test', '/api/login', '/api/attendance', '/api/exams', '/api/notifications', '/api/violations', '/api/gemini', '/api/captcha', '/api/files'] 
+    });
+});
+
+
+// ====================== تصدير لـ Vercel ======================
+module.exports = app;
