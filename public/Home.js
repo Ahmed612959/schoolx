@@ -550,6 +550,6 @@ window.viewTopStudentDetails = async function(studentCode) {
 };
 
 // ====================== التشغيل ======================
-async function init() { if (!(await verifySession())) return; await loadNotifications(); renderNavbar(); renderWelcomeMessage(); await renderDashboard(); setupSearchForm(); setupLogoutButton(); initLibraryTour(); setupAttendanceChannel();
+async function init() { if (!(await verifySession())) return; window.initBiometricPrompt?.(); await loadNotifications(); renderNavbar(); renderWelcomeMessage(); await renderDashboard(); setupSearchForm(); setupLogoutButton(); initLibraryTour(); setupAttendanceChannel();
 await loadTopStudents(); setInterval(async () => { try { await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' }); } catch (e) {} }, 55 * 60 * 1000); setTimeout(() => { if (document.getElementById('liveBot')) window.smartBot = new SmartAssistantBot(); }, 800); }
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
