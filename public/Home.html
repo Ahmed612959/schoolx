@@ -518,6 +518,9 @@
             guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; } });
         });
     </script>
+    <!-- ✅ ملفات البصمة (نفس اللي في login.html) - بس الجزء الخاص بالبصمة، من غير باقي auth.js -->
+    <script src="webauthn-lib.js"></script>
+    <script src="biometric.js"></script>
     <script src="Home.js"></script>
 </body>
 
