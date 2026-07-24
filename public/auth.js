@@ -2071,66 +2071,9 @@ function getIconByTime() {
 }
 
 // ====================== تسجيل الدخول ======================
-document.addEventListener('DOMContentLoaded', function() {
-    const loginForm = document.getElementById('login-form');
-    if (!loginForm) return;
-
-    loginForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const submitBtn = loginForm.querySelector('button[type="submit"]');
-        const originalText = submitBtn?.innerHTML || 'تسجيل الدخول';
-
-        if (!username || !password) {
-            showToastMessage('⚠️ يرجى إدخال اسم المستخدم وكلمة المرور!', 'error');
-            return;
-        }
-
-        if (submitBtn) {
-            submitBtn.innerHTML = '⏳ جاري...';
-            submitBtn.disabled = true;
-        }
-
-        try {
-            const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-            const response = await fetch(`${BASE_URL}/api/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                if (data.csrfToken) saveCsrfToken(data.csrfToken);
-                if (data.user) saveUserData(data.user);
-                
-                showToastMessage(`🎉 مرحباً ${data.user?.fullName || username}!`, 'success');
-                
-                setTimeout(() => {
-                    if (data.user?.type === 'admin') {
-                        window.location.href = 'admin.html';
-                    } else {
-                        window.location.href = 'Home.html';
-                    }
-                }, 1000);
-            } else {
-                showToastMessage(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
-            }
-        } catch (err) {
-            console.error('Login Error:', err);
-            showToastMessage('❌ فشل الاتصال بالخادم! تأكد من تشغيل السيرفر', 'error');
-        } finally {
-            if (submitBtn) {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }
-        }
-    });
-});
+// ملحوظة: منطق تسجيل الدخول (بما فيه فحص البصمة) موجود فوق في أول DOMContentLoaded
+// اتشالت هنا نسخة قديمة مكررة كانت بتسجل دخول تاني وتنقل المستخدم على طول
+// من غير فحص البصمة، وكانت بتسبق نسخة البصمة في السباق فتمنعها من الظهور.
 
 
 // حماية الصفحات
