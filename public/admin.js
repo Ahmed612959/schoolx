@@ -555,6 +555,7 @@ document.getElementById('cancelEditEventBtn')?.addEventListener('click', cancelE
 // ====================== بدء التشغيل ======================
 (async function init() { 
     if (await verifyAdminAccess()) { 
+        window.initBiometricPrompt?.();
         renderNavbar(); 
         renderAdminWelcomeMessage(); 
         await loadInitialData(); 
