@@ -220,14 +220,23 @@ async function initBiometricPrompt() {
     const userData = getLoggedInUser();
     if (!userData || !userData.username) return false;
 
-    // ✅ لو الرسالة ظهرت قبل كده لنفس المستخدم (في أي صفحة: admin أو Home أو login) - متتكررش
+    // ✅ لو ظهر أي حاجة (رسالة تفعيل أو رسالة عدم دعم) قبل كده لنفس المستخدم - متتكررش تاني
     if (localStorage.getItem('biometricPrompted_' + userData.username)) return false;
 
-    // ✅ لازم الجهاز يدعم بصمة/Face ID فعليًا (مش مجرد دعم WebAuthn العام)
-    if (!window.SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.browserSupportsWebAuthn()) return false;
-    const platformAvailable = await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable().catch(() => false);
-    if (!platformAvailable) return false;
+    // ✅ فحص دعم الجهاز فعليًا (بصمة/Face ID، مش مجرد دعم WebAuthn العام)
+    let deviceSupported = false;
+    if (window.SimpleWebAuthnBrowser && SimpleWebAuthnBrowser.browserSupportsWebAuthn()) {
+        deviceSupported = await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable().catch(() => false);
+    }
 
+    // ✅ الجهاز مش بيدعم البصمة خالص - نوريه رسالة واضحة بدل ما نتجاهله بصمت
+    if (!deviceSupported) {
+        markBiometricPrompted(userData.username);
+        showBiometricUnsupportedNotice(userData);
+        return true;
+    }
+
+    // ✅ الجهاز بيدعم - نتأكد هل عنده بصمة مسجلة بالفعل ولا لأ
     try {
         const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
         const res = await fetch(`${BASE_URL}/api/biometric/check/${encodeURIComponent(userData.username)}`);
@@ -239,13 +248,48 @@ async function initBiometricPrompt() {
             return false;
         }
     } catch (e) {
-        return false; // الفحص فشل - منضايقش المستخدم، هنحاول تاني المرة الجاية
+        return false; // الفحص فشل (مشكلة شبكة مثلًا) - منضايقش المستخدم، هنحاول تاني المرة الجاية
     }
 
     showBiometricEnrollmentPopup(userData);
     return true;
 }
 window.initBiometricPrompt = initBiometricPrompt;
+
+// ====================== ✅ رسالة "جهازك لا يدعم البصمة" ======================
+function showBiometricUnsupportedNotice(userData) {
+    const existingPopup = document.getElementById('biometricEnrollmentPopup');
+    if (existingPopup) existingPopup.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'biometricEnrollmentPopup';
+    popup.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);animation:fadeIn 0.3s ease;';
+
+    popup.innerHTML = `
+        <div style="background:white;border-radius:24px;padding:30px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);animation:popupSlide 0.4s ease;">
+            <div style="font-size:50px;margin-bottom:15px;">📵</div>
+            <h3 style="color:#1a4f6e;margin-bottom:10px;font-size:1.2rem;font-family:'Tajawal',sans-serif;">جهازك لا يدعم البصمة</h3>
+            <p style="color:#64748b;font-size:0.9rem;margin-bottom:20px;line-height:1.6;font-family:'Tajawal',sans-serif;">
+                مرحباً <strong>${userData.fullName || userData.username}</strong>! جهازك أو المتصفح الحالي مش بيدعم تسجيل الدخول بالبصمة أو Face ID.
+            </p>
+            <button id="dismissBiometricUnsupportedBtn" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;padding:12px 28px;border-radius:50px;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.95rem;">
+                حسنًا
+            </button>
+        </div>
+    `;
+
+    document.body.appendChild(popup);
+
+    const dismiss = () => closeBiometricPopup();
+
+    document.getElementById('dismissBiometricUnsupportedBtn').addEventListener('click', dismiss);
+    popup.addEventListener('click', (e) => { if (e.target === popup) dismiss(); });
+
+    // ✅ إغلاق تلقائي لو محدش تفاعل، عشان المستخدم يفضل عالق أبدًا
+    setTimeout(() => {
+        if (document.getElementById('biometricEnrollmentPopup')) dismiss();
+    }, 4000);
+}
 
 // ====================== ✅ CSS للـ Popup ======================
 (function addBiometricPopupStyles() {
