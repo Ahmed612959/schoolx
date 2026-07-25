@@ -11,6 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <!-- ✅ مكتبة WebAuthn - ملف محلي على سيرفرك بدل CDN خارجي (نفس الملف يُستخدم في Home.html و admin.html) -->
     <script src="webauthn-lib.js"></script>
+    <script src="biometric.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
   
     
@@ -724,6 +725,125 @@ document.getElementById('username')?.addEventListener('input', () => {
     // إخفاء الزر لحد ما نتأكد تاني بعد ما يخلص يكتب (blur)
     const loginBtn = document.getElementById('biometricLoginBtn');
     if (loginBtn) loginBtn.style.display = 'none';
+});
+
+// ====================== ✅ تسجيل الدخول + عرض رسالة تفعيل البصمة قبل الضغط على الزر ======================
+// بمجرد ما اليوزرنيم والباسورد يتحققوا فعليًا من السيرفر (حتى قبل الضغط على "تسجيل الدخول")
+// بتظهر رسالة تفعيل البصمة لو الشروط اتحققت، وبعدين بيتم التنقل.
+
+let silentLoginPromise = null;   // النداء الصامت اللي بيتحقق من البيانات وهو لسه بيكتب
+let loginDestination = null;     // الصفحة اللي هيتنقل لها بعد ما ياخد قراره في رسالة البصمة
+let silentLoginDebounce = null;
+
+async function completeLogin(data, username) {
+    if (data.csrfToken) saveCsrfToken(data.csrfToken);
+    if (data.user) saveUserData(data.user);
+
+    showToastMessage(`🎉 مرحباً ${data.user?.fullName || username}!`, 'success');
+    loginDestination = data.user?.type === 'admin' ? 'admin.html' : 'Home.html';
+
+    const popupShown = await window.initBiometricPrompt?.();
+    if (!popupShown) {
+        setTimeout(() => { window.location.href = loginDestination; }, 800);
+    }
+    // لو ظهرت الرسالة، التنقل هيحصل تلقائيًا لما تتقفل (حدث biometricPromptResolved تحت)
+}
+
+window.addEventListener('biometricPromptResolved', () => {
+    if (loginDestination) window.location.href = loginDestination;
+});
+
+async function attemptSilentLogin(username, password) {
+    if (silentLoginPromise) return silentLoginPromise; // في انتظار محاولة سابقة بالفعل
+
+    silentLoginPromise = (async () => {
+        try {
+            const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+            const response = await fetch(`${BASE_URL}/api/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                await completeLogin(data, username);
+                return true;
+            }
+            // بيانات غلط - نمسح المحاولة عشان يقدر يجرب تاني لو عدّل كلمة المرور
+            silentLoginPromise = null;
+            return false;
+        } catch (error) {
+            silentLoginPromise = null;
+            return false;
+        }
+    })();
+
+    return silentLoginPromise;
+}
+
+document.getElementById('password')?.addEventListener('input', () => {
+    clearTimeout(silentLoginDebounce);
+    const username = document.getElementById('username')?.value.trim();
+    const password = document.getElementById('password')?.value.trim();
+    if (!username || !password || password.length < 4) return;
+
+    // ننتظر شوية بعد ما يخلص يكتب عشان منبعتش طلب تسجيل دخول مع كل حرف
+    silentLoginDebounce = setTimeout(() => attemptSilentLogin(username, password), 700);
+});
+
+document.getElementById('login-form')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const username = document.getElementById('username')?.value.trim();
+    const password = document.getElementById('password')?.value.trim();
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn?.innerHTML || 'تسجيل الدخول';
+
+    if (!username || !password) {
+        showToastMessage('⚠️ يرجى إدخال اسم المستخدم وكلمة المرور!', 'error');
+        return;
+    }
+
+    if (submitBtn) {
+        submitBtn.innerHTML = '⏳ جاري...';
+        submitBtn.disabled = true;
+    }
+
+    try {
+        // لو النداء الصامت شغال أو خلص بالفعل، منبعتش تسجيل دخول تاني - نستنى نتيجته بس
+        if (silentLoginPromise) {
+            const success = await silentLoginPromise;
+            if (!success) {
+                showToastMessage('اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
+            }
+            return;
+        }
+
+        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+        const response = await fetch(`${BASE_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            await completeLogin(data, username);
+        } else {
+            showToastMessage(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
+        }
+    } catch (error) {
+        console.error('Login Error:', error);
+        showToastMessage('❌ فشل الاتصال بالخادم! تأكد من تشغيل السيرفر', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+    }
 });
 
 // ====================== ✅ تسجيل الدخول بالبصمة (للمستخدمين اللي عندهم بصمة مسجلة) ======================
