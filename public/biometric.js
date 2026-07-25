@@ -171,9 +171,10 @@ async function enrollBiometricFromPopup() {
             showToastMessage('🎉 تم تفعيل البصمة بنجاح!', 'success');
             markBiometricPrompted(userData.username);
             
-            // إغلاق الـ popup بعد ثانية ونصف - من غير أي تنقل، إحنا أصلاً في الصفحة الصح
+            // إغلاق الـ popup بعد ثانية ونصف
             setTimeout(() => {
                 popup.remove();
+                window.dispatchEvent(new CustomEvent('biometricPromptResolved'));
             }, 1500);
         } else {
             throw new Error(finishData.error || 'فشل تسجيل البصمة');
@@ -205,6 +206,8 @@ function closeBiometricPopup() {
         popup.style.animation = 'fadeOut 0.3s ease';
         setTimeout(() => popup.remove(), 300);
     }
+    // بيسمح لأي صفحة (زي login.html) تعرف إن القرار اتاخد وتكمل اللي عايزة تعمله (مثلاً التنقل)
+    window.dispatchEvent(new CustomEvent('biometricPromptResolved'));
 }
 
 // ====================== ✅ تسجيل إن الرسالة اتعرضت لهذا المستخدم - عشان متتكررش على أي صفحة ======================
@@ -215,15 +218,15 @@ function markBiometricPrompted(username) {
 // ====================== ✅ نقطة الدخول: تُستدعى من Home.js و admin.js بعد التأكد من الجلسة ======================
 async function initBiometricPrompt() {
     const userData = getLoggedInUser();
-    if (!userData || !userData.username) return;
+    if (!userData || !userData.username) return false;
 
-    // ✅ لو الرسالة ظهرت قبل كده لنفس المستخدم (في أي صفحة: admin أو Home) - متتكررش
-    if (localStorage.getItem('biometricPrompted_' + userData.username)) return;
+    // ✅ لو الرسالة ظهرت قبل كده لنفس المستخدم (في أي صفحة: admin أو Home أو login) - متتكررش
+    if (localStorage.getItem('biometricPrompted_' + userData.username)) return false;
 
     // ✅ لازم الجهاز يدعم بصمة/Face ID فعليًا (مش مجرد دعم WebAuthn العام)
-    if (!window.SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.browserSupportsWebAuthn()) return;
+    if (!window.SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.browserSupportsWebAuthn()) return false;
     const platformAvailable = await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable().catch(() => false);
-    if (!platformAvailable) return;
+    if (!platformAvailable) return false;
 
     try {
         const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
@@ -233,13 +236,14 @@ async function initBiometricPrompt() {
         if (data.hasBiometric) {
             // مسجل بصمة بالفعل من قبل - منعرضش تاني أبدًا
             markBiometricPrompted(userData.username);
-            return;
+            return false;
         }
     } catch (e) {
-        return; // الفحص فشل - منضايقش المستخدم، هنحاول تاني المرة الجاية
+        return false; // الفحص فشل - منضايقش المستخدم، هنحاول تاني المرة الجاية
     }
 
     showBiometricEnrollmentPopup(userData);
+    return true;
 }
 window.initBiometricPrompt = initBiometricPrompt;
 
