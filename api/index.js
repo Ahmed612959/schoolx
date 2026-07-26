@@ -20,7 +20,12 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5500',
     'https://schoolx-eta.vercel.app',
-    'https://school-system-fiv.vercel.app'
+    'https://school-system-fiv.vercel.app',
+    // دومينات إضافية (زي مشروع chatx) بتتحط كـ Environment Variable
+    // EXTRA_ALLOWED_ORIGINS = "https://chatx-xxxx.vercel.app,https://another.com"
+    ...(process.env.EXTRA_ALLOWED_ORIGINS
+        ? process.env.EXTRA_ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+        : [])
 ];
 app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -1529,7 +1534,9 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             { expiresIn: '24h' }
         );
         setAuthCookie(res, token);
-        res.json({ success: true, user: { username: user.username, fullName: user.fullName, type: userType, id: user.studentCode || user._id } });
+        // بيترجع الـ token في الـ body كمان (مش بس كوكي) عشان أي مشروع تاني
+        // على دومين مختلف (زي chatx) يقدر يخزنه ويبعته كـ Authorization: Bearer
+        res.json({ success: true, token, user: { username: user.username, fullName: user.fullName, type: userType, id: user.studentCode || user._id } });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في السيرفر: ' + error.message });
     }
@@ -1556,6 +1563,28 @@ app.post('/api/refresh-token', async (req, res) => {
 // ====================== التحقق من الجلسة ======================
 app.get('/api/verify-session', verifyToken, (req, res) => {
     res.json({ valid: true, user: req.user });
+});
+
+// ====================== معلومات المستخدم الكاملة (لأي مشروع خارجي زي chatx) ======================
+app.get('/api/me', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const admin = await Admin.findById(req.user.id).select('-password -refreshToken');
+            if (!admin) return res.status(404).json({ error: 'المستخدم غير موجود' });
+            return res.json({ type: 'admin', profile: admin });
+        }
+        const student = await Student.findById(req.user.id).select('-password -refreshToken');
+        if (!student) return res.status(404).json({ error: 'المستخدم غير موجود' });
+        const [violations, attendance, examResults] = await Promise.all([
+            Violation.find({ studentId: student.studentCode }).sort({ createdAt: -1 }).limit(20),
+            Attendance.find({ studentCode: student.studentCode }).sort({ date: -1 }).limit(30),
+            ExamResult.find({ studentId: student.studentCode }).sort({ completionTime: -1 }).limit(20)
+        ]);
+        res.json({ type: 'student', profile: student, violations, attendance, examResults });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب البيانات: ' + error.message });
+    }
 });
 
 // ====================== تسجيل الخروج ======================
