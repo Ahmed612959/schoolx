@@ -1576,12 +1576,25 @@ app.get('/api/me', verifyToken, async (req, res) => {
         }
         const student = await Student.findById(req.user.id).select('-password -refreshToken');
         if (!student) return res.status(404).json({ error: 'المستخدم غير موجود' });
-        const [violations, attendance, examResults] = await Promise.all([
+        const today = new Date().toISOString().split('T')[0];
+        const [violations, attendance, examResults, homeworks, submittedHw, tournaments] = await Promise.all([
             Violation.find({ studentId: student.studentCode }).sort({ createdAt: -1 }).limit(20),
             Attendance.find({ studentCode: student.studentCode }).sort({ date: -1 }).limit(30),
-            ExamResult.find({ studentId: student.studentCode }).sort({ completionTime: -1 }).limit(20)
+            ExamResult.find({ studentId: student.studentCode }).sort({ completionTime: -1 }).limit(20),
+            Homework.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } })
+                .select('title chapterName deadline questionCount').lean(),
+            HomeworkSubmission.find({ studentId: student.username }).select('homeworkId').lean(),
+            Tournament.find({ isActive: true, endDate: { $gte: today } })
+                .select('title code chapterName startDate endDate timeLimitMinutes participants').lean()
         ]);
-        res.json({ type: 'student', profile: student, violations, attendance, examResults });
+        const submittedIds = new Set(submittedHw.map(s => String(s.homeworkId)));
+        const pendingHomework = homeworks.filter(h => !submittedIds.has(String(h._id)));
+        const activeTournaments = tournaments.map(t => ({
+            title: t.title, code: t.code, chapterName: t.chapterName,
+            startDate: t.startDate, endDate: t.endDate, timeLimitMinutes: t.timeLimitMinutes,
+            alreadyJoined: (t.participants || []).some(p => p.studentId === student.studentCode)
+        }));
+        res.json({ type: 'student', profile: student, violations, attendance, examResults, pendingHomework, activeTournaments });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب البيانات: ' + error.message });
     }
