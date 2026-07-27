@@ -169,6 +169,51 @@
     </div>
     <button id="export-excel" class="submit-btn"><i class="fas fa-file-excel"></i> تصدير إلى Excel</button>
 
+    <!-- ====================== أرشيف النتائج ====================== -->
+    <h2><i class="fas fa-archive"></i> أرشيف النتائج</h2>
+    <div class="archive-section manager-only" style="margin-bottom:20px;">
+        <h3>📦 أرشفة نتائج السنة الحالية</h3>
+        <p style="color:#64748b;font-size:0.9rem;">
+            هيتم نقل كل النتائج الحالية (اللي فيها درجات) لسجل الأرشيف، وبعدين تتصفّر عشان تبدأ سنة دراسية جديدة.
+            الطلاب مش هيقدروا يشوفوا أو يبحثوا عن النتيجة دي تاني في صفحة النتائج، لكنها هتفضل محفوظة هنا وتقدر ترجعلها وقت ما تحب.
+        </p>
+        <div class="input-group">
+            <label for="archive-year">السنة الدراسية (مثال: 2025-2026)</label>
+            <input type="text" id="archive-year" placeholder="2025-2026">
+        </div>
+        <div class="input-group">
+            <label for="archive-grade">الصف (اختياري - سيب فاضي لأرشفة كل الصفوف)</label>
+            <select id="archive-grade">
+                <option value="">كل الصفوف</option>
+                <option value="first">الأولى ثانوي</option>
+                <option value="second">الثانية ثانوي</option>
+                <option value="third">الثالثة ثانوي</option>
+            </select>
+        </div>
+        <button id="archive-results-btn" class="submit-btn" style="background:linear-gradient(135deg,#8e44ad,#5e3370);"><i class="fas fa-box-archive"></i> أرشفة النتائج الآن</button>
+    </div>
+    <div class="archive-browse-section">
+        <h3>🔎 استعراض الأرشيف</h3>
+        <div class="filter-section">
+            <select id="archive-year-filter"><option value="">📅 كل السنوات</option></select>
+            <select id="archive-grade-filter">
+                <option value="">📋 كل الصفوف</option>
+                <option value="first">الأولى ثانوي</option>
+                <option value="second">الثانية ثانوي</option>
+                <option value="third">الثالثة ثانوي</option>
+            </select>
+        </div>
+        <div class="search-section">
+            <input type="text" id="archive-search-input" class="search-bar" placeholder="🔍 ابحث باسم الطالب أو رقم الجلوس داخل الأرشيف">
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>الطالب</th><th>رقم الجلوس</th><th>الصف</th><th>السنة الدراسية</th><th>المجموع</th><th class="manager-only">إجراء</th></tr></thead>
+                <tbody id="archive-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- ====================== إدارة الإنذارات والمخالفات ====================== -->
     <h2><i class="fas fa-exclamation-triangle"></i> إدارة الإنذارات والمخالفات</h2>
     <div class="violations-section">
