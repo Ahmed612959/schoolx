@@ -106,11 +106,75 @@ function renderNotifications() { const tb = document.getElementById('notificatio
 window.addNotification = async function() { const text = document.getElementById('notification-text')?.value.trim(); if (!text) { showToast('يرجى إدخال نص الإشعار!', 'error'); return; } const date = new Date().toLocaleString('ar-EG'); try { const csrfToken = await getCsrfToken(); const r = await fetch(`${BASE_URL}/api/notifications`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, credentials: 'include', body: JSON.stringify({ text, date }) }); const d = await r.json(); if (r.ok && d.success) { await loadNotifications(); document.getElementById('notification-text').value = ''; showToast('✅ تم إضافة الإشعار بنجاح!', 'success'); } else { showToast(d.error || 'فشل إضافة الإشعار', 'error'); } } catch (er) { showToast('حدث خطأ', 'error'); } };
 window.deleteNotification = async function(id) { const res = await Swal.fire({ title: '⚠️ تأكيد الحذف', text: 'هل أنت متأكد من حذف هذا الإشعار؟', icon: 'warning', showCancelButton: true, confirmButtonText: 'نعم، احذف', cancelButtonText: 'إلغاء', confirmButtonColor: '#E74C3C' }); if (res.isConfirmed) { try { const csrfToken = await getCsrfToken(); const r = await fetch(`${BASE_URL}/api/notifications/${id}`, { method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' }, credentials: 'include' }); const d = await r.json(); if (r.ok && d.success) { await loadNotifications(); showToast('🗑️ تم حذف الإشعار بنجاح.', 'success'); } else { showToast(d.error || '❌ فشل حذف الإشعار', 'error'); } } catch (er) { showToast('حدث خطأ', 'error'); } } };
 
+// ====================== أرشيف النتائج ======================
+let archivedResults = [], archiveYearsList = [];
+
+async function loadArchiveYears() {
+    archiveYearsList = await getFromServer('/api/admin/archive/years');
+    const sel = document.getElementById('archive-year-filter'); if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">📅 كل السنوات</option>' + archiveYearsList.map(y => `<option value="${escapeHtml(y.academicYear)}">${escapeHtml(y.academicYear)} (${y.count})</option>`).join('');
+    sel.value = current;
+}
+
+async function loadArchive() {
+    const academicYear = document.getElementById('archive-year-filter')?.value || '';
+    const grade = document.getElementById('archive-grade-filter')?.value || '';
+    const name = document.getElementById('archive-search-input')?.value.trim() || '';
+    const params = new URLSearchParams();
+    if (academicYear) params.set('academicYear', academicYear);
+    if (grade) params.set('grade', grade);
+    if (name) params.set('name', name);
+    archivedResults = await getFromServer(`/api/admin/archive?${params.toString()}`);
+    renderArchiveTable();
+}
+
+function renderArchiveTable() {
+    const tb = document.getElementById('archive-table-body'); if (!tb) return;
+    if (!archivedResults.length) { tb.innerHTML = '<tr><td colspan="6">📭 لا توجد نتائج مؤرشفة</td></tr>'; return; }
+    const gradeLabel = { first: 'الأولى ثانوي', second: 'الثانية ثانوي', third: 'الثالثة ثانوي' };
+    tb.innerHTML = archivedResults.map(r => {
+        let total = 0; (r.subjects || []).forEach(s => { const n = normalizeSubjectName(s.name); const c = SUBJECTS_CONFIG_FIRST[n]; if (c && !c.isExtra) total += s.grade || 0; });
+        return `<tr><td>${escapeHtml(r.fullName)}</td><td>${escapeHtml(r.studentCode)}</td><td>${gradeLabel[r.grade] || r.grade || '-'}</td><td>${escapeHtml(r.academicYear)}</td><td>${total} / ${TOTAL_POSSIBLE_FIRST}</td><td>${isManagerRole() ? `<button class="delete-btn" onclick="deleteArchivedResult('${r._id}')"><i class="fas fa-trash"></i> حذف</button>` : ''}</td></tr>`;
+    }).join('');
+}
+
+window.deleteArchivedResult = async function(id) {
+    const res = await Swal.fire({ title: '⚠️ تأكيد الحذف', text: 'هل أنت متأكد من حذف هذا السجل من الأرشيف نهائيًا؟', icon: 'warning', showCancelButton: true, confirmButtonText: 'نعم، احذف', cancelButtonText: 'إلغاء', confirmButtonColor: '#E74C3C' });
+    if (!res.isConfirmed) return;
+    try { await saveToServer(`/api/admin/archive/${id}`, {}, 'DELETE'); showToast('🗑️ تم حذف السجل من الأرشيف', 'success'); await loadArchive(); await loadArchiveYears(); } catch (er) { showToast('❌ فشل الحذف', 'error'); }
+};
+
+document.getElementById('archive-results-btn')?.addEventListener('click', async () => {
+    const academicYear = document.getElementById('archive-year')?.value.trim();
+    const grade = document.getElementById('archive-grade')?.value || '';
+    if (!academicYear) return showToast('يرجى إدخال السنة الدراسية أولاً (مثال: 2025-2026)', 'error');
+    const gradeLabel = { first: 'الأولى ثانوي فقط', second: 'الثانية ثانوي فقط', third: 'الثالثة ثانوي فقط', '': 'كل الصفوف' };
+    const res = await Swal.fire({
+        title: '⚠️ تأكيد الأرشفة', icon: 'warning', showCancelButton: true, confirmButtonText: 'نعم، أرشف الآن', cancelButtonText: 'إلغاء', confirmButtonColor: '#8e44ad',
+        html: `هيتم أرشفة نتائج <strong>${gradeLabel[grade]}</strong> تحت اسم السنة <strong>${escapeHtml(academicYear)}</strong>، وبعدها هتتصفر النتائج الحالية عشان تبدأ السنة الجديدة.<br><br>الطلاب مش هيقدروا يشوفوا النتيجة دي في صفحة البحث تاني.`
+    });
+    if (!res.isConfirmed) return;
+    try {
+        const d = await saveToServer('/api/admin/archive-results', { academicYear, grade });
+        showToast(`✅ ${d.message}`, 'success');
+        document.getElementById('archive-year').value = '';
+        allStudents = await getFromServer('/api/admin/students'); studentsWithGrades = getStudentsWithGrades(allStudents);
+        renderResults(); renderStats(); renderTopStudents();
+        await loadArchiveYears(); await loadArchive();
+    } catch (er) { showToast(er.message || '❌ فشلت الأرشفة', 'error'); }
+});
+
+document.getElementById('archive-year-filter')?.addEventListener('change', loadArchive);
+document.getElementById('archive-grade-filter')?.addEventListener('change', loadArchive);
+document.getElementById('archive-search-input')?.addEventListener('input', loadArchive);
+
 // ====================== تحميل البيانات الأساسية ======================
 async function loadInitialData() {
     showToast('جاري تحميل البيانات...', 'info'); allStudents = await getFromServer('/api/admin/students'); admins = await getFromServer('/api/admins'); violations = await getFromServer('/api/violations');
     await loadNotifications(); studentsWithGrades = getStudentsWithGrades(allStudents);
     renderAdmins(); renderResults(); renderStats(); renderTopStudents(); renderViolations();
+    await loadArchiveYears(); await loadArchive();
     showToast(`✅ تم التحميل: ${allStudents.length} طالب`, 'success');
 }
 
