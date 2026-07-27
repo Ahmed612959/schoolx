@@ -1594,7 +1594,25 @@ app.get('/api/me', verifyToken, async (req, res) => {
             startDate: t.startDate, endDate: t.endDate, timeLimitMinutes: t.timeLimitMinutes,
             alreadyJoined: (t.participants || []).some(p => p.studentId === student.studentCode)
         }));
-        res.json({ type: 'student', profile: student, violations, attendance, examResults, pendingHomework, activeTournaments });
+        // بنضيف اسم الاختبار وعدد أسئلته لكل نتيجة (عشان أي مشروع خارجي زي chatx يقدر
+        // يعرف الاختبار ده كان في أي مادة، ويحلل تقدم الطالب بمرور الوقت في كل مادة)
+        const examCodes = [...new Set(examResults.map(r => r.examCode))];
+        const examsInfo = examCodes.length
+            ? await Exam.find({ code: { $in: examCodes } }).select('code name stage questions').lean()
+            : [];
+        const examInfoMap = Object.fromEntries(examsInfo.map(e => [e.code, e]));
+        const enrichedExamResults = examResults.map(r => {
+            const info = examInfoMap[r.examCode];
+            return {
+                examCode: r.examCode,
+                score: r.score,
+                completionTime: r.completionTime,
+                examName: info ? info.name : null,
+                stage: info ? info.stage : null,
+                totalQuestions: info && info.questions ? info.questions.length : null
+            };
+        });
+        res.json({ type: 'student', profile: student, violations, attendance, examResults: enrichedExamResults, pendingHomework, activeTournaments });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب البيانات: ' + error.message });
     }
