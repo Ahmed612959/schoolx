@@ -39,9 +39,9 @@
 <div class="admin-container">
     <div class="admin-welcome-message"></div>
 
-    <!-- ====================== إدارة الأدمنز ====================== -->
-    <h2><i class="fas fa-user-shield"></i> إدارة الأدمنز</h2>
-    <div class="manage-users-section">
+    <!-- ====================== إدارة الأدمنز (مدير المعهد فقط) ====================== -->
+    <h2 class="manager-only"><i class="fas fa-user-shield"></i> إدارة الأدمنز</h2>
+    <div class="manage-users-section manager-only">
         <h3>➕ إضافة أدمن جديد</h3>
         <form id="add-user-form">
             <div class="input-group">
@@ -56,12 +56,19 @@
                 <label for="admin-password">كلمة المرور</label>
                 <input type="password" id="admin-password" placeholder="أدخل كلمة المرور" required>
             </div>
+            <div class="input-group">
+                <label for="admin-role">القسم / الصلاحية</label>
+                <select id="admin-role" required>
+                    <option value="teacher">مدرس (صلاحيات محدودة)</option>
+                    <option value="manager">مدير المعهد (كل الصلاحيات)</option>
+                </select>
+            </div>
             <button type="submit" class="submit-btn"><i class="fas fa-plus"></i> إضافة أدمن</button>
         </form>
         <h3>📋 قائمة الأدمنز</h3>
         <div class="table-wrapper">
             <table>
-                <thead><tr><th>الاسم الكامل</th><th>اسم المستخدم</th><th>إجراء</th></tr></thead>
+                <thead><tr><th>الاسم الكامل</th><th>اسم المستخدم</th><th>القسم</th><th>إجراء</th></tr></thead>
                 <tbody id="users-table-body"></tbody>
             </table>
         </div>
@@ -258,9 +265,9 @@
         </div>
     </div>
 
-    <!-- ====================== إدارة الإشعارات ====================== -->
-    <h2><i class="fas fa-bell"></i> إدارة الإشعارات العامة</h2>
-    <div class="notifications-section">
+    <!-- ====================== إدارة الإشعارات (مدير المعهد فقط) ====================== -->
+    <h2 class="manager-only"><i class="fas fa-bell"></i> إدارة الإشعارات العامة</h2>
+    <div class="notifications-section manager-only">
         <div class="input-group">
             <label for="notification-text">نص الإشعار</label>
             <textarea id="notification-text" rows="3" placeholder="أدخل نص الإشعار الذي سيظهر لجميع الطلاب"></textarea>
@@ -276,9 +283,9 @@
 
 
 
-   <!-- ====================== إدارة فعاليات المعهد ====================== -->
-<h2><i class="fas fa-calendar-star"></i> إدارة فعاليات المعهد</h2>
-<div class="events-section">
+   <!-- ====================== إدارة فعاليات المعهد (مدير المعهد فقط) ====================== -->
+<h2 class="manager-only"><i class="fas fa-calendar-star"></i> إدارة فعاليات المعهد</h2>
+<div class="events-section manager-only">
     <!-- إحصائيات سريعة -->
     <div class="events-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
         <div style="background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: white; padding: 15px; border-radius: 12px; text-align: center;">
