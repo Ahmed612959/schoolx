@@ -621,7 +621,7 @@ app.get('/api/homework-gs/:id/submissions', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message }); }
 });
 
-app.delete('/api/homework-gs/:id', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/homework-gs/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const deletedHomework = await GsHomework.findByIdAndDelete(req.params.id);
@@ -1128,7 +1128,7 @@ app.get('/api/events/tags', async (req, res) => {
 });
 
 // إضافة فعالية (للأدمن)
-app.post('/api/events', verifyToken, isAdmin, async (req, res) => {
+app.post('/api/events', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const { title, type, content, mediaUrl, tags, isPinned } = req.body;
@@ -1165,7 +1165,7 @@ app.post('/api/events', verifyToken, isAdmin, async (req, res) => {
 });
 
 // تحديث فعالية (للأدمن)
-app.put('/api/events/:id', verifyToken, isAdmin, async (req, res) => {
+app.put('/api/events/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const { title, type, content, mediaUrl, tags, isPinned } = req.body;
@@ -1200,7 +1200,7 @@ app.put('/api/events/:id', verifyToken, isAdmin, async (req, res) => {
 });
 
 // تثبيت/إلغاء تثبيت فعالية
-app.put('/api/events/:id/pin', verifyToken, isAdmin, async (req, res) => {
+app.put('/api/events/:id/pin', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const event = await Event.findById(req.params.id);
@@ -1220,7 +1220,7 @@ app.put('/api/events/:id/pin', verifyToken, isAdmin, async (req, res) => {
 });
 
 // حذف فعالية
-app.delete('/api/events/:id', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/events/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const deleted = await Event.findByIdAndDelete(req.params.id);
@@ -1443,6 +1443,13 @@ function isAdmin(req, res, next) {
     next();
 }
 
+// مدير المعهد فقط: أي أدمن قديم بدون role (أو role = 'admin') يُعامل كمدير معهد للتوافق مع الحسابات الحالية
+function isManager(req, res, next) {
+    if (!req.user || req.user.type !== 'admin') return res.status(403).json({ error: 'غير مصرح. هذه الصفحة للأدمن فقط' });
+    if (req.user.role === 'teacher') return res.status(403).json({ error: 'هذا الإجراء متاح لمدير المعهد فقط' });
+    next();
+}
+
 // ====================== TEST ENDPOINT ======================
 app.get('/api/test', async (req, res) => {
     let dbStatus = 'disconnected';
@@ -1529,14 +1536,14 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         user.lastIP = clientIP;
         await user.save();
         const token = jwt.sign(
-            { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode },
+            { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode, role: userType === 'admin' ? (user.role || 'manager') : undefined },
             JWT_SECRET,
             { expiresIn: '24h' }
         );
         setAuthCookie(res, token);
         // بيترجع الـ token في الـ body كمان (مش بس كوكي) عشان أي مشروع تاني
         // على دومين مختلف (زي chatx) يقدر يخزنه ويبعته كـ Authorization: Bearer
-        res.json({ success: true, token, user: { username: user.username, fullName: user.fullName, type: userType, id: user.studentCode || user._id } });
+        res.json({ success: true, token, user: { username: user.username, fullName: user.fullName, type: userType, id: user.studentCode || user._id, role: userType === 'admin' ? (user.role || 'manager') : undefined } });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في السيرفر: ' + error.message });
     }
@@ -1549,7 +1556,7 @@ app.post('/api/refresh-token', async (req, res) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const newToken = jwt.sign(
-            { id: decoded.id, username: decoded.username, type: decoded.type, fullName: decoded.fullName, studentCode: decoded.studentCode },
+            { id: decoded.id, username: decoded.username, type: decoded.type, fullName: decoded.fullName, studentCode: decoded.studentCode, role: decoded.role },
             JWT_SECRET,
             { expiresIn: '24h' }
         );
@@ -1674,7 +1681,7 @@ app.get('/api/exams/:code', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب الاختبار' }); }
 });
 
-app.delete('/api/exams/:code', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/exams/:code', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const deleted = await Exam.findOneAndDelete({ code: req.params.code });
@@ -1725,7 +1732,7 @@ app.get('/api/notifications', async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب الإشعارات' }); }
 });
 
-app.post('/api/notifications', verifyToken, isAdmin, async (req, res) => {
+app.post('/api/notifications', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const { text, date } = req.body;
@@ -1736,7 +1743,7 @@ app.post('/api/notifications', verifyToken, isAdmin, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في إضافة الإشعار' }); }
 });
 
-app.delete('/api/notifications/:id', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/notifications/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const deleted = await Notification.findByIdAndDelete(req.params.id);
@@ -1767,7 +1774,7 @@ app.post('/api/violations', verifyToken, isAdmin, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في إضافة المخالفة' }); }
 });
 
-app.delete('/api/violations/:id', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/violations/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const deleted = await Violation.findByIdAndDelete(req.params.id);
@@ -1868,7 +1875,7 @@ app.put('/api/attendance/:id', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-app.delete('/api/attendance/:id', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/attendance/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const { id } = req.params;
@@ -1946,7 +1953,7 @@ app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
 });
 
-app.get('/api/admins', verifyToken, isAdmin, async (req, res) => {
+app.get('/api/admins', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const admins = await Admin.find().select('-password -refreshToken');
@@ -1954,21 +1961,22 @@ app.get('/api/admins', verifyToken, isAdmin, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب الأدمنز' }); }
 });
 
-app.post('/api/admins', verifyToken, isAdmin, async (req, res) => {
+app.post('/api/admins', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
-        const { fullName, username, password } = req.body;
+        const { fullName, username, password, role } = req.body;
         if (!fullName || !username || !password) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+        const finalRole = role === 'manager' ? 'manager' : 'teacher'; // افتراضيًا مدرس ما لم يُحدد مدير المعهد
         const existingAdmin = await Admin.findOne({ username });
         if (existingAdmin) return res.status(400).json({ error: 'اسم المستخدم موجود مسبقاً' });
         const hashedPassword = await hashPassword(password);
-        const admin = new Admin({ fullName, username, password: hashedPassword });
+        const admin = new Admin({ fullName, username, password: hashedPassword, role: finalRole });
         await admin.save();
-        res.json({ message: 'تم إضافة الأدمن بنجاح', admin: { fullName, username } });
+        res.json({ message: 'تم إضافة الأدمن بنجاح', admin: { fullName, username, role: finalRole } });
     } catch (error) { res.status(500).json({ error: 'خطأ في إضافة الأدمن' }); }
 });
 
-app.delete('/api/admins/:username', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/admins/:username', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const { username } = req.params;
@@ -2211,7 +2219,7 @@ app.put('/api/admin/profile', verifyToken, async (req, res) => {
 
 
 
-app.delete('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/students/:studentCode', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const { studentCode } = req.params;
@@ -2242,7 +2250,7 @@ app.post('/api/create-initial-admin', async (req, res) => {
         const { fullName, username, password } = req.body;
         if (!fullName || !username || !password) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         const hashedPassword = await hashPassword(password);
-        const admin = new Admin({ fullName, username, password: hashedPassword });
+        const admin = new Admin({ fullName, username, password: hashedPassword, role: 'manager' });
         await admin.save();
         res.json({ success: true, message: 'تم إنشاء المدير الأول بنجاح' });
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -2996,7 +3004,7 @@ app.get('/api/files/download/:id', verifyToken, async (req, res) => {
 });
 
 // ====================== حذف ملف ======================
-app.delete('/api/files/:id', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/files/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         const file = await File.findById(req.params.id);
@@ -3443,7 +3451,7 @@ app.get('/api/homework/:id/submissions', verifyToken, async (req, res) => {
 });
 
 // 7. حذف/إلغاء واجب (للأدمن)
-app.delete('/api/homework/:id', verifyToken, isAdmin, async (req, res) => {
+app.delete('/api/homework/:id', verifyToken, isManager, async (req, res) => {
     try {
         await connectToDatabase();
         console.log('🗑️ حذف واجب:', req.params.id);
@@ -4483,7 +4491,8 @@ app.post('/api/biometric/login-finish', async (req, res) => {
                 username: user.username,
                 type: userType,
                 fullName: user.fullName,
-                studentCode: user.studentCode
+                studentCode: user.studentCode,
+                role: userType === 'admin' ? (user.role || 'manager') : undefined
             },
             JWT_SECRET,
             { expiresIn: '24h' }
@@ -4498,7 +4507,8 @@ app.post('/api/biometric/login-finish', async (req, res) => {
                 username: user.username,
                 fullName: user.fullName,
                 type: userType,
-                id: user.studentCode || user._id
+                id: user.studentCode || user._id,
+                role: userType === 'admin' ? (user.role || 'manager') : undefined
             },
             message: '🎉 تم تسجيل الدخول بالبصمة بنجاح!'
         });
