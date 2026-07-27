@@ -300,6 +300,23 @@ const examResultSchema = new mongoose.Schema({
     completionTime: { type: Date, default: Date.now }
 });
 
+// ====================== أرشيف النتائج (بعد انتهاء السنة الدراسية) ======================
+// لما السنة تخلص، بتترحل نتايج الطلاب (subjects) من مستند الطالب الحي لسجل أرشيف منفصل،
+// وبيتم تصفير subjects في مستند الطالب عشان يبدأ سنة جديدة بنتيجة فاضية.
+// النتيجة: أي بحث للطالب على Home.html (اللي بيقرا من Student.subjects الحي) مش هيلاقي
+// حاجة، بينما الأدمن (مدير أو مدرس) يقدر يستعرض الأرشيف من صفحة لوحة التحكم.
+const archivedResultSchema = new mongoose.Schema({
+    studentCode: { type: String, required: true, index: true },
+    fullName: String,
+    username: String,
+    grade: { type: String, enum: ['first', 'second', 'third'] },
+    academicYear: { type: String, required: true, index: true }, // مثال: "2025-2026"
+    subjects: Array, // لقطة من درجات الطالب وقت الأرشفة
+    profile: { phone: String, parentName: String, parentId: String },
+    archivedBy: String,
+    archivedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
 
 // ==========================================================================
 // إضافات السيرفر الخاصة ببنك "الجراحة العامة" (General Surgery)
@@ -1410,6 +1427,7 @@ const Notification = mongoose.models.Notification || mongoose.model('Notificatio
 const Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
 const Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 const ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
+const ArchivedResult = mongoose.models.ArchivedResult || mongoose.model('ArchivedResult', archivedResultSchema);
 
 // ====================== دوال مساعدة ======================
 function setAuthCookie(res, token) {
@@ -2127,6 +2145,92 @@ app.get('/api/students/result/:studentCode', verifyToken, async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب نتيجة الطالب' });
     }
+});
+
+// ====================== أرشيف النتائج ======================
+
+// أرشفة نتائج السنة الحالية (مدير المعهد فقط - إجراء جماعي لا يمكن التراجع عنه بسهولة)
+// بينقل درجات كل طالب عنده نتيجة (subjects غير فاضية) لسجل أرشيف، وبعدين يصفّر
+// subjects في مستند الطالب عشان تبدأ السنة الجديدة فاضية.
+app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { academicYear, grade } = req.body;
+        if (!academicYear || !academicYear.trim()) return res.status(400).json({ error: 'يرجى تحديد اسم السنة الدراسية (مثال: 2025-2026)' });
+
+        const query = { subjects: { $exists: true, $not: { $size: 0 } } };
+        if (grade && ['first', 'second', 'third'].includes(grade)) query.grade = grade;
+
+        const students = await Student.find(query);
+        if (!students.length) return res.status(400).json({ error: 'لا توجد نتائج حالية لأرشفتها' });
+
+        const archiveDocs = students.map(st => ({
+            studentCode: st.studentCode,
+            fullName: st.fullName,
+            username: st.username,
+            grade: st.grade,
+            academicYear: academicYear.trim(),
+            subjects: st.subjects,
+            profile: st.profile,
+            archivedBy: req.user.username || 'admin'
+        }));
+
+        await ArchivedResult.insertMany(archiveDocs);
+        await Student.updateMany(
+            { _id: { $in: students.map(s => s._id) } },
+            { $set: { subjects: [] } }
+        );
+
+        res.json({ success: true, message: `تم أرشفة ${archiveDocs.length} نتيجة بنجاح تحت سنة "${academicYear.trim()}"`, count: archiveDocs.length });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في أرشفة النتائج: ' + error.message });
+    }
+});
+
+// قائمة السنوات الدراسية المؤرشفة (متاح للمدير والمدرس - عرض فقط)
+app.get('/api/admin/archive/years', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const years = await ArchivedResult.aggregate([
+            { $group: { _id: '$academicYear', count: { $sum: 1 }, archivedAt: { $max: '$archivedAt' } } },
+            { $sort: { _id: -1 } }
+        ]);
+        res.json(years.map(y => ({ academicYear: y._id, count: y.count, archivedAt: y.archivedAt })));
+    } catch (error) { res.status(500).json({ error: 'خطأ في جلب سنوات الأرشيف' }); }
+});
+
+// تصفح/البحث داخل أرشيف النتائج (متاح للمدير والمدرس - عرض فقط)
+app.get('/api/admin/archive', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { academicYear, grade, studentCode, name } = req.query;
+        const query = {};
+        if (academicYear) query.academicYear = academicYear;
+        if (grade && ['first', 'second', 'third'].includes(grade)) query.grade = grade;
+        if (studentCode) query.studentCode = studentCode;
+        if (name) query.fullName = { $regex: new RegExp(name.replace(/\s+/g, '.*'), 'i') };
+        const results = await ArchivedResult.find(query).sort({ fullName: 1 }).limit(500);
+        res.json(results);
+    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الأرشيف' }); }
+});
+
+// حذف سجل مؤرشف واحد (مدير المعهد فقط)
+app.delete('/api/admin/archive/:id', verifyToken, isManager, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deleted = await ArchivedResult.findByIdAndDelete(req.params.id);
+        if (!deleted) return res.status(404).json({ error: 'السجل غير موجود' });
+        res.json({ success: true, message: 'تم حذف السجل من الأرشيف' });
+    } catch (error) { res.status(500).json({ error: 'خطأ في حذف السجل' }); }
+});
+
+// حذف سنة كاملة من الأرشيف (مدير المعهد فقط)
+app.delete('/api/admin/archive/year/:academicYear', verifyToken, isManager, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const result = await ArchivedResult.deleteMany({ academicYear: req.params.academicYear });
+        res.json({ success: true, message: `تم حذف أرشيف سنة ${req.params.academicYear} بالكامل (${result.deletedCount} سجل)` });
+    } catch (error) { res.status(500).json({ error: 'خطأ في حذف سنة الأرشيف' }); }
 });
 
 
