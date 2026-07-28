@@ -355,7 +355,7 @@ function renderNavbar() {
         { href: 'First-Gards.html', icon: 'fa-solid fa-graduation-cap', title: 'نتيجة الصف الاول' },
         { href: 'exams.html', icon: 'fa-solid fa-book-open', title: 'الاختبارات' },
         // ✅ رابط صفحة الفعاليات الجديد
-        { href: 'events.html', icon: 'fa-solid fa-calendar', title: 'الفعاليات' },
+        { href: 'events.html', icon: 'fa-solid fa-calendar-star', title: 'الفعاليات' },
         { href: 'file-library.html', icon: 'fas fa-folder-open', title: 'المكتبة' },
         { href: 'developer.html', icon: 'fa-solid fa-microchip', title: 'عن المطور' }
     ];
@@ -572,6 +572,50 @@ window.viewTopStudentDetails = async function(studentCode) {
 };
 
 // ====================== التشغيل ======================
-async function init() { if (!(await verifySession())) return; window.initBiometricPrompt?.(); await loadNotifications(); renderNavbar(); renderWelcomeMessage(); await renderDashboard(); setupSearchForm(); setupLogoutButton(); initLibraryTour(); setupAttendanceChannel();
+// ====================== بحث ذكي مستقل عن المخالفات والإنذارات ======================
+function setupViolationSearchForm() {
+    const form = document.getElementById('violation-search-form'); if (!form) return;
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const name = document.getElementById('violation-search-name')?.value.trim();
+        const code = document.getElementById('violation-search-code')?.value.trim();
+        const resultBody = document.getElementById('violation-search-result-body');
+        const matchMsg = document.getElementById('violation-search-match-msg');
+        if (!name) { showToast('⚠️ يرجى إدخال اسم الطالب!', 'error'); document.getElementById('violation-search-name')?.focus(); return; }
+        if (!code) { showToast('⚠️ يرجى إدخال آخر 7 أرقام من البطاقة!', 'error'); document.getElementById('violation-search-code')?.focus(); return; }
+        if (matchMsg) matchMsg.innerHTML = '';
+        showToast('🔍 جاري البحث عن المخالفات...', 'info');
+        try {
+            // ✅ نفس منطق التعرف الذكي المستخدم في بحث النتيجة: بالاسم+الكود، ثم الكود بس، ثم الاسم بس
+            let student = null, matchType = '';
+            const rawBoth = await searchStudentsByNameAndCode(name, code);
+            if (rawBoth.length > 0) { student = rawBoth[0]; matchType = calculateSimilarity(name, student.fullName || '') >= 90 ? 'both' : 'code_only'; }
+            else {
+                const codeResults = await searchByCodeOnly(code);
+                if (codeResults.length >= 1) { student = codeResults[0]; matchType = 'code_only'; }
+                else { const nameResults = await searchByNameOnly(name); if (nameResults.length >= 1) { student = nameResults[0]; matchType = 'name_only'; } }
+            }
+            if (!student) {
+                resultBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;">❌ لم يتم العثور على أي طالب بهذا الاسم أو رقم البطاقة</td></tr>';
+                showToast('❌ لم يتم العثور على طالب بهذه البيانات', 'error');
+                return;
+            }
+            if (matchType === 'code_only') matchMsg.innerHTML = `<div style="background:#e3f2fd;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;font-size:0.85em;">💡 تم التعرف على الطالب برقم البطاقة. الاسم المسجل: <strong>${escapeHtml(student.fullName)}</strong></div>`;
+            else if (matchType === 'name_only') matchMsg.innerHTML = `<div style="background:#fff3e0;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;font-size:0.85em;">💡 تم التعرف على الطالب بالاسم فقط (رقم البطاقة غير مطابق تمامًا). رقم الجلوس المسجل: <strong>${student.studentCode}</strong></div>`;
+            else matchMsg.innerHTML = `<div style="background:#e8f5e9;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;font-size:0.85em;">✅ تم التعرف على الطالب: <strong>${escapeHtml(student.fullName)}</strong></div>`;
+
+            const violations = await fetchViolationsForStudent(student.studentCode);
+            if (!violations || !violations.length) { resultBody.innerHTML = '<tr><td colspan="5" style="color:#28a745;text-align:center;padding:16px;">✅ لا توجد مخالفات أو إنذارات مسجلة لهذا الطالب</td></tr>'; showToast(`✅ ${student.fullName} - لا توجد مخالفات مسجلة`, 'success'); return; }
+            resultBody.innerHTML = violations.map(v => `<tr><td data-label="النوع">${v.type === 'warning' ? '⚠️ إنذار' : '🚫 مخالفة'}</td><td data-label="السبب">${escapeHtml(v.reason || '-')}</td><td data-label="العقوبة">${escapeHtml(v.penalty || '-')}</td><td data-label="استدعاء ولي الأمر">${v.parentSummons ? '✅ نعم' : '❌ لا'}</td><td data-label="تاريخ الإضافة">${v.date || '-'}</td></tr>`).join('');
+            showToast(`⚠️ ${student.fullName} - تم العثور على ${violations.length} مخالفة/إنذار`, 'warning');
+        } catch (error) {
+            console.error('❌ خطأ في بحث المخالفات:', error);
+            resultBody.innerHTML = '<tr><td colspan="5">❌ حدث خطأ في البحث!</td></tr>';
+            showToast('❌ حدث خطأ في الاتصال بالسيرفر', 'error');
+        }
+    });
+}
+
+async function init() { if (!(await verifySession())) return; window.initBiometricPrompt?.(); await loadNotifications(); renderNavbar(); renderWelcomeMessage(); await renderDashboard(); setupSearchForm(); setupViolationSearchForm(); setupLogoutButton(); initLibraryTour(); setupAttendanceChannel();
 await loadTopStudents(); setInterval(async () => { try { await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' }); } catch (e) {} }, 55 * 60 * 1000); setTimeout(() => { if (document.getElementById('liveBot')) window.smartBot = new SmartAssistantBot(); }, 800); }
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
