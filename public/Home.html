@@ -26,6 +26,13 @@
         .main-header h1 { font-family: 'Cairo', 'Tajawal', sans-serif; font-size: 1.3em; font-weight: 700; margin: 0; color: #fff; }
         .main-container { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 15px; padding-bottom: 100px; }
         .result-form-container { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); width: 100%; max-width: 1400px; border: 1px solid #d4af37; }
+        .violation-search-block { margin-top: 25px; padding: 18px 15px; border: 1px dashed #c0392b; border-radius: 10px; background: #fff9f8; }
+        .violation-search-block h2 { color: #c0392b; font-family: 'Cairo', sans-serif; font-size: 1.1em; font-weight: 700; margin-bottom: 8px; text-align: center; }
+        .violation-search-hint { color: #7a5a56; font-size: 0.82em; text-align: center; margin-bottom: 14px; }
+        .violation-search-block .submit-btn { background: #c0392b; color: #fff; }
+        .violation-search-block .submit-btn:hover { background: #0F2432; color: #c0392b; }
+        .violation-search-block .input-group input:focus { border-color: #c0392b; box-shadow: 0 0 5px rgba(192,57,43,0.3); }
+        #violation-search-match-msg:empty { display: none; }
         .welcome-message { color: #d4af37; background: #0F2432; padding: 10px; border-radius: 8px; text-align: center; font-size: 1.1em; font-weight: bold; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .result-form-container h2 { color: #0F2432; font-family: 'Cairo', sans-serif; font-size: 1.15em; margin-bottom: 15px; font-weight: 700; text-align: center; }
         .result-form-container h3 { color: #0F2432; font-family: 'Cairo', sans-serif; font-size: 0.95em; margin-bottom: 12px; font-weight: 700; text-align: center; }
@@ -461,6 +468,23 @@
             <section class="result-table"><h3>النتيجة</h3><div class="table-wrapper"><table><thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead><tbody id="result-table-body"><tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr></tbody></table></div></section>
             <section class="violations-section"><h3>الإنذارات والمخالفات</h3><div class="table-wrapper violations-table"><table><thead><tr><th>النوع</th><th>السبب</th><th>العقوبة</th><th>استدعاء ولي الأمر</th><th>تاريخ الإضافة</th></tr></thead><tbody id="violations-table-body"><tr><td colspan="5">✅ لا توجد مخالفات مسجلة</td></tr></tbody></table></div></section>
             <div class="notifications-section"><h3>الإشعارات</h3><div class="table-wrapper notifications-table"><table><thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead><tbody id="notifications-table-body"><tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr></tbody></table></div></div>
+
+            <div class="violation-search-block">
+                <h2><i class="fas fa-triangle-exclamation"></i> البحث عن المخالفات والإنذارات</h2>
+                <p class="violation-search-hint">دوّر على مخالفات أي طالب باسمه وآخر 7 أرقام من بطاقته المسجلة في النظام - مش لازم تكتب الاسم كامل بالظبط.</p>
+                <form id="violation-search-form">
+                    <div class="input-group"><label for="violation-search-name">اسم الطالب</label><input type="text" id="violation-search-name" placeholder="أدخل اسم الطالب" required></div>
+                    <div class="input-group"><label for="violation-search-code">آخر 7 أرقام من بطاقة الطالب</label><input type="text" id="violation-search-code" placeholder="مثال: 1234567" maxlength="7" required></div>
+                    <button type="submit" class="submit-btn"><i class="fas fa-magnifying-glass"></i> بحث عن المخالفات</button>
+                </form>
+                <div id="violation-search-match-msg"></div>
+                <div class="table-wrapper violations-table">
+                    <table>
+                        <thead><tr><th>النوع</th><th>السبب</th><th>العقوبة</th><th>استدعاء ولي الأمر</th><th>تاريخ الإضافة</th></tr></thead>
+                        <tbody id="violation-search-result-body"><tr><td colspan="5">🔍 دوّر على مخالفات أي طالب من هنا</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 <!-- ====================== 🏆 الطلاب المتفوقون ====================== -->
