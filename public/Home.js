@@ -355,7 +355,7 @@ function renderNavbar() {
         { href: 'First-Gards.html', icon: 'fa-solid fa-graduation-cap', title: 'نتيجة الصف الاول' },
         { href: 'exams.html', icon: 'fa-solid fa-book-open', title: 'الاختبارات' },
         // ✅ رابط صفحة الفعاليات الجديد
-        { href: 'events.html', icon: 'fa-solid fa-calendar-star', title: 'الفعاليات' },
+        { href: 'events.html', icon: 'fa-solid fa-calendar', title: 'الفعاليات' },
         { href: 'file-library.html', icon: 'fas fa-folder-open', title: 'المكتبة' },
         { href: 'developer.html', icon: 'fa-solid fa-microchip', title: 'عن المطور' }
     ];
