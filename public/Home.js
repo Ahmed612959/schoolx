@@ -255,12 +255,17 @@ async function renderDashboard() {
     if (student.studentCode) { await fetchAttendanceStats(student.studentCode, true); renderAttendanceStats(); startAttendancePolling(student.studentCode); }
 }
 
+// ✅ رسالة موحدة تُعرض لأي طالب مسجّل لكن بدون نتيجة متاحة (نتيجة متصفرة/مؤرشفة)
+function renderNoResultForStudent(resultBody, violationsBody) {
+    resultBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;">📭 لا توجد نتائج لهذا الطالب</td></tr>';
+    if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">✅ لا توجد مخالفات</td></tr>';
+}
+
 // ====================== عرض النتيجة ======================
 function renderStudentResult(student, studentViolations, resultBody, violationsBody, searchName = '', searchMethod = '') {
-    // ✅ إذا لم توجد درجات حقيقية (كلها صفر) – لا نعرض نتيجة
+    // ✅ إذا لم توجد درجات حقيقية (كلها صفر - مثل النتائج المؤرشفة) – لا نعرض نتيجة إطلاقًا
     if (!hasAnyGrade(student)) {
-        resultBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;">📭 لا توجد درجات مسجلة لهذا الطالب</td></tr>';
-        if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">✅ لا توجد مخالفات</td></tr>';
+        renderNoResultForStudent(resultBody, violationsBody);
         return;
     }
 
@@ -284,7 +289,9 @@ function renderStudentResult(student, studentViolations, resultBody, violationsB
 }
 
 function renderMultipleResults(results, resultBody, violationsBody, searchMethod = '') {
-    if (!results || results.length === 0) { resultBody.innerHTML = '<tr><td colspan="4">❌ لا توجد نتائج</td></tr>'; return; }
+    // ✅ استبعاد أي طالب نتيجته متصفرة (مؤرشفة) من قائمة النتائج المتعددة
+    results = (results || []).filter(hasAnyGrade);
+    if (!results || results.length === 0) { renderNoResultForStudent(resultBody, violationsBody); return; }
     if (results.length === 1) { fetchViolationsForStudent(results[0].studentCode).then(v => renderStudentResult(results[0], v, resultBody, violationsBody, '', searchMethod)); return; }
     let html = `<tr><td colspan="4" style="background:#e3f2fd;padding:10px;text-align:center;color:#1a2526;">🔍 تم العثور على <strong>${results.length}</strong> نتائج. اضغط على أي صف للتفاصيل.</td></tr>`;
     results.forEach(student => { const percentage = calculateStudentPercentage(student); const ds = student.semester || detectSemester(student.subjects) || 'first'; const sn = getSemesterName(ds); const pClass = percentage >= 85 ? 'high-percentage' : (percentage >= 60 ? 'medium-percentage' : 'low-percentage'); html += `<tr style="cursor:pointer;" onclick="viewStudentDetail('${student.studentCode}')"><td><strong>${escapeHtml(student.fullName)}</strong></td><td>${student.studentCode}<br><small style="color:#d4af37;">${sn}</small></td><td>${calculateStudentTotal(student)} / ${getTotalPossible(ds)}</td><td class="${pClass}">${percentage.toFixed(1)}%</td></tr>`; });
@@ -304,14 +311,29 @@ function setupSearchForm() {
         if (!studentCode) { showToast('⚠️ يرجى إدخال رقم الجلوس!', 'error'); document.getElementById('search-id')?.focus(); return; }
         showToast('🔍 جاري البحث...', 'info');
         try {
-            let results = await searchStudentsByNameAndCode(name, studentCode);
+            // ✅ في كل مرحلة: نستبعد أي طالب نتيجته متصفرة (مؤرشفة/غير منشورة) قبل العرض،
+            // مع الاحتفاظ بالنتائج الخام لمعرفة هل الطالب مسجل أصلاً أم لا (لعرض الرسالة الصحيحة)
+            const rawBoth = await searchStudentsByNameAndCode(name, studentCode);
+            let results = rawBoth.filter(hasAnyGrade);
             if (results.length > 0) { const violations = await fetchViolationsForStudent(results[0].studentCode); renderStudentResult(results[0], violations, resultBody, violationsBody, name, results.length === 1 && calculateSimilarity(name, results[0].fullName || '') < 80 ? 'code_only' : ''); const ds = results[0].semester || detectSemester(results[0].subjects) || 'first'; const similarity = calculateSimilarity(name, results[0].fullName || ''); showToast(similarity >= 90 ? `✅ تم العثور: ${results[0].fullName} - ${getSemesterName(ds)}` : `✅ تم العثور برقم الجلوس: ${results[0].fullName} - ${getSemesterName(ds)}`, similarity >= 90 ? 'success' : 'warning'); return; }
-            const codeResults = await searchByCodeOnly(studentCode);
+
+            const rawCode = await searchByCodeOnly(studentCode);
+            const codeResults = rawCode.filter(hasAnyGrade);
             if (codeResults.length === 1) { const violations = await fetchViolationsForStudent(codeResults[0].studentCode); renderStudentResult(codeResults[0], violations, resultBody, violationsBody, name, 'code_only'); const ds = codeResults[0].semester || detectSemester(codeResults[0].subjects) || 'first'; showToast(`✅ تم العثور برقم الجلوس: ${codeResults[0].fullName} - ${getSemesterName(ds)} (الاسم مختلف)`, 'warning'); return; }
             else if (codeResults.length > 1) { renderMultipleResults(codeResults, resultBody, violationsBody, 'code_only'); showToast(`✅ تم العثور على ${codeResults.length} طلاب بنفس رقم الجلوس`, 'info'); return; }
-            const nameResults = await searchByNameOnly(name);
+
+            const rawName = await searchByNameOnly(name);
+            const nameResults = rawName.filter(hasAnyGrade);
             if (nameResults.length === 1) { const violations = await fetchViolationsForStudent(nameResults[0].studentCode); renderStudentResult(nameResults[0], violations, resultBody, violationsBody, name, 'name_only'); const ds = nameResults[0].semester || detectSemester(nameResults[0].subjects) || 'first'; showToast(`✅ تم العثور بالاسم: ${nameResults[0].fullName} - ${getSemesterName(ds)}`, 'warning'); return; }
             else if (nameResults.length > 1) { renderMultipleResults(nameResults, resultBody, violationsBody, 'name_only'); showToast(`✅ تم العثور على ${nameResults.length} طلاب بالاسم. اختر الصحيح`, 'info'); return; }
+
+            // ✅ لو فيه سجل طالب مطابق فعليًا (بالاسم أو الكود) لكن نتيجته متصفرة/مؤرشفة، نوضح الرسالة الصحيحة
+            if (rawBoth.length > 0 || rawCode.length > 0 || rawName.length > 0) {
+                renderNoResultForStudent(resultBody, violationsBody);
+                showToast('📭 لا توجد نتائج لهذا الطالب حاليًا.', 'error');
+                return;
+            }
+
             resultBody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;"><div style="color:#dc3545;font-size:1.1em;margin-bottom:10px;">❌ لم يتم العثور على أي طالب</div><div style="color:#666;font-size:0.85em;">تأكد من:<br>• صحة كتابة الاسم ورقم الجلوس<br>• عدم وجود مسافات زائدة<br>• أن الطالب مسجل في النظام</div></td></tr>`;
             if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ لا توجد نتيجة!</td></tr>';
             showToast('❌ لم يتم العثور على الطالب. تأكد من البيانات أو تواصل مع الإدارة.', 'error');
