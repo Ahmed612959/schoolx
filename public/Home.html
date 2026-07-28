@@ -62,11 +62,20 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .violations-section, .notifications-section { margin-bottom: 15px; text-align: center; }
         .violations-section h3 { font-size: 0.85em; margin-bottom: 8px; color: #0F2432; font-weight: bold; }
-        .violations-table, .notifications-table { width: 100%; max-width: 100%; overflow-x: auto; }
-        .violations-table table, .notifications-table table { width: 100%; min-width: 460px; border-collapse: collapse; background: #f9f9f9; border-radius: 6px; overflow: hidden; }
-        .violations-table th, .violations-table td, .notifications-table th, .notifications-table td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #d4af37; font-size: 0.78em; vertical-align: middle; word-wrap: break-word; }
-        .violations-table th, .notifications-table th { background: #0F2432; color: #d4af37; font-weight: bold; position: sticky; top: 0; z-index: 1; }
-        .violations-table td, .notifications-table td { color: #0F2432; background: #fff; }
+
+        /* جدول الإشعارات - بنفس شكله الأصلي زي ما كان */
+        .notifications-table { width: 100%; max-width: 100%; overflow-x: auto; display: block; }
+        .notifications-table table { width: 100%; max-width: 100%; border-collapse: collapse; background: #f9f9f9; border-radius: 6px; overflow: hidden; table-layout: fixed; }
+        .notifications-table th, .notifications-table td { padding: 5px; text-align: center; border-bottom: 1px solid #d4af37; font-size: 0.7em; vertical-align: middle; }
+        .notifications-table th { background: linear-gradient(90deg, #0F2432, #163247); color: #d4af37; font-weight: bold; position: sticky; top: 0; z-index: 1; }
+        .notifications-table td { color: #0F2432; background: #fff; }
+
+        /* جدول المخالفات والإنذارات - محسّن ليتحول لكروت واضحة على الهاتف */
+        .violations-table { width: 100%; max-width: 100%; overflow-x: auto; }
+        .violations-table table { width: 100%; min-width: 460px; border-collapse: collapse; background: #f9f9f9; border-radius: 6px; overflow: hidden; }
+        .violations-table th, .violations-table td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #d4af37; font-size: 0.78em; vertical-align: middle; word-wrap: break-word; }
+        .violations-table th { background: #0F2432; color: #d4af37; font-weight: bold; position: sticky; top: 0; z-index: 1; }
+        .violations-table td { color: #0F2432; background: #fff; }
         /* 📱 على الهاتف: جدول المخالفات والإنذارات بيتحول لكروت مرتبة بدل أعمدة ملتصقة في بعض */
         @media (max-width: 640px) {
             .violations-table table { min-width: 0; }
@@ -488,7 +497,7 @@
         <a href="search-monthly.html"><i class="fa-solid fa-magnifying-glass"></i><span>الشهري</span></a>
         <a href="First-Gards.html"><i class="fa-solid fa-graduation-cap"></i><span>الأولى</span></a>
         <a href="exams.html"><i class="fa-solid fa-book-open"></i><span>اختبارات</span></a>
-         <a href="events.html"><i class="fa-solid fa-calendar-days"></i><span>الفعاليات</span></a>
+         <a href="events.html"><i class="fa-solid fa-calendar"></i><span>الفعاليات</span></a>
         <a href="file-library.html"><i class="fas fa-folder-open"></i><span>مكتبة</span></a>
         <a href="developer.html"><i class="fa-solid fa-microchip"></i><span>المطور</span></a>
     </nav>
