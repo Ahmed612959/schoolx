@@ -242,7 +242,7 @@
         <h1><i class="fas fa-book-medical"></i> Anatomy Questions Bank</h1>
 <p>📚 بنك أسئلة التشريح - الصف الأول الثانوي</p>
         <div class="xp-bar-container"><span class="xp-label"><i class="fas fa-star"></i> XP: <span id="xpPoints">0</span></span><div class="xp-bar"><div class="xp-fill" id="xpFill" style="width:0%"></div></div><span class="level-badge level-bronze" id="levelBadge">🟤 مبتدئ</span></div>
-        <div class="header-badge"><i class="fas fa-check-circle"></i> <span id="chapterCount">8</span> فصلاً مكتملاً | ترجمة وحلول كاملة</div>
+        <div class="header-badge"><i class="fas fa-check-circle"></i> <span id="chapterCount">10</span> فصلاً مكتملاً | ترجمة وحلول كاملة</div>
         <div class="control-bar">
             <button class="control-btn" id="darkModeToggle"><i class="fas fa-moon"></i> ليلي</button>
             <button class="control-btn" id="hideAnswersToggle"><i class="fas fa-eye-slash"></i> إخفاء</button>
@@ -295,6 +295,8 @@
 <script src="an1_chapter6.js"></script>
 <script src="an1_chapter7.js"></script>
 <script src="an1_chapter8.js"></script>
+<script src="an1_chapter9.js"></script>
+<script src="an1_chapter10.js"></script>
 
 <script>
 // ====================== وضع التصحيح ======================
@@ -313,7 +315,9 @@ var chaptersData = {
   chapter5: an1_chapter5,
   chapter6: an1_chapter6,
   chapter7: an1_chapter7,
-  chapter8: an1_chapter8
+  chapter8: an1_chapter8,
+  chapter9: an1_chapter9,
+  chapter10: an1_chapter10
 };
 var currentChapterId = 'all';
 var currentCategory = 'all';
@@ -430,7 +434,9 @@ var chaptersData = {
   chapter5: an1_chapter5,
   chapter6: an1_chapter6,
   chapter7: an1_chapter7,
-  chapter8: an1_chapter8
+  chapter8: an1_chapter8,
+  chapter9: an1_chapter9,
+  chapter10: an1_chapter10
 };
 var currentChapterId = 'all';
 var currentCategory = 'all';
@@ -582,7 +588,7 @@ function getFullAnswer(q) {
     var answer = '';
 
     if (q.cat === 'mcq') {
-        answer = q.correct || '';
+        answer = mcqCorrectDisplayText(q);
         if (translation) answer += ' - ' + translation;
         return answer;
     }
@@ -736,15 +742,16 @@ h += '<button class="action-btn" onclick="copyQuestion(\'' + qId + '\')"><i clas
     if (q.translation) h += '<div class="translation-box"><i class="fas fa-language"></i> ' + q.translation + '</div>'; 
 
     if (cat === 'mcq' && q.options) { 
+        var mcqFullAnswer = mcqCorrectDisplayText(q); 
         h += '<div class="options-list">'; 
         for (var o = 0; o < q.options.length; o++) { 
             var opt = q.options[o]; 
-            var isCorrect = (opt === q.correct || opt.startsWith(q.correct + ')') || opt.startsWith(q.correct + ' ')); 
+            var isCorrect = isMcqOptionCorrect(opt, q); 
             h += '<li style="' + (isCorrect ? 'font-weight:700;color:#166534;background:#f0fdf4;padding:6px 12px;border-radius:10px;' : '') + '">' + opt + (isCorrect ? ' ✅' : '') + '</li>'; 
         } 
         h += '</div>'; 
         // عرض الإجابة الصحيحة
-        h += '<div class="answer-box"><strong>✅ الإجابة الصحيحة: ' + (q.correct || '') + '</strong></div>'; 
+        h += '<div class="answer-box"><strong>✅ الإجابة الصحيحة: ' + (mcqFullAnswer || 'غير محددة في البيانات') + '</strong></div>'; 
         // عرض ترجمة الإجابة فقط إذا كانت موجودة ومختلفة عن ترجمة السؤال
         var mcqAnswerTrans = q.correctTranslation || q.answerTranslation || ''; 
         if (mcqAnswerTrans && mcqAnswerTrans !== q.translation && mcqAnswerTrans !== q.text && mcqAnswerTrans.trim() !== '') { 
@@ -794,7 +801,7 @@ function renderChapterButtons() { var html = '<button class="chapter-btn ' + (cu
 function renderCategoryTabs() { var total = 0; for (var i = 0; i < categoryMeta.length; i++) { total += getQuestionsFor(currentChapterId, categoryMeta[i].id).length; } var html = '<button class="category-btn ' + (currentCategory === 'all' ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'all\')"><i class="fas fa-border-all"></i> الكل <span class="count">' + total + '</span></button>'; for (var i = 0; i < categoryMeta.length; i++) { var c = categoryMeta[i]; var count = getQuestionsFor(currentChapterId, c.id).length; html += '<button class="category-btn ' + (currentCategory === c.id ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'' + c.id + '\')"><i class="' + c.icon + '"></i> ' + c.label + ' <span class="count">' + count + '</span></button>'; } document.getElementById('categoryTabs').innerHTML = html; }
 
 // ====================== وظائف الأخطاء ====================
-function addWrongQuestion(q) { var wrongEntry = { questionId: q.questionId, text: q.text, correct: q.correct || q.completion || q.answer || '', chapter: q.chapterName || '', cat: q.cat || '', date: new Date().toISOString() }; var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); if (!exists) { wrongQuestions.push(wrongEntry); localStorage.setItem('an1_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-an1/quiz', { wrongQuestions: wrongQuestions }); } }
+function addWrongQuestion(q) { var wrongEntry = { questionId: q.questionId, text: q.text, correct: (q.cat === 'mcq' ? mcqCorrectDisplayText(q) : (q.completion || q.answer || _safeStr(q.correct))), chapter: q.chapterName || '', cat: q.cat || '', date: new Date().toISOString() }; var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); if (!exists) { wrongQuestions.push(wrongEntry); localStorage.setItem('an1_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-an1/quiz', { wrongQuestions: wrongQuestions }); } }
 function removeWrongQuestion(questionId) { wrongQuestions = wrongQuestions.filter(function(w) { return w.questionId !== questionId; }); localStorage.setItem('an1_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-an1/quiz', { wrongQuestions: wrongQuestions }); }
 function updateRetryButton() { var btn = document.getElementById('retryWrongBtn'); if (btn) { var count = wrongQuestions.length; if (count > 0) { btn.style.display = 'inline-flex'; btn.innerHTML = '<i class="fas fa-redo"></i> تحدي الأخطاء (' + count + ')'; } else { btn.style.display = 'none'; } } }
 function clearAllWrongQuestions() { if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; } if (confirm('⚠️ هل أنت متأكد من مسح جميع الأسئلة الخاطئة؟')) { wrongQuestions = []; localStorage.setItem('an1_nb_wrong', JSON.stringify(wrongQuestions)); if (isOnlineMode) saveProgress('/api/progress-an1/quiz', { wrongQuestions: [] }); updateRetryButton(); renderAllQuestions(); closeModal('retryModal'); showToast('🎉 تم مسح جميع الأسئلة الخاطئة بنجاح!', 'success'); } }
@@ -918,14 +925,15 @@ function renderQuestionHTML(q, i, prefix, total) {
     var h = '<div class="quiz-q"><strong>' + (i+1) + '. ' + q.text + '</strong> <span class="q-type-badge"><i class="fas ' + catIcon + '"></i> ' + catLabel + '</span>';
     if (q.translation) { h += '<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ' + q.translation + '</div>'; }
     if (q.cat === 'mcq' && q.options) {
+        var mcqCorrectText = mcqCorrectDisplayText(q);
         for (var o = 0; o < q.options.length; o++) {
             var opt = q.options[o];
             var escapedOpt = opt.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            var escapedCorrect = (q.correct || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            var escapedCorrect = _safeStr(mcqCorrectText).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             h += '<button class="quiz-opt" onclick="check' + prefix + 'Answer(this,\'' + escapedOpt + '\',\'' + escapedCorrect + '\',' + i + (total ? ',' + total : '') + ')">' + opt + '</button>';
         }
     } else if (q.cat === 'truefalse') {
-        var escapedCorrect = String(q.correct || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        var escapedCorrect = _safeStr(q.correct).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         h += '<button class="quiz-opt" onclick="check' + prefix + 'Answer(this,\'true\',\'' + escapedCorrect + '\',' + i + (total ? ',' + total : '') + ')">✅ صواب</button>';
         h += '<button class="quiz-opt" onclick="check' + prefix + 'Answer(this,\'false\',\'' + escapedCorrect + '\',' + i + (total ? ',' + total : '') + ')">❌ خطأ</button>';
     } else {
@@ -1146,7 +1154,7 @@ function getFlashcardBack(q) {
     h += '<div class="fc-label">✅ الإجابة الكاملة</div>';
 
     if (q.cat === 'mcq') {
-        h += '<div class="fc-content" style="font-size:1.1rem;color:#059669;">' + (q.correct || '') + '</div>';
+        h += '<div class="fc-content" style="font-size:1.1rem;color:#059669;">' + (mcqCorrectDisplayText(q) || 'غير محددة') + '</div>';
     } else if (q.cat === 'truefalse') {
         var isTrue = (q.correct === true || q.correct === 'true' || q.correct === 'True');
         h += '<div class="fc-content" style="font-size:1.1rem;color:' + (isTrue ? '#059669' : '#dc2626') + ';">' + (isTrue ? 'صواب (True)' : 'خطأ (False)') + '</div>';
@@ -1297,7 +1305,7 @@ function openChallengeMode() {
     var h = '<h2>🤝 التحدي مع الأصدقاء</h2>';
     var hasActiveChallenge = false;
     var activeChallengeCode = '';
-    if (challengeData && challengeData.status !== 'completed') {
+    if (challengeData && challengeData.status && challengeData.status !== 'completed' && Array.isArray(challengeData.participants)) {
         if (challengeData.creatorUsername === currentUser?.username || 
             challengeData.participants.some(function(p) { return p.username === currentUser?.username; })) {
             hasActiveChallenge = true;
@@ -1370,7 +1378,7 @@ function createChallenge() {
 }
 
 function joinChallenge() {
-    if (challengeData && challengeData.status !== 'completed') {
+    if (challengeData && challengeData.status && challengeData.status !== 'completed' && Array.isArray(challengeData.participants)) {
         var isParticipant = challengeData.participants.some(function(p) { return p.username === currentUser?.username; });
         if (isParticipant) { showToast('⚠️ أنت بالفعل عضو في هذا التحدي!', 'warning'); return; }
     }
@@ -2457,7 +2465,7 @@ function generatePrintPreview() {
         if (q.cat === 'mcq' && q.options) {
             html += `<div class="print-options">`;
             for (const opt of q.options) {
-                const isCorrect = opt === q.correct;
+                const isCorrect = isMcqOptionCorrect(opt, q);
                 const highlight = printMode === 'withAnswers' && isCorrect;
                 html += `<li style="${highlight ? 'color:#059669;font-weight:700;' : ''}">${opt}${highlight ? ' ✅' : ''}</li>`;
             }
@@ -2765,15 +2773,17 @@ function renderSmartReviewQuestion(q, index) {
 function isAnswerCorrectSmart(userAnswer, question) {
     if (!userAnswer || !question) return false;
 
+    if (question.cat === 'mcq') {
+        return isMcqOptionCorrect(userAnswer, question);
+    }
+
     // تنظيف الإجابات
     const user = String(userAnswer).trim();
     let correct = '';
 
     // الحصول على الإجابة الصحيحة حسب نوع السؤال
-    if (question.cat === 'mcq') {
-        correct = String(question.correct || '').trim();
-    } else if (question.cat === 'truefalse') {
-        correct = String(question.correct || '').trim();
+    if (question.cat === 'truefalse') {
+        correct = _safeStr(question.correct).trim();
     } else {
         correct = String(question.completion || question.answer || '').trim();
     }
@@ -2879,22 +2889,14 @@ function getFullAnswerSmart(question) {
     if (!question) return '';
 
     if (question.cat === 'mcq') {
-        if (question.options && question.correct) {
-            const cleanCorrect = question.correct.replace(/^[\d\s.)-]+/, '').trim();
-            const found = question.options.find(opt => {
-                const cleanOpt = opt.replace(/^[\d\s.)-]+/, '').trim();
-                return cleanOpt.toLowerCase() === cleanCorrect.toLowerCase();
-            });
-            return found || question.correct;
-        }
-        return question.correct || '';
+        return mcqCorrectDisplayText(question);
     }
 
     if (question.cat === 'truefalse') {
-        const val = String(question.correct || '').toLowerCase();
+        const val = _safeStr(question.correct).toLowerCase();
         if (val === 'true' || val === 'صواب') return 'صواب (True)';
         if (val === 'false' || val === 'خطأ') return 'خطأ (False)';
-        return question.correct || '';
+        return _safeStr(question.correct);
     }
 
     if (question.cat === 'complete') {
@@ -2906,6 +2908,65 @@ function getFullAnswerSmart(question) {
     }
 
     return question.completion || question.answer || question.correct || '';
+}
+
+// ====================== دالة موحّدة وقوية للتحقق من إجابة الاختيار المتعدد ======================
+// الصيغة الفعلية المستخدمة في كل الفصول: correct = رقم فهرس الخيار الصحيح داخل options (يبدأ من 0)
+// ملاحظة مهمة: 0 قيمة صحيحة وشائعة (أول خيار) ويجب عدم معاملتها كقيمة فارغة/falsy
+function _safeStr(v) { return (v === undefined || v === null) ? '' : String(v); }
+
+function mcqCorrectRawValue(q) {
+    if (!q) return '';
+    if (q.correct !== undefined && q.correct !== null && String(q.correct).trim() !== '') return q.correct;
+    return q.answer || q.correctAnswer || q.correctOption || q.correctChoice || q.ans || '';
+}
+
+function _mcqStripPrefix(s) {
+    return String(s || '').replace(/^\s*[A-Za-zأ-ي0-9]{1,2}\s*[).:\-]\s*/, '').trim();
+}
+
+function _mcqIndexFromCorrectVal(correctVal) {
+    if (typeof correctVal === 'number' && Number.isInteger(correctVal)) return correctVal;
+    if (typeof correctVal === 'string' && /^\d+$/.test(correctVal.trim())) return parseInt(correctVal.trim(), 10);
+    return -1;
+}
+
+function isMcqOptionCorrect(opt, q) {
+    var correctVal = mcqCorrectRawValue(q);
+    if (correctVal === '' || correctVal === undefined || correctVal === null || opt === undefined || opt === null) return false;
+    // الحالة الأساسية: correct فهرس رقمي داخل مصفوفة options
+    if (q && Array.isArray(q.options)) {
+        var idx = _mcqIndexFromCorrectVal(correctVal);
+        if (idx !== -1 && idx >= 0 && idx < q.options.length) {
+            return q.options[idx] === opt;
+        }
+    }
+    // احتياطي: صيغ نصية/حرفية قد تُستخدم في مصادر بيانات أخرى
+    var o = String(opt).trim();
+    var c = String(correctVal).trim();
+    if (!o || !c) return false;
+    if (o === c) return true;
+    if (o.toLowerCase() === c.toLowerCase()) return true;
+    if (o.startsWith(c + ')') || o.startsWith(c + '.') || o.startsWith(c + '-') || o.startsWith(c + ' ')) return true;
+    if (c.startsWith(o + ')') || c.startsWith(o + '.') || c.startsWith(o + '-') || c.startsWith(o + ' ')) return true;
+    var oStripped = _mcqStripPrefix(o).toLowerCase();
+    var cStripped = _mcqStripPrefix(c).toLowerCase();
+    if (oStripped && oStripped === cStripped) return true;
+    if (oStripped && oStripped === c.toLowerCase()) return true;
+    if (cStripped && cStripped === o.toLowerCase()) return true;
+    return false;
+}
+
+function mcqCorrectDisplayText(q) {
+    var correctVal = mcqCorrectRawValue(q);
+    if (q && Array.isArray(q.options)) {
+        var idx = _mcqIndexFromCorrectVal(correctVal);
+        if (idx !== -1 && idx >= 0 && idx < q.options.length) return q.options[idx];
+        for (var i = 0; i < q.options.length; i++) {
+            if (isMcqOptionCorrect(q.options[i], q)) return q.options[i];
+        }
+    }
+    return _safeStr(correctVal);
 }
 
 // ====================== التحقق من إجابة MCQ ======================
@@ -4251,14 +4312,7 @@ function checkAnswerLocally(question, userAnswer, type) {
 
     switch (type) {
         case 'mcq': {
-            const correctAns = String(question.correct || '').trim();
-            // مقارنة مباشرة
-            if (userAnswer.trim() === correctAns) return true;
-            // مقارنة غير حساسة لحالة الأحرف
-            if (userAnsLower === correctAns.toLowerCase()) return true;
-            // مقارنة مع بداية النص (للإجابات الطويلة)
-            if (userAnsLower.startsWith(correctAns.toLowerCase()) && userAnsLower.length >= correctAns.length) return true;
-            return false;
+            return isMcqOptionCorrect(userAnswer, question);
         }
 
         case 'truefalse': {
@@ -4344,7 +4398,7 @@ function colorizeAnswers(questions, answers) {
 
 function isCorrectAnswer(question, optionValue, type) {
     if (type === 'mcq') {
-        return optionValue.trim() === String(question.correct || '').trim();
+        return isMcqOptionCorrect(optionValue, question);
     } else if (type === 'truefalse') {
         const correctIsTrue = (
             question.correct === true || 
