@@ -71,6 +71,7 @@
         .filter-group { display: flex; gap: 10px; flex-wrap: wrap; }
         .filter-select { padding: 10px 18px; border: 1px solid var(--border-color); border-radius: 50px; background: var(--bg-primary); font-family: 'Tajawal', sans-serif; font-size: 0.85rem; cursor: pointer; color: var(--text-primary); transition: all 0.3s ease; }
         .filter-select:hover { border-color: var(--gold); }
+        .files-container { display: block; }
         .files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
         .file-card { background: var(--card-bg); border-radius: 24px; overflow: hidden; transition: all 0.3s ease; box-shadow: var(--shadow); position: relative; }
         .file-card:hover { transform: translateY(-8px); box-shadow: 0 20px 35px rgba(0, 0, 0, 0.12); }
@@ -175,6 +176,68 @@
         }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         .file-card { animation: fadeInUp 0.4s ease-out; }
+
+        /* ====================== منطقة السحب والإفلات ====================== */
+        .drop-zone { border: 2.5px dashed var(--border-color); border-radius: 18px; padding: 30px 15px; text-align: center; cursor: pointer; transition: all 0.25s ease; background: var(--bg-primary); }
+        .drop-zone i { font-size: 2.2rem; color: var(--gold); margin-bottom: 8px; display: block; }
+        .drop-zone p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+        .drop-zone p.hint { font-size: 0.7rem; margin-top: 4px; opacity: 0.75; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: var(--gold); background: linear-gradient(135deg, #fff8e8, var(--bg-primary)); }
+        .drop-zone.dragover { transform: scale(1.01); }
+        .drop-zone input[type=file] { display: none; }
+
+        /* معاينة اسم المادة المستخرج تلقائيًا قبل الرفع */
+        .detected-subjects { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; max-height: 160px; overflow-y: auto; }
+        .detected-subject-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px 12px; font-size: 0.78rem; }
+        .detected-subject-row .file-name-part { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .detected-subject-row .subject-part { background: #fff8e8; color: var(--gold-dark); padding: 3px 10px; border-radius: 20px; font-weight: 700; white-space: nowrap; }
+
+        /* ====================== شريط تقدم الرفع ====================== */
+        .upload-progress-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; max-height: 220px; overflow-y: auto; }
+        .upload-progress-item { background: var(--bg-primary); border-radius: 14px; padding: 10px 14px; border: 1px solid var(--border-color); }
+        .upload-progress-item .upi-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .upload-progress-item .upi-name { font-size: 0.78rem; color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .upload-progress-item .upi-pct { font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; }
+        .upload-progress-bar-track { height: 7px; background: var(--border-color); border-radius: 10px; overflow: hidden; }
+        .upload-progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-dark)); border-radius: 10px; transition: width 0.2s ease; width: 0%; }
+        .upload-progress-item.done .upload-progress-bar-fill { background: #2d6a4f; }
+        .upload-progress-item.failed .upload-progress-bar-fill { background: #dc3545; }
+        .upload-progress-item.done .upi-pct::before { content: '✅ '; }
+        .upload-progress-item.failed .upi-pct::before { content: '❌ '; }
+
+        /* ====================== تجميع الكروت حسب المادة ====================== */
+        .subject-group { margin-bottom: 32px; }
+        .subject-group-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--border-color); }
+        .subject-group-header .sgh-icon { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); display: flex; align-items: center; justify-content: center; color: #1a2a3a; font-size: 1rem; flex-shrink: 0; }
+        .subject-group-header h3 { font-size: 1.05rem; color: var(--text-primary); font-weight: 800; }
+        .subject-group-header .sgh-count { background: var(--bg-primary); color: var(--text-secondary); padding: 3px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid var(--border-color); }
+
+        /* ====================== تحسين المعاينة الحقيقية ====================== */
+        .preview-body iframe.pdf-preview { background: #525659; }
+        .image-preview-wrap { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+        .preview-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--text-secondary); }
+        .preview-loading i { font-size: 2rem; color: var(--gold); }
+
+        /* ====================== تحسينات استجابة إضافية ====================== */
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+            .files-grid { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px; }
+        }
+        @media (max-width: 768px) {
+            .subject-group-header h3 { font-size: 0.95rem; }
+            .preview-content { width: 96%; max-height: 90vh; }
+            .preview-body { padding: 10px; min-height: 220px; }
+            .pdf-preview { height: 50vh; }
+        }
+        @media (max-width: 480px) {
+            .file-info { padding: 12px; }
+            .file-title { font-size: 0.82rem; -webkit-line-clamp: 2; margin-bottom: 6px; }
+            .file-actions { gap: 5px; }
+            .file-actions button span { display: none; }
+            .file-actions button { min-width: 0; padding: 8px 4px; }
+            .drop-zone { padding: 20px 10px; }
+            .subject-group-header .sgh-icon { width: 32px; height: 32px; font-size: 0.85rem; }
+        }
     </style>
 </head>
 <body>
@@ -291,7 +354,7 @@
         </div>
     </div>
 
-    <div id="filesContainer" class="files-grid"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><h3>جاري التحميل...</h3></div></div>
+    <div id="filesContainer" class="files-container"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><h3>جاري التحميل...</h3></div></div>
 </div>
 
 <!-- Upload Modal -->
@@ -308,17 +371,20 @@
                 </div>
             </div>
             <div class="form-group">
-                <label><i class="fas fa-tag"></i> المادة الدراسية</label>
-                <input type="text" id="subjectInput" placeholder="مثال: اللغة العربية، الرياضيات..." required>
-            </div>
-            <div class="form-group">
-                <label><i class="fas fa-file"></i> اختر الملفات</label>
-                <input type="file" id="fileInput" name="files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt" required>
+                <label><i class="fas fa-file"></i> الملفات</label>
+                <div class="drop-zone" id="dropZone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>اسحب الملفات هنا أو اضغط للاختيار</p>
+                    <p class="hint">📌 اسم المادة هيتحدد تلقائيًا من اسم الملف (مثال: "تشريح - الفصل الأول.pdf")</p>
+                    <input type="file" id="fileInput" name="files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt">
+                </div>
                 <div id="fileCountInfo" class="selected-files-info" style="display: none;"></div>
+                <div id="detectedSubjects" class="detected-subjects"></div>
                 <div style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">
-                    ⚠️ الحد الأقصى لكل ملف هو <strong>50MB</strong>
+                    ⚠️ الحد الأقصى لكل ملف هو <strong>500MB</strong>
                 </div>
             </div>
+            <div id="uploadProgressList" class="upload-progress-list"></div>
             <div class="modal-buttons">
                 <button type="submit" class="modal-btn confirm" id="submitUpload"><i class="fas fa-cloud-upload-alt"></i> رفع إلى السحابة</button>
                 <button type="button" class="modal-btn cancel" onclick="closeModal()"><i class="fas fa-times"></i> إلغاء</button>
@@ -361,11 +427,23 @@
 // ====================== إعدادات ======================
 const BASE_URL = '';
 
-// ✅ الحد الأقصى لحجم الملف (50MB)
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+// ✅ الحد الأقصى لحجم الملف (500MB - بعد الانتقال لـ Cloudflare R2)
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
 let allFiles = [];
 let currentUser = null;
+
+// ====================== استخراج اسم المادة من اسم الملف ======================
+// بياخد الجزء اللي قبل أول فاصل شائع (- أو – أو _ أو |) ويشيل الامتداد.
+// مثال: "تشريح - الفصل الأول.pdf" -> "تشريح"
+// لو مفيش فاصل، بيرجع اسم الملف كامل (من غير الامتداد) كمادة.
+function extractSubjectFromFileName(fileName) {
+    if (!fileName) return 'عام';
+    const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+    const separatorMatch = nameWithoutExt.match(/^(.+?)\s*[-–_|]\s*.+$/);
+    const subject = separatorMatch ? separatorMatch[1] : nameWithoutExt;
+    return subject.trim() || 'عام';
+}
 
 // ====================== دوال مساعدة ======================
 function getLoggedInUser() {
@@ -529,11 +607,32 @@ function renderFiles() {
         return;
     }
 
+    // ====================== تجميع الملفات حسب المادة ======================
+    const groups = new Map();
+    for (const file of filtered) {
+        const key = file.subject || 'عام';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(file);
+    }
+
+    container.innerHTML = Array.from(groups.entries()).map(([subject, files]) => `
+        <div class="subject-group">
+            <div class="subject-group-header">
+                <div class="sgh-icon"><i class="fas fa-layer-group"></i></div>
+                <h3>${escapeHtml(subject)}</h3>
+                <span class="sgh-count">${files.length} ملف</span>
+            </div>
+            <div class="files-grid">
+                ${files.map(renderFileCard).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderFileCard(file) {
     const gradeNames = { first: '🎓 الصف الأول', second: '📚 الصف الثاني', third: '📖 الصف الثالث' };
     const isAdmin = canUploadFiles();
-
-    container.innerHTML = filtered.map(file => {
-        return `
+    return `
         <div class="file-card">
             <div class="file-preview" onclick="previewFile('${file._id}')">
                 <i class="${getFileIcon(file.type)}"></i>
@@ -552,14 +651,14 @@ function renderFiles() {
                     <div class="view-count"><i class="fas fa-eye"></i> ${file.views || 0}</div>
                 </div>
                 <div class="file-actions">
-                    <button class="preview-btn" onclick="previewFile('${file._id}')"><i class="fas fa-eye"></i> معاينة</button>
-                    <button class="download-btn" onclick="downloadFile('${file._id}', '${escapeHtml(file.name)}')"><i class="fas fa-download"></i> تحميل</button>
-                    <button class="share-btn" onclick="shareFile('${file._id}', '${escapeHtml(file.name)}')"><i class="fas fa-share-alt"></i> مشاركة</button>
-                    ${isAdmin ? `<button class="delete-btn" onclick="deleteFile('${file._id}')"><i class="fas fa-trash"></i> حذف</button>` : ''}
+                    <button class="preview-btn" onclick="previewFile('${file._id}')"><i class="fas fa-eye"></i> <span>معاينة</span></button>
+                    <button class="download-btn" onclick="downloadFile('${file._id}', '${escapeHtml(file.name)}')"><i class="fas fa-download"></i> <span>تحميل</span></button>
+                    <button class="share-btn" onclick="shareFile('${file._id}', '${escapeHtml(file.name)}')"><i class="fas fa-share-alt"></i> <span>مشاركة</span></button>
+                    ${isAdmin ? `<button class="delete-btn" onclick="deleteFile('${file._id}')"><i class="fas fa-trash"></i> <span>حذف</span></button>` : ''}
                 </div>
             </div>
         </div>
-    `}).join('');
+    `;
 }
 
 function updateSubjectFilter() {
@@ -607,15 +706,34 @@ function previewFile(fileId) {
         showToast('❌ الملف غير موجود', 'error');
         return;
     }
-
-    if (file.url) {
-        window.open(file.url, '_blank');
-        showToast('📄 جاري فتح الملف...', 'success');
-        updateViewCount(fileId);
+    if (!file.url) {
+        showToast('❌ لا يمكن معاينة هذا الملف', 'error');
         return;
     }
 
-    showToast('❌ لا يمكن معاينة هذا الملف', 'error');
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+    const type = (file.type || '').toLowerCase();
+
+    title.textContent = `📄 ${decodeFileName(file.name)}`;
+    body.innerHTML = `<div class="preview-loading"><i class="fas fa-spinner fa-spin"></i><p>جاري تحميل المعاينة...</p></div>`;
+    modal.classList.add('active');
+    updateViewCount(fileId);
+
+    if (type === 'pdf') {
+        body.innerHTML = `<iframe class="pdf-preview" src="${file.url}#toolbar=1" title="معاينة PDF"></iframe>`;
+    } else if (['jpg', 'jpeg', 'png', 'gif'].includes(type)) {
+        body.innerHTML = `<div class="image-preview-wrap"><img class="image-preview" src="${file.url}" alt="${escapeHtml(decodeFileName(file.name))}"></div>`;
+    } else if (type === 'txt') {
+        fetch(file.url).then(r => r.text()).then(text => {
+            body.innerHTML = `<div class="text-preview">${escapeHtml(text)}</div>`;
+        }).catch(() => {
+            body.innerHTML = `<div class="unsupported-preview"><i class="fas fa-file-alt"></i><h4>تعذّرت معاينة الملف النصي</h4><p style="color:var(--text-secondary);font-size:0.85rem;">جرّب تحميل الملف بدلاً من ذلك</p></div>`;
+        });
+    } else {
+        body.innerHTML = `<div class="unsupported-preview"><i class="fas fa-file-alt"></i><h4>لا تتوفر معاينة لهذا النوع من الملفات</h4><p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:15px;">(${type?.toUpperCase() || 'ملف'}) - يمكنك تحميل الملف لعرضه</p><button class="download-btn" style="padding:10px 24px;" onclick="downloadFile('${file._id}', '${escapeHtml(file.name)}')"><i class="fas fa-download"></i> تحميل الملف</button></div>`;
+    }
 }
 
 // ====================== تحميل الملف ======================
@@ -626,14 +744,17 @@ function downloadFile(fileId, fileName) {
         return;
     }
 
-    if (file.url) {
-        window.open(file.url, '_blank');
-        showToast('✅ جاري فتح الملف للتحميل...', 'success');
-        updateDownloadCount(fileId);
-        return;
-    }
+    // بيعدي على السيرفر (بدل ما يفتح رابط R2 مباشرة) عشان الملف ينزل
+    // باسمه الأصلي بالظبط، مش باسم الملف المخزّن على R2
+    const link = document.createElement('a');
+    link.href = `${BASE_URL}/api/files/download/${fileId}`;
+    link.download = decodeFileName(file.name) || fileName || 'file';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 
-    showToast('❌ لا يمكن تحميل هذا الملف', 'error');
+    showToast('✅ جاري تحميل الملف...', 'success');
+    setTimeout(loadFiles, 2000);
 }
 
 // ====================== تحديث المشاهدات والتحميلات ======================
@@ -649,17 +770,8 @@ async function updateViewCount(fileId) {
     }
 }
 
-async function updateDownloadCount(fileId) {
-    try {
-        await fetch(`${BASE_URL}/api/files/download/${fileId}`, { 
-            method: 'GET',
-            credentials: 'include'
-        });
-        setTimeout(loadFiles, 2000);
-    } catch(e) {
-        console.log('Download update error:', e);
-    }
-}
+// ملحوظة: عدّاد التحميلات دلوقتي بيتزوّد من السيرفر نفسه في
+// /api/files/download/:id، فمحتاجناش نستدعي تحديث منفصل من هنا.
 
 // ====================== مشاركة الملف ======================
 async function shareFile(fileId, fileName) {
@@ -743,70 +855,110 @@ document.getElementById('deleteAllBtn')?.addEventListener('click', openDeleteAll
 // ====================== رفع الملفات مباشرة إلى Cloudflare R2 (برابط موقّع) ======================
 // السيرفر بيولّد رابط رفع موقّع (Presigned PUT URL) للأدمن بس، والملف نفسه
 // بيتبعت من المتصفح مباشرة لـ R2 من غير ما يعدي على فانكشن Vercel
-// (بتاعها حد 4.5MB صارم).
-async function uploadOneFile(file, grade, subject) {
-    // 1) اطلب رابط رفع موقّع من السيرفر (طلب صغير، مفيهوش بيانات الملف)
-    const urlResponse = await fetch(`${BASE_URL}/api/files/upload-url`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, grade, subject })
+// (بتاعها حد 4.5MB صارم). استخدمنا XMLHttpRequest (مش fetch) عشان نقدر
+// نتابع نسبة تقدم الرفع الفعلية لحظة بلحظة.
+function uploadOneFile(file, grade, subject, onProgress) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            // 1) اطلب رابط رفع موقّع من السيرفر (طلب صغير، مفيهوش بيانات الملف)
+            const urlResponse = await fetch(`${BASE_URL}/api/files/upload-url`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileName: file.name, grade, subject })
+            });
+            const urlData = await urlResponse.json();
+            if (!urlResponse.ok || !urlData.success) {
+                throw new Error(urlData.error || 'فشل إنشاء رابط الرفع');
+            }
+
+            // 2) ارفع الملف مباشرة على R2 بطلب PUT، مع تتبع نسبة التقدم
+            await new Promise((res, rej) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('PUT', urlData.uploadUrl, true);
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable && onProgress) {
+                        onProgress(Math.round((e.loaded / e.total) * 100));
+                    }
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) res();
+                    else rej(new Error(`فشل رفع ملف ${file.name}`));
+                };
+                xhr.onerror = () => rej(new Error(`فشل رفع ملف ${file.name}`));
+                xhr.send(file);
+            });
+
+            if (onProgress) onProgress(100);
+
+            // 3) احفظ معلومات الملف في قاعدة البيانات
+            const saveResponse = await fetch(`${BASE_URL}/api/files/save`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: file.name,
+                    url: urlData.publicUrl,
+                    publicId: urlData.path,
+                    size: file.size,
+                    type: file.type || file.name.split('.').pop().toLowerCase(),
+                    grade,
+                    subject
+                })
+            });
+
+            const saveData = await saveResponse.json();
+            if (!saveResponse.ok || !saveData.success) {
+                throw new Error(saveData.error || 'فشل حفظ معلومات الملف');
+            }
+            resolve();
+        } catch (err) {
+            reject(err);
+        }
     });
-    const urlData = await urlResponse.json();
-    if (!urlResponse.ok || !urlData.success) {
-        throw new Error(urlData.error || 'فشل إنشاء رابط الرفع');
-    }
-
-    // 2) ارفع الملف مباشرة على R2 بطلب PUT عادي على الرابط الموقّع
-    //    (بدون Content-Type مخصص عشان يطابق التوقيع اللي عمله السيرفر بالظبط)
-    const uploadRes = await fetch(urlData.uploadUrl, {
-        method: 'PUT',
-        body: file
-    });
-
-    if (!uploadRes.ok) {
-        throw new Error(`فشل رفع ملف ${file.name}`);
-    }
-
-    // 3) احفظ معلومات الملف في قاعدة البيانات
-    const saveResponse = await fetch(`${BASE_URL}/api/files/save`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            name: file.name,
-            url: urlData.publicUrl,
-            publicId: urlData.path,
-            size: file.size,
-            type: file.type || file.name.split('.').pop().toLowerCase(),
-            grade,
-            subject
-        })
-    });
-
-    const saveData = await saveResponse.json();
-    if (!saveResponse.ok || !saveData.success) {
-        throw new Error(saveData.error || 'فشل حفظ معلومات الملف');
-    }
 }
 
+
+// ====================== إدارة الملفات المختارة (من input أو سحب وإفلات) ======================
+let selectedFilesArr = [];
+
+function setSelectedFiles(fileList) {
+    selectedFilesArr = Array.from(fileList);
+    const infoDiv = document.getElementById('fileCountInfo');
+    const detectedDiv = document.getElementById('detectedSubjects');
+
+    if (selectedFilesArr.length === 0) {
+        infoDiv.style.display = 'none';
+        detectedDiv.innerHTML = '';
+        return;
+    }
+
+    infoDiv.style.display = 'flex';
+    infoDiv.innerHTML = `<i class="fas fa-check-circle"></i> ✅ تم اختيار ${selectedFilesArr.length} ملف(ات) للرفع`;
+
+    // اعرض اسم المادة اللي هيتحدد تلقائيًا لكل ملف قبل الرفع
+    detectedDiv.innerHTML = selectedFilesArr.map(file => {
+        const subject = extractSubjectFromFileName(file.name);
+        return `<div class="detected-subject-row">
+            <span class="file-name-part">📄 ${escapeHtml(file.name)}</span>
+            <span class="subject-part">${escapeHtml(subject)}</span>
+        </div>`;
+    }).join('');
+}
 
 async function uploadMultipleFiles(event) {
     event.preventDefault();
 
     const selectedGrade = document.querySelector('.grade-option.selected');
     const grade = selectedGrade?.dataset.grade;
-    const subject = document.getElementById('subjectInput')?.value.trim();
-    const files = document.getElementById('fileInput')?.files;
 
     if (!grade) { showToast('❌ يرجى اختيار الصف الدراسي', 'error'); return; }
-    if (!subject) { showToast('❌ يرجى إدخال اسم المادة', 'error'); return; }
-    if (!files || files.length === 0) { showToast('❌ يرجى اختيار ملفات للرفع', 'error'); return; }
+    if (selectedFilesArr.length === 0) { showToast('❌ يرجى اختيار ملفات للرفع', 'error'); return; }
 
-    // ✅ التحقق من حجم الملفات (الحد الأقصى 50MB)
-    for (const file of files) {
+    // ✅ التحقق من حجم الملفات (الحد الأقصى 500MB)
+    for (const file of selectedFilesArr) {
         if (file.size > MAX_FILE_SIZE) {
-            showToast(`❌ ملف ${file.name} حجمه يتجاوز 50MB`, 'error');
+            showToast(`❌ ملف ${file.name} حجمه يتجاوز 500MB`, 'error');
             return;
         }
     }
@@ -814,60 +966,106 @@ async function uploadMultipleFiles(event) {
     const submitBtn = document.getElementById('submitUpload');
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الرفع...';
+
+    // ابني شريط تقدم لكل ملف
+    const progressList = document.getElementById('uploadProgressList');
+    progressList.innerHTML = selectedFilesArr.map((file, i) => `
+        <div class="upload-progress-item" id="upi-${i}">
+            <div class="upi-top">
+                <span class="upi-name">${escapeHtml(file.name)}</span>
+                <span class="upi-pct" id="upi-pct-${i}">0%</span>
+            </div>
+            <div class="upload-progress-bar-track"><div class="upload-progress-bar-fill" id="upi-fill-${i}"></div></div>
+        </div>
+    `).join('');
 
     let successCount = 0;
     let errorCount = 0;
 
-    try {
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> جاري رفع ${file.name} (${i + 1}/${files.length})`;
-            try {
-                await uploadOneFile(file, grade, subject);
-                successCount++;
-            } catch (err) {
-                errorCount++;
-                showToast(`❌ ${err.message}`, 'error');
-            }
-        }
+    for (let i = 0; i < selectedFilesArr.length; i++) {
+        const file = selectedFilesArr[i];
+        const subject = extractSubjectFromFileName(file.name);
+        const item = document.getElementById(`upi-${i}`);
+        const fill = document.getElementById(`upi-fill-${i}`);
+        const pct = document.getElementById(`upi-pct-${i}`);
 
-        if (successCount > 0) {
-            showToast(`✅ تم رفع ${successCount} ملف(ات) بنجاح`, 'success');
+        try {
+            await uploadOneFile(file, grade, subject, (percent) => {
+                fill.style.width = percent + '%';
+                pct.textContent = percent + '%';
+            });
+            item.classList.add('done');
+            pct.textContent = '100%';
+            successCount++;
+        } catch (err) {
+            item.classList.add('failed');
+            pct.textContent = 'فشل';
+            errorCount++;
+            showToast(`❌ ${err.message}`, 'error');
         }
-        if (errorCount > 0 && successCount === 0) {
-            showToast(`⚠️ فشل رفع ${errorCount} ملف(ات)`, 'error');
-        }
+    }
 
+    if (successCount > 0) {
+        showToast(`✅ تم رفع ${successCount} ملف(ات) بنجاح`, 'success');
+    }
+    if (errorCount > 0 && successCount === 0) {
+        showToast(`⚠️ فشل رفع ${errorCount} ملف(ات)`, 'error');
+    }
+
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalText;
+
+    setTimeout(() => {
         closeModal();
         document.getElementById('uploadForm')?.reset();
         document.querySelectorAll('.grade-option').forEach(o => o.classList.remove('selected'));
-        document.getElementById('fileCountInfo').style.display = 'none';
-        await loadFiles();
-
-    } catch (error) {
-        console.error('Upload error:', error);
-        showToast('❌ خطأ في الرفع: ' + error.message, 'error');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    }
+        setSelectedFiles([]);
+        document.getElementById('uploadProgressList').innerHTML = '';
+        loadFiles();
+    }, successCount > 0 ? 1200 : 0);
 }
 
 // ====================== ربط الأحداث ======================
 document.getElementById('uploadForm')?.addEventListener('submit', uploadMultipleFiles);
 
 document.getElementById('fileInput')?.addEventListener('change', function(e) {
-    const count = e.target.files.length;
-    const infoDiv = document.getElementById('fileCountInfo');
-    if (infoDiv) {
-        if (count > 0) {
-            infoDiv.style.display = 'flex';
-            infoDiv.innerHTML = `<i class="fas fa-check-circle"></i> ✅ تم اختيار ${count} ملف(ات) للرفع`;
-        } else {
-            infoDiv.style.display = 'none';
-        }
-    }
+    setSelectedFiles(e.target.files);
 });
+
+// ====================== السحب والإفلات ======================
+const dropZone = document.getElementById('dropZone');
+if (dropZone) {
+    dropZone.addEventListener('click', () => document.getElementById('fileInput')?.click());
+
+    ['dragenter', 'dragover'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('dragover');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('dragover');
+        });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            const fileInput = document.getElementById('fileInput');
+            // نحدّث الـ input نفسه (عشان يفضل مصدر واحد للحقيقة) عن طريق DataTransfer
+            const dt = new DataTransfer();
+            Array.from(files).forEach(f => dt.items.add(f));
+            fileInput.files = dt.files;
+            setSelectedFiles(dt.files);
+        }
+    });
+}
 
 document.querySelectorAll('.grade-option').forEach(opt => {
     opt.addEventListener('click', () => {
@@ -883,7 +1081,8 @@ function openModal() {
         modal.classList.add('active');
         document.getElementById('uploadForm')?.reset();
         document.querySelectorAll('.grade-option').forEach(o => o.classList.remove('selected'));
-        document.getElementById('fileCountInfo').style.display = 'none';
+        document.getElementById('uploadProgressList').innerHTML = '';
+        setSelectedFiles([]);
     }
 }
 
