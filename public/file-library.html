@@ -220,7 +220,7 @@
         .upload-progress-item.done .upi-pct::before { content: '✅ '; }
         .upload-progress-item.failed .upi-pct::before { content: '❌ '; }
 
-        /* ====================== تجميع الكروت حسب المادة ====================== */
+        /* ====================== تجميع الكروت حسب الصف الدراسي ====================== */
         .subject-group { margin-bottom: 32px; }
         .subject-group-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--border-color); }
         .subject-group-header .sgh-icon { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); display: flex; align-items: center; justify-content: center; color: #1a2a3a; font-size: 1rem; flex-shrink: 0; }
@@ -426,11 +426,9 @@ const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
 let allFiles = [];
 let currentUser = null;
+let currentPreviewBlobUrl = null;
 
 // ====================== استخراج اسم المادة من اسم الملف ======================
-// بياخد الجزء اللي قبل أول فاصل شائع (- أو – أو _ أو |) ويشيل الامتداد.
-// مثال: "تشريح - الفصل الأول.pdf" -> "تشريح"
-// لو مفيش فاصل، بيرجع اسم الملف كامل (من غير الامتداد) كمادة.
 function extractSubjectFromFileName(fileName) {
     if (!fileName) return 'عام';
     const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
@@ -570,6 +568,19 @@ async function loadFiles() {
     }
 }
 
+// ====================== ترتيب وتسميات الصفوف الدراسية ======================
+const GRADE_ORDER = ['first', 'second', 'third'];
+const GRADE_LABELS = {
+    first: '🎓 الصف الأول',
+    second: '📚 الصف الثاني',
+    third: '📖 الصف الثالث'
+};
+const GRADE_ICONS = {
+    first: 'fas fa-graduation-cap',
+    second: 'fas fa-book-open',
+    third: 'fas fa-chalkboard'
+};
+
 function renderFiles() {
     const container = document.getElementById('filesContainer');
     if (!container) {
@@ -601,26 +612,37 @@ function renderFiles() {
         return;
     }
 
-    // ====================== تجميع الملفات حسب المادة ======================
+    // ====================== تجميع الملفات حسب الصف الدراسي فقط ======================
     const groups = new Map();
     for (const file of filtered) {
-        const key = file.subject || 'عام';
+        const key = file.grade || 'other';
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(file);
     }
 
-    container.innerHTML = Array.from(groups.entries()).map(([subject, files]) => `
+    // رتّب المجموعات حسب ترتيب الصفوف المعروف، وأي صف غير معروف يُضاف في النهاية
+    const orderedKeys = [
+        ...GRADE_ORDER.filter(g => groups.has(g)),
+        ...Array.from(groups.keys()).filter(g => !GRADE_ORDER.includes(g))
+    ];
+
+    container.innerHTML = orderedKeys.map(gradeKey => {
+        const files = groups.get(gradeKey);
+        const label = GRADE_LABELS[gradeKey] || '📁 غير مصنّف';
+        const icon = GRADE_ICONS[gradeKey] || 'fas fa-layer-group';
+        return `
         <div class="subject-group">
             <div class="subject-group-header">
-                <div class="sgh-icon"><i class="fas fa-layer-group"></i></div>
-                <h3>${escapeHtml(subject)}</h3>
+                <div class="sgh-icon"><i class="${icon}"></i></div>
+                <h3>${label}</h3>
                 <span class="sgh-count">${files.length} ملف</span>
             </div>
             <div class="files-grid">
                 ${files.map(renderFileCard).join('')}
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function renderFileCard(file) {
@@ -694,7 +716,23 @@ function updateDeleteAllButton() {
 function filterFiles() { renderFiles(); }
 
 // ====================== معاينة الملف ======================
-function previewFile(fileId) {
+// ملحوظة مهمة: كثير من مزوّدي التخزين (مثل R2/S3) بيرجّعوا الملف بهيدر
+// Content-Disposition: attachment، وده بيخلي المتصفح "ينزّل" الملف بدل ما
+// يعرضه جوه iframe مباشرة. عشان نتجاوز المشكلة دي، بنجيب الملف بـ fetch
+// كـ Blob (من غير ما نعتمد على الهيدر ده) ثم نبني منه رابط محلي (Object URL)
+// ونعرضه في iframe. لملفات Word/Excel اللي المتصفح مش بيقدر يعرضها أصلاً،
+// بنستخدم عارض مايكروسوفت أونلاين اللي بياخد رابط الملف العام مباشرة.
+function revokeCurrentPreviewBlobUrl() {
+    if (currentPreviewBlobUrl) {
+        URL.revokeObjectURL(currentPreviewBlobUrl);
+        currentPreviewBlobUrl = null;
+    }
+}
+
+const OFFICE_PREVIEW_TYPES = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+const IMAGE_PREVIEW_TYPES = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+
+async function previewFile(fileId) {
     const file = allFiles.find(f => f._id === fileId);
     if (!file) {
         showToast('❌ الملف غير موجود', 'error');
@@ -710,23 +748,50 @@ function previewFile(fileId) {
     const body = document.getElementById('previewBody');
     const type = (file.type || '').toLowerCase();
 
+    revokeCurrentPreviewBlobUrl();
     title.textContent = `📄 ${decodeFileName(file.name)}`;
     body.innerHTML = `<div class="preview-loading"><i class="fas fa-spinner fa-spin"></i><p>جاري تحميل المعاينة...</p></div>`;
     modal.classList.add('active');
     updateViewCount(fileId);
 
+    const showDownloadFallback = (msg) => {
+        body.innerHTML = `<div class="unsupported-preview"><i class="fas fa-file-alt"></i><h4>${msg}</h4><p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:15px;">(${type?.toUpperCase() || 'ملف'})</p><button class="download-btn" style="padding:10px 24px;" onclick="downloadFile('${file._id}', '${escapeHtml(file.name)}')"><i class="fas fa-download"></i> تحميل الملف</button></div>`;
+    };
+
     if (type === 'pdf') {
-        body.innerHTML = `<iframe class="pdf-preview" src="${file.url}#toolbar=1" title="معاينة PDF"></iframe>`;
-    } else if (['jpg', 'jpeg', 'png', 'gif'].includes(type)) {
-        body.innerHTML = `<div class="image-preview-wrap"><img class="image-preview" src="${file.url}" alt="${escapeHtml(decodeFileName(file.name))}"></div>`;
+        try {
+            // نجيب الملف كـ Blob بدل ما نحط الرابط مباشرة في iframe،
+            // عشان نتفادى إن المتصفح "ينزّل" الملف بسبب هيدر Content-Disposition
+            const resp = await fetch(file.url, { credentials: 'omit' });
+            if (!resp.ok) throw new Error('تعذر تحميل الملف');
+            const blob = await resp.blob();
+            const pdfBlob = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
+            currentPreviewBlobUrl = URL.createObjectURL(pdfBlob);
+            body.innerHTML = `<iframe class="pdf-preview" src="${currentPreviewBlobUrl}#toolbar=1" title="معاينة PDF"></iframe>`;
+        } catch (err) {
+            console.warn('فشل جلب PDF كـ Blob، جرب التحميل المباشر:', err);
+            // كحل احتياطي: جرّب تحميله مباشرة (لو مسموح CORS ومفيش هيدر تحميل إجباري)
+            body.innerHTML = `<iframe class="pdf-preview" src="${file.url}#toolbar=1" title="معاينة PDF"></iframe>`;
+        }
+    } else if (IMAGE_PREVIEW_TYPES.includes(type)) {
+        body.innerHTML = `<div class="image-preview-wrap"><img class="image-preview" src="${file.url}" alt="${escapeHtml(decodeFileName(file.name))}" onerror="this.closest('.preview-body').innerHTML = '<div class=\\'unsupported-preview\\'><i class=\\'fas fa-image\\'></i><h4>تعذّرت معاينة الصورة</h4></div>'"></div>`;
     } else if (type === 'txt') {
-        fetch(file.url).then(r => r.text()).then(text => {
+        try {
+            const resp = await fetch(file.url, { credentials: 'omit' });
+            const text = await resp.text();
             body.innerHTML = `<div class="text-preview">${escapeHtml(text)}</div>`;
-        }).catch(() => {
-            body.innerHTML = `<div class="unsupported-preview"><i class="fas fa-file-alt"></i><h4>تعذّرت معاينة الملف النصي</h4><p style="color:var(--text-secondary);font-size:0.85rem;">جرّب تحميل الملف بدلاً من ذلك</p></div>`;
-        });
+        } catch (e) {
+            showDownloadFallback('تعذّرت معاينة الملف النصي');
+        }
+    } else if (OFFICE_PREVIEW_TYPES.includes(type)) {
+        // المتصفح مش بيقدر يعرض ملفات Word/Excel/PowerPoint مباشرة،
+        // فبنستخدم عارض مايكروسوفت أونلاين اللي بياخد رابط الملف العام
+        // (لازم يكون رابط الملف متاح للعامة على الإنترنت وليس رابط موقّع منتهي الصلاحية)
+        const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`;
+        body.innerHTML = `<iframe class="pdf-preview" src="${officeViewerUrl}" title="معاينة المستند"></iframe>
+            <p style="text-align:center;font-size:0.75rem;color:var(--text-secondary);margin-top:8px;">لو المعاينة ما ظهرتش خلال ثواني، الرابط قد يكون غير متاح للعامة — جرّب التحميل بدلاً من ذلك.</p>`;
     } else {
-        body.innerHTML = `<div class="unsupported-preview"><i class="fas fa-file-alt"></i><h4>لا تتوفر معاينة لهذا النوع من الملفات</h4><p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:15px;">(${type?.toUpperCase() || 'ملف'}) - يمكنك تحميل الملف لعرضه</p><button class="download-btn" style="padding:10px 24px;" onclick="downloadFile('${file._id}', '${escapeHtml(file.name)}')"><i class="fas fa-download"></i> تحميل الملف</button></div>`;
+        showDownloadFallback('لا تتوفر معاينة لهذا النوع من الملفات');
     }
 }
 
@@ -738,8 +803,6 @@ function downloadFile(fileId, fileName) {
         return;
     }
 
-    // بيعدي على السيرفر (بدل ما يفتح رابط R2 مباشرة) عشان الملف ينزل
-    // باسمه الأصلي بالظبط، مش باسم الملف المخزّن على R2
     const link = document.createElement('a');
     link.href = `${BASE_URL}/api/files/download/${fileId}`;
     link.download = decodeFileName(file.name) || fileName || 'file';
@@ -763,9 +826,6 @@ async function updateViewCount(fileId) {
         console.log('View update error:', e);
     }
 }
-
-// ملحوظة: عدّاد التحميلات دلوقتي بيتزوّد من السيرفر نفسه في
-// /api/files/download/:id، فمحتاجناش نستدعي تحديث منفصل من هنا.
 
 // ====================== مشاركة الملف ======================
 async function shareFile(fileId, fileName) {
@@ -847,14 +907,9 @@ document.getElementById('confirmDeleteAll')?.addEventListener('click', deleteAll
 document.getElementById('deleteAllBtn')?.addEventListener('click', openDeleteAllModal);
 
 // ====================== رفع الملفات مباشرة إلى Cloudflare R2 (برابط موقّع) ======================
-// السيرفر بيولّد رابط رفع موقّع (Presigned PUT URL) للأدمن بس، والملف نفسه
-// بيتبعت من المتصفح مباشرة لـ R2 من غير ما يعدي على فانكشن Vercel
-// (بتاعها حد 4.5MB صارم). استخدمنا XMLHttpRequest (مش fetch) عشان نقدر
-// نتابع نسبة تقدم الرفع الفعلية لحظة بلحظة.
 function uploadOneFile(file, grade, subject, onProgress) {
     return new Promise(async (resolve, reject) => {
         try {
-            // 1) اطلب رابط رفع موقّع من السيرفر (طلب صغير، مفيهوش بيانات الملف)
             const urlResponse = await fetch(`${BASE_URL}/api/files/upload-url`, {
                 method: 'POST',
                 credentials: 'include',
@@ -866,7 +921,6 @@ function uploadOneFile(file, grade, subject, onProgress) {
                 throw new Error(urlData.error || 'فشل إنشاء رابط الرفع');
             }
 
-            // 2) ارفع الملف مباشرة على R2 بطلب PUT، مع تتبع نسبة التقدم
             await new Promise((res, rej) => {
                 const xhr = new XMLHttpRequest();
                 xhr.open('PUT', urlData.uploadUrl, true);
@@ -885,7 +939,6 @@ function uploadOneFile(file, grade, subject, onProgress) {
 
             if (onProgress) onProgress(100);
 
-            // 3) احفظ معلومات الملف في قاعدة البيانات
             const saveResponse = await fetch(`${BASE_URL}/api/files/save`, {
                 method: 'POST',
                 credentials: 'include',
@@ -930,7 +983,6 @@ function setSelectedFiles(fileList) {
     infoDiv.style.display = 'flex';
     infoDiv.innerHTML = `<i class="fas fa-check-circle"></i> ✅ تم اختيار ${selectedFilesArr.length} ملف(ات) للرفع`;
 
-    // اعرض اسم المادة اللي هيتحدد تلقائيًا لكل ملف قبل الرفع
     detectedDiv.innerHTML = selectedFilesArr.map(file => {
         const subject = extractSubjectFromFileName(file.name);
         return `<div class="detected-subject-row">
@@ -949,7 +1001,6 @@ async function uploadMultipleFiles(event) {
     if (!grade) { showToast('❌ يرجى اختيار الصف الدراسي', 'error'); return; }
     if (selectedFilesArr.length === 0) { showToast('❌ يرجى اختيار ملفات للرفع', 'error'); return; }
 
-    // ✅ التحقق من حجم الملفات (الحد الأقصى 500MB)
     for (const file of selectedFilesArr) {
         if (file.size > MAX_FILE_SIZE) {
             showToast(`❌ ملف ${file.name} حجمه يتجاوز 500MB`, 'error');
@@ -962,7 +1013,6 @@ async function uploadMultipleFiles(event) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الرفع...';
 
-    // ابني شريط تقدم لكل ملف
     const progressList = document.getElementById('uploadProgressList');
     progressList.innerHTML = selectedFilesArr.map((file, i) => `
         <div class="upload-progress-item" id="upi-${i}">
@@ -1052,7 +1102,6 @@ if (dropZone) {
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
             const fileInput = document.getElementById('fileInput');
-            // نحدّث الـ input نفسه (عشان يفضل مصدر واحد للحقيقة) عن طريق DataTransfer
             const dt = new DataTransfer();
             Array.from(files).forEach(f => dt.items.add(f));
             fileInput.files = dt.files;
@@ -1088,6 +1137,7 @@ function closeModal() {
 function closePreviewModal() {
     const modal = document.getElementById('previewModal');
     if (modal) modal.classList.remove('active');
+    revokeCurrentPreviewBlobUrl();
 }
 
 // ====================== Bottom Navigation ======================
