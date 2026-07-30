@@ -76,20 +76,28 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 
-// ====================== Supabase Storage و Multer ======================
+// ====================== Cloudflare R2 Storage و Multer ======================
 const multer = require('multer');
-const { createClient } = require('@supabase/supabase-js');
-const ws = require('ws'); // مطلوب لأن Node.js 20 (Vercel) مفيهوش WebSocket built-in
+const {
+    S3Client,
+    PutObjectCommand,
+    DeleteObjectCommand
+} = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-// تكوين Supabase (SUPABASE_SERVICE_ROLE_KEY = مفتاح sb_secret_... من الداشبورد)
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-        realtime: { transport: ws } // بنستخدمش Realtime أصلاً، لكن لازم نديها transport عشان متكرشش وقت الإنشاء
+// تكوين Cloudflare R2 (متوافق مع S3 API)
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+const R2_BUCKET = process.env.R2_BUCKET || 'files';
+const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || '').replace(/\/$/, ''); // من غير / في الآخر
+
+const r2 = new S3Client({
+    region: 'auto',
+    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY
     }
-);
-const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'files';
+});
 
 // ====================== إعداد Multer ======================
 const storage = multer.memoryStorage();
@@ -97,7 +105,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
     limits: { 
-        fileSize: 50 * 1024 * 1024, // 50MB (حد الخطة المجانية في Supabase)
+        fileSize: 500 * 1024 * 1024, // 500MB على R2 (كان 50MB في Supabase)
         files: 10
     },
     fileFilter: (req, file, cb) => {
@@ -111,8 +119,8 @@ const upload = multer({
     }
 });
 
-// تنضيف أي جزء من المسار (اسم ملف أو فولدر) عشان يبقى متوافق مع Supabase Storage
-// (بيرفض أي حروف عربية أو رموز غريبة في الـ key)
+// تنضيف أي جزء من المسار (اسم ملف أو فولدر) عشان يبقى متوافق مع مفاتيح S3/R2
+// (زي ما كانت بالظبط، نفس المنطق)
 function sanitizeForStorage(str) {
     const safe = String(str)
         .replace(/[^\x00-\x7F]/g, '')   // شيل أي حروف عربية/غير ASCII
@@ -123,32 +131,31 @@ function sanitizeForStorage(str) {
     return safe || 'file';
 }
 
-// دالة رفع ملف إلى Supabase Storage من Buffer
+// دالة رفع ملف إلى R2 من Buffer (نفس الاسم والشكل القديم عشان باقي الكود
+// اللي بينادي عليها متتغيرش)
 const uploadToCloudinary = async (buffer, folder, fileName) => {
     const safeFolder = folder ? folder.split('/').map(sanitizeForStorage).join('/') : '';
     const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
     const path = safeFolder ? `${safeFolder}/${safeName}` : safeName;
 
-    const { error } = await supabase.storage
-        .from(SUPABASE_BUCKET)
-        .upload(path, buffer, { upsert: false });
-
-    if (error) throw error;
-
-    const { data: publicUrlData } = supabase.storage
-        .from(SUPABASE_BUCKET)
-        .getPublicUrl(path);
+    await r2.send(new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: path,
+        Body: buffer
+    }));
 
     return {
-        secure_url: publicUrlData.publicUrl, // نفس اسم الحقل القديم عشان الكود اللي بيستخدمها متتغيرش
+        secure_url: `${R2_PUBLIC_URL}/${path}`, // نفس اسم الحقل القديم عشان الكود اللي بيستخدمها متتغيرش
         public_id: path
     };
 };
 
-// دالة حذف ملف من Supabase Storage
+// دالة حذف ملف من R2 (نفس الاسم والشكل القديم)
 const deleteFromSupabase = async (path) => {
-    const { error } = await supabase.storage.from(SUPABASE_BUCKET).remove([path]);
-    if (error) throw error;
+    await r2.send(new DeleteObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: path
+    }));
 };
 
 // ====================== دالة حفظ معلومات الملف في قاعدة البيانات ======================
@@ -182,7 +189,7 @@ const saveFileInfo = async (fileData, user) => {
 
 // ====================== تصدير الدوال ======================
 module.exports = {
-    supabase,
+    r2,
     uploadToCloudinary,
     deleteFromSupabase,
     saveFileInfo
@@ -4070,7 +4077,7 @@ app.post('/api/captcha/verify', (req, res) => {
 // ====================== مسارات الملفات ======================
 // ⬇⬇⬇⬇⬇ يجب أن تكون قبل app.get('*') ⬇⬇⬇⬇⬇
 
-// إنشاء رابط رفع موقّع (Signed URL) - الفرونت إند بيرفع بيه مباشرة على Supabase
+// إنشاء رابط رفع موقّع (Signed URL) - الفرونت إند بيرفع بيه مباشرة على R2
 // عشان نتخطى حد الـ4.5MB بتاع Vercel Functions. الرابط بيتولد بس لأدمن مسجل دخول،
 // وبيبقى صالح لملف واحد بس لمدة قصيرة.
 app.post('/api/files/upload-url', verifyToken, isAdmin, async (req, res) => {
@@ -4085,24 +4092,24 @@ app.post('/api/files/upload-url', verifyToken, isAdmin, async (req, res) => {
         const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
         const path = `${safeFolder}/${safeName}`;
 
-        const { data, error } = await supabase.storage
-            .from(SUPABASE_BUCKET)
-            .createSignedUploadUrl(path);
+        // ملحوظة مهمة: من غير ما نحدد ContentType هنا عمدًا. لو حطيناه، PutObjectCommand
+        // هيوقّعه كـ header مطلوب، والفرونت إند لازم يبعت نفس الـ Content-Type
+        // بالظبط في الـ PUT وإلا هيرجع SignatureDoesNotMatch. الأبسط والأضمن إننا
+        // نسيب الـ upload يبقى بدون Content-Type موقّع، ونخلي المتصفح يبعت أي نوع.
+        const command = new PutObjectCommand({
+            Bucket: R2_BUCKET,
+            Key: path
+        });
 
-        if (error) throw error;
-
-        const { data: publicUrlData } = supabase.storage
-            .from(SUPABASE_BUCKET)
-            .getPublicUrl(path);
+        // رابط رفع موقّع صالح لمدة 10 دقائق - الفرونت إند بيرفع بيه مباشرة
+        // على R2 بـ PUT عادي، عشان نتخطى حد الـ4.5MB بتاع Vercel Functions
+        const signedUrl = await getSignedUrl(r2, command, { expiresIn: 600 });
 
         res.json({
             success: true,
             path,
-            token: data.token,
-            publicUrl: publicUrlData.publicUrl,
-            supabaseUrl: process.env.SUPABASE_URL,
-            supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-            bucket: SUPABASE_BUCKET
+            uploadUrl: signedUrl,
+            publicUrl: `${R2_PUBLIC_URL}/${path}`
         });
     } catch (error) {
         console.error('❌ Upload URL error:', error);
@@ -4172,7 +4179,7 @@ app.get('/api/files', verifyToken, async (req, res) => {
     }
 });
 
-// ====================== تحميل ملف (إعادة توجيه إلى Supabase Storage) ======================
+// ====================== تحميل ملف (إعادة توجيه إلى Cloudflare R2) ======================
 app.get('/api/files/download/:id', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -4200,12 +4207,12 @@ app.delete('/api/files/:id', verifyToken, isManager, async (req, res) => {
             return res.status(404).json({ error: 'الملف غير موجود' });
         }
 
-        // حذف من Supabase Storage
+        // حذف من Cloudflare R2
         try {
             await deleteFromSupabase(file.publicId);
-            console.log('✅ تم حذف الملف من Supabase:', file.publicId);
+            console.log('✅ تم حذف الملف من R2:', file.publicId);
         } catch (e) {
-            console.log('⚠️ Supabase delete error:', e.message);
+            console.log('⚠️ R2 delete error:', e.message);
         }
 
         await File.findByIdAndDelete(req.params.id);
@@ -4292,7 +4299,7 @@ app.post('/api/files/view/:id', verifyToken, async (req, res) => {
 
 // ملحوظة: تم حذف مسار /api/upload/signature (كان خاص بتوقيع Cloudinary
 // وغير مستخدم فعليًا في الفرونت إند). الرفع دلوقتي بيتم عن طريق
-// /api/files/upload-multiple اللي بيرفع مباشرة على Supabase Storage.
+// /api/files/upload-multiple اللي بيرفع مباشرة على Cloudflare R2.
 
 
 // 1. إنشاء واجب جديد (للأدمن)
