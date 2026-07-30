@@ -176,7 +176,6 @@
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         .file-card { animation: fadeInUp 0.4s ease-out; }
     </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -741,9 +740,10 @@ async function deleteAllFiles() {
 document.getElementById('confirmDeleteAll')?.addEventListener('click', deleteAllFiles);
 document.getElementById('deleteAllBtn')?.addEventListener('click', openDeleteAllModal);
 
-// ====================== رفع الملفات مباشرة إلى Supabase Storage (برابط موقّع) ======================
-// السيرفر بيولّد رابط رفع موقّع للأدمن بس، والملف نفسه بيتبعت من المتصفح
-// مباشرة لـ Supabase من غير ما يعدي على فانكشن Vercel (بتاعها حد 4.5MB صارم).
+// ====================== رفع الملفات مباشرة إلى Cloudflare R2 (برابط موقّع) ======================
+// السيرفر بيولّد رابط رفع موقّع (Presigned PUT URL) للأدمن بس، والملف نفسه
+// بيتبعت من المتصفح مباشرة لـ R2 من غير ما يعدي على فانكشن Vercel
+// (بتاعها حد 4.5MB صارم).
 async function uploadOneFile(file, grade, subject) {
     // 1) اطلب رابط رفع موقّع من السيرفر (طلب صغير، مفيهوش بيانات الملف)
     const urlResponse = await fetch(`${BASE_URL}/api/files/upload-url`, {
@@ -757,16 +757,15 @@ async function uploadOneFile(file, grade, subject) {
         throw new Error(urlData.error || 'فشل إنشاء رابط الرفع');
     }
 
-    // 2) ارفع الملف مباشرة على Supabase باستخدام التوكن الموقّع
-    const sb = window.supabase.createClient(urlData.supabaseUrl, urlData.supabaseAnonKey);
-    const { error: uploadError } = await sb.storage
-        .from(urlData.bucket)
-        .uploadToSignedUrl(urlData.path, urlData.token, file, {
-            contentType: file.type || 'application/octet-stream'
-        });
+    // 2) ارفع الملف مباشرة على R2 بطلب PUT عادي على الرابط الموقّع
+    //    (بدون Content-Type مخصص عشان يطابق التوقيع اللي عمله السيرفر بالظبط)
+    const uploadRes = await fetch(urlData.uploadUrl, {
+        method: 'PUT',
+        body: file
+    });
 
-    if (uploadError) {
-        throw new Error(`فشل رفع ملف ${file.name}: ${uploadError.message}`);
+    if (!uploadRes.ok) {
+        throw new Error(`فشل رفع ملف ${file.name}`);
     }
 
     // 3) احفظ معلومات الملف في قاعدة البيانات
@@ -790,6 +789,7 @@ async function uploadOneFile(file, grade, subject) {
         throw new Error(saveData.error || 'فشل حفظ معلومات الملف');
     }
 }
+
 
 async function uploadMultipleFiles(event) {
     event.preventDefault();
