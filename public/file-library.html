@@ -10,19 +10,19 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
-    <style>mary: #1a2a3a;
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #f5f7fc;
+            --bg-secondary: #ffffff;
+            --text-primary: #1a2a3a;
             --text-secondary: #6c757d;
             --card-bg: #ffffff;
             --border-color: #e9ecef;
             --header-bg: linear-gradient(135deg, #1a2a3a, #0d1c28);
             --gold: #e8b84a;
             --gold-dark: #d4a43a;
-            --shadow: 0 5px 15p
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        :root {
-            --bg-primary: #f5f7fc;
-            --bg-secondary: #ffffff;
-            --text-prix rgba(0, 0, 0, 0.05);
+            --shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
         }
         body.dark-mode {
             --bg-primary: #1a1a2e;
@@ -198,15 +198,13 @@
         <h2>📚 مكتبة الملفات التعليمية</h2>
         <p>مذكرات، كتب، وأسئلة امتحانات - تحميل وعرض الملفات</p>
     </div>
-<!-- ====== بنوك الأسئلة حسب الصف الدراسي ====== -->
+<!-- ====== رابط بنك الأسئلة ====== -->
 
-<h2 style="color: var(--text-primary); font-size: 1.3rem; margin: 10px 0 15px; display: flex; align-items: center; gap: 10px;">
-    <i class="fas fa-graduation-cap" style="color: var(--gold);"></i> بنوك الصف الأول
-</h2>
+<h2 style="color: var(--text-primary); font-size: 1.3rem; margin: 10px 0 15px;">🎓 بنوك الصف الأول</h2>
 
-<div class="library-link-card" style="background: var(--card-bg); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: var(--shadow); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: all 0.3s ease;">
+<div class="library-link-card" style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
     <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #1a2a3a;">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
             <i class="fas fa-bone"></i>
         </div>
         <div>
@@ -214,18 +212,17 @@
             <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">تشريح - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
         </div>
     </div>
-    <a href="Anatomy_Questions_Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #1a2a3a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap;">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى بنك التشريح
+    <a href="Anatomy_Questions_Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--darker); padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: var(--transition); display: flex; align-items: center; gap: 8px; white-space: nowrap;">
+        <i class="fas fa-arrow-left"></i> الذهاب إلى البنك
     </a>
+
 </div>
 
-<h2 style="color: var(--text-primary); font-size: 1.3rem; margin: 30px 0 15px; display: flex; align-items: center; gap: 10px;">
-    <i class="fas fa-book-open" style="color: var(--gold);"></i> بنوك الصف الثاني
-</h2>
+<h2 style="color: var(--text-primary); font-size: 1.3rem; margin: 30px 0 15px;">📚 بنوك الصف الثاني</h2>
 
-<div class="library-link-card" style="background: var(--card-bg); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: var(--shadow); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: all 0.3s ease;">
+<div class="library-link-card" style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
     <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #1a2a3a;">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
             <i class="fas fa-users"></i>
         </div>
         <div>
@@ -233,14 +230,31 @@
             <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">صحة المجتمع - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
         </div>
     </div>
-    <a href="Community_Health_Nursing_Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #1a2a3a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap;">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى بنك صحة المجتمع
+    <a href="Community_Health_Nursing_Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--darker); padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: var(--transition); display: flex; align-items: center; gap: 8px; white-space: nowrap;">
+        <i class="fas fa-arrow-left"></i> الذهاب إلى البنك
     </a>
+
 </div>
 
-<div class="library-link-card" style="background: var(--card-bg); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: var(--shadow); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: all 0.3s ease;">
+<div class="library-link-card" style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
     <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #1a2a3a;">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
+            <i class="fas fa-book-medical"></i>
+        </div>
+        <div>
+            <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">📚 بنك الأسئلة - Medical Surgical Nursing</h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">تمريض جراحي وباطني - أكثر من 1000 سؤال مع الترجمة والحلول</p>
+        </div>
+    </div>
+    <a href="Medical Surgical Nursing Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--darker); padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: var(--transition); display: flex; align-items: center; gap: 8px; white-space: nowrap;">
+        <i class="fas fa-arrow-left"></i> الذهاب إلى البنك
+    </a>
+
+</div>
+
+   <div style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
             <i class="fas fa-syringe"></i>
         </div>
         <div>
@@ -251,37 +265,16 @@
     <a href="General Surgery Questions Bank.html" style="background: linear-gradient(135deg, #1a2a3a, #0d1c28); color: #d4af5a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap; border: 2px solid #d4af5a; box-shadow: 0 2px 10px rgba(212,175,90,0.1);">
         <i class="fas fa-arrow-left"></i> الذهاب إلى بنك الجراحة
     </a>
+   </div> 
+   <div>
+    <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">🩺 بنك الأسئلة - Internal Medicine</h3>
+    <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">طب باطنة - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
 </div>
+<a href="internal-medicine.html" style="background: linear-gradient(135deg, #1a2a3a, #0d1c28); color: #d4af5a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap; border: 2px solid #d4af5a; box-shadow: 0 2px 10px rgba(212,175,90,0.1);">
+    <i class="fas fa-heartbeat" style="font-size:1.1rem;"></i> 
+    <span>❤️ الذهاب إلى بنك طب باطنة</span>
+</a>
 
-<div class="library-link-card" style="background: var(--card-bg); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: var(--shadow); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: all 0.3s ease;">
-    <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #1a2a3a;">
-            <i class="fas fa-heartbeat"></i>
-        </div>
-        <div>
-            <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">🩺 بنك الأسئلة - Internal Medicine</h3>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">طب باطنة - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
-        </div>
-    </div>
-    <a href="internal-medicine.html" style="background: linear-gradient(135deg, #1a2a3a, #0d1c28); color: #d4af5a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap; border: 2px solid #d4af5a; box-shadow: 0 2px 10px rgba(212,175,90,0.1);">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى بنك طب باطنة
-    </a>
-</div>
-
-<div class="library-link-card" style="background: var(--card-bg); border-radius: 20px; padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: all 0.3s ease;">
-    <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #1a2a3a;">
-            <i class="fas fa-book-medical"></i>
-        </div>
-        <div>
-            <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">📚 بنك الأسئلة - Medical Surgical Nursing</h3>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">تمريض جراحي وباطني - أكثر من 1000 سؤال مع الترجمة والحلول</p>
-        </div>
-    </div>
-    <a href="Medical Surgical Nursing Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #1a2a3a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap;">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى البنك
-    </a>
-</div>
 
     <div class="stats-grid">
         <div class="stat-card"><div class="stat-icon"><i class="fas fa-file-alt"></i></div><div class="stat-info"><h3 id="totalFiles">0</h3><p>إجمالي الملفات</p></div></div>
