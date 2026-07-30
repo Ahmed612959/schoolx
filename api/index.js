@@ -81,7 +81,8 @@ const multer = require('multer');
 const {
     S3Client,
     PutObjectCommand,
-    DeleteObjectCommand
+    DeleteObjectCommand,
+    GetObjectCommand
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -4121,12 +4122,13 @@ app.post('/api/files/upload-url', verifyToken, isAdmin, async (req, res) => {
 app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files', 20), async (req, res) => {
     try {
         await connectToDatabase();
-        const { grade, subject } = req.body;
-        
-        if (!grade || !subject) {
-            return res.status(400).json({ error: 'الصف والمادة مطلوبان' });
+        const { grade } = req.body;
+        let { subject } = req.body;
+
+        if (!grade) {
+            return res.status(400).json({ error: 'الصف مطلوب' });
         }
-        
+
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'يرجى اختيار ملفات للرفع' });
         }
@@ -4136,7 +4138,9 @@ app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files
         for (const file of req.files) {
             // ✅ تصحيح ترميز اسم الملف (multer بيقرأ أسماء الملفات العربية بترميز غلط أحيانًا)
             const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-            const folder = `school/${grade}/${subject}`;
+            // لو مفيش subject متبعت، استخرجه تلقائيًا من اسم كل ملف على حدة
+            const fileSubject = (subject && subject.trim()) ? subject : extractSubjectFromFileName(originalName);
+            const folder = `school/${grade}/${fileSubject}`;
             const result = await uploadToCloudinary(file.buffer, folder, originalName);
 
             const fileData = new File({
@@ -4146,7 +4150,7 @@ app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files
                 size: file.size,
                 type: file.mimetype || file.originalname.split('.').pop().toLowerCase(),
                 grade: grade,
-                subject: subject,
+                subject: fileSubject,
                 uploadedBy: req.user?.username || 'admin'
             });
 
@@ -4191,7 +4195,21 @@ app.get('/api/files/download/:id', verifyToken, async (req, res) => {
         file.downloads = (file.downloads || 0) + 1;
         await file.save();
 
-        return res.redirect(file.url);
+        // اجلب الملف من R2 وابثه للمستخدم مباشرة مع الاسم الأصلي
+        const getCommand = new GetObjectCommand({
+            Bucket: R2_BUCKET,
+            Key: file.publicId
+        });
+        const r2Object = await r2.send(getCommand);
+
+        const originalName = file.name || 'file';
+        const encodedName = encodeURIComponent(originalName);
+
+        res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
+        if (r2Object.ContentType) res.setHeader('Content-Type', r2Object.ContentType);
+        if (r2Object.ContentLength) res.setHeader('Content-Length', r2Object.ContentLength);
+
+        r2Object.Body.pipe(res);
     } catch (error) {
         console.error('❌ خطأ في تحميل الملف:', error);
         res.status(500).json({ error: 'خطأ في تحميل الملف' });
@@ -4249,13 +4267,30 @@ app.get('/api/files/stats', verifyToken, isAdmin, async (req, res) => {
 });
 
 // ====================== حفظ معلومات الملف (احتياطي للرفع المباشر من الفرونت إند لو استخدمته) ======================
+// دالة استخراج اسم المادة من اسم الملف: بتاخد الجزء اللي قبل أول فاصل شائع
+// (- أو – أو _ أو |) وتشيل الامتداد. لو مفيش فاصل، بترجع اسم الملف كامل
+// (من غير الامتداد) كمادة.
+function extractSubjectFromFileName(fileName) {
+    if (!fileName) return 'عام';
+    const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+    const separatorMatch = nameWithoutExt.match(/^(.+?)\s*[-–_|]\s*.+$/);
+    const subject = separatorMatch ? separatorMatch[1] : nameWithoutExt;
+    return subject.trim() || 'عام';
+}
+
 app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
-        const { name, url, publicId, size, type, grade, subject } = req.body;
-        
+        const { name, url, publicId, size, type, grade } = req.body;
+        let { subject } = req.body;
+
+        // لو الفرونت إند ما بعتش subject (أو بعت فاضي)، استخرجه من اسم الملف
+        if (!subject || !subject.trim()) {
+            subject = extractSubjectFromFileName(name);
+        }
+
         console.log('📥 استلام معلومات ملف:', { name, grade, subject });
-        
+
         if (!name || !url || !grade || !subject) {
             return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         }
