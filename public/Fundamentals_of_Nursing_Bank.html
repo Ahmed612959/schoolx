@@ -254,7 +254,7 @@
             <button class="quiz-btn" onclick="openTimedQuiz()"><i class="fas fa-clock"></i> اختبار</button>
             <button class="exam-btn" onclick="openExamGenerator()"><i class="fas fa-file-alt"></i> امتحان</button>
             <button class="leaderboard-btn" onclick="openLeaderboard()"><i class="fas fa-trophy"></i> المتصدرين</button>
-            <button class="quiz-btn" onclick="openChallengeMode()"><i class="fas fa-handshake"></i> تحدي</button>
+            <button class="quiz-btn" onclick="openTournaments()"><i class="fas fa-flag-checkered"></i> بطولات</button>
             <button class="flashcard-btn" onclick="openAIFlashcards()"><i class="fas fa-robot"></i> AI بطاقات</button>
             <button class="exam-btn" onclick="openHomeworkDashboard()" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="fas fa-tasks"></i> الواجبات</button>
 <button class="exam-btn" onclick="openMyHomework()" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="fas fa-book"></i> واجباتي</button>
@@ -289,7 +289,8 @@
 
 
 <script src="fon_chapter1.js"></script>
-<!-- هنا هتتضاف باقي ملفات الفصول: fon_chapter2.js ... fon_chapter6.js -->
+<script src="fon_chapter2.js"></script>
+<!-- هنا هتتضاف باقي ملفات الفصول: fon_chapter3.js ... fon_chapter6.js -->
 
 <script>
 // ====================== وضع التصحيح ======================
@@ -301,8 +302,9 @@ function debugError() { if (DEBUG) { console.error('❌ [ERROR]:', ...arguments)
 
 // ==================== المتغيرات ====================
 var chaptersData = {
-  chapter1: fon_chapter1
-  // باقي الفصول (2 إلى 6) هتتضاف هنا أول ما تخلص
+  chapter1: fon_chapter1,
+  chapter2: fon_chapter2
+  // باقي الفصول (3 إلى 6) هتتضاف هنا أول ما تخلص
 };
 var currentChapterId = 'all';
 var currentCategory = 'all';
@@ -756,10 +758,10 @@ function renderChapterButtons() { var html = '<button class="chapter-btn ' + (cu
 function renderCategoryTabs() { var total = 0; for (var i = 0; i < categoryMeta.length; i++) { total += getQuestionsFor(currentChapterId, categoryMeta[i].id).length; } var html = '<button class="category-btn ' + (currentCategory === 'all' ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'all\')"><i class="fas fa-border-all"></i> الكل <span class="count">' + total + '</span></button>'; for (var i = 0; i < categoryMeta.length; i++) { var c = categoryMeta[i]; var count = getQuestionsFor(currentChapterId, c.id).length; html += '<button class="category-btn ' + (currentCategory === c.id ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'' + c.id + '\')"><i class="' + c.icon + '"></i> ' + c.label + ' <span class="count">' + count + '</span></button>'; } document.getElementById('categoryTabs').innerHTML = html; }
 
 // ====================== وظائف الأخطاء ====================
-function addWrongQuestion(q) { var wrongEntry = { questionId: q.questionId, text: q.text, correct: q.correct || q.completion || q.answer || '', chapter: q.chapterName || '', cat: q.cat || '', date: new Date().toISOString() }; var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); if (!exists) { wrongQuestions.push(wrongEntry); localStorage.setItem('fon_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-fon/quiz', { wrongQuestions: wrongQuestions }); } }
-function removeWrongQuestion(questionId) { wrongQuestions = wrongQuestions.filter(function(w) { return w.questionId !== questionId; }); localStorage.setItem('fon_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-fon/quiz', { wrongQuestions: wrongQuestions }); }
+function addWrongQuestion(q) { var wrongEntry = { questionId: q.questionId, text: q.text, correct: q.correct || q.completion || q.answer || '', chapter: q.chapterName || '', cat: q.cat || '', date: new Date().toISOString() }; var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); if (!exists) { wrongQuestions.push(wrongEntry); localStorage.setItem('fon_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-fon/wrong', { questionId: q.questionId, action: 'add', wrongEntry: wrongEntry }); } }
+function removeWrongQuestion(questionId) { var existed = wrongQuestions.some(function(w) { return w.questionId === questionId; }); wrongQuestions = wrongQuestions.filter(function(w) { return w.questionId !== questionId; }); localStorage.setItem('fon_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode && existed) saveProgress('/api/progress-fon/wrong', { questionId: questionId, action: 'remove' }); }
 function updateRetryButton() { var btn = document.getElementById('retryWrongBtn'); if (btn) { var count = wrongQuestions.length; if (count > 0) { btn.style.display = 'inline-flex'; btn.innerHTML = '<i class="fas fa-redo"></i> تحدي الأخطاء (' + count + ')'; } else { btn.style.display = 'none'; } } }
-function clearAllWrongQuestions() { if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; } if (confirm('⚠️ هل أنت متأكد من مسح جميع الأسئلة الخاطئة؟')) { wrongQuestions = []; localStorage.setItem('fon_nb_wrong', JSON.stringify(wrongQuestions)); if (isOnlineMode) saveProgress('/api/progress-fon/quiz', { wrongQuestions: [] }); updateRetryButton(); renderAllQuestions(); closeModal('retryModal'); showToast('🎉 تم مسح جميع الأسئلة الخاطئة بنجاح!', 'success'); } }
+function clearAllWrongQuestions() { if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; } if (confirm('⚠️ هل أنت متأكد من مسح جميع الأسئلة الخاطئة؟')) { wrongQuestions = []; localStorage.setItem('fon_nb_wrong', JSON.stringify(wrongQuestions)); if (isOnlineMode) saveProgress('/api/progress-fon/wrong', { action: 'clear' }); updateRetryButton(); renderAllQuestions(); closeModal('retryModal'); showToast('🎉 تم مسح جميع الأسئلة الخاطئة بنجاح!', 'success'); } }
 
 function retryWrongQuestions() {
     if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; }
