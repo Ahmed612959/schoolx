@@ -20,7 +20,8 @@
     "multer": "^1.4.5-lts.1",
     "@aws-sdk/client-s3": "^3.637.0",
     "@aws-sdk/s3-request-presigner": "^3.637.0",
-    "@simplewebauthn/server": "^11.0.0"
+    "@simplewebauthn/server": "^11.0.0",
+    "firebase-admin": "^12.3.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
