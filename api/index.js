@@ -3097,6 +3097,20 @@ const Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 const ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
 const ArchivedResult = mongoose.models.ArchivedResult || mongoose.model('ArchivedResult', archivedResultSchema);
 
+// ====================== رسايل الطلاب للأدمن (من Chat X) ======================
+// senderId/senderName بيفضلوا null دايمًا لو anonymous = true — لأن السيرفر
+// أصلاً معرفش هوية المرسل وقت الإرسال (مفيش Authorization header اتبعت مع
+// الطلب لو الطالب اختار "من غير اسمي")، مش لأننا بس بنخفيهم في العرض.
+const adminMessageSchema = new mongoose.Schema({
+    text: { type: String, required: true, maxlength: 2000 },
+    anonymous: { type: Boolean, default: false },
+    senderId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    senderName: { type: String, default: null },
+    read: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+});
+const AdminMessage = mongoose.models.AdminMessage || mongoose.model('AdminMessage', adminMessageSchema);
+
 // ====================== دوال مساعدة ======================
 function setAuthCookie(res, token) {
     res.cookie('authToken', token, {
@@ -3436,6 +3450,62 @@ app.delete('/api/notifications/:id', verifyToken, isManager, async (req, res) =>
         if (!deleted) return res.status(404).json({ error: 'الإشعار غير موجود' });
         res.json({ success: true, message: 'تم حذف الإشعار بنجاح' });
     } catch (error) { res.status(500).json({ error: 'خطأ في حذف الإشعار' }); }
+});
+
+// ====================== رسايل الطلاب للأدمن (Chat X) ======================
+// optionalAuthLoose بيختلف عن verifyToken العادي في حاجة واحدة أساسية: لو مفيش توكن
+// خالص، مش بيرفض الطلب (401) — بيكمّل الطلب عادي وبيسيب req.user = null. ده ضروري
+// عشان الرسايل المجهولة (اللي الفرونت إند بيبعتها من غير Authorization header) تعدي
+// من غير ما تتحجب، وفي نفس الوقت السيرفر يقدر يتعرف على الطالب لو التوكن كان موجود.
+function optionalAuthLoose(req, res, next) {
+    let token = req.cookies?.authToken;
+    if (!token) {
+        const authHeader = req.headers['authorization'];
+        token = authHeader?.split(' ')[1];
+    }
+    if (!token) { req.user = null; return next(); }
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+        req.user = null;
+    }
+    next();
+}
+
+app.post('/api/admin-messages', optionalAuthLoose, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { text, anonymous } = req.body;
+        if (!text || !text.trim()) return res.status(400).json({ error: 'الرسالة فاضية' });
+        if (text.length > 2000) return res.status(400).json({ error: 'الرسالة طويلة جدًا' });
+
+        // مجهولة لو الطالب اختارها بنفسه، أو لو أصلاً مفيش توكن اتبعت (احتياطًا)
+        const isAnonymous = anonymous === true || !req.user;
+        const doc = await AdminMessage.create({
+            text: text.trim(),
+            anonymous: isAnonymous,
+            senderId: isAnonymous ? null : req.user.id,
+            senderName: isAnonymous ? null : (req.user.fullName || req.user.username)
+        });
+        res.json({ success: true, id: doc._id });
+    } catch (error) { res.status(500).json({ error: 'خطأ في إرسال الرسالة' }); }
+});
+
+app.get('/api/admin-messages', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const messages = await AdminMessage.find().sort({ createdAt: -1 }).limit(500);
+        res.json({ messages });
+    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الرسايل' }); }
+});
+
+app.patch('/api/admin-messages/:id/read', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const updated = await AdminMessage.findByIdAndUpdate(req.params.id, { read: true });
+        if (!updated) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الرسالة' }); }
 });
 
 // ====================== المخالفات ======================
