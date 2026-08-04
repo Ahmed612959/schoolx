@@ -76,6 +76,54 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 
+// ====================== Firebase Admin (للبوش نوتيفيكيشن) ======================
+// على Vercel: حط JSON الخاص بـ Service Account (اللي نزلته من Firebase Console →
+// Project settings → Service accounts → Generate new private key) كـ Environment
+// Variable واحد اسمه FIREBASE_SERVICE_ACCOUNT، والقيمة هي محتوى الملف كامل كـ نص JSON.
+const admin = require('firebase-admin');
+let firebaseApp = null;
+try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        firebaseApp = admin.apps.length ? admin.app() : admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('✅ Firebase Admin initialized');
+    } else {
+        console.log('⚠️ FIREBASE_SERVICE_ACCOUNT env var مش موجود — البوش نوتيفيكيشن معطل');
+    }
+} catch (e) {
+    console.error('❌ فشل تهيئة Firebase Admin:', e.message);
+}
+
+// دالة إرسال إشعار push لطالب/أدمن بالـ username بتاعه. بترجع true/false، ومتوقفش
+// أي endpoint لو فشلت (الإشعار مكمّل، مش أساسي، فمينفعش يكسر باقي الطلب).
+async function sendPushToUser(username, { title, body, link }) {
+    if (!firebaseApp) return false;
+    try {
+        await connectToDatabase();
+        const tokens = await PushToken.find({ username }).select('fcmToken');
+        if (!tokens.length) return false;
+        const results = await Promise.allSettled(tokens.map(t =>
+            admin.messaging().send({
+                token: t.fcmToken,
+                notification: { title, body },
+                webpush: link ? { fcmOptions: { link } } : undefined
+            })
+        ));
+        // أي توكن باظ (الطالب مسح الموقع من المتصفح مثلاً) نمسحه من الداتابيز
+        const deadTokens = [];
+        results.forEach((r, i) => {
+            if (r.status === 'rejected') deadTokens.push(tokens[i].fcmToken);
+        });
+        if (deadTokens.length) await PushToken.deleteMany({ fcmToken: { $in: deadTokens } });
+        return true;
+    } catch (e) {
+        console.error('❌ فشل إرسال Push:', e.message);
+        return false;
+    }
+}
+
 // ====================== Cloudflare R2 Storage و Multer ======================
 const multer = require('multer');
 const {
@@ -276,6 +324,13 @@ const violationSchema = new mongoose.Schema({
 const notificationSchema = new mongoose.Schema({
     text: String,
     date: String
+}, { timestamps: true });
+
+// توكنات أجهزة الطلاب/الأدمن اللي فعّلوا الإشعارات (طالب واحد ممكن يكون عنده
+// أكتر من توكن لو بيستخدم أكتر من جهاز/متصفح — كلهم بيستقبلوا الإشعار)
+const pushTokenSchema = new mongoose.Schema({
+    username: { type: String, required: true, index: true },
+    fcmToken: { type: String, required: true, unique: true }
 }, { timestamps: true });
 
 const attendanceSchema = new mongoose.Schema({
@@ -3092,6 +3147,7 @@ const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
 const Violation = mongoose.models.Violation || mongoose.model('Violation', violationSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+const PushToken = mongoose.models.PushToken || mongoose.model('PushToken', pushTokenSchema);
 const Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
 const Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 const ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
@@ -3329,6 +3385,39 @@ app.get('/api/me', verifyToken, async (req, res) => {
 app.post('/api/logout', verifyToken, (req, res) => {
     res.clearCookie('authToken', { path: '/' });
     res.json({ success: true });
+});
+
+// ====================== البوش نوتيفيكيشن (Firebase Cloud Messaging) ======================
+// الفرونت إند بيبعت توكن FCM الجهاز هنا بعد ما الطالب يوافق على إذن الإشعارات.
+app.post('/api/push/subscribe', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { fcmToken } = req.body;
+        if (!fcmToken) return res.status(400).json({ error: 'fcmToken مطلوب' });
+        // upsert: لو نفس التوكن اتسجل قبل كده لحساب تاني (جهاز مشترك)، ننقله
+        // للمستخدم الحالي بدل ما نرفض — عشان مايفضلش يوصل إشعارات لحساب غلط.
+        await PushToken.findOneAndUpdate(
+            { fcmToken },
+            { fcmToken, username: req.user.username },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حفظ توكن الإشعارات: ' + error.message });
+    }
+});
+
+// بيتنادى وقت تسجيل الخروج أو لو الطالب قفل الإشعارات من الإعدادات
+app.delete('/api/push/subscribe', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { fcmToken } = req.body;
+        if (fcmToken) await PushToken.deleteOne({ fcmToken, username: req.user.username });
+        else await PushToken.deleteMany({ username: req.user.username }); // مفيش توكن معين؟ امسح كل توكنات المستخدم
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إلغاء الإشعارات: ' + error.message });
+    }
 });
 
 // ====================== APIs الطلاب ======================
