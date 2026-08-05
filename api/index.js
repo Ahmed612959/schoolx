@@ -6933,6 +6933,224 @@ app.get('/api/csrf-token', (req, res) => {
     res.json({ csrfToken });
 });
 
+
+// ==========================================================================
+// إضافات Chat X: الحضور الفوري + لوحة الصدارة الحية + إصلاح بحث الأصدقاء
+// ⬅️ الصق الكتلة دي قبل: app.get('*', (req, res) => { ... })
+// ==========================================================================
+
+// ---------- نماذج جديدة ----------
+const presenceSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  fullName: { type: String, default: '' },
+  userType: { type: String, default: 'student' },
+  lastSeen: { type: Date, default: Date.now },
+  dayKey: { type: String, default: '' },
+  questionsToday: { type: Number, default: 0 },
+  messagesToday: { type: Number, default: 0 },
+  timeTodaySeconds: { type: Number, default: 0 }
+}, { timestamps: true });
+presenceSchema.index({ lastSeen: 1 });
+const Presence = mongoose.models.Presence || mongoose.model('Presence', presenceSchema);
+
+const weeklyStatsSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  fullName: { type: String, default: '' },
+  weekStart: { type: String, required: true },   // أول يوم في الأسبوع (السبت) YYYY-MM-DD
+  messagesCount: { type: Number, default: 0 },
+  questionsCount: { type: Number, default: 0 },
+  timeSpentSeconds: { type: Number, default: 0 },
+  lastActive: { type: Date, default: Date.now }
+});
+weeklyStatsSchema.index({ username: 1, weekStart: 1 }, { unique: true });
+weeklyStatsSchema.index({ weekStart: 1, timeSpentSeconds: -1 });
+const WeeklyStats = mongoose.models.WeeklyStats || mongoose.model('WeeklyStats', weeklyStatsSchema);
+
+const ONLINE_WINDOW_MS = 90 * 1000; // "متصل" = بعت نبضة خلال آخر 90 ثانية
+
+// الأسبوع يبدأ السبت
+function getWeekStart(date = new Date()) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - ((d.getDay() + 1) % 7));
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().split('T')[0];
+}
+function getPrevWeekStart() { const d = new Date(); d.setDate(d.getDate() - 7); return getWeekStart(d); }
+function getTodayKey() { return new Date().toISOString().split('T')[0]; }
+
+// Regex مرن: أ/إ/آ = ا ، ة = ه ، ي = ى + تجاهل حالة الأحرف
+function buildArabicFlexRegex(query) {
+  const cleaned = String(query)
+    .replace(/[\u064B-\u0652\u0640]/g, '') // تشكيل + تطويل
+    .replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  const escaped = cleaned.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const withVariants = escaped
+    .replace(/[أإآا]/g, '[أإآا]')
+    .replace(/[ةه]/g, '[ةه]')
+    .replace(/[يى]/g, '[يى]');
+  return new RegExp(withVariants.split(' ').filter(Boolean).join('[\\s\\-_.,]+'), 'i');
+}
+
+// ---------- 1) نبضة الحضور: المتصفح بيبعتها كل 30 ثانية ----------
+app.post('/api/presence/heartbeat', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const username = req.user.username;
+    const fullName = req.body.fullName || req.user.fullName || username;
+    const incMessages  = Math.min(Math.max(Number(req.body.messages)  || 0, 0), 50);
+    const incQuestions = Math.min(Math.max(Number(req.body.questions) || 0, 0), 50);
+    const incSeconds   = Math.min(Math.max(Number(req.body.seconds)   || 30, 0), 120);
+    const today = getTodayKey();
+
+    let p = await Presence.findOne({ username });
+    if (!p) p = new Presence({ username, fullName });
+    if (p.dayKey !== today) { // تصفير عدادات اليوم
+      p.dayKey = today;
+      p.questionsToday = 0; p.messagesToday = 0; p.timeTodaySeconds = 0;
+    }
+    p.fullName = fullName;
+    p.userType = req.user.type || 'student';
+    p.lastSeen = new Date();
+    p.questionsToday += incQuestions;
+    p.messagesToday += incMessages;
+    p.timeTodaySeconds += incSeconds;
+    await p.save();
+
+    // إحصائيات الأسبوع (دي اللي بتبني لوحة الصدارة)
+    await WeeklyStats.findOneAndUpdate(
+      { username, weekStart: getWeekStart() },
+      {
+        $inc: { messagesCount: incMessages, questionsCount: incQuestions, timeSpentSeconds: incSeconds },
+        $set: { fullName, lastActive: new Date() }
+      },
+      { upsert: true, setDefaultsOnInsert: true }
+    ).catch(e => { if (e.code !== 11000) throw e; });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ heartbeat error:', error.message);
+    res.status(500).json({ error: 'خطأ في تسجيل الحضور' });
+  }
+});
+
+// ---------- 2) لوحة الصدارة الحية ----------
+app.get('/api/leaderboard/live', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const weekStart = getWeekStart();
+    const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+
+    const [online, weeklyTop, myWeek] = await Promise.all([
+      Presence.find({ lastSeen: { $gte: onlineSince } })
+        .select('username fullName lastSeen questionsToday messagesToday timeTodaySeconds')
+        .sort({ lastSeen: -1 }).limit(50).lean(),
+      WeeklyStats.find({ weekStart })
+        .sort({ timeSpentSeconds: -1, questionsCount: -1, messagesCount: -1 })
+        .limit(10).lean(),
+      WeeklyStats.findOne({ username: req.user.username, weekStart }).lean()
+    ]);
+
+    let myRank = 0;
+    if (myWeek) {
+      myRank = 1 + await WeeklyStats.countDocuments({
+        weekStart,
+        $or: [
+          { timeSpentSeconds: { $gt: myWeek.timeSpentSeconds || 0 } },
+          { timeSpentSeconds: myWeek.timeSpentSeconds || 0, questionsCount: { $gt: myWeek.questionsCount || 0 } },
+          { timeSpentSeconds: myWeek.timeSpentSeconds || 0, questionsCount: myWeek.questionsCount || 0, messagesCount: { $gt: myWeek.messagesCount || 0 } }
+        ]
+      });
+    }
+
+    res.json({ success: true, weekStart, online, weeklyTop, me: { username: req.user.username, rank: myRank, stats: myWeek } });
+  } catch (error) {
+    console.error('❌ leaderboard error:', error.message);
+    res.status(500).json({ error: 'خطأ في جلب لوحة الصدارة' });
+  }
+});
+
+// ---------- 3) مزايا بطل الأسبوع ----------
+const CHAMPION_REWARDS = [
+  { id: 'double_xp',      icon: '💎', name: 'مضاعفة XP ×2',                  desc: 'كل نقاط XP اللي بتكسبها بتتضاعف لمدة أسبوع' },
+  { id: 'all_ai_models',  icon: '🧠', name: 'فتح كل نماذج الذكاء الاصطناعي', desc: 'النماذج الإضافية/المدفوعة في الشات بقت مفتوحة ليك' },
+  { id: 'unlimited_quiz', icon: '📝', name: 'اختبارات بلا حدود',              desc: 'عدد أسئلة غير محدود في اختبارات بنك الأسئلة' },
+  { id: 'champion_badge', icon: '👑', name: 'شارة بطل الأسبوع',               desc: 'تاج ذهبي جنب اسمك في الشات وغرف المذاكرة' },
+  { id: 'priority_rooms', icon: '⚡', name: 'أولوية غرف المذاكرة',            desc: 'بتدخل أي غرفة مذاكرة فوراً حتى لو مليانة' },
+  { id: 'custom_theme',   icon: '🎨', name: 'ثيم البطل الحصري',               desc: 'مظهر ذهبي خاص بالشات بتاعك' },
+  { id: 'pdf_pro',        icon: '📄', name: 'تحليل ملفات Pro',                desc: 'رفع ملفات أكبر وتحليل أدق للملازم' },
+  { id: 'smart_summary',  icon: '✨', name: 'تلخيص ذكي محسّن',                desc: 'تلخيصات أطول وأشمل للمحاضرات' }
+];
+
+app.get('/api/leaderboard/rewards', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const username = req.user.username;
+    const sort = { timeSpentSeconds: -1, questionsCount: -1, messagesCount: -1 };
+    const [prevChamp, curTop] = await Promise.all([
+      WeeklyStats.findOne({ weekStart: getPrevWeekStart() }).sort(sort).lean(),
+      WeeklyStats.findOne({ weekStart: getWeekStart() }).sort(sort).lean()
+    ]);
+    const hasActivity = s => s && ((s.timeSpentSeconds || 0) > 0 || (s.messagesCount || 0) > 0);
+    const isPrevChampion = hasActivity(prevChamp) && prevChamp.username === username; // مزاياه سارية الأسبوع ده كله
+    const isLiveLeader   = hasActivity(curTop) && curTop.username === username;       // متصدر لحظي
+
+    res.json({
+      success: true,
+      isChampion: isPrevChampion || isLiveLeader,
+      isPrevChampion, isLiveLeader,
+      rewards: CHAMPION_REWARDS,
+      message: isPrevChampion ? '👑 أنت بطل الأسبوع الماضي — كل المزايا مفتوحة ليك الأسبوع ده كله!'
+             : isLiveLeader   ? '🔥 أنت المتصدر دلوقتي — ثبّت مركزك لحد نهاية الأسبوع والمزايا هتفضل مفتوحة'
+             : '🏁 اتصدر الترتيب لنهاية الأسبوع عشان تفتح كل المزايا دي'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب المزايا' });
+  }
+});
+
+// ---------- 4) البحث عن الأصدقاء (إصلاح بحث المذاكرة الجماعية) ----------
+app.get('/api/rooms/search-friends', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ success: true, results: [] });
+
+    const flexRegex = buildArabicFlexRegex(q);
+    if (!flexRegex) return res.json({ success: true, results: [] });
+
+    const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+    const studentFilter = /^\d+$/.test(q)
+      ? { $or: [{ fullName: flexRegex }, { username: flexRegex }, { studentCode: q }] }
+      : { $or: [{ fullName: flexRegex }, { username: flexRegex }] };
+
+    const [presenceMatches, studentMatches, onlineUsers] = await Promise.all([
+      Presence.find({ $or: [{ fullName: flexRegex }, { username: flexRegex }] })
+        .select('username fullName lastSeen').limit(30).lean(),
+      Student.find(studentFilter).select('username fullName').limit(30).lean().catch(() => []),
+      Presence.find({ lastSeen: { $gte: onlineSince } }).select('username').lean()
+    ]);
+
+    const onlineSet = new Set(onlineUsers.map(u => u.username));
+    const merged = new Map();
+    [...presenceMatches, ...studentMatches].forEach(u => {
+      if (!u.username || u.username === req.user.username || merged.has(u.username)) return;
+      merged.set(u.username, {
+        username: u.username,
+        fullName: u.fullName || u.username,
+        online: onlineSet.has(u.username)
+      });
+    });
+
+    // المتصلين يظهروا الأول
+    const results = [...merged.values()].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0)).slice(0, 20);
+    res.json({ success: true, results, onlineCount: onlineSet.size });
+  } catch (error) {
+    console.error('❌ search friends error:', error.message);
+    res.status(500).json({ success: false, error: 'خطأ في البحث' });
+  }
+});
+
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
     res.json({ 
