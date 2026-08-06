@@ -7125,7 +7125,10 @@ app.get('/api/rooms/search-friends', verifyToken, async (req, res) => {
       : { $or: [{ fullName: flexRegex }, { username: flexRegex }] };
 
     const [presenceMatches, studentMatches, onlineUsers] = await Promise.all([
-      Presence.find({ $or: [{ fullName: flexRegex }, { username: flexRegex }] })
+      // userType: 'student' مضافة عشان الأدمن ميظهرش في نتايج بحث زملاء المذاكرة —
+      // كان بيظهر (لأن الأدمن كمان بيبعت heartbeat وبيتسجل في Presence)، وبعدين
+      // إنشاء المحادثة كان بيفشل لأن /api/group-chats بيدور بس في Student collection.
+      Presence.find({ userType: 'student', $or: [{ fullName: flexRegex }, { username: flexRegex }] })
         .select('username fullName lastSeen').limit(30).lean(),
       Student.find(studentFilter).select('username fullName').limit(30).lean().catch(() => []),
       Presence.find({ lastSeen: { $gte: onlineSince } }).select('username').lean()
