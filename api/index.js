@@ -76,6 +76,54 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 
+// ====================== Firebase Admin (للبوش نوتيفيكيشن) ======================
+// على Vercel: حط JSON الخاص بـ Service Account (اللي نزلته من Firebase Console →
+// Project settings → Service accounts → Generate new private key) كـ Environment
+// Variable واحد اسمه FIREBASE_SERVICE_ACCOUNT، والقيمة هي محتوى الملف كامل كـ نص JSON.
+const admin = require('firebase-admin');
+let firebaseApp = null;
+try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        firebaseApp = admin.apps.length ? admin.app() : admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('✅ Firebase Admin initialized');
+    } else {
+        console.log('⚠️ FIREBASE_SERVICE_ACCOUNT env var مش موجود — البوش نوتيفيكيشن معطل');
+    }
+} catch (e) {
+    console.error('❌ فشل تهيئة Firebase Admin:', e.message);
+}
+
+// دالة إرسال إشعار push لطالب/أدمن بالـ username بتاعه. بترجع true/false، ومتوقفش
+// أي endpoint لو فشلت (الإشعار مكمّل، مش أساسي، فمينفعش يكسر باقي الطلب).
+async function sendPushToUser(username, { title, body, link }) {
+    if (!firebaseApp) return false;
+    try {
+        await connectToDatabase();
+        const tokens = await PushToken.find({ username }).select('fcmToken');
+        if (!tokens.length) return false;
+        const results = await Promise.allSettled(tokens.map(t =>
+            admin.messaging().send({
+                token: t.fcmToken,
+                notification: { title, body },
+                webpush: link ? { fcmOptions: { link } } : undefined
+            })
+        ));
+        // أي توكن باظ (الطالب مسح الموقع من المتصفح مثلاً) نمسحه من الداتابيز
+        const deadTokens = [];
+        results.forEach((r, i) => {
+            if (r.status === 'rejected') deadTokens.push(tokens[i].fcmToken);
+        });
+        if (deadTokens.length) await PushToken.deleteMany({ fcmToken: { $in: deadTokens } });
+        return true;
+    } catch (e) {
+        console.error('❌ فشل إرسال Push:', e.message);
+        return false;
+    }
+}
+
 // ====================== Cloudflare R2 Storage و Multer ======================
 const multer = require('multer');
 const {
@@ -261,11 +309,7 @@ const studentSchema = new mongoose.Schema({
         parentName: String,
         parentId: String
     },
-    refreshToken: String,
-    // آخر مرة الطالب عمل نشاط حقيقي (رسالة في School X شات أو حل سؤال) — تستخدم لتحديد "أونلاين"
-    lastSeenAt: { type: Date },
-    // كل أسبوع كان الطالب فيه #1 في لوحة الصدارة (weekKey مثل "2026-W32") — أساس مميزات "بطل الأسبوع"
-    weeklyChampionWeeks: { type: [String], default: [] }
+    refreshToken: String
 }, { timestamps: true });
 
 const violationSchema = new mongoose.Schema({
@@ -280,6 +324,13 @@ const violationSchema = new mongoose.Schema({
 const notificationSchema = new mongoose.Schema({
     text: String,
     date: String
+}, { timestamps: true });
+
+// توكنات أجهزة الطلاب/الأدمن اللي فعّلوا الإشعارات (طالب واحد ممكن يكون عنده
+// أكتر من توكن لو بيستخدم أكتر من جهاز/متصفح — كلهم بيستقبلوا الإشعار)
+const pushTokenSchema = new mongoose.Schema({
+    username: { type: String, required: true, index: true },
+    fcmToken: { type: String, required: true, unique: true }
 }, { timestamps: true });
 
 const attendanceSchema = new mongoose.Schema({
@@ -3096,10 +3147,25 @@ const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
 const Violation = mongoose.models.Violation || mongoose.model('Violation', violationSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+const PushToken = mongoose.models.PushToken || mongoose.model('PushToken', pushTokenSchema);
 const Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
 const Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 const ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
 const ArchivedResult = mongoose.models.ArchivedResult || mongoose.model('ArchivedResult', archivedResultSchema);
+
+// ====================== رسايل الطلاب للأدمن (من Chat X) ======================
+// senderId/senderName بيفضلوا null دايمًا لو anonymous = true — لأن السيرفر
+// أصلاً معرفش هوية المرسل وقت الإرسال (مفيش Authorization header اتبعت مع
+// الطلب لو الطالب اختار "من غير اسمي")، مش لأننا بس بنخفيهم في العرض.
+const adminMessageSchema = new mongoose.Schema({
+    text: { type: String, required: true, maxlength: 2000 },
+    anonymous: { type: Boolean, default: false },
+    senderId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    senderName: { type: String, default: null },
+    read: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+});
+const AdminMessage = mongoose.models.AdminMessage || mongoose.model('AdminMessage', adminMessageSchema);
 
 // ====================== دوال مساعدة ======================
 function setAuthCookie(res, token) {
@@ -3309,15 +3375,7 @@ app.get('/api/me', verifyToken, async (req, res) => {
                 totalQuestions: info && info.questions ? info.questions.length : null
             };
         });
-        // مميزات "بطل الأسبوع": هل الطالب ده بطل الأسبوع الحالي؟ وكام مرة كان بطل قبل كده؟
-        const currentWeekKey = getWeekKey();
-        const championWeeks = student.weeklyChampionWeeks || [];
-        res.json({
-            type: 'student', profile: student, violations, attendance, examResults: enrichedExamResults,
-            pendingHomework, activeTournaments,
-            isCurrentChampion: championWeeks.includes(currentWeekKey),
-            timesChampion: championWeeks.length
-        });
+        res.json({ type: 'student', profile: student, violations, attendance, examResults: enrichedExamResults, pendingHomework, activeTournaments });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب البيانات: ' + error.message });
     }
@@ -3327,6 +3385,39 @@ app.get('/api/me', verifyToken, async (req, res) => {
 app.post('/api/logout', verifyToken, (req, res) => {
     res.clearCookie('authToken', { path: '/' });
     res.json({ success: true });
+});
+
+// ====================== البوش نوتيفيكيشن (Firebase Cloud Messaging) ======================
+// الفرونت إند بيبعت توكن FCM الجهاز هنا بعد ما الطالب يوافق على إذن الإشعارات.
+app.post('/api/push/subscribe', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { fcmToken } = req.body;
+        if (!fcmToken) return res.status(400).json({ error: 'fcmToken مطلوب' });
+        // upsert: لو نفس التوكن اتسجل قبل كده لحساب تاني (جهاز مشترك)، ننقله
+        // للمستخدم الحالي بدل ما نرفض — عشان مايفضلش يوصل إشعارات لحساب غلط.
+        await PushToken.findOneAndUpdate(
+            { fcmToken },
+            { fcmToken, username: req.user.username },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حفظ توكن الإشعارات: ' + error.message });
+    }
+});
+
+// بيتنادى وقت تسجيل الخروج أو لو الطالب قفل الإشعارات من الإعدادات
+app.delete('/api/push/subscribe', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { fcmToken } = req.body;
+        if (fcmToken) await PushToken.deleteOne({ fcmToken, username: req.user.username });
+        else await PushToken.deleteMany({ username: req.user.username }); // مفيش توكن معين؟ امسح كل توكنات المستخدم
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إلغاء الإشعارات: ' + error.message });
+    }
 });
 
 // ====================== APIs الطلاب ======================
@@ -3448,6 +3539,62 @@ app.delete('/api/notifications/:id', verifyToken, isManager, async (req, res) =>
         if (!deleted) return res.status(404).json({ error: 'الإشعار غير موجود' });
         res.json({ success: true, message: 'تم حذف الإشعار بنجاح' });
     } catch (error) { res.status(500).json({ error: 'خطأ في حذف الإشعار' }); }
+});
+
+// ====================== رسايل الطلاب للأدمن (Chat X) ======================
+// optionalAuthLoose بيختلف عن verifyToken العادي في حاجة واحدة أساسية: لو مفيش توكن
+// خالص، مش بيرفض الطلب (401) — بيكمّل الطلب عادي وبيسيب req.user = null. ده ضروري
+// عشان الرسايل المجهولة (اللي الفرونت إند بيبعتها من غير Authorization header) تعدي
+// من غير ما تتحجب، وفي نفس الوقت السيرفر يقدر يتعرف على الطالب لو التوكن كان موجود.
+function optionalAuthLoose(req, res, next) {
+    let token = req.cookies?.authToken;
+    if (!token) {
+        const authHeader = req.headers['authorization'];
+        token = authHeader?.split(' ')[1];
+    }
+    if (!token) { req.user = null; return next(); }
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+        req.user = null;
+    }
+    next();
+}
+
+app.post('/api/admin-messages', optionalAuthLoose, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { text, anonymous } = req.body;
+        if (!text || !text.trim()) return res.status(400).json({ error: 'الرسالة فاضية' });
+        if (text.length > 2000) return res.status(400).json({ error: 'الرسالة طويلة جدًا' });
+
+        // مجهولة لو الطالب اختارها بنفسه، أو لو أصلاً مفيش توكن اتبعت (احتياطًا)
+        const isAnonymous = anonymous === true || !req.user;
+        const doc = await AdminMessage.create({
+            text: text.trim(),
+            anonymous: isAnonymous,
+            senderId: isAnonymous ? null : req.user.id,
+            senderName: isAnonymous ? null : (req.user.fullName || req.user.username)
+        });
+        res.json({ success: true, id: doc._id });
+    } catch (error) { res.status(500).json({ error: 'خطأ في إرسال الرسالة' }); }
+});
+
+app.get('/api/admin-messages', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const messages = await AdminMessage.find().sort({ createdAt: -1 }).limit(500);
+        res.json({ messages });
+    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الرسايل' }); }
+});
+
+app.patch('/api/admin-messages/:id/read', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const updated = await AdminMessage.findByIdAndUpdate(req.params.id, { read: true });
+        if (!updated) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الرسالة' }); }
 });
 
 // ====================== المخالفات ======================
@@ -6786,29 +6933,229 @@ app.get('/api/csrf-token', (req, res) => {
     res.json({ csrfToken });
 });
 
-// ====================== نظام "مذاكرة جماعية" + لوحة الصدارة الأسبوعية (لمشروع School X شات) ======================
-// النشاط: كل ما الطالب يبعت رسالة/يحل سؤال، الفرونت بيبعت ping هنا (أقصى مرة كل دقيقة)،
-// وده بيتراكم في دقايق استخدام أسبوعية (weekKey) تُستخدم في البحث عن الزملاء ولوحة الصدارة.
 
-// مفتاح أسبوع بصيغة ISO (سنة-Wرقم الأسبوع)، عشان الأسبوع يتغير يوم الاتنين مش الأحد
-function getWeekKey(date = new Date()) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = (d.getUTCDay() + 6) % 7; // الاتنين = 0
-    d.setUTCDate(d.getUTCDate() - dayNum + 3);
-    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-    const weekNum = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
-    return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+// ==========================================================================
+// إضافات Chat X: الحضور الفوري + لوحة الصدارة الحية + إصلاح بحث الأصدقاء
+// ⬅️ الصق الكتلة دي قبل: app.get('*', (req, res) => { ... })
+// ==========================================================================
+
+// ---------- نماذج جديدة ----------
+const presenceSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  fullName: { type: String, default: '' },
+  userType: { type: String, default: 'student' },
+  lastSeen: { type: Date, default: Date.now },
+  dayKey: { type: String, default: '' },
+  questionsToday: { type: Number, default: 0 },
+  messagesToday: { type: Number, default: 0 },
+  timeTodaySeconds: { type: Number, default: 0 }
+}, { timestamps: true });
+presenceSchema.index({ lastSeen: 1 });
+const Presence = mongoose.models.Presence || mongoose.model('Presence', presenceSchema);
+
+const weeklyStatsSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  fullName: { type: String, default: '' },
+  weekStart: { type: String, required: true },   // أول يوم في الأسبوع (السبت) YYYY-MM-DD
+  messagesCount: { type: Number, default: 0 },
+  questionsCount: { type: Number, default: 0 },
+  timeSpentSeconds: { type: Number, default: 0 },
+  lastActive: { type: Date, default: Date.now }
+});
+weeklyStatsSchema.index({ username: 1, weekStart: 1 }, { unique: true });
+weeklyStatsSchema.index({ weekStart: 1, timeSpentSeconds: -1 });
+const WeeklyStats = mongoose.models.WeeklyStats || mongoose.model('WeeklyStats', weeklyStatsSchema);
+
+const ONLINE_WINDOW_MS = 90 * 1000; // "متصل" = بعت نبضة خلال آخر 90 ثانية
+
+// الأسبوع يبدأ السبت
+function getWeekStart(date = new Date()) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - ((d.getDay() + 1) % 7));
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().split('T')[0];
+}
+function getPrevWeekStart() { const d = new Date(); d.setDate(d.getDate() - 7); return getWeekStart(d); }
+function getTodayKey() { return new Date().toISOString().split('T')[0]; }
+
+// Regex مرن: أ/إ/آ = ا ، ة = ه ، ي = ى + تجاهل حالة الأحرف
+function buildArabicFlexRegex(query) {
+  const cleaned = String(query)
+    .replace(/[\u064B-\u0652\u0640]/g, '') // تشكيل + تطويل
+    .replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  const escaped = cleaned.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const withVariants = escaped
+    .replace(/[أإآا]/g, '[أإآا]')
+    .replace(/[ةه]/g, '[ةه]')
+    .replace(/[يى]/g, '[يى]');
+  return new RegExp(withVariants.split(' ').filter(Boolean).join('[\\s\\-_.,]+'), 'i');
 }
 
-const activitySchema = new mongoose.Schema({
-    studentId: { type: String, required: true }, // req.user.id (Student._id كـ string)
-    weekKey: { type: String, required: true },
-    minutes: { type: Number, default: 0 },
-    lastPingAt: { type: Date, default: Date.now }
-}, { timestamps: true });
-activitySchema.index({ studentId: 1, weekKey: 1 }, { unique: true });
-const Activity = mongoose.models.Activity || mongoose.model('Activity', activitySchema);
+// ---------- 1) نبضة الحضور: المتصفح بيبعتها كل 30 ثانية ----------
+app.post('/api/presence/heartbeat', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const username = req.user.username;
+    const fullName = req.body.fullName || req.user.fullName || username;
+    const incMessages  = Math.min(Math.max(Number(req.body.messages)  || 0, 0), 50);
+    const incQuestions = Math.min(Math.max(Number(req.body.questions) || 0, 0), 50);
+    const incSeconds   = Math.min(Math.max(Number(req.body.seconds)   || 30, 0), 120);
+    const today = getTodayKey();
 
+    let p = await Presence.findOne({ username });
+    if (!p) p = new Presence({ username, fullName });
+    if (p.dayKey !== today) { // تصفير عدادات اليوم
+      p.dayKey = today;
+      p.questionsToday = 0; p.messagesToday = 0; p.timeTodaySeconds = 0;
+    }
+    p.fullName = fullName;
+    p.userType = req.user.type || 'student';
+    p.lastSeen = new Date();
+    p.questionsToday += incQuestions;
+    p.messagesToday += incMessages;
+    p.timeTodaySeconds += incSeconds;
+    await p.save();
+
+    // إحصائيات الأسبوع (دي اللي بتبني لوحة الصدارة)
+    await WeeklyStats.findOneAndUpdate(
+      { username, weekStart: getWeekStart() },
+      {
+        $inc: { messagesCount: incMessages, questionsCount: incQuestions, timeSpentSeconds: incSeconds },
+        $set: { fullName, lastActive: new Date() }
+      },
+      { upsert: true, setDefaultsOnInsert: true }
+    ).catch(e => { if (e.code !== 11000) throw e; });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ heartbeat error:', error.message);
+    res.status(500).json({ error: 'خطأ في تسجيل الحضور' });
+  }
+});
+
+// ---------- 2) لوحة الصدارة الحية ----------
+app.get('/api/leaderboard/live', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const weekStart = getWeekStart();
+    const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+
+    const [online, weeklyTop, myWeek] = await Promise.all([
+      Presence.find({ lastSeen: { $gte: onlineSince } })
+        .select('username fullName lastSeen questionsToday messagesToday timeTodaySeconds')
+        .sort({ lastSeen: -1 }).limit(50).lean(),
+      WeeklyStats.find({ weekStart })
+        .sort({ timeSpentSeconds: -1, questionsCount: -1, messagesCount: -1 })
+        .limit(10).lean(),
+      WeeklyStats.findOne({ username: req.user.username, weekStart }).lean()
+    ]);
+
+    let myRank = 0;
+    if (myWeek) {
+      myRank = 1 + await WeeklyStats.countDocuments({
+        weekStart,
+        $or: [
+          { timeSpentSeconds: { $gt: myWeek.timeSpentSeconds || 0 } },
+          { timeSpentSeconds: myWeek.timeSpentSeconds || 0, questionsCount: { $gt: myWeek.questionsCount || 0 } },
+          { timeSpentSeconds: myWeek.timeSpentSeconds || 0, questionsCount: myWeek.questionsCount || 0, messagesCount: { $gt: myWeek.messagesCount || 0 } }
+        ]
+      });
+    }
+
+    res.json({ success: true, weekStart, online, weeklyTop, me: { username: req.user.username, rank: myRank, stats: myWeek } });
+  } catch (error) {
+    console.error('❌ leaderboard error:', error.message);
+    res.status(500).json({ error: 'خطأ في جلب لوحة الصدارة' });
+  }
+});
+
+// ---------- 3) مزايا بطل الأسبوع ----------
+const CHAMPION_REWARDS = [
+  { id: 'double_xp',      icon: '💎', name: 'مضاعفة XP ×2',                  desc: 'كل نقاط XP اللي بتكسبها بتتضاعف لمدة أسبوع' },
+  { id: 'all_ai_models',  icon: '🧠', name: 'فتح كل نماذج الذكاء الاصطناعي', desc: 'النماذج الإضافية/المدفوعة في الشات بقت مفتوحة ليك' },
+  { id: 'unlimited_quiz', icon: '📝', name: 'اختبارات بلا حدود',              desc: 'عدد أسئلة غير محدود في اختبارات بنك الأسئلة' },
+  { id: 'champion_badge', icon: '👑', name: 'شارة بطل الأسبوع',               desc: 'تاج ذهبي جنب اسمك في الشات وغرف المذاكرة' },
+  { id: 'priority_rooms', icon: '⚡', name: 'أولوية غرف المذاكرة',            desc: 'بتدخل أي غرفة مذاكرة فوراً حتى لو مليانة' },
+  { id: 'custom_theme',   icon: '🎨', name: 'ثيم البطل الحصري',               desc: 'مظهر ذهبي خاص بالشات بتاعك' },
+  { id: 'pdf_pro',        icon: '📄', name: 'تحليل ملفات Pro',                desc: 'رفع ملفات أكبر وتحليل أدق للملازم' },
+  { id: 'smart_summary',  icon: '✨', name: 'تلخيص ذكي محسّن',                desc: 'تلخيصات أطول وأشمل للمحاضرات' }
+];
+
+app.get('/api/leaderboard/rewards', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const username = req.user.username;
+    const sort = { timeSpentSeconds: -1, questionsCount: -1, messagesCount: -1 };
+    const [prevChamp, curTop] = await Promise.all([
+      WeeklyStats.findOne({ weekStart: getPrevWeekStart() }).sort(sort).lean(),
+      WeeklyStats.findOne({ weekStart: getWeekStart() }).sort(sort).lean()
+    ]);
+    const hasActivity = s => s && ((s.timeSpentSeconds || 0) > 0 || (s.messagesCount || 0) > 0);
+    const isPrevChampion = hasActivity(prevChamp) && prevChamp.username === username; // مزاياه سارية الأسبوع ده كله
+    const isLiveLeader   = hasActivity(curTop) && curTop.username === username;       // متصدر لحظي
+
+    res.json({
+      success: true,
+      isChampion: isPrevChampion || isLiveLeader,
+      isPrevChampion, isLiveLeader,
+      rewards: CHAMPION_REWARDS,
+      message: isPrevChampion ? '👑 أنت بطل الأسبوع الماضي — كل المزايا مفتوحة ليك الأسبوع ده كله!'
+             : isLiveLeader   ? '🔥 أنت المتصدر دلوقتي — ثبّت مركزك لحد نهاية الأسبوع والمزايا هتفضل مفتوحة'
+             : '🏁 اتصدر الترتيب لنهاية الأسبوع عشان تفتح كل المزايا دي'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب المزايا' });
+  }
+});
+
+// ---------- 4) البحث عن الأصدقاء (إصلاح بحث المذاكرة الجماعية) ----------
+app.get('/api/rooms/search-friends', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ success: true, results: [] });
+
+    const flexRegex = buildArabicFlexRegex(q);
+    if (!flexRegex) return res.json({ success: true, results: [] });
+
+    const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+    const studentFilter = /^\d+$/.test(q)
+      ? { $or: [{ fullName: flexRegex }, { username: flexRegex }, { studentCode: q }] }
+      : { $or: [{ fullName: flexRegex }, { username: flexRegex }] };
+
+    const [presenceMatches, studentMatches, onlineUsers] = await Promise.all([
+      Presence.find({ $or: [{ fullName: flexRegex }, { username: flexRegex }] })
+        .select('username fullName lastSeen').limit(30).lean(),
+      Student.find(studentFilter).select('username fullName').limit(30).lean().catch(() => []),
+      Presence.find({ lastSeen: { $gte: onlineSince } }).select('username').lean()
+    ]);
+
+    const onlineSet = new Set(onlineUsers.map(u => u.username));
+    const merged = new Map();
+    [...presenceMatches, ...studentMatches].forEach(u => {
+      if (!u.username || u.username === req.user.username || merged.has(u.username)) return;
+      merged.set(u.username, {
+        username: u.username,
+        fullName: u.fullName || u.username,
+        online: onlineSet.has(u.username)
+      });
+    });
+
+    // المتصلين يظهروا الأول
+    const results = [...merged.values()].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0)).slice(0, 20);
+    res.json({ success: true, results, onlineCount: onlineSet.size });
+  } catch (error) {
+    console.error('❌ search friends error:', error.message);
+    res.status(500).json({ success: false, error: 'خطأ في البحث' });
+  }
+});
+
+// ==========================================================================
+// غرف المذاكرة الجماعية — ناقصة من نظام الحضور/الصدارة اللي فوق (ده بيدور
+// على الأصدقاء بس، مش بيفتح غرفة شات فعلية بينهم). لازم تفضل الكتلة دي
+// بعد كتلة "إضافات Chat X" وقبل app.get('*', ...) تحت.
+// ==========================================================================
 const groupChatSchema = new mongoose.Schema({
     memberUsernames: { type: [String], required: true, index: true },
     lastMessage: { type: String, default: '' },
@@ -6823,99 +7170,6 @@ const groupChatMessageSchema = new mongoose.Schema({
 }, { timestamps: true });
 const GroupChatMessage = mongoose.models.GroupChatMessage || mongoose.model('GroupChatMessage', groupChatMessageSchema);
 
-// متوسط درجات الكويزات + عددها لطالب معين، مجمّعة من موادّه الأربعة (comm1, fon, gs, an1)
-// onlyThisWeek=true → بيحسب بس الكويزات اللي اتحلت في الأسبوع الحالي (لغرض لوحة الصدارة والبحث)
-async function getQuizStats(username, onlyThisWeek) {
-    const suffixes = ['_comm1', '_fon', '_gs', '_an1'];
-    const docs = await Progress.find({ userId: { $in: suffixes.map(s => username + s) } })
-        .select('quizHistory').lean();
-    let entries = [];
-    docs.forEach(doc => { entries = entries.concat(doc.quizHistory || []); });
-    if (onlyThisWeek) {
-        const now = new Date();
-        const day = (now.getDay() + 6) % 7; // الاتنين = 0
-        const weekStart = new Date(now); weekStart.setHours(0, 0, 0, 0); weekStart.setDate(weekStart.getDate() - day);
-        entries = entries.filter(q => q.date && new Date(q.date) >= weekStart);
-    }
-    if (!entries.length) return { quizAvg: 0, quizCount: 0 };
-    const avg = entries.reduce((sum, q) => sum + (q.score || 0), 0) / entries.length;
-    return { quizAvg: Math.round(avg), quizCount: entries.length };
-}
-
-// الطالب يُعتبر "أونلاين" لو عمل ping خلال آخر 3 دقايق
-function computeIsOnline(lastSeenAt) {
-    if (!lastSeenAt) return false;
-    return (Date.now() - new Date(lastSeenAt).getTime()) < 3 * 60 * 1000;
-}
-
-// ====================== Activity Ping (بيتنادى من School X شات مع كل رسالة حقيقية) ======================
-app.post('/api/activity/ping', verifyToken, async (req, res) => {
-    try {
-        if (req.user.type !== 'student') return res.json({ success: true });
-        await connectToDatabase();
-        const now = new Date();
-        const weekKey = getWeekKey(now);
-        const studentId = String(req.user.id);
-        let activity = await Activity.findOne({ studentId, weekKey });
-        if (!activity) activity = new Activity({ studentId, weekKey, minutes: 0, lastPingAt: now });
-        const gapMinutes = (now - activity.lastPingAt) / 60000;
-        // بنضيف وقت الفجوة الفعلي لو معقول (أقل من 5 دقايق، يعني الطالب فعلاً مكمّل نشاط)،
-        // ولو الفجوة كبيرة (رجع بعد غيبة طويلة) بنضيف دقيقة واحدة بس عشان منضخمش الرقم
-        activity.minutes += (gapMinutes > 0 && gapMinutes <= 5) ? gapMinutes : 1;
-        activity.lastPingAt = now;
-        await activity.save();
-        await Student.findByIdAndUpdate(req.user.id, { lastSeenAt: now });
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في تسجيل النشاط' });
-    }
-});
-
-// ====================== البحث عن زملاء لبدء مذاكرة جماعية (يستخدم مع @ في School X شات) ======================
-app.get('/api/users/search', verifyToken, async (req, res) => {
-    try {
-        await connectToDatabase();
-        const q = String(req.query.q || '').trim();
-        if (q.length < 2) return res.json([]);
-        const me = await Student.findById(req.user.id).select('grade semester username');
-        const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-        const students = await Student.find({
-            _id: { $ne: req.user.id },
-            $or: [{ fullName: regex }, { username: regex }]
-        }).select('fullName username grade semester lastSeenAt weeklyChampionWeeks').limit(15).lean();
-
-        const weekKey = getWeekKey();
-        const results = await Promise.all(students.map(async (s) => {
-            const [activity, quizStats] = await Promise.all([
-                Activity.findOne({ studentId: String(s._id), weekKey }).select('minutes').lean(),
-                getQuizStats(s.username, true)
-            ]);
-            const usageHours = Math.round(((activity?.minutes || 0) / 60) * 10) / 10;
-            let matchScore = 0;
-            if (me) {
-                if (s.grade === me.grade) matchScore += 40;
-                if (s.semester === me.semester) matchScore += 20;
-            }
-            matchScore += Math.min(usageHours * 5, 30);
-            matchScore += Math.min(quizStats.quizAvg / 5, 10);
-            return {
-                fullName: s.fullName,
-                username: s.username,
-                isOnline: computeIsOnline(s.lastSeenAt),
-                usageHours,
-                quizAvg: quizStats.quizAvg,
-                matchScore: Math.round(matchScore),
-                isChampion: (s.weeklyChampionWeeks || []).includes(weekKey)
-            };
-        }));
-        results.sort((a, b) => b.matchScore - a.matchScore);
-        res.json(results);
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في البحث عن الطلاب' });
-    }
-});
-
-// ====================== غرف المذاكرة الجماعية ======================
 app.post('/api/group-chats', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
@@ -6990,55 +7244,6 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         res.json({ success: true, messageId: msg._id });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في إرسال الرسالة' });
-    }
-});
-
-// ====================== لوحة الصدارة الأسبوعية + مميزات "بطل الأسبوع" ======================
-// الدرجة الأسبوعية = دقايق الاستخدام + مكافأة على عدد الكويزات + مكافأة على متوسط الدرجات
-app.get('/api/leaderboard/weekly', verifyToken, async (req, res) => {
-    try {
-        if (req.user.type !== 'student') return res.json({ top: [], myRank: null, myScore: 0 });
-        await connectToDatabase();
-        const weekKey = getWeekKey();
-        const activities = await Activity.find({ weekKey }).select('studentId minutes').lean();
-        if (!activities.length) return res.json({ top: [], myRank: null, myScore: 0 });
-
-        const students = await Student.find({ _id: { $in: activities.map(a => a.studentId) } })
-            .select('fullName username lastSeenAt').lean();
-        const studentMap = new Map(students.map(s => [String(s._id), s]));
-
-        const rows = await Promise.all(activities.map(async (a) => {
-            const s = studentMap.get(a.studentId);
-            if (!s) return null;
-            const usageHours = Math.round((a.minutes / 60) * 10) / 10;
-            const { quizAvg, quizCount } = await getQuizStats(s.username, true);
-            const score = Math.round(a.minutes + quizCount * 20 + quizAvg * 2);
-            return {
-                studentId: a.studentId, fullName: s.fullName, username: s.username,
-                isOnline: computeIsOnline(s.lastSeenAt), usageHours, quizAvg, score
-            };
-        }));
-        const ranked = rows.filter(Boolean).sort((a, b) => b.score - a.score);
-
-        // بطل الأسبوع: أول واحد في الترتيب، بيتسجّل مرة واحدة بس لكل أسبوع (أول مرة اللوحة تتحسب فيها)
-        // — ده الأساس اللي بتُبنى عليه مميزات البطل (تاج + عداد "كام مرة بطل" في /api/me)
-        if (ranked.length) {
-            const champion = ranked[0];
-            await Student.updateOne(
-                { _id: champion.studentId, weeklyChampionWeeks: { $ne: weekKey } },
-                { $push: { weeklyChampionWeeks: weekKey } }
-            );
-        }
-
-        const top = ranked.slice(0, 10).map((r, i) => ({ ...r, isChampion: i === 0 }));
-        const myIndex = ranked.findIndex(r => r.studentId === String(req.user.id));
-        res.json({
-            top,
-            myRank: myIndex === -1 ? null : myIndex + 1,
-            myScore: myIndex === -1 ? 0 : ranked[myIndex].score
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب لوحة الصدارة' });
     }
 });
 
