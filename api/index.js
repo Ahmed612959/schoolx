@@ -7162,7 +7162,13 @@ app.get('/api/rooms/search-friends', verifyToken, async (req, res) => {
 const groupChatSchema = new mongoose.Schema({
     memberUsernames: { type: [String], required: true, index: true },
     lastMessage: { type: String, default: '' },
-    lastMessageAt: { type: Date, default: Date.now }
+    lastMessageAt: { type: Date, default: Date.now },
+    // آخر وقت كل عضو فتح فيه الغرفة وقرا الرسائل — ده أساس الـ read receipts:
+    // رسالة "مني" بتتحسب "اتقرت" لو تاريخها قبل lastReadBy بتاع الطرف التاني.
+    lastReadBy: { type: Map, of: Date, default: {} },
+    // آخر وقت كل عضو "بيكتب" فيه — بنعتبره لسه بيكتب لحد 5 ثواني من آخر إشارة
+    // وصلت، وبعدين المؤشر بيختفي لوحده حتى لو قفل التاب فجأة من غير ما يبعت شيء.
+    typingUntil: { type: Map, of: Date, default: {} }
 }, { timestamps: true });
 const GroupChat = mongoose.models.GroupChat || mongoose.model('GroupChat', groupChatSchema);
 
@@ -7217,15 +7223,47 @@ app.get('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         const query = { chatId: chat._id };
         if (since) query.createdAt = { $gt: new Date(since) };
         const messages = await GroupChatMessage.find(query).sort({ createdAt: 1 }).limit(200).lean();
+        // نسجّل إن أنا فتحت الغرفة دلوقتي — ده اللي بيخلي الطرف التاني يشوف علامة "اتقرت"
+        // على رسائله اللي بعتها قبل الوقت ده.
+        chat.lastReadBy.set(me.username, new Date());
+        await chat.save();
         res.json({
             messages: messages.map(m => ({
                 senderUsername: m.senderUsername,
                 text: m.text,
                 createdAt: new Date(m.createdAt).getTime()
-            }))
+            })),
+            lastReadBy: Object.fromEntries(
+                [...chat.lastReadBy.entries()].map(([u, d]) => [u, new Date(d).getTime()])
+            ),
+            // بنرجّع بس أسماء اللي "بيكتبوا دلوقتي" (يعني typingUntil بتاعهم لسه في المستقبل)،
+            // وبنستبعد نفسي عشان الفرونت إند ميحسبنيش إني بيكتب لنفسي.
+            typingUsernames: [...chat.typingUntil.entries()]
+                .filter(([u, until]) => u !== me.username && new Date(until).getTime() > Date.now())
+                .map(([u]) => u)
         });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب الرسائل' });
+    }
+});
+
+app.post('/api/group-chats/:id/typing', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const me = await Student.findById(req.user.id).select('username');
+        // تحديث مباشر في قاعدة البيانات (findByIdAndUpdate) بدل تحميل المستند كامل وحفظه —
+        // ده endpoint بيتنادى كتير أثناء الكتابة، فبنخليه أخف وأسرع ما يمكن.
+        const chat = await GroupChat.findById(req.params.id).select('memberUsernames');
+        if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
+            return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
+        }
+        await GroupChat.updateOne(
+            { _id: chat._id },
+            { $set: { [`typingUntil.${me.username}`]: new Date(Date.now() + 5000) } }
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث حالة الكتابة' });
     }
 });
 
@@ -7244,6 +7282,13 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         chat.lastMessage = trimmed;
         chat.lastMessageAt = new Date();
         await chat.save();
+        // نبعت push notification لباقي أعضاء الغرفة (مش للمرسل نفسه)، من غير ما نستنى
+        // النتيجة عشان الرد على المرسل ميتأخرش لو الإرسال بطيء أو فشل لأي سبب.
+        const otherMembers = chat.memberUsernames.filter(u => u !== me.username);
+        Promise.all(otherMembers.map(u => sendPushToUser(u, {
+            title: `رسالة جديدة من ${me.username}`,
+            body: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed
+        }))).catch(() => {});
         res.json({ success: true, messageId: msg._id });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في إرسال الرسالة' });
