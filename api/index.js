@@ -314,6 +314,11 @@ const studentSchema = new mongoose.Schema({
         parentName: String,
         parentId: String
     },
+    // مميزات Premium مفعّلة للطالب ده بس (مصفوفة مفاتيح، مش boolean واحد) — الأدمن يقدر
+    // يفعّل ميزة معينة لطالب معين من غير الباقي. المفاتيح المتاحة حاليًا:
+    // premium_ai (نموذج أقوى + رسايل بلا حد تقريبًا) / premium_mock_exams (امتحانات محاكاة شاملة)
+    // premium_prompts (مكتبة برومبتس ذكية) / premium_theme (تصميم مميز) / premium_drug_library (مكتبة أدوية شخصية)
+    premiumFeatures: { type: [String], default: [] },
     refreshToken: String
 }, { timestamps: true });
 
@@ -3844,7 +3849,7 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
     try {
         await connectToDatabase();
         const { studentCode } = req.params;
-        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, profile } = req.body;
+        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, profile, premiumFeatures } = req.body;
         
         console.log('📝 تحديث الطالب:', studentCode, req.body);
         
@@ -3856,6 +3861,10 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         if (grade !== undefined) updateData.grade = grade;
         if (semester !== undefined) updateData.semester = semester;
         if (subjects !== undefined) updateData.subjects = subjects;
+        // مميزات Premium: لازم تكون array من نصوص، أي حاجة تانية بنتجاهلها بدل ما نحفظ قيمة فاسدة
+        if (premiumFeatures !== undefined && Array.isArray(premiumFeatures)) {
+            updateData.premiumFeatures = premiumFeatures.filter(f => typeof f === 'string').slice(0, 20);
+        }
         
         // تحديث رقم الجلوس
         if (newStudentCode !== undefined && newStudentCode !== studentCode) {
@@ -3902,6 +3911,30 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
 });
 
 
+
+// ====================== تفعيل/تعديل مميزات Premium لطالب معين (أدمن فقط) ======================
+// endpoint مخصص وبسيط بديل عن الـ PUT الشامل فوق — بس عشان لوحة تحكم الأدمن تقدر
+// تبعت مصفوفة المفاتيح المفعّلة من غير ما تحتاج تبعت باقي بيانات الطالب معاها.
+// المفاتيح المتاحة حاليًا: premium_ai, premium_mock_exams, premium_prompts, premium_theme, premium_drug_library
+app.patch('/api/admin/students/:studentCode/premium', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { premiumFeatures } = req.body;
+        if (!Array.isArray(premiumFeatures)) {
+            return res.status(400).json({ error: 'premiumFeatures لازم تكون مصفوفة' });
+        }
+        const cleaned = [...new Set(premiumFeatures.filter(f => typeof f === 'string'))].slice(0, 20);
+        const updated = await Student.findOneAndUpdate(
+            { studentCode: req.params.studentCode },
+            { $set: { premiumFeatures: cleaned } },
+            { new: true }
+        ).select('username fullName studentCode premiumFeatures');
+        if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
+        res.json({ success: true, student: updated });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث مميزات Premium: ' + error.message });
+    }
+});
 
 // ====================== ✅ بحث الطلاب (للطلاب العاديين) ======================
 app.get('/api/students/search', verifyToken, async (req, res) => {
