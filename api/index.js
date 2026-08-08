@@ -98,16 +98,21 @@ try {
 
 // دالة إرسال إشعار push لطالب/أدمن بالـ username بتاعه. بترجع true/false، ومتوقفش
 // أي endpoint لو فشلت (الإشعار مكمّل، مش أساسي، فمينفعش يكسر باقي الطلب).
-async function sendPushToUser(username, { title, body, link }) {
+async function sendPushToUser(username, { title, body, link, data }) {
     if (!firebaseApp) return false;
     try {
         await connectToDatabase();
         const tokens = await PushToken.find({ username }).select('fcmToken');
         if (!tokens.length) return false;
+        // data لازم كل قيمه تكون string (متطلب FCM) — بنحول أي حاجة تانية (أرقام مثلاً) نصيًا.
+        const dataPayload = data
+            ? Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, String(v)]))
+            : undefined;
         const results = await Promise.allSettled(tokens.map(t =>
             admin.messaging().send({
                 token: t.fcmToken,
                 notification: { title, body },
+                data: dataPayload,
                 webpush: link ? { fcmOptions: { link } } : undefined
             })
         ));
@@ -7284,7 +7289,7 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         await connectToDatabase();
         const { text } = req.body;
         if (!text || !text.trim()) return res.status(400).json({ error: 'الرسالة فاضية' });
-        const me = await Student.findById(req.user.id).select('username');
+        const me = await Student.findById(req.user.id).select('username fullName');
         const chat = await GroupChat.findById(req.params.id);
         if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
             return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
@@ -7296,10 +7301,12 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         await chat.save();
         // نبعت push notification لباقي أعضاء الغرفة (مش للمرسل نفسه)، من غير ما نستنى
         // النتيجة عشان الرد على المرسل ميتأخرش لو الإرسال بطيء أو فشل لأي سبب.
+        const senderDisplayName = me.fullName || me.username;
         const otherMembers = chat.memberUsernames.filter(u => u !== me.username);
         Promise.all(otherMembers.map(u => sendPushToUser(u, {
-            title: `رسالة جديدة من ${me.username}`,
-            body: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed
+            title: `رسالة جديدة من ${senderDisplayName}`,
+            body: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed,
+            data: { type: 'message', chatId: String(chat._id), senderUsername: me.username, senderName: senderDisplayName }
         }))).catch(() => {});
         res.json({ success: true, messageId: msg._id, createdAt: new Date(msg.createdAt).getTime() });
     } catch (error) {
@@ -7316,7 +7323,7 @@ app.post('/api/group-chats/:id/messages/:messageId/react', verifyToken, async (r
         if (!emoji || typeof emoji !== 'string' || emoji.length > 8) {
             return res.status(400).json({ error: 'إيموجي غير صالح' });
         }
-        const me = await Student.findById(req.user.id).select('username');
+        const me = await Student.findById(req.user.id).select('username fullName');
         const chat = await GroupChat.findById(req.params.id).select('memberUsernames');
         if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
             return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
@@ -7325,12 +7332,26 @@ app.post('/api/group-chats/:id/messages/:messageId/react', verifyToken, async (r
         if (!msg) return res.status(404).json({ error: 'الرسالة مش موجودة' });
 
         const current = msg.reactions.get(me.username);
-        if (current === emoji) {
+        const isRemoval = current === emoji;
+        if (isRemoval) {
             msg.reactions.delete(me.username); // نفس الإيموجي تاني = إزالة
         } else {
             msg.reactions.set(me.username, emoji);
         }
         await msg.save();
+
+        // إشعار زي واتساب: نبعت لصاحب الرسالة الأصلية بس (مش لأي حد تاني في الغرفة)، وبس
+        // لما يكون حد تاني هو اللي عمل الريأكشن (مش هو نفسه)، وبس لما يكون إضافة/تغيير —
+        // إزالة الريأكشن مبتستاهلش إشعار، زي واتساب بالظبط.
+        if (!isRemoval && msg.senderUsername !== me.username) {
+            const reactorName = me.fullName || me.username;
+            sendPushToUser(msg.senderUsername, {
+                title: `${reactorName} عمل ريأكشن ${emoji} على رسالتك`,
+                body: msg.text.length > 60 ? msg.text.slice(0, 60) + '…' : msg.text,
+                data: { type: 'reaction', chatId: String(chat._id), senderUsername: me.username, senderName: reactorName, emoji }
+            }).catch(() => {});
+        }
+
         res.json({ success: true, reactions: Object.fromEntries(msg.reactions) });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في إضافة الرد' });
