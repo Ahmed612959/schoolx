@@ -7175,7 +7175,10 @@ const GroupChat = mongoose.models.GroupChat || mongoose.model('GroupChat', group
 const groupChatMessageSchema = new mongoose.Schema({
     chatId: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupChat', required: true, index: true },
     senderUsername: { type: String, required: true },
-    text: { type: String, required: true, maxlength: 2000 }
+    text: { type: String, required: true, maxlength: 2000 },
+    // ردود الإيموجي على الرسالة — Map من اليوزرنيم لاسم الإيموجي، عشان كل عضو
+    // يقدر يحط رد واحد بس على كل رسالة (لو حط تاني بيستبدل الأول تلقائي).
+    reactions: { type: Map, of: String, default: {} }
 }, { timestamps: true });
 const GroupChatMessage = mongoose.models.GroupChatMessage || mongoose.model('GroupChatMessage', groupChatMessageSchema);
 
@@ -7227,11 +7230,19 @@ app.get('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         // على رسائله اللي بعتها قبل الوقت ده.
         chat.lastReadBy.set(me.username, new Date());
         await chat.save();
+        // حالة "متصل الآن" لباقي أعضاء الغرفة — بنفس معيار onlineSince المستخدم في باقي الأماكن
+        // (بعت نبضة heartbeat خلال آخر 90 ثانية).
+        const otherMembers = chat.memberUsernames.filter(u => u !== me.username);
+        const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+        const onlinePresences = await Presence.find({ username: { $in: otherMembers }, lastSeen: { $gte: onlineSince } }).select('username').lean();
+        const onlineUsernames = onlinePresences.map(p => p.username);
         res.json({
             messages: messages.map(m => ({
+                id: String(m._id),
                 senderUsername: m.senderUsername,
                 text: m.text,
-                createdAt: new Date(m.createdAt).getTime()
+                createdAt: new Date(m.createdAt).getTime(),
+                reactions: m.reactions ? Object.fromEntries(m.reactions instanceof Map ? m.reactions : Object.entries(m.reactions)) : {}
             })),
             lastReadBy: Object.fromEntries(
                 [...chat.lastReadBy.entries()].map(([u, d]) => [u, new Date(d).getTime()])
@@ -7240,7 +7251,8 @@ app.get('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
             // وبنستبعد نفسي عشان الفرونت إند ميحسبنيش إني بيكتب لنفسي.
             typingUsernames: [...chat.typingUntil.entries()]
                 .filter(([u, until]) => u !== me.username && new Date(until).getTime() > Date.now())
-                .map(([u]) => u)
+                .map(([u]) => u),
+            onlineUsernames
         });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب الرسائل' });
@@ -7289,9 +7301,59 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
             title: `رسالة جديدة من ${me.username}`,
             body: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed
         }))).catch(() => {});
-        res.json({ success: true, messageId: msg._id });
+        res.json({ success: true, messageId: msg._id, createdAt: new Date(msg.createdAt).getTime() });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في إرسال الرسالة' });
+    }
+});
+
+// إضافة/تبديل/إزالة رد إيموجي على رسالة — كل عضو ليه رد واحد بس على كل رسالة.
+// نفس الإيموجي مرتين = إزالته (toggle)، إيموجي مختلف = استبدال ردّه القديم.
+app.post('/api/group-chats/:id/messages/:messageId/react', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { emoji } = req.body;
+        if (!emoji || typeof emoji !== 'string' || emoji.length > 8) {
+            return res.status(400).json({ error: 'إيموجي غير صالح' });
+        }
+        const me = await Student.findById(req.user.id).select('username');
+        const chat = await GroupChat.findById(req.params.id).select('memberUsernames');
+        if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
+            return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
+        }
+        const msg = await GroupChatMessage.findOne({ _id: req.params.messageId, chatId: chat._id });
+        if (!msg) return res.status(404).json({ error: 'الرسالة مش موجودة' });
+
+        const current = msg.reactions.get(me.username);
+        if (current === emoji) {
+            msg.reactions.delete(me.username); // نفس الإيموجي تاني = إزالة
+        } else {
+            msg.reactions.set(me.username, emoji);
+        }
+        await msg.save();
+        res.json({ success: true, reactions: Object.fromEntries(msg.reactions) });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إضافة الرد' });
+    }
+});
+
+// مسح كل رسايل الغرفة (مش الغرفة نفسها) — أي عضو من الاتنين يقدر يعمل كده،
+// بيأثر على الطرفين لأنها محادثة واحدة مشتركة، مش نسخة شخصية لكل طرف.
+app.delete('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const me = await Student.findById(req.user.id).select('username');
+        const chat = await GroupChat.findById(req.params.id);
+        if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
+            return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
+        }
+        await GroupChatMessage.deleteMany({ chatId: chat._id });
+        chat.lastMessage = '';
+        chat.typingUntil = new Map();
+        await chat.save();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في مسح الشات' });
     }
 });
 
