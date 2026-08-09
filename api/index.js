@@ -318,6 +318,8 @@ const studentSchema = new mongoose.Schema({
     // يفعّل ميزة معينة لطالب معين من غير الباقي. المفاتيح المتاحة حاليًا:
     // premium_ai (نموذج أقوى + رسايل بلا حد تقريبًا) / premium_mock_exams (امتحانات محاكاة شاملة)
     // premium_prompts (مكتبة برومبتس ذكية) / premium_theme (تصميم مميز) / premium_drug_library (مكتبة أدوية شخصية)
+    // premium_clinical_sim (محاكي مواقف إكلينيكية) / premium_lecture_audio (ملخص صوتي للمحاضرات)
+    // premium_video_sim (محاكاة قرارات بفيديو/مشهد متفرّع)
     premiumFeatures: { type: [String], default: [] },
     refreshToken: String
 }, { timestamps: true });
@@ -3915,7 +3917,8 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
 // ====================== تفعيل/تعديل مميزات Premium لطالب معين (أدمن فقط) ======================
 // endpoint مخصص وبسيط بديل عن الـ PUT الشامل فوق — بس عشان لوحة تحكم الأدمن تقدر
 // تبعت مصفوفة المفاتيح المفعّلة من غير ما تحتاج تبعت باقي بيانات الطالب معاها.
-// المفاتيح المتاحة حاليًا: premium_ai, premium_mock_exams, premium_prompts, premium_theme, premium_drug_library
+// المفاتيح المتاحة حاليًا: premium_ai, premium_mock_exams, premium_prompts, premium_theme, premium_drug_library,
+// premium_clinical_sim, premium_lecture_audio, premium_video_sim
 app.patch('/api/admin/students/:studentCode/premium', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
