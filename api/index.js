@@ -7213,6 +7213,64 @@ const groupChatSchema = new mongoose.Schema({
 }, { timestamps: true });
 const GroupChat = mongoose.models.GroupChat || mongoose.model('GroupChat', groupChatSchema);
 
+// سيناريوهات "الفيديو المتفرّع" اللي الطلاب/الأدمن بيضيفوها بنفسهم أو بيولّدها الذكاء
+// الاصطناعي — بتتخزن هنا عشان تفضل موجودة لكل الطلاب، مش بس على جهاز اللي عملها.
+// "nodes" شكلها حر (Mixed) لأنها شجرة قرارات متغيّرة الشكل حسب كل حالة.
+const customScenarioSchema = new mongoose.Schema({
+    scenarioId: { type: String, required: true, unique: true },
+    icon: { type: String, default: '🩺' },
+    title: { type: String, required: true, maxlength: 120 },
+    specialty: { type: String, default: 'عام', maxlength: 60 },
+    difficulty: { type: String, default: 'متوسط', maxlength: 30 },
+    startNode: { type: String, required: true },
+    nodes: { type: mongoose.Schema.Types.Mixed, required: true },
+    createdBy: { type: String, required: true },
+    source: { type: String, enum: ['custom', 'ai_random', 'question_bank'], default: 'custom' }
+}, { timestamps: true });
+const CustomScenario = mongoose.models.CustomScenario || mongoose.model('CustomScenario', customScenarioSchema);
+
+app.get('/api/scenarios', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const scenarios = await CustomScenario.find().sort({ createdAt: -1 }).limit(200).lean();
+        res.json({
+            scenarios: scenarios.map(s => ({
+                id: s.scenarioId, icon: s.icon, title: s.title, specialty: s.specialty,
+                difficulty: s.difficulty, startNode: s.startNode, nodes: s.nodes,
+                createdBy: s.createdBy, custom: true
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحميل الحالات' });
+    }
+});
+
+app.post('/api/scenarios', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { id, icon, title, specialty, difficulty, startNode, nodes, source } = req.body;
+        if (!title || !startNode || !nodes || typeof nodes !== 'object' || !nodes[startNode]) {
+            return res.status(400).json({ error: 'شكل الحالة ناقص أجزاء أساسية' });
+        }
+        const me = req.user.username;
+        if (!me) return res.status(403).json({ error: 'غير مصرح' });
+
+        const scenarioId = (id && String(id).slice(0, 60)) || `custom_${Date.now()}`;
+        const doc = await CustomScenario.findOneAndUpdate(
+            { scenarioId },
+            {
+                scenarioId, icon: icon || '🩺', title: String(title).slice(0, 120),
+                specialty: specialty || 'عام', difficulty: difficulty || 'متوسط',
+                startNode, nodes, createdBy: me, source: source || 'custom'
+            },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true, scenarioId: doc.scenarioId });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حفظ الحالة' });
+    }
+});
+
 const groupChatMessageSchema = new mongoose.Schema({
     chatId: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupChat', required: true, index: true },
     senderUsername: { type: String, required: true },
