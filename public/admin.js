@@ -65,7 +65,8 @@ async function verifyAdminAccess() {
 window.logout = async () => { if (confirm('تسجيل الخروج؟')) { try { await fetch(`${BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' }); } catch (e) {} sessionStorage.clear(); window.location.href = 'login.html'; } };
 (function preventBack() { window.history.pushState(null, '', window.location.href); window.onpopstate = () => window.history.pushState(null, '', window.location.href); })();
 
-// ====================== تعريف الدرجات - الترم الأول ======================
+// ====================== تعريف الدرجات - نظامين (الترم الأول / نهاية العام) ======================
+// نظام 1: الشكل الحالي - درجات الترم الأول
 const SUBJECTS_CONFIG_FIRST = { 
     "اللغة العربية": { max: 20 }, 
     "اللغة الإنجليزية": { max: 20 }, 
@@ -78,6 +79,29 @@ const SUBJECTS_CONFIG_FIRST = {
 const TOTAL_POSSIBLE_FIRST = 144;
 const ORDERED_SUBJECTS_FIRST = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "طب باطنة", "تمريض باطني جراحي", "حاسب آلي", "الدين"];
 
+// نظام 2: درجات نهاية العام (الترم الثاني) - مجموع 510
+const SUBJECTS_CONFIG_SECOND = {
+    "اللغة العربية": { max: 50 },
+    "اللغة الإنجليزية": { max: 50 },
+    "علوم تطبيقية": { max: 50 },
+    "إحصاء": { max: 40 },
+    "طب الباطني": { max: 50 },
+    "طب الجراحة": { max: 50 },
+    "تمريض باطني جراحي": { max: 120 },
+    "حاسب آلي": { max: 50 },
+    "صحة مجتمع": { max: 50 },
+    "الدين": { max: 40, isExtra: true }
+};
+const TOTAL_POSSIBLE_SECOND = 510;
+const ORDERED_SUBJECTS_SECOND = ["اللغة العربية", "اللغة الإنجليزية", "علوم تطبيقية", "إحصاء", "طب الباطني", "طب الجراحة", "تمريض باطني جراحي", "حاسب آلي", "صحة مجتمع", "الدين"];
+
+// ✅ خريطة موحّدة للنظامين: كل ترم بيحدد اسم الحقل في بيانات الطالب، وإعدادات مواده
+const TERMS = {
+    first:  { key: 'first',  field: 'subjectsFirst',  label: 'الترم الأول (الشكل الحالي)',        config: SUBJECTS_CONFIG_FIRST,  ordered: ORDERED_SUBJECTS_FIRST,  total: TOTAL_POSSIBLE_FIRST },
+    second: { key: 'second', field: 'subjectsSecond', label: 'نهاية العام (الترم الثاني) - 510',    config: SUBJECTS_CONFIG_SECOND, ordered: ORDERED_SUBJECTS_SECOND, total: TOTAL_POSSIBLE_SECOND }
+};
+function getTermInfo(term) { return TERMS[term] === undefined ? TERMS.first : TERMS[term]; }
+
 function normalizeSubjectName(name) {
     if (!name) return '';
     const m = { 
@@ -87,15 +111,23 @@ function normalizeSubjectName(name) {
         'الطب الباطنة': 'طب باطنة', 'الباطنة': 'طب باطنة',
         'العلوم التطبيقية': 'علوم تطبيقية', 'العلوم': 'علوم تطبيقية', 'علوم تطبيقيه': 'علوم تطبيقية',
         'العربي': 'اللغة العربية', 'العربية': 'اللغة العربية', 'اللغه العربيه': 'اللغة العربية', 'اللغة العربيه': 'اللغة العربية',
-        'الانجليزي': 'اللغة الإنجليزية', 'english': 'اللغة الإنجليزية', 'انجليزي': 'اللغة الإنجليزية', 'اللغه الانجليزيه': 'اللغة الإنجليزية', 'اللغة الانجليزيه': 'اللغة الإنجليزية'
+        'الانجليزي': 'اللغة الإنجليزية', 'english': 'اللغة الإنجليزية', 'انجليزي': 'اللغة الإنجليزية', 'اللغه الانجليزيه': 'اللغة الإنجليزية', 'اللغة الانجليزيه': 'اللغة الإنجليزية',
+        // نظام نهاية العام (الترم الثاني)
+        'طب الباطني': 'طب الباطني', 'الطب الباطني': 'طب الباطني', 'باطني': 'طب الباطني', 'باطنى': 'طب الباطني',
+        'طب الجراحة': 'طب الجراحة', 'الجراحة': 'طب الجراحة', 'جراحة': 'طب الجراحة', 'جراحه': 'طب الجراحة', 'طب جراحة': 'طب الجراحة',
+        'الإحصاء': 'إحصاء', 'الاحصاء': 'إحصاء', 'احصاء': 'إحصاء',
+        'الصحة المجتمعية': 'صحة مجتمع', 'صحة المجتمع': 'صحة مجتمع', 'الصحة المجتمع': 'صحة مجتمع'
     };
     return m[name.trim()] || name.trim();
 }
 
-function calculateStudentTotal(st) { if (!st.subjects) return 0; let t = 0; st.subjects.forEach(s => { const n = normalizeSubjectName(s.name); const c = SUBJECTS_CONFIG_FIRST[n]; if (c && !c.isExtra) t += s.grade || 0; }); return t; }
-function calculateStudentPercentage(st) { const t = calculateStudentTotal(st); return (t / TOTAL_POSSIBLE_FIRST) * 100; }
-function getStudentFormattedGrades(st) { let g = {}; ORDERED_SUBJECTS_FIRST.forEach(n => { const c = SUBJECTS_CONFIG_FIRST[n]; const sub = st.subjects?.find(s => normalizeSubjectName(s.name) === n); g[n] = { grade: sub?.grade || 0, max: c.max, isExtra: c.isExtra || false }; }); return g; }
-function getStudentsWithGrades(l) { return l.filter(s => s.subjects && s.subjects.length > 0); }
+function calculateStudentTotal(st, term = 'first') { const t = getTermInfo(term); const subs = st[t.field]; if (!subs) return 0; let total = 0; subs.forEach(s => { const n = normalizeSubjectName(s.name); const c = t.config[n]; if (c && !c.isExtra) total += s.grade || 0; }); return total; }
+function calculateStudentPercentage(st, term = 'first') { const t = getTermInfo(term); const total = calculateStudentTotal(st, term); return (total / t.total) * 100; }
+function getStudentFormattedGrades(st, term = 'first') { const t = getTermInfo(term); let g = {}; t.ordered.forEach(n => { const c = t.config[n]; const sub = st[t.field]?.find(s => normalizeSubjectName(s.name) === n); g[n] = { grade: sub?.grade || 0, max: c.max, isExtra: c.isExtra || false }; }); return g; }
+function getStudentsWithGrades(l, term = 'first') { const t = getTermInfo(term); return l.filter(s => s[t.field] && s[t.field].length > 0); }
+
+// ✅ الترم المُختار حاليًا لعرض/تحليل النتائج في لوحة التحكم (يُحدَّث من قائمة اختيار الترم بالواجهة)
+let currentResultsTerm = 'first';
 
 // ====================== متغيرات عامة ======================
 let allStudents = [], studentsWithGrades = [], admins = [], violations = [], notifications = [];
@@ -134,8 +166,10 @@ function renderArchiveTable() {
     if (!archivedResults.length) { tb.innerHTML = '<tr><td colspan="6">📭 لا توجد نتائج مؤرشفة</td></tr>'; return; }
     const gradeLabel = { first: 'الأولى ثانوي', second: 'الثانية ثانوي', third: 'الثالثة ثانوي' };
     tb.innerHTML = archivedResults.map(r => {
-        let total = 0; (r.subjects || []).forEach(s => { const n = normalizeSubjectName(s.name); const c = SUBJECTS_CONFIG_FIRST[n]; if (c && !c.isExtra) total += s.grade || 0; });
-        return `<tr><td>${escapeHtml(r.fullName)}</td><td>${escapeHtml(r.studentCode)}</td><td>${gradeLabel[r.grade] || r.grade || '-'}</td><td>${escapeHtml(r.academicYear)}</td><td>${total} / ${TOTAL_POSSIBLE_FIRST}</td><td>${isManagerRole() ? `<button class="delete-btn" onclick="deleteArchivedResult('${r._id}')"><i class="fas fa-trash"></i> حذف</button>` : ''}</td></tr>`;
+        // ✅ الأرشيف بيحتفظ بدرجات الترمين، نعرض حسب الترم المُختار حاليًا في الواجهة
+        const t = getTermInfo(currentResultsTerm);
+        let total = 0; (r[t.field] || []).forEach(s => { const n = normalizeSubjectName(s.name); const c = t.config[n]; if (c && !c.isExtra) total += s.grade || 0; });
+        return `<tr><td>${escapeHtml(r.fullName)}</td><td>${escapeHtml(r.studentCode)}</td><td>${gradeLabel[r.grade] || r.grade || '-'}</td><td>${escapeHtml(r.academicYear)}</td><td>${total} / ${t.total}</td><td>${isManagerRole() ? `<button class="delete-btn" onclick="deleteArchivedResult('${r._id}')"><i class="fas fa-trash"></i> حذف</button>` : ''}</td></tr>`;
     }).join('');
 }
 
@@ -172,7 +206,7 @@ document.getElementById('archive-search-input')?.addEventListener('input', loadA
 // ====================== تحميل البيانات الأساسية ======================
 async function loadInitialData() {
     showToast('جاري تحميل البيانات...', 'info'); allStudents = await getFromServer('/api/admin/students'); admins = await getFromServer('/api/admins'); violations = await getFromServer('/api/violations');
-    await loadNotifications(); studentsWithGrades = getStudentsWithGrades(allStudents);
+    await loadNotifications(); studentsWithGrades = getStudentsWithGrades(allStudents, currentResultsTerm);
     renderAdmins(); renderResults(); renderStats(); renderTopStudents(); renderViolations();
     await loadArchiveYears(); await loadArchive();
     showToast(`✅ تم التحميل: ${allStudents.length} طالب`, 'success');
@@ -181,26 +215,38 @@ async function loadInitialData() {
 // ====================== عرض الإحصائيات ======================
 function renderStats() {
     const sec = document.getElementById('stats-section'); if (!sec) return; let total = studentsWithGrades.length;
+    const t = getTermInfo(currentResultsTerm);
     if (total === 0) { sec.innerHTML = '<div class="stats-grid"><div class="stat-item"><i class="fas fa-info-circle"></i> لا توجد درجات مسجلة</div></div>'; return; }
-    let sumPct = 0, topStd = null, topPct = 0; studentsWithGrades.forEach(s => { let p = calculateStudentPercentage(s); sumPct += p; if (p > topPct) { topPct = p; topStd = s; } });
-    let avg = (sumPct / total).toFixed(1), passed = studentsWithGrades.filter(s => calculateStudentPercentage(s) >= 60).length;
-    sec.innerHTML = `<div class="stats-grid"><div class="stat-item"><i class="fas fa-users"></i> عدد الطلاب: ${total}</div><div class="stat-item"><i class="fas fa-chart-line"></i> المتوسط: ${avg}%</div><div class="stat-item"><i class="fas fa-check-circle"></i> الناجحين: ${passed}</div><div class="stat-item"><i class="fas fa-times-circle"></i> الراسبين: ${total - passed}</div></div>${topStd?`<div class="stats-grid" style="margin-top:15px;background:linear-gradient(135deg,#C7A252,#A07D3A);border-radius:15px;padding:15px;"><div class="stat-item" style="text-align:center;background:none;"><i class="fas fa-trophy" style="font-size:2rem;color:#fff;"></i><p style="font-weight:bold;">🏆 أعلى طالب</p><p>${escapeHtml(topStd.fullName)}</p><p>رقم الجلوس: ${topStd.studentCode}</p><p>المجموع: ${calculateStudentTotal(topStd)} / ${TOTAL_POSSIBLE_FIRST}</p><p>النسبة: ${topPct.toFixed(1)}%</p></div></div>`:''}`;
+    let sumPct = 0, topStd = null, topPct = 0; studentsWithGrades.forEach(s => { let p = calculateStudentPercentage(s, currentResultsTerm); sumPct += p; if (p > topPct) { topPct = p; topStd = s; } });
+    let avg = (sumPct / total).toFixed(1), passed = studentsWithGrades.filter(s => calculateStudentPercentage(s, currentResultsTerm) >= 60).length;
+    sec.innerHTML = `<div class="stats-grid"><div class="stat-item"><i class="fas fa-users"></i> عدد الطلاب: ${total}</div><div class="stat-item"><i class="fas fa-chart-line"></i> المتوسط: ${avg}%</div><div class="stat-item"><i class="fas fa-check-circle"></i> الناجحين: ${passed}</div><div class="stat-item"><i class="fas fa-times-circle"></i> الراسبين: ${total - passed}</div></div>${topStd?`<div class="stats-grid" style="margin-top:15px;background:linear-gradient(135deg,#C7A252,#A07D3A);border-radius:15px;padding:15px;"><div class="stat-item" style="text-align:center;background:none;"><i class="fas fa-trophy" style="font-size:2rem;color:#fff;"></i><p style="font-weight:bold;">🏆 أعلى طالب</p><p>${escapeHtml(topStd.fullName)}</p><p>رقم الجلوس: ${topStd.studentCode}</p><p>المجموع: ${calculateStudentTotal(topStd, currentResultsTerm)} / ${t.total}</p><p>النسبة: ${topPct.toFixed(1)}%</p></div></div>`:''}`;
 }
 
 // ====================== عرض النتائج ======================
 function renderResults(filter = '') {
     const tbody = document.getElementById('results-table-body'); if (!tbody) return; tbody.innerHTML = '';
+    const t = getTermInfo(currentResultsTerm);
     let filtered = [...studentsWithGrades]; if (filter) filtered = filtered.filter(s => (s.fullName||'').toLowerCase().includes(filter.toLowerCase()) || (s.studentCode||'').toLowerCase().includes(filter.toLowerCase()));
     if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="5">📭 لا توجد نتائج مسجلة</td></tr>'; return; }
     filtered.forEach(st => {
-        const total = calculateStudentTotal(st), pct = calculateStudentPercentage(st), grades = getStudentFormattedGrades(st);
+        const total = calculateStudentTotal(st, currentResultsTerm), pct = calculateStudentPercentage(st, currentResultsTerm), grades = getStudentFormattedGrades(st, currentResultsTerm);
         let html = '<div class="subjects-container">';
-        for (let n of ORDERED_SUBJECTS_FIRST) { let gi = grades[n]; if (gi) { if (gi.isExtra) html += `<div class="extra-subject">📖 ${n}: <strong>${gi.grade}</strong> / ${gi.max} <small>(خارج المجموع)</small></div>`; else html += `<div class="subject-row"><span class="subject-name"><i class="fas fa-book"></i> ${n}</span><span class="subject-grade">${gi.grade} / ${gi.max}</span></div>`; } }
+        for (let n of t.ordered) { let gi = grades[n]; if (gi) { if (gi.isExtra) html += `<div class="extra-subject">📖 ${n}: <strong>${gi.grade}</strong> / ${gi.max} <small>(خارج المجموع)</small></div>`; else html += `<div class="subject-row"><span class="subject-name"><i class="fas fa-book"></i> ${n}</span><span class="subject-grade">${gi.grade} / ${gi.max}</span></div>`; } }
         html += '</div>'; let pClass = pct >= 85 ? 'excellent' : (pct >= 75 ? 'very-good' : (pct >= 65 ? 'good' : (pct >= 60 ? 'pass' : 'fail'))); let pText = { excellent: 'ممتاز', 'very-good': 'جيد جداً', good: 'جيد', pass: 'ناجح', fail: 'راسب' }[pClass];
-        let row = tbody.insertRow(); row.innerHTML = `<td><strong>${escapeHtml(st.fullName)}</strong><br><small>رقم الجلوس: ${st.studentCode}</small></td><td>${html}</td><td><span class="total-cell">${total} / ${TOTAL_POSSIBLE_FIRST}</span></td><td><span class="percentage-cell ${pClass}">${pct.toFixed(1)}% (${pText})</span></td><td><button class="table-action-btn edit-action" onclick="editStudent('${st.studentCode}')"><i class="fas fa-edit"></i></button> ${isManagerRole()?`<button class="table-action-btn delete-action" onclick="deleteStudent('${st.studentCode}')"><i class="fas fa-trash"></i></button>`:''}</td>`;
+        let row = tbody.insertRow(); row.innerHTML = `<td><strong>${escapeHtml(st.fullName)}</strong><br><small>رقم الجلوس: ${st.studentCode}</small></td><td>${html}</td><td><span class="total-cell">${total} / ${t.total}</span></td><td><span class="percentage-cell ${pClass}">${pct.toFixed(1)}% (${pText})</span></td><td><button class="table-action-btn edit-action" onclick="editStudent('${st.studentCode}')"><i class="fas fa-edit"></i></button> ${isManagerRole()?`<button class="table-action-btn delete-action" onclick="deleteStudent('${st.studentCode}')"><i class="fas fa-trash"></i></button>`:''}</td>`;
         updateTopStudentsAfterDataChange();
     });
 }
+
+// ✅ تبديل الترم المعروض في تحليل/عرض النتائج بلوحة التحكم (الترم الأول / نهاية العام)
+window.switchResultsTerm = function(term) {
+    currentResultsTerm = (term === 'second') ? 'second' : 'first';
+    studentsWithGrades = getStudentsWithGrades(allStudents, currentResultsTerm);
+    renderResults(document.getElementById('search-input')?.value || '');
+    renderStats();
+    renderTopStudents();
+    if (document.getElementById('archive-table-body')) renderArchiveTable();
+};
 
 // ====================== إدارة الأدمنز ======================
 function renderAdmins() { const t = document.getElementById('users-table-body'); if (t) t.innerHTML = admins.map(a => `<tr><td>${escapeHtml(a.fullName)}</td><td>${a.username}</td><td>${roleLabel(a.role)}</td><td>${a.username!=='admin'?`<button class="delete-btn" onclick="deleteAdmin('${a.username}')"><i class="fas fa-trash"></i> حذف</button>`:'رئيسي'}</td></tr>`).join(''); }
@@ -208,16 +254,34 @@ window.deleteAdmin = async (u) => { if (u==='admin') return showToast('لا يم
 document.getElementById('add-user-form')?.addEventListener('submit', async (e) => { e.preventDefault(); let fn=document.getElementById('admin-name').value.trim(), un=document.getElementById('admin-username').value.trim(), pw=document.getElementById('admin-password').value.trim(), role=document.getElementById('admin-role')?.value || 'teacher'; if(!fn||!un||!pw) return showToast('املأ جميع الحقول','error'); await saveToServer('/api/admins',{fullName:fn,username:un,password:pw,role}); admins=await getFromServer('/api/admins'); renderAdmins(); e.target.reset(); showToast('تم إضافة الأدمن','success'); });
 
 // ====================== حذف وتعديل الطالب ======================
-window.deleteStudent = async (code) => { if (confirm('⚠️ حذف الطالب نهائياً؟')) { await saveToServer(`/api/students/${code}`,{},'DELETE'); allStudents=await getFromServer('/api/admin/students'); studentsWithGrades=getStudentsWithGrades(allStudents); renderResults(); renderStats(); showToast('✅ تم حذف الطالب','success'); } };
-window.editStudent = (code) => { let s=allStudents.find(st=>st.studentCode===code); if(s){ document.getElementById('student-name').value=s.fullName; document.getElementById('student-id').value=s.studentCode; document.getElementById('semester').value=s.semester||'first'; const allInputs=document.querySelectorAll('#add-result-form input[type="number"]'); allInputs.forEach(inp=>inp.value=0); window.toggleSubjects(); s.subjects?.forEach(sub=>{ const nn=normalizeSubjectName(sub.name); switch(nn){ case'اللغة العربية':document.getElementById('subject2').value=sub.grade;break; case'اللغة الإنجليزية':document.getElementById('subject3').value=sub.grade;break; case'علوم تطبيقية':document.getElementById('subject4').value=sub.grade;break; case'طب باطنة':document.getElementById('subject5').value=sub.grade;break; case'تمريض باطني جراحي':document.getElementById('subject6').value=sub.grade;break; case'حاسب آلي':document.getElementById('subject8').value=sub.grade;break; case'الدين':document.getElementById('subject7').value=sub.grade;break; } }); showToast('✏️ قم بتعديل البيانات ثم اضغط حفظ','info'); window.scrollTo(0,0); } };
+window.deleteStudent = async (code) => { if (confirm('⚠️ حذف الطالب نهائياً؟')) { await saveToServer(`/api/students/${code}`,{},'DELETE'); allStudents=await getFromServer('/api/admin/students'); studentsWithGrades=getStudentsWithGrades(allStudents, currentResultsTerm); renderResults(); renderStats(); showToast('✅ تم حذف الطالب','success'); } };
+// ✅ خرائط: اسم المادة القياسي -> id حقل الإدخال بالنموذج (لكل نظام/ترم)
+const FIRST_FIELD_IDS = { 'اللغة العربية': 'subject2', 'اللغة الإنجليزية': 'subject3', 'علوم تطبيقية': 'subject4', 'طب باطنة': 'subject5', 'تمريض باطني جراحي': 'subject6', 'حاسب آلي': 'subject8', 'الدين': 'subject7' };
+const SECOND_FIELD_IDS = { 'اللغة العربية': 'subject-second-arabic', 'اللغة الإنجليزية': 'subject-second-english', 'علوم تطبيقية': 'subject-second-science', 'إحصاء': 'subject-second-stats', 'طب الباطني': 'subject-second-internalmed', 'طب الجراحة': 'subject-second-surgery', 'تمريض باطني جراحي': 'subject-second-nursing', 'حاسب آلي': 'subject-second-computer', 'صحة مجتمع': 'subject-second-health', 'الدين': 'subject-second-religion' };
+function getFieldIdsForTerm(term) { return term === 'second' ? SECOND_FIELD_IDS : FIRST_FIELD_IDS; }
+function buildSubjectsFromForm(term) { const ids = getFieldIdsForTerm(term); return Object.entries(ids).map(([name, id]) => ({ name, grade: parseInt(document.getElementById(id)?.value) || 0 })); }
+
+window.editStudent = (code) => {
+    let s = allStudents.find(st => st.studentCode === code); if (!s) return;
+    document.getElementById('student-name').value = s.fullName;
+    document.getElementById('student-id').value = s.studentCode;
+    const term = currentResultsTerm; // بيعدّل نفس الترم المعروض حاليًا في التحليل
+    document.getElementById('semester').value = term;
+    window.toggleSubjects();
+    document.querySelectorAll('#add-result-form input[type="number"]').forEach(inp => inp.value = 0);
+    const t = getTermInfo(term), ids = getFieldIdsForTerm(term);
+    (s[t.field] || []).forEach(sub => { const nn = normalizeSubjectName(sub.name); const inputId = ids[nn]; if (inputId) { const el = document.getElementById(inputId); if (el) el.value = sub.grade; } });
+    showToast(`✏️ قم بتعديل البيانات (${t.label}) ثم اضغط حفظ`, 'info');
+    window.scrollTo(0, 0);
+};
 
 // ====================== إضافة / تعديل نتيجة طالب ======================
 document.getElementById('add-result-form')?.addEventListener('submit', async (e) => { 
     e.preventDefault(); let fn=document.getElementById('student-name').value.trim(), code=document.getElementById('student-id').value.trim(), sem=document.getElementById('semester').value; 
-    let subjects=[{name:"اللغة العربية",grade:parseInt(document.getElementById('subject2').value)||0},{name:"اللغة الإنجليزية",grade:parseInt(document.getElementById('subject3').value)||0},{name:"علوم تطبيقية",grade:parseInt(document.getElementById('subject4').value)||0},{name:"طب باطنة",grade:parseInt(document.getElementById('subject5').value)||0},{name:"تمريض باطني جراحي",grade:parseInt(document.getElementById('subject6').value)||0},{name:"حاسب آلي",grade:parseInt(document.getElementById('subject8').value)||0},{name:"الدين",grade:parseInt(document.getElementById('subject7').value)||0}]; 
+    let subjects = buildSubjectsFromForm(sem);
     if(!fn||!code) return showToast('اسم الطالب ورقم الجلوس مطلوبان','error'); 
-    let existing=allStudents.find(s=>s.studentCode===code); if(existing) await saveToServer(`/api/students/${code}`,{subjects,semester:sem},'PUT'); else await saveToServer('/api/students',{fullName:fn,id:code,subjects,semester:sem}); 
-    allStudents=await getFromServer('/api/admin/students'); studentsWithGrades=getStudentsWithGrades(allStudents); renderResults(); renderStats(); e.target.reset(); document.getElementById('semester').value='first'; window.toggleSubjects(); showToast(`✅ ${existing?'تم تحديث':'تم إضافة'} ${fn}`,'success'); 
+    let existing=allStudents.find(s=>s.studentCode===code); if(existing) await saveToServer(`/api/students/${code}`,{subjects,term:sem},'PUT'); else await saveToServer('/api/students',{fullName:fn,id:code,subjects,term:sem}); 
+    allStudents=await getFromServer('/api/admin/students'); studentsWithGrades=getStudentsWithGrades(allStudents, currentResultsTerm); renderResults(); renderStats(); e.target.reset(); document.getElementById('semester').value=currentResultsTerm; window.toggleSubjects(); showToast(`✅ ${existing?'تم تحديث':'تم إضافة'} ${fn}`,'success'); 
 });
 
 // ====================== المخالفات ======================
@@ -243,10 +307,13 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
-// ====================== ✅ تحليل Excel (بالترتيب الصحيح: A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم, F=طب, G=تمريض, H=حاسب, I=دين, J=مجموع) ======================
+// ====================== ✅ تحليل Excel - نظامين ======================
+// نظام "الترم الأول": A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم, F=طب باطنة, G=تمريض, H=حاسب, I=دين(خارج المجموع), J=مجموع(نتجاهله)
+// نظام "نهاية العام (الترم الثاني)": A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم تطبيقية, F=إحصاء, G=طب الباطني, H=طب الجراحة, I=تمريض, J=حاسب, K=صحة مجتمع, L=مجموع(نتجاهله), M=تربية دينية(خارج المجموع)
 window.analyzeExcel = async () => { 
     let file = document.getElementById('excel-upload').files[0]; 
     if (!file) return showToast('اختر ملف Excel', 'error'); 
+    const term = document.getElementById('upload-term')?.value === 'second' ? 'second' : 'first';
     
     let progressContainer = document.getElementById('upload-progress');
     if (!progressContainer) { const div=document.createElement('div'); div.id='upload-progress'; div.style.cssText='margin-top:15px;padding:15px;background:#f8f9fa;border-radius:12px;max-height:350px;overflow-y:auto;font-size:0.85rem;border:2px solid #c4a35a;'; document.querySelector('.excel-upload-section')?.appendChild(div); progressContainer=div; }
@@ -257,7 +324,7 @@ window.analyzeExcel = async () => {
         try {
             let data = new Uint8Array(e.target.result), wb = XLSX.read(data, { type: 'array' }), rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }); 
             const totalRows = rows.length - 1;
-            console.log(`📊 تم قراءة ${totalRows} صف من Excel`);
+            console.log(`📊 تم قراءة ${totalRows} صف من Excel - نظام: ${term === 'second' ? 'نهاية العام' : 'الترم الأول'}`);
             
             let studentsData = [];
             let skippedCount = 0;
@@ -282,25 +349,25 @@ window.analyzeExcel = async () => {
                     skippedCount++; continue; 
                 }
                 
-                // ✅ طباعة البيانات للتأكيد
-                console.log(`📝 صف ${i}: كود=${studentCode}, اسم=${studentName}`);
-                console.log(`   row[2]=${row[2]}, row[3]=${row[3]}, row[4]=${row[4]}, row[5]=${row[5]}, row[6]=${row[6]}, row[7]=${row[7]}, row[8]=${row[8]}`);
-                
-                // ✅ قراءة المواد بالترتيب الصحيح
-                // A=رقم الجلوس, B=الاسم, C=عربي, D=إنجليزي, E=علوم تطبيقية, F=طب باطنة, G=تمريض باطني جراحي, H=حاسب آلي, I=تربية دينية, J=المجموع
                 let subjects = [];
-                if (row[2] !== undefined && row[2] !== '' && row[2] !== null) subjects.push({ name: "اللغة العربية", grade: Number(row[2]) || 0 });
-                if (row[3] !== undefined && row[3] !== '' && row[3] !== null) subjects.push({ name: "اللغة الإنجليزية", grade: Number(row[3]) || 0 });
-                if (row[4] !== undefined && row[4] !== '' && row[4] !== null) subjects.push({ name: "علوم تطبيقية", grade: Number(row[4]) || 0 });
-                if (row[5] !== undefined && row[5] !== '' && row[5] !== null) subjects.push({ name: "طب باطنة", grade: Number(row[5]) || 0 });
-                if (row[6] !== undefined && row[6] !== '' && row[6] !== null) subjects.push({ name: "تمريض باطني جراحي", grade: Number(row[6]) || 0 });
-                if (row[7] !== undefined && row[7] !== '' && row[7] !== null) subjects.push({ name: "حاسب آلي", grade: Number(row[7]) || 0 });
-                if (row[8] !== undefined && row[8] !== '' && row[8] !== null) subjects.push({ name: "الدين", grade: Number(row[8]) || 0 });
-                // row[9] = المجموع (نتجاهله)
+                const put = (name, val) => { if (val !== undefined && val !== '' && val !== null) subjects.push({ name, grade: Number(val) || 0 }); };
                 
-                console.log(`   ✅ تم قراءة ${subjects.length} مواد: ${subjects.map(s=>`${s.name}=${s.grade}`).join(', ')}`);
+                if (term === 'second') {
+                    // C=عربي D=إنجليزي E=علوم F=إحصاء G=طب الباطني H=طب الجراحة I=تمريض J=حاسب K=صحة مجتمع L=مجموع(تجاهل) M=تربية دينية
+                    put("اللغة العربية", row[2]); put("اللغة الإنجليزية", row[3]); put("علوم تطبيقية", row[4]);
+                    put("إحصاء", row[5]); put("طب الباطني", row[6]); put("طب الجراحة", row[7]);
+                    put("تمريض باطني جراحي", row[8]); put("حاسب آلي", row[9]); put("صحة مجتمع", row[10]);
+                    // row[11] = المجموع الكلي (نتجاهله)
+                    put("الدين", row[12]);
+                } else {
+                    // C=عربي D=إنجليزي E=علوم F=طب باطنة G=تمريض H=حاسب I=دين J=مجموع(تجاهل)
+                    put("اللغة العربية", row[2]); put("اللغة الإنجليزية", row[3]); put("علوم تطبيقية", row[4]);
+                    put("طب باطنة", row[5]); put("تمريض باطني جراحي", row[6]); put("حاسب آلي", row[7]); put("الدين", row[8]);
+                }
                 
-                studentsData.push({ studentCode, fullName: studentName, subjects, grade: 'first', semester: 'first' });
+                console.log(`   ✅ صف ${i} (${studentCode} - ${studentName}): ${subjects.length} مواد: ${subjects.map(s=>`${s.name}=${s.grade}`).join(', ')}`);
+                
+                studentsData.push({ studentCode, fullName: studentName, subjects, grade: 'first', semester: term, term });
             }
             
             console.log(`📦 تم تجميع ${studentsData.length} طالب للإرسال`);
@@ -333,7 +400,7 @@ window.analyzeExcel = async () => {
                     
                     try {
                         const res = await fetch(`${BASE_URL}/api/admin/students`, { credentials: 'include' });
-                        if (res.ok) { allStudents = await res.json(); studentsWithGrades = getStudentsWithGrades(allStudents); renderResults(); renderStats(); renderTopStudents(); }
+                        if (res.ok) { allStudents = await res.json(); studentsWithGrades = getStudentsWithGrades(allStudents, currentResultsTerm); renderResults(); renderStats(); renderTopStudents(); }
                     } catch (e) { console.error('❌ فشل إعادة التحميل:', e); }
                 } else {
                     throw new Error(result.error || 'فشل الرفع');
@@ -354,7 +421,7 @@ window.analyzeExcel = async () => {
 };
 
 // ====================== تصدير Excel ======================
-function exportToExcel() { if(!studentsWithGrades.length){ showToast('لا توجد بيانات','error'); return; } const data=studentsWithGrades.map(st=>{ const grades=getStudentFormattedGrades(st); const row={'رقم الجلوس':st.studentCode,'اسم الطالب':st.fullName}; ORDERED_SUBJECTS_FIRST.forEach(s=>{ const gi=grades[s]; if(gi) row[s]=gi.grade; }); row['المجموع']=calculateStudentTotal(st); row['النسبة']=calculateStudentPercentage(st).toFixed(1)+'%'; return row; }); const ws=XLSX.utils.json_to_sheet(data), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'النتائج'); XLSX.writeFile(wb,'نتائج_الطلاب.xlsx'); showToast('✅ تم التصدير','success'); }
+function exportToExcel() { if(!studentsWithGrades.length){ showToast('لا توجد بيانات','error'); return; } const t=getTermInfo(currentResultsTerm); const data=studentsWithGrades.map(st=>{ const grades=getStudentFormattedGrades(st, currentResultsTerm); const row={'رقم الجلوس':st.studentCode,'اسم الطالب':st.fullName}; t.ordered.forEach(s=>{ const gi=grades[s]; if(gi) row[s]=gi.grade; }); row['المجموع']=calculateStudentTotal(st, currentResultsTerm); row['النسبة']=calculateStudentPercentage(st, currentResultsTerm).toFixed(1)+'%'; return row; }); const ws=XLSX.utils.json_to_sheet(data), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'النتائج'); XLSX.writeFile(wb,`نتائج_الطلاب_${t.key}.xlsx`); showToast('✅ تم التصدير','success'); }
 
 // ====================== بحث وتصفية ======================
 document.getElementById('search-input')?.addEventListener('input', e => renderResults(e.target.value));
@@ -367,15 +434,15 @@ window.toggleSubjects = function() { const sem=document.getElementById('semester
 
 // ====================== العشرة الأوائل وشهادات التقدير ======================
 let topStudentsList = [], currentCertificateStudent = null;
-function calculateTopStudents() { const l=studentsWithGrades.map(s=>({...s,total:calculateStudentTotal(s),percentage:calculateStudentPercentage(s)})); l.sort((a,b)=>b.percentage-a.percentage); return l.slice(0,10); }
-function renderTopStudents() { const c=document.getElementById('top-students-grid'); if(!c) return; topStudentsList=calculateTopStudents(); if(!topStudentsList.length){ c.innerHTML='<div style="text-align:center;padding:40px;">📭 لا توجد بيانات</div>'; return; } const medals=['🥇','🥈','🥉','📖','📚','🏅','⭐','🌟','✨','🎯']; c.innerHTML=topStudentsList.map((s,i)=>{ const rank=i+1, rc=rank===1?'rank-1':(rank===2?'rank-2':(rank===3?'rank-3':'')), medal=medals[i]||'📜'; let pc=s.percentage>=95?'excellent':(s.percentage>=85?'very-good':(s.percentage>=75?'good':'')); return `<div class="top-student-card ${rc}"><div class="top-student-rank">${medal} ${rank}</div><div class="top-student-avatar"><i class="fas fa-user-graduate"></i></div><div class="top-student-name">${escapeHtml(s.fullName)}</div><div class="top-student-code">📋 ${s.studentCode}</div><div class="top-student-percentage"><span class="percentage-cell ${pc}">${s.percentage.toFixed(1)}%</span></div><div class="top-student-total">📊 ${s.total} / ${TOTAL_POSSIBLE_FIRST}</div><button class="certificate-btn" style="margin-top:15px;padding:8px 20px;font-size:0.8rem;" onclick='showCertificate(${JSON.stringify(s).replace(/'/g,"&#39;")})'><i class="fas fa-award"></i> شهادة</button></div>`; }).join(''); }
+function calculateTopStudents() { const l=studentsWithGrades.map(s=>({...s,total:calculateStudentTotal(s, currentResultsTerm),percentage:calculateStudentPercentage(s, currentResultsTerm)})); l.sort((a,b)=>b.percentage-a.percentage); return l.slice(0,10); }
+function renderTopStudents() { const c=document.getElementById('top-students-grid'); if(!c) return; const t=getTermInfo(currentResultsTerm); topStudentsList=calculateTopStudents(); if(!topStudentsList.length){ c.innerHTML='<div style="text-align:center;padding:40px;">📭 لا توجد بيانات</div>'; return; } const medals=['🥇','🥈','🥉','📖','📚','🏅','⭐','🌟','✨','🎯']; c.innerHTML=topStudentsList.map((s,i)=>{ const rank=i+1, rc=rank===1?'rank-1':(rank===2?'rank-2':(rank===3?'rank-3':'')), medal=medals[i]||'📜'; let pc=s.percentage>=95?'excellent':(s.percentage>=85?'very-good':(s.percentage>=75?'good':'')); return `<div class="top-student-card ${rc}"><div class="top-student-rank">${medal} ${rank}</div><div class="top-student-avatar"><i class="fas fa-user-graduate"></i></div><div class="top-student-name">${escapeHtml(s.fullName)}</div><div class="top-student-code">📋 ${s.studentCode}</div><div class="top-student-percentage"><span class="percentage-cell ${pc}">${s.percentage.toFixed(1)}%</span></div><div class="top-student-total">📊 ${s.total} / ${t.total}</div><button class="certificate-btn" style="margin-top:15px;padding:8px 20px;font-size:0.8rem;" onclick='showCertificate(${JSON.stringify(s).replace(/'/g,"&#39;")})'><i class="fas fa-award"></i> شهادة</button></div>`; }).join(''); }
 window.refreshTopStudents = function() { renderTopStudents(); };
-window.showCertificate = function(student) { currentCertificateStudent=student; const container=document.getElementById('certificate-container'), modal=document.getElementById('certificate-modal'); if(!container||!modal) return; const cd=new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); const rank=topStudentsList.findIndex(s=>s.studentCode===student.studentCode)+1; const rt=getRankText(rank); container.innerHTML=`<div class="certificate" id="certificate-to-print"><div class="certificate-logo"><img src="logo.png" alt="شعار" onerror="this.style.display='none'"></div><div class="certificate-title"><i class="fas fa-award"></i> شهادة تقدير</div><div class="certificate-subtitle">معهد رعاية الضبعية الفني للتمريض</div><div class="certificate-body"><p>تُمنح هذه الشهادة للطالب/ة</p><div class="certificate-student-name">${escapeHtml(student.fullName)}</div><p>رقم الجلوس: <strong>${student.studentCode}</strong></p><div class="certificate-rank">🏆 <span>${rt}</span> 🏆</div><div class="certificate-percentage">⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐</div><p>📊 المجموع الكلي: ${student.total} / ${TOTAL_POSSIBLE_FIRST}</p><p style="margin-top:15px;color:#666;">وذلك تقديراً لتفوقه وجهده المتميز</p></div><div class="certificate-date"><i class="far fa-calendar-alt"></i> التاريخ: ${cd}</div><div class="certificate-signature"><div><hr><p>مدير المعهد</p></div><div><hr><p>وكيل المعهد</p></div></div></div>`; modal.classList.add('show'); };
+window.showCertificate = function(student) { currentCertificateStudent=student; const container=document.getElementById('certificate-container'), modal=document.getElementById('certificate-modal'); if(!container||!modal) return; const cd=new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); const rank=topStudentsList.findIndex(s=>s.studentCode===student.studentCode)+1; const rt=getRankText(rank); container.innerHTML=`<div class="certificate" id="certificate-to-print"><div class="certificate-logo"><img src="logo.png" alt="شعار" onerror="this.style.display='none'"></div><div class="certificate-title"><i class="fas fa-award"></i> شهادة تقدير</div><div class="certificate-subtitle">معهد رعاية الضبعية الفني للتمريض</div><div class="certificate-body"><p>تُمنح هذه الشهادة للطالب/ة</p><div class="certificate-student-name">${escapeHtml(student.fullName)}</div><p>رقم الجلوس: <strong>${student.studentCode}</strong></p><div class="certificate-rank">🏆 <span>${rt}</span> 🏆</div><div class="certificate-percentage">⭐ بنسبة نجاح ${student.percentage.toFixed(1)}% ⭐</div><p>📊 المجموع الكلي: ${student.total} / ${getTermInfo(currentResultsTerm).total}</p><p style="margin-top:15px;color:#666;">وذلك تقديراً لتفوقه وجهده المتميز</p></div><div class="certificate-date"><i class="far fa-calendar-alt"></i> التاريخ: ${cd}</div><div class="certificate-signature"><div><hr><p>مدير المعهد</p></div><div><hr><p>وكيل المعهد</p></div></div></div>`; modal.classList.add('show'); };
 function getRankText(rank) { switch(rank){ case 1: return 'المركز الأول 🥇'; case 2: return 'المركز الثاني 🥈'; case 3: return 'المركز الثالث 🥉'; default: return `المركز ${rank} 🎖️`; } }
 window.closeCertificateModal = function() { document.getElementById('certificate-modal')?.classList.remove('show'); currentCertificateStudent=null; };
 window.printCurrentCertificate = function() { const cc=document.getElementById('certificate-to-print'); if(!cc) return; const pw=window.open('','_blank'); pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>شهادة</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Tajawal',sans-serif;background:white;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}.certificate{background:linear-gradient(135deg,#fff 0%,#fdf8ed 100%);padding:40px;margin:20px;border:20px double #c4a35a;border-radius:28px;text-align:center;max-width:800px;width:100%}.certificate-logo img{width:80px;height:80px;border-radius:50%;border:3px solid #c4a35a}.certificate-title{font-size:2rem;font-weight:800;color:#1a4f6e;margin:20px 0}.certificate-subtitle{font-size:1rem;color:#64748b;margin-bottom:30px;border-bottom:2px solid #c4a35a;display:inline-block;padding-bottom:5px}.certificate-student-name{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#c4a35a,#a07d3a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:20px 0}.certificate-rank span{font-size:1.5rem;font-weight:800;color:gold}.certificate-percentage{font-size:1.4rem;font-weight:800;color:#1a4f6e;margin:15px 0}.certificate-date{margin-top:30px;padding-top:20px;border-top:1px dashed #cbd5e1}.certificate-signature{margin-top:30px;display:flex;justify-content:space-between;align-items:center;padding:0 20px}.certificate-signature hr{width:150px;margin:5px 0;border:1px solid #cbd5e1}@media print{body{padding:0;margin:0}.certificate{margin:0}}</style></head><body>${cc.outerHTML}<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()};<\/script></body></html>`); pw.document.close(); };
 window.downloadCurrentCertificate = async function() { if(!currentCertificateStudent) return; if(typeof html2pdf!=='undefined'){ const e=document.getElementById('certificate-to-print'); html2pdf().set({margin:[0.5,0.5,0.5,0.5],filename:`شهادة_${currentCertificateStudent.fullName}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2},jsPDF:{unit:'in',format:'a4',orientation:'portrait'}}).from(e).save(); showToast('✅ تم الحفظ','success'); } else { printCurrentCertificate(); } };
-window.printAllCertificates = function() { if(!topStudentsList.length) return; const pw=window.open('','_blank'); const cd=new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); let html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>شهادات</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet"><style>*{margin:0;padding:0}body{font-family:'Tajawal',sans-serif;background:#fff;padding:20px}.certificate-page{page-break-after:always;display:flex;justify-content:center;align-items:center;min-height:100vh}.certificate{background:linear-gradient(135deg,#fff 0%,#fdf8ed 100%);padding:40px;margin:20px;border:20px double #c4a35a;border-radius:28px;text-align:center;max-width:800px;width:100%}.certificate-logo img{width:80px;height:80px;border-radius:50%;border:3px solid #c4a35a}.certificate-title{font-size:2rem;font-weight:800;color:#1a4f6e;margin:20px 0}.certificate-subtitle{font-size:1rem;color:#64748b;margin-bottom:30px;border-bottom:2px solid #c4a35a;display:inline-block;padding-bottom:5px}.certificate-student-name{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#c4a35a,#a07d3a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:20px 0}.certificate-rank span{font-size:1.5rem;font-weight:800;color:gold}.certificate-percentage{font-size:1.4rem;font-weight:800;color:#1a4f6e;margin:15px 0}.certificate-date{margin-top:30px;padding-top:20px;border-top:1px dashed #cbd5e1}.certificate-signature{margin-top:30px;display:flex;justify-content:space-between;align-items:center;padding:0 20px}.certificate-signature hr{width:150px;margin:5px 0;border:1px solid #cbd5e1}@media print{.certificate-page{page-break-after:always}}</style></head><body>`; topStudentsList.forEach((s,i)=>{ const rt=getRankText(i+1); html+=`<div class="certificate-page"><div class="certificate"><div class="certificate-logo"><img src="logo.png" onerror="this.style.display='none'"></div><div class="certificate-title"><i class="fas fa-award"></i> شهادة تقدير</div><div class="certificate-subtitle">معهد رعاية الضبعية الفني للتمريض</div><div class="certificate-body"><p>تُمنح هذه الشهادة للطالب/ة</p><div class="certificate-student-name">${escapeHtml(s.fullName)}</div><p>رقم الجلوس: <strong>${s.studentCode}</strong></p><div class="certificate-rank">🏆 <span>${rt}</span> 🏆</div><div class="certificate-percentage">⭐ بنسبة نجاح ${s.percentage.toFixed(1)}% ⭐</div><p>📊 المجموع: ${s.total} / ${TOTAL_POSSIBLE_FIRST}</p></div><div class="certificate-date"><i class="far fa-calendar-alt"></i> التاريخ: ${cd}</div><div class="certificate-signature"><div><hr><p>مدير المعهد</p></div><div><hr><p>وكيل المعهد</p></div></div></div></div>`; }); html+=`<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()};<\/script></body></html>`; pw.document.write(html); pw.document.close(); };
+window.printAllCertificates = function() { if(!topStudentsList.length) return; const pw=window.open('','_blank'); const cd=new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); let html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>شهادات</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet"><style>*{margin:0;padding:0}body{font-family:'Tajawal',sans-serif;background:#fff;padding:20px}.certificate-page{page-break-after:always;display:flex;justify-content:center;align-items:center;min-height:100vh}.certificate{background:linear-gradient(135deg,#fff 0%,#fdf8ed 100%);padding:40px;margin:20px;border:20px double #c4a35a;border-radius:28px;text-align:center;max-width:800px;width:100%}.certificate-logo img{width:80px;height:80px;border-radius:50%;border:3px solid #c4a35a}.certificate-title{font-size:2rem;font-weight:800;color:#1a4f6e;margin:20px 0}.certificate-subtitle{font-size:1rem;color:#64748b;margin-bottom:30px;border-bottom:2px solid #c4a35a;display:inline-block;padding-bottom:5px}.certificate-student-name{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#c4a35a,#a07d3a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:20px 0}.certificate-rank span{font-size:1.5rem;font-weight:800;color:gold}.certificate-percentage{font-size:1.4rem;font-weight:800;color:#1a4f6e;margin:15px 0}.certificate-date{margin-top:30px;padding-top:20px;border-top:1px dashed #cbd5e1}.certificate-signature{margin-top:30px;display:flex;justify-content:space-between;align-items:center;padding:0 20px}.certificate-signature hr{width:150px;margin:5px 0;border:1px solid #cbd5e1}@media print{.certificate-page{page-break-after:always}}</style></head><body>`; topStudentsList.forEach((s,i)=>{ const rt=getRankText(i+1); html+=`<div class="certificate-page"><div class="certificate"><div class="certificate-logo"><img src="logo.png" onerror="this.style.display='none'"></div><div class="certificate-title"><i class="fas fa-award"></i> شهادة تقدير</div><div class="certificate-subtitle">معهد رعاية الضبعية الفني للتمريض</div><div class="certificate-body"><p>تُمنح هذه الشهادة للطالب/ة</p><div class="certificate-student-name">${escapeHtml(s.fullName)}</div><p>رقم الجلوس: <strong>${s.studentCode}</strong></p><div class="certificate-rank">🏆 <span>${rt}</span> 🏆</div><div class="certificate-percentage">⭐ بنسبة نجاح ${s.percentage.toFixed(1)}% ⭐</div><p>📊 المجموع: ${s.total} / ${getTermInfo(currentResultsTerm).total}</p></div><div class="certificate-date"><i class="far fa-calendar-alt"></i> التاريخ: ${cd}</div><div class="certificate-signature"><div><hr><p>مدير المعهد</p></div><div><hr><p>وكيل المعهد</p></div></div></div></div>`; }); html+=`<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()};<\/script></body></html>`; pw.document.write(html); pw.document.close(); };
 function updateTopStudentsAfterDataChange() { renderTopStudents(); }
 
 
@@ -648,5 +715,8 @@ document.getElementById('cancelEditEventBtn')?.addEventListener('click', cancelE
         
         const exportBtn = document.getElementById('export-excel'); 
         if (exportBtn) exportBtn.addEventListener('click', exportToExcel);
+        
+        const resultsTermFilter = document.getElementById('results-term-filter');
+        if (resultsTermFilter) resultsTermFilter.addEventListener('change', (e) => window.switchResultsTerm(e.target.value));
     } 
 })();
