@@ -445,11 +445,13 @@
             <form id="search-form">
                 <div class="input-group"><label for="search-name">اسم الطالب</label><input type="text" id="search-name" name="student-name" placeholder="أدخل اسم الطالب" required></div>
                 <div class="input-group"><label for="search-id">رقم الجلوس</label><input type="text" id="search-id" name="student-id" placeholder="رقم الجلوس فقط" required></div>
+                <div class="input-group"><label for="search-term">الترم</label><select id="search-term"><option value="first">📘 الترم الأول</option><option value="second">📗 نهاية العام (الترم الثاني)</option></select></div>
                 <button type="submit" class="submit-btn">عرض النتيجة</button>
             </form>
 
             <section class="student-dashboard" id="dashboard" style="display: none;">
                 <h2>لوحة تحكمك</h2>
+                <div class="input-group" style="max-width:260px;margin:0 auto 15px;"><label for="dashboard-term-select">عرض نتيجة</label><select id="dashboard-term-select" onchange="switchDashboardTerm()"><option value="first">📘 الترم الأول</option><option value="second">📗 نهاية العام (الترم الثاني)</option></select></div>
                 <div class="dashboard-content"><div class="stats"><p id="student-percentage">نسبة نجاحك: --%</p><p id="class-average">متوسط الفصل: --%</p></div><div class="chart-container"><canvas id="gradesChart"></canvas></div></div>
             </section>
 
