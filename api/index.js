@@ -305,7 +305,9 @@ const studentSchema = new mongoose.Schema({
     password: String,
     grade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
     semester: String,
-    subjects: Array,
+    subjects: Array, // legacy field - لم يعد يُستخدم، تم استبداله بـ subjectsFirst/subjectsSecond
+    subjectsFirst: { type: Array, default: [] },  // درجات الترم الأول (النظام الحالي)
+    subjectsSecond: { type: Array, default: [] }, // درجات نهاية العام / الترم الثاني (النظام الجديد - مجموع 510)
     role: { type: String, default: 'student' },
     lastLogin: Date,
     lastIP: String,
@@ -386,7 +388,9 @@ const archivedResultSchema = new mongoose.Schema({
     username: String,
     grade: { type: String, enum: ['first', 'second', 'third'] },
     academicYear: { type: String, required: true, index: true }, // مثال: "2025-2026"
-    subjects: Array, // لقطة من درجات الطالب وقت الأرشفة
+    subjects: Array, // legacy - لقطة قديمة من درجات الطالب وقت الأرشفة
+    subjectsFirst: { type: Array, default: [] },  // لقطة من درجات الترم الأول وقت الأرشفة
+    subjectsSecond: { type: Array, default: [] }, // لقطة من درجات نهاية العام وقت الأرشفة
     profile: { phone: String, parentName: String, parentId: String },
     archivedBy: String,
     archivedAt: { type: Date, default: Date.now }
@@ -3846,12 +3850,33 @@ app.delete('/api/admins/:username', verifyToken, isManager, async (req, res) => 
     } catch (error) { res.status(500).json({ error: 'خطأ في حذف الأدمن' }); }
 });
 
+// ====================== إضافة طالب جديد بدرجاته (من نموذج لوحة التحكم) ======================
+app.post('/api/students', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { fullName, id: studentCode, subjects, term, grade } = req.body;
+        if (!fullName || !studentCode) return res.status(400).json({ error: 'اسم الطالب ورقم الجلوس مطلوبان' });
+        const existing = await Student.findOne({ studentCode });
+        if (existing) return res.status(400).json({ error: 'رقم الجلوس مستخدم بالفعل' });
+        const targetField = term === 'second' ? 'subjectsSecond' : 'subjectsFirst';
+        const doc = { fullName, studentCode, grade: grade || 'first', role: 'student', [targetField]: subjects || [] };
+        try {
+            await Student.create({ ...doc, username: studentCode, password: await hashPassword('123456') });
+        } catch (err) {
+            // لو تعارض على username (نادر)، نضيف من غير username
+            if (err.code === 11000) await Student.create(doc);
+            else throw err;
+        }
+        res.json({ success: true, message: 'تم إضافة الطالب بنجاح' });
+    } catch (error) { res.status(500).json({ error: 'خطأ في إضافة الطالب: ' + error.message }); }
+});
+
 // ====================== تحديث بيانات الطالب (نسخة محسنة) ======================
 app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
         const { studentCode } = req.params;
-        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, profile, premiumFeatures } = req.body;
+        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, term, profile, premiumFeatures } = req.body;
         
         console.log('📝 تحديث الطالب:', studentCode, req.body);
         
@@ -3862,7 +3887,12 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         if (username !== undefined) updateData.username = username;
         if (grade !== undefined) updateData.grade = grade;
         if (semester !== undefined) updateData.semester = semester;
-        if (subjects !== undefined) updateData.subjects = subjects;
+        // ✅ نظامين للدرجات: الترم الأول (subjectsFirst) و نهاية العام/الترم الثاني (subjectsSecond)
+        // يُحدَّث حقل واحد فقط بحسب "term" المُرسَل، مع الحفاظ على درجات الترم الآخر كما هي
+        if (subjects !== undefined) {
+            if (term === 'second') updateData.subjectsSecond = subjects;
+            else updateData.subjectsFirst = subjects;
+        }
         // مميزات Premium: لازم تكون array من نصوص، أي حاجة تانية بنتجاهلها بدل ما نحفظ قيمة فاسدة
         if (premiumFeatures !== undefined && Array.isArray(premiumFeatures)) {
             updateData.premiumFeatures = premiumFeatures.filter(f => typeof f === 'string').slice(0, 20);
@@ -4026,7 +4056,11 @@ app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) 
         const { academicYear, grade } = req.body;
         if (!academicYear || !academicYear.trim()) return res.status(400).json({ error: 'يرجى تحديد اسم السنة الدراسية (مثال: 2025-2026)' });
 
-        const query = { subjects: { $exists: true, $not: { $size: 0 } } };
+        // ✅ يشمل أي طالب عنده درجات في الترم الأول أو نهاية العام (النظام الجديد ذو النظامين)
+        const query = { $or: [
+            { subjectsFirst: { $exists: true, $not: { $size: 0 } } },
+            { subjectsSecond: { $exists: true, $not: { $size: 0 } } }
+        ] };
         if (grade && ['first', 'second', 'third'].includes(grade)) query.grade = grade;
 
         const students = await Student.find(query);
@@ -4038,7 +4072,8 @@ app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) 
             username: st.username,
             grade: st.grade,
             academicYear: academicYear.trim(),
-            subjects: st.subjects,
+            subjectsFirst: st.subjectsFirst || [],
+            subjectsSecond: st.subjectsSecond || [],
             profile: st.profile,
             archivedBy: req.user.username || 'admin'
         }));
@@ -4046,7 +4081,7 @@ app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) 
         await ArchivedResult.insertMany(archiveDocs);
         await Student.updateMany(
             { _id: { $in: students.map(s => s._id) } },
-            { $set: { subjects: [] } }
+            { $set: { subjectsFirst: [], subjectsSecond: [] } }
         );
 
         res.json({ success: true, message: `تم أرشفة ${archiveDocs.length} نتيجة بنجاح تحت سنة "${academicYear.trim()}"`, count: archiveDocs.length });
@@ -4258,9 +4293,9 @@ app.get('/api/parent/student/:studentCode/results', verifyToken, async (req, res
     try {
         await connectToDatabase();
         if (req.user.type === 'parent' && req.user.studentCode !== req.params.studentCode) return res.status(403).json({ error: 'غير مصرح' });
-        const student = await Student.findOne({ studentCode: req.params.studentCode }).select('subjects fullName studentCode');
+        const student = await Student.findOne({ studentCode: req.params.studentCode }).select('subjectsFirst subjectsSecond fullName studentCode');
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
-        res.json({ fullName: student.fullName, studentCode: student.studentCode, subjects: student.subjects || [] });
+        res.json({ fullName: student.fullName, studentCode: student.studentCode, subjectsFirst: student.subjectsFirst || [], subjectsSecond: student.subjectsSecond || [] });
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب النتائج' }); }
 });
 
@@ -6772,23 +6807,26 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
         
         for (const studentData of students) {
             try {
-                const { studentCode, fullName, subjects, grade, semester } = studentData;
+                const { studentCode, fullName, subjects, grade, semester, term } = studentData;
                 
                 if (!studentCode || !fullName) {
                     errors.push(`تخطي صف: بيانات غير مكتملة`);
                     continue;
                 }
                 
+                // ✅ نظامين للدرجات: term='second' يعني نهاية العام (مجموع 510)، غير كده الترم الأول
+                const targetField = term === 'second' ? 'subjectsSecond' : 'subjectsFirst';
+                
                 let student = await Student.findOne({ studentCode });
                 
                 if (student) {
-                    // تحديث الطالب الموجود
+                    // تحديث الطالب الموجود - بيحدّث درجات الترم المُختار فقط، من غير ما يمس الترم التاني
                     await Student.updateOne(
                         { studentCode },
                         { 
                             $set: { 
                                 fullName, 
-                                subjects: subjects || [], 
+                                [targetField]: subjects || [], 
                                 grade: grade || student.grade || 'first',
                                 semester: semester || student.semester || 'first'
                             } 
@@ -6813,7 +6851,7 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
                         password: await hashPassword('123456'),
                         grade: grade || 'first',
                         semester: semester || 'first',
-                        subjects: subjects || [],
+                        [targetField]: subjects || [],
                         role: 'student'
                     });
                     addedCount++;
@@ -6822,12 +6860,13 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
                 // ✅ لو حصل duplicate، نجرب من غير username
                 if (err.code === 11000) {
                     try {
+                        const targetField = studentData.term === 'second' ? 'subjectsSecond' : 'subjectsFirst';
                         await Student.create({
                             fullName: studentData.fullName,
                             studentCode: studentData.studentCode,
                             grade: studentData.grade || 'first',
                             semester: studentData.semester || 'first',
-                            subjects: studentData.subjects || [],
+                            [targetField]: studentData.subjects || [],
                             role: 'student'
                             // بدون username
                         });
