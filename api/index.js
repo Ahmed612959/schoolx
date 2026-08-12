@@ -4056,10 +4056,11 @@ app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) 
         const { academicYear, grade } = req.body;
         if (!academicYear || !academicYear.trim()) return res.status(400).json({ error: 'يرجى تحديد اسم السنة الدراسية (مثال: 2025-2026)' });
 
-        // ✅ يشمل أي طالب عنده درجات في الترم الأول أو نهاية العام (النظام الجديد ذو النظامين)
+        // ✅ يشمل أي طالب عنده درجات في الترم الأول أو نهاية العام (النظام الجديد)، أو حتى في الحقل القديم subjects (بيانات قبل التحديث)
         const query = { $or: [
             { subjectsFirst: { $exists: true, $not: { $size: 0 } } },
-            { subjectsSecond: { $exists: true, $not: { $size: 0 } } }
+            { subjectsSecond: { $exists: true, $not: { $size: 0 } } },
+            { subjects: { $exists: true, $not: { $size: 0 } } }
         ] };
         if (grade && ['first', 'second', 'third'].includes(grade)) query.grade = grade;
 
@@ -4072,7 +4073,8 @@ app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) 
             username: st.username,
             grade: st.grade,
             academicYear: academicYear.trim(),
-            subjectsFirst: st.subjectsFirst || [],
+            // ✅ لو subjectsFirst فاضي وفيه بيانات قديمة في subjects، نأرشفها كترم أول
+            subjectsFirst: (st.subjectsFirst && st.subjectsFirst.length) ? st.subjectsFirst : (st.subjects || []),
             subjectsSecond: st.subjectsSecond || [],
             profile: st.profile,
             archivedBy: req.user.username || 'admin'
@@ -4081,7 +4083,7 @@ app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) 
         await ArchivedResult.insertMany(archiveDocs);
         await Student.updateMany(
             { _id: { $in: students.map(s => s._id) } },
-            { $set: { subjectsFirst: [], subjectsSecond: [] } }
+            { $set: { subjectsFirst: [], subjectsSecond: [], subjects: [] } }
         );
 
         res.json({ success: true, message: `تم أرشفة ${archiveDocs.length} نتيجة بنجاح تحت سنة "${academicYear.trim()}"`, count: archiveDocs.length });
@@ -4293,9 +4295,10 @@ app.get('/api/parent/student/:studentCode/results', verifyToken, async (req, res
     try {
         await connectToDatabase();
         if (req.user.type === 'parent' && req.user.studentCode !== req.params.studentCode) return res.status(403).json({ error: 'غير مصرح' });
-        const student = await Student.findOne({ studentCode: req.params.studentCode }).select('subjectsFirst subjectsSecond fullName studentCode');
+        const student = await Student.findOne({ studentCode: req.params.studentCode }).select('subjectsFirst subjectsSecond subjects fullName studentCode');
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
-        res.json({ fullName: student.fullName, studentCode: student.studentCode, subjectsFirst: student.subjectsFirst || [], subjectsSecond: student.subjectsSecond || [] });
+        const subjectsFirst = (student.subjectsFirst && student.subjectsFirst.length) ? student.subjectsFirst : (student.subjects || []);
+        res.json({ fullName: student.fullName, studentCode: student.studentCode, subjectsFirst, subjectsSecond: student.subjectsSecond || [] });
     } catch (error) { res.status(500).json({ error: 'خطأ في جلب النتائج' }); }
 });
 
