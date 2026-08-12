@@ -96,19 +96,28 @@ function getTotalPossible(term) { return term === 'second' ? TOTAL_POSSIBLE_SECO
 function getSemesterName(term) { return term === 'second' ? 'نهاية العام (الترم الثاني)' : 'الترم الأول'; }
 function getSubjectsField(term) { return term === 'second' ? 'subjectsSecond' : 'subjectsFirst'; }
 
+// ✅ يرجع مواد الطالب الخاصة بترم معين، ولو الترم "الأول" فاضي بيرجع الحقل القديم (subjects)
+// كـ fallback لأي طالب كانت درجاته متسجلة قبل إضافة نظام الترمين
+function getTermSubjects(student, term = 'first') {
+    const subs = student[getSubjectsField(term)];
+    if (subs && subs.length) return subs;
+    if (term === 'first' && student.subjects && student.subjects.length) return student.subjects;
+    return [];
+}
+
 // ✅ دالة للتحقق مما إذا كان الطالب لديه أي درجات حقيقية (غير صفرية) في الترم المُختار
 function hasAnyGrade(student, term = 'first') {
-    const subjects = student[getSubjectsField(term)];
+    const subjects = getTermSubjects(student, term);
     if (!subjects || subjects.length === 0) return false;
     return subjects.some(s => (s.grade || 0) > 0);
 }
 
 function calculateStudentTotal(student, term = 'first') {
-    const subjects = student[getSubjectsField(term)];
+    const subjects = getTermSubjects(student, term);
     if (!subjects) return 0;
     const config = getSubjectConfig(term); let t = 0;
-    subjects.forEach(s => { const n = normalizeSubjectName(s.name); const c = config[n]; if (c && !c.isExtra) t += s.grade || 0; });
-    return t;
+    subjects.forEach(s => { const n = normalizeSubjectName(s.name); const c = config[n]; if (c && !c.isExtra) t += Math.round(Number(s.grade) || 0); });
+    return Math.round(t);
 }
 
 function calculateStudentPercentage(student, term = 'first') {
@@ -260,67 +269,76 @@ function renderDashboardForTerm(student) {
         document.getElementById('student-percentage').innerHTML = `📊 نسبة نجاحك: <strong>${percentage.toFixed(1)}%</strong><br><small>(المجموع: ${total} / ${totalPossible}) - ${semesterName}</small>`;
         document.getElementById('class-average').innerHTML = `📈 --`;
         const config = getSubjectConfig(term); let religionGrade = 0;
-        const subjectsField = getSubjectsField(term);
+        const subjects = getTermSubjects(student, term);
         const extraSubject = Object.entries(config).find(([_, v]) => v.isExtra);
-        if (extraSubject) { const sub = student[subjectsField]?.find(s => normalizeSubjectName(s.name) === extraSubject[0]); religionGrade = sub?.grade || 0; }
+        if (extraSubject) { const sub = subjects.find(s => normalizeSubjectName(s.name) === extraSubject[0]); religionGrade = sub ? Math.round(Number(sub.grade) || 0) : 0; }
         let religionDiv = document.getElementById('religionDisplay'); if (!religionDiv) { religionDiv = document.createElement('div'); religionDiv.id = 'religionDisplay'; religionDiv.style.cssText = 'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 8px; text-align: center;'; const statsDiv = document.querySelector('.stats'); if (statsDiv) statsDiv.appendChild(religionDiv); }
         if (religionGrade > 0 || extraSubject) religionDiv.innerHTML = extraSubject ? `📖 ${extraSubject[0]}: <strong>${religionGrade} / ${extraSubject[1].max}</strong> (خارج المجموع)` : '';
         const orderedSubjects = getOrderedSubjects(term);
-        const subjectsWithGrades = orderedSubjects.filter(n => !config[n]?.isExtra).map(subjName => { const subject = student[subjectsField]?.find(s => normalizeSubjectName(s.name) === subjName); return { name: subjName, grade: subject ? (subject.grade || 0) : 0, max: config[subjName]?.max || 100 }; });
+        const subjectsWithGrades = orderedSubjects.filter(n => !config[n]?.isExtra).map(subjName => { const subject = subjects.find(s => normalizeSubjectName(s.name) === subjName); return { name: subjName, grade: subject ? Math.round(Number(subject.grade) || 0) : 0, max: config[subjName]?.max || 100 }; });
         const ctx = document.getElementById('gradesChart')?.getContext('2d');
         if (ctx && typeof Chart !== 'undefined') { if (window.gradesChart) window.gradesChart.destroy(); window.gradesChart = new Chart(ctx, { type: 'bar', data: { labels: subjectsWithGrades.map(s => s.name), datasets: [{ label: 'درجاتك', data: subjectsWithGrades.map(s => s.grade), backgroundColor: 'rgba(212, 175, 55, 0.8)', borderColor: '#d4af37', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, max: Math.max(...subjectsWithGrades.map(s => s.max)) + 5 } }, plugins: { legend: { display: false } } } }); }
     } else { document.getElementById('student-percentage').innerHTML = `📊 لا توجد درجات مسجلة حتى الآن (${getSemesterName(term)})`; document.getElementById('class-average').innerHTML = `📈 --`; }
 }
 
-// ✅ رسالة موحدة تُعرض لأي طالب مسجّل لكن بدون نتيجة متاحة (نتيجة متصفرة/مؤرشفة)
-function renderNoResultForStudent(resultBody, violationsBody) {
-    resultBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;">📭 لا توجد نتائج لهذا الطالب</td></tr>';
-    if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">✅ لا توجد مخالفات</td></tr>';
+// ✅ هل الطالب عنده أي درجة (في أي ترم من الترمين)؟
+function hasAnyGradeAnyTerm(student) { return hasAnyGrade(student, 'first') || hasAnyGrade(student, 'second'); }
+
+// ====================== عرض النتيجة (الترمين تلقائيًا من غير اختيار) ======================
+function buildTermResultBlock(student, term) {
+    const semesterName = getSemesterName(term), config = getSubjectConfig(term);
+    const orderedSubjects = getOrderedSubjects(term), totalPossible = getTotalPossible(term);
+    const subjects = getTermSubjects(student, term);
+    let total = 0; const subjectGrades = [];
+    orderedSubjects.forEach(subjName => { const sc = config[subjName]; const subject = subjects.find(s => normalizeSubjectName(s.name) === subjName); const grade = subject ? Math.round(Number(subject.grade) || 0) : 0; if (sc?.isExtra) subjectGrades.push({ name: `${subjName} (خارج المجموع)`, grade, max: sc.max, isExtra: true }); else { subjectGrades.push({ name: subjName, grade, max: sc?.max || 100, isExtra: false }); total += grade; } });
+    total = Math.round(total);
+    const percentage = totalPossible > 0 ? (total / totalPossible) * 100 : 0;
+    const percentageClass = percentage >= 85 ? 'high-percentage' : (percentage >= 60 ? 'medium-percentage' : 'low-percentage');
+    const labels = [...subjectGrades.map(s => s.name)];
+    const values = [...subjectGrades.map(s => `${s.grade} / ${s.max}`)];
+    return `<tr><td colspan="4" style="background:#1a4f6e;color:#fff;padding:10px;text-align:center;font-weight:bold;">📅 ${semesterName}</td></tr><tr><td>${labels.join('<hr class="table-separator">')}</td><td>${values.join('<hr class="table-separator">')}</td><td><strong>${total} / ${totalPossible}</strong></td><td class="${percentageClass}"><strong>${percentage.toFixed(1)}%</strong><br><small>${percentage >= 60 ? '✅ ناجح' : '❌ راسب'}</small></td></tr>`;
 }
 
-// ✅ الترم المُختار حاليًا للبحث عن نتيجة (من قائمة الاختيار بنموذج البحث)
-function getSelectedSearchTerm() { return document.getElementById('search-term')?.value === 'second' ? 'second' : 'first'; }
-
 // ====================== عرض النتيجة ======================
-function renderStudentResult(student, studentViolations, resultBody, violationsBody, searchName = '', searchMethod = '', term = 'first') {
-    // ✅ إذا لم توجد درجات حقيقية بالترم المُختار (كلها صفر - مثل النتائج المؤرشفة) – لا نعرض نتيجة إطلاقًا
-    if (!hasAnyGrade(student, term)) {
+function renderStudentResult(student, studentViolations, resultBody, violationsBody, searchName = '', searchMethod = '') {
+    // ✅ إذا لم توجد درجات حقيقية بأي ترم (كلها صفر - مثل النتائج المؤرشفة) – لا نعرض نتيجة إطلاقًا
+    if (!hasAnyGradeAnyTerm(student)) {
         renderNoResultForStudent(resultBody, violationsBody);
         return;
     }
 
-    const semesterName = getSemesterName(term), config = getSubjectConfig(term);
-    const orderedSubjects = getOrderedSubjects(term), totalPossible = getTotalPossible(term);
-    const subjectsField = getSubjectsField(term);
     let searchMethodMessage = '';
     if (searchMethod === 'code_only') searchMethodMessage = `<div style="background:#e3f2fd;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;font-size:0.85em;">💡 تم العثور على الطالب برقم الجلوس فقط. الاسم المسجل: <strong>${escapeHtml(student.fullName)}</strong></div>`;
     else if (searchMethod === 'name_only') searchMethodMessage = `<div style="background:#fff3e0;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;font-size:0.85em;">💡 تم العثور على الطالب بالاسم فقط. رقم الجلوس المسجل: <strong>${student.studentCode}</strong></div>`;
     let similarity = 0, nameMatchMessage = '';
     if (searchName) { similarity = calculateSimilarity(searchName, student.fullName || ''); if (similarity < 80 && similarity >= 50) nameMatchMessage = `<div style="background:#fff3cd;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;">⚠️ الاسم المدخل قريب من الاسم المسجل. تأكد من صحة البيانات.</div>`; }
-    let total = 0; const subjectGrades = [];
-    orderedSubjects.forEach(subjName => { const sc = config[subjName]; const subject = student[subjectsField]?.find(s => normalizeSubjectName(s.name) === subjName); const grade = subject ? (subject.grade || 0) : 0; if (sc?.isExtra) subjectGrades.push({ name: `${subjName} (خارج المجموع)`, grade, max: sc.max, isExtra: true }); else { subjectGrades.push({ name: subjName, grade, max: sc?.max || 100, isExtra: false }); total += grade; } });
-    const percentage = (total / totalPossible) * 100;
-    let percentageClass = percentage >= 85 ? 'high-percentage' : (percentage >= 60 ? 'medium-percentage' : 'low-percentage');
-    const labels = ['📋 الاسم', '🔢 رقم الجلوس', '📅 الترم', ...subjectGrades.map(s => s.name)];
-    const values = [`<strong>${escapeHtml(student.fullName)}</strong>`, student.studentCode, `<strong style="color:#d4af37;">${semesterName}</strong>`, ...subjectGrades.map(s => `${s.grade} / ${s.max}`)];
-    resultBody.innerHTML = `${searchMethodMessage}${nameMatchMessage}<tr><td>${labels.join('<hr class="table-separator">')}</td><td>${values.join('<hr class="table-separator">')}</td><td><strong>${total} / ${totalPossible}</strong></td><td class="${percentageClass}"><strong>${percentage.toFixed(1)}%</strong><br><small>${percentage >= 60 ? '✅ ناجح' : '❌ راسب'}</small></td></tr>`;
+
+    const nameHeader = `<tr><td colspan="4" style="text-align:center;padding:10px;background:#fdf8ed;"><strong>📋 ${escapeHtml(student.fullName)}</strong> &nbsp;|&nbsp; 🔢 رقم الجلوس: ${student.studentCode}</td></tr>`;
+    let blocksHtml = '';
+    if (hasAnyGrade(student, 'first')) blocksHtml += buildTermResultBlock(student, 'first');
+    if (hasAnyGrade(student, 'second')) blocksHtml += buildTermResultBlock(student, 'second');
+
+    resultBody.innerHTML = `${searchMethodMessage}${nameMatchMessage}${nameHeader}${blocksHtml}`;
     if (violationsBody) { if (studentViolations && studentViolations.length) violationsBody.innerHTML = studentViolations.map(v => `<tr><td data-label="النوع">${v.type==='warning'?'⚠️ إنذار':'🚫 مخالفة'}</td><td data-label="السبب">${v.reason||'-'}</td><td data-label="العقوبة">${v.penalty||'-'}</td><td data-label="استدعاء ولي الأمر">${v.parentSummons?'✅ نعم':'❌ لا'}</td><td data-label="تاريخ الإضافة">${v.date||'-'}</td></tr>`).join(''); else violationsBody.innerHTML = '<tr><td colspan="5" style="color:#28a745;">✅ لا توجد مخالفات مسجلة</td></tr>'; }
 }
 
-function renderMultipleResults(results, resultBody, violationsBody, searchMethod = '', term = 'first') {
-    // ✅ استبعاد أي طالب نتيجته متصفرة (مؤرشفة) بالترم المُختار من قائمة النتائج المتعددة
-    results = (results || []).filter(s => hasAnyGrade(s, term));
+function renderMultipleResults(results, resultBody, violationsBody, searchMethod = '') {
+    // ✅ استبعاد أي طالب نتيجته متصفرة تمامًا في الترمين (مؤرشفة) من قائمة النتائج المتعددة
+    results = (results || []).filter(hasAnyGradeAnyTerm);
     if (!results || results.length === 0) { renderNoResultForStudent(resultBody, violationsBody); return; }
-    if (results.length === 1) { fetchViolationsForStudent(results[0].studentCode).then(v => renderStudentResult(results[0], v, resultBody, violationsBody, '', searchMethod, term)); return; }
+    if (results.length === 1) { fetchViolationsForStudent(results[0].studentCode).then(v => renderStudentResult(results[0], v, resultBody, violationsBody, '', searchMethod)); return; }
     let html = `<tr><td colspan="4" style="background:#e3f2fd;padding:10px;text-align:center;color:#1a2526;">🔍 تم العثور على <strong>${results.length}</strong> نتائج. اضغط على أي صف للتفاصيل.</td></tr>`;
-    const sn = getSemesterName(term);
-    results.forEach(student => { const percentage = calculateStudentPercentage(student, term); const pClass = percentage >= 85 ? 'high-percentage' : (percentage >= 60 ? 'medium-percentage' : 'low-percentage'); html += `<tr style="cursor:pointer;" onclick="viewStudentDetail('${student.studentCode}')"><td><strong>${escapeHtml(student.fullName)}</strong></td><td>${student.studentCode}<br><small style="color:#d4af37;">${sn}</small></td><td>${calculateStudentTotal(student, term)} / ${getTotalPossible(term)}</td><td class="${pClass}">${percentage.toFixed(1)}%</td></tr>`; });
+    results.forEach(student => {
+        const parts = [];
+        if (hasAnyGrade(student, 'first')) parts.push(`الترم الأول: ${calculateStudentPercentage(student, 'first').toFixed(1)}%`);
+        if (hasAnyGrade(student, 'second')) parts.push(`نهاية العام: ${calculateStudentPercentage(student, 'second').toFixed(1)}%`);
+        html += `<tr style="cursor:pointer;" onclick="viewStudentDetail('${student.studentCode}')"><td><strong>${escapeHtml(student.fullName)}</strong></td><td>${student.studentCode}</td><td colspan="2"><small style="color:#d4af37;">${parts.join(' &nbsp;|&nbsp; ')}</small></td></tr>`;
+    });
     resultBody.innerHTML = html; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5" style="color:#d4af37;">🔍 تم العثور على عدة نتائج. اضغط على أي صف للتفاصيل.</td></tr>';
     window._searchResults = results;
-    window._searchResultsTerm = term;
 }
 
-window.viewStudentDetail = async function(studentCode) { const student = window._searchResults?.find(s => s.studentCode === studentCode); if (student) { const violations = await fetchViolationsForStudent(studentCode); renderStudentResult(student, violations, document.getElementById('result-table-body'), document.getElementById('violations-table-body'), '', '', window._searchResultsTerm || 'first'); window.scrollTo({ top: document.querySelector('.result-table')?.offsetTop || 0, behavior: 'smooth' }); } };
+window.viewStudentDetail = async function(studentCode) { const student = window._searchResults?.find(s => s.studentCode === studentCode); if (student) { const violations = await fetchViolationsForStudent(studentCode); renderStudentResult(student, violations, document.getElementById('result-table-body'), document.getElementById('violations-table-body')); window.scrollTo({ top: document.querySelector('.result-table')?.offsetTop || 0, behavior: 'smooth' }); } };
 
 // ====================== البحث متعدد المستويات ======================
 function setupSearchForm() {
@@ -331,23 +349,23 @@ function setupSearchForm() {
         if (!name) { showToast('⚠️ يرجى إدخال اسم الطالب!', 'error'); document.getElementById('search-name')?.focus(); return; }
         if (!studentCode) { showToast('⚠️ يرجى إدخال رقم الجلوس!', 'error'); document.getElementById('search-id')?.focus(); return; }
         showToast('🔍 جاري البحث...', 'info');
-        const term = getSelectedSearchTerm();
         try {
-            // ✅ في كل مرحلة: نستبعد أي طالب نتيجته متصفرة (مؤرشفة/غير منشورة) بالترم المُختار قبل العرض،
+            // ✅ في كل مرحلة: نستبعد أي طالب نتيجته متصفرة تمامًا في الترمين (مؤرشفة/غير منشورة) قبل العرض،
             // مع الاحتفاظ بالنتائج الخام لمعرفة هل الطالب مسجل أصلاً أم لا (لعرض الرسالة الصحيحة)
+            // ✅ النتيجة بتتعرض تلقائيًا بالترمين (الأول ونهاية العام) من غير ما يختار المستخدم أي ترم
             const rawBoth = await searchStudentsByNameAndCode(name, studentCode);
-            let results = rawBoth.filter(s => hasAnyGrade(s, term));
-            if (results.length > 0) { const violations = await fetchViolationsForStudent(results[0].studentCode); renderStudentResult(results[0], violations, resultBody, violationsBody, name, results.length === 1 && calculateSimilarity(name, results[0].fullName || '') < 80 ? 'code_only' : '', term); const similarity = calculateSimilarity(name, results[0].fullName || ''); showToast(similarity >= 90 ? `✅ تم العثور: ${results[0].fullName} - ${getSemesterName(term)}` : `✅ تم العثور برقم الجلوس: ${results[0].fullName} - ${getSemesterName(term)}`, similarity >= 90 ? 'success' : 'warning'); return; }
+            let results = rawBoth.filter(hasAnyGradeAnyTerm);
+            if (results.length > 0) { const violations = await fetchViolationsForStudent(results[0].studentCode); renderStudentResult(results[0], violations, resultBody, violationsBody, name, results.length === 1 && calculateSimilarity(name, results[0].fullName || '') < 80 ? 'code_only' : ''); const similarity = calculateSimilarity(name, results[0].fullName || ''); showToast(similarity >= 90 ? `✅ تم العثور: ${results[0].fullName}` : `✅ تم العثور برقم الجلوس: ${results[0].fullName}`, similarity >= 90 ? 'success' : 'warning'); return; }
 
             const rawCode = await searchByCodeOnly(studentCode);
-            const codeResults = rawCode.filter(s => hasAnyGrade(s, term));
-            if (codeResults.length === 1) { const violations = await fetchViolationsForStudent(codeResults[0].studentCode); renderStudentResult(codeResults[0], violations, resultBody, violationsBody, name, 'code_only', term); showToast(`✅ تم العثور برقم الجلوس: ${codeResults[0].fullName} - ${getSemesterName(term)} (الاسم مختلف)`, 'warning'); return; }
-            else if (codeResults.length > 1) { renderMultipleResults(codeResults, resultBody, violationsBody, 'code_only', term); showToast(`✅ تم العثور على ${codeResults.length} طلاب بنفس رقم الجلوس`, 'info'); return; }
+            const codeResults = rawCode.filter(hasAnyGradeAnyTerm);
+            if (codeResults.length === 1) { const violations = await fetchViolationsForStudent(codeResults[0].studentCode); renderStudentResult(codeResults[0], violations, resultBody, violationsBody, name, 'code_only'); showToast(`✅ تم العثور برقم الجلوس: ${codeResults[0].fullName} (الاسم مختلف)`, 'warning'); return; }
+            else if (codeResults.length > 1) { renderMultipleResults(codeResults, resultBody, violationsBody, 'code_only'); showToast(`✅ تم العثور على ${codeResults.length} طلاب بنفس رقم الجلوس`, 'info'); return; }
 
             const rawName = await searchByNameOnly(name);
-            const nameResults = rawName.filter(s => hasAnyGrade(s, term));
-            if (nameResults.length === 1) { const violations = await fetchViolationsForStudent(nameResults[0].studentCode); renderStudentResult(nameResults[0], violations, resultBody, violationsBody, name, 'name_only', term); showToast(`✅ تم العثور بالاسم: ${nameResults[0].fullName} - ${getSemesterName(term)}`, 'warning'); return; }
-            else if (nameResults.length > 1) { renderMultipleResults(nameResults, resultBody, violationsBody, 'name_only', term); showToast(`✅ تم العثور على ${nameResults.length} طلاب بالاسم. اختر الصحيح`, 'info'); return; }
+            const nameResults = rawName.filter(hasAnyGradeAnyTerm);
+            if (nameResults.length === 1) { const violations = await fetchViolationsForStudent(nameResults[0].studentCode); renderStudentResult(nameResults[0], violations, resultBody, violationsBody, name, 'name_only'); showToast(`✅ تم العثور بالاسم: ${nameResults[0].fullName}`, 'warning'); return; }
+            else if (nameResults.length > 1) { renderMultipleResults(nameResults, resultBody, violationsBody, 'name_only'); showToast(`✅ تم العثور على ${nameResults.length} طلاب بالاسم. اختر الصحيح`, 'info'); return; }
 
             // ✅ لو فيه سجل طالب مطابق فعليًا (بالاسم أو الكود) لكن نتيجته متصفرة/مؤرشفة، نوضح الرسالة الصحيحة
             if (rawBoth.length > 0 || rawCode.length > 0 || rawName.length > 0) {
