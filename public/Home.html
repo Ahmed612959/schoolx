@@ -1,17 +1,14 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7676282531413677"
-     crossorigin="anonymous"></script>
-
     <meta charset="UTF-8">
-     <script src="security1.js"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7676282531413677" crossorigin="anonymous"></script>
+    <script src="security1.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>نتايج الطلاب - معهد رعاية الضبعية</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
     <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
@@ -24,6 +21,8 @@
         .main-header { background: #0F2432; color: #d4af37; padding: 18px 15px; text-align: center; border-bottom: 3px solid #d4af37; position: relative; }
         .logout-btn { background: #dc3545; color: #fff; border: none; padding: 8px 16px; border-radius: 5px; font-size: 0.9em; font-weight: bold; cursor: pointer; transition: background 0.3s ease; position: absolute; top: 15px; right: 15px; }
         .logout-btn:hover { background: #c82333; }
+        .theme-toggle-btn { background: transparent; color: #d4af37; border: 1px solid #d4af37; width: 34px; height: 34px; border-radius: 50%; font-size: 0.95em; cursor: pointer; transition: background 0.3s ease; position: absolute; top: 15px; left: 15px; display: flex; align-items: center; justify-content: center; }
+        .theme-toggle-btn:hover { background: rgba(212,175,55,0.15); }
         .logo-wrap { width: 84px; height: 84px; margin: 0 auto 10px; border-radius: 50%; background: #fff; border: 3px solid #d4af37; box-shadow: 0 3px 10px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .logo-wrap.logo-fallback { background: #d4af37; }
         .logo-wrap.logo-fallback::before { content: '\f19d'; font-family: 'Font Awesome 6 Free'; font-weight: 900; color: #0F2432; font-size: 2rem; }
@@ -49,6 +48,15 @@
         .submit-btn:hover { background: #0F2432; color: #d4af37; }
         #search-form .input-group label, #search-form .input-group input, #search-form .submit-btn { font-family: 'Foda Kufi Free', 'Cairo', 'Tajawal', sans-serif; }
         .result-table { margin-top: 15px; animation: fadeIn 0.5s ease-in; }
+        .result-table h3 { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .print-result-btn { background: #0F2432; color: #d4af37; border: 1px solid #d4af37; padding: 6px 14px; border-radius: 20px; font-size: 0.75em; font-weight: bold; cursor: pointer; transition: background 0.3s ease; }
+        .print-result-btn:hover { background: #d4af37; color: #0F2432; }
+        @media print {
+            body * { visibility: hidden; }
+            #printableResultTable, #printableResultTable * { visibility: visible; }
+            #printableResultTable { position: absolute; top: 0; left: 0; width: 100%; }
+            .print-result-btn { display: none !important; }
+        }
         .table-wrapper { width: 100%; overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; background: linear-gradient(180deg, #f9f9f9, #ffffff); border-radius: 8px; overflow: hidden; table-layout: fixed; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         th, td { padding: 12px; text-align: center; border-bottom: 1px solid #d4af37; white-space: normal; word-wrap: break-word; font-size: 13px; vertical-align: middle; }
@@ -107,7 +115,7 @@
         .stats { flex: 1; min-width: 200px; }
         .stats p { font-size: 1em; color: #0F2432; margin: 10px 0; }
         .chart-container { flex: 2; min-width: 300px; max-width: 600px; margin: 0 auto; }
-        canvas#gradesChart { max-height: 350px; }
+        .chart-container canvas { max-height: 350px; }
         .attendance-stats-section { background: #fff; border-radius: 12px; padding: 20px; margin-top: 20px; border: 1px solid #d4af37; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: block !important; }
         .attendance-stats-section h2 { color: #0F2432; font-size: 1.2rem; margin-bottom: 15px; text-align: center; }
         .attendance-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
@@ -429,15 +437,39 @@
     }
 }
 
+/* ====================== 🌙 الوضع الليلي ====================== */
+body[data-theme="dark"] { background: #0a1620; }
+body[data-theme="dark"] .result-form-container,
+body[data-theme="dark"] .student-dashboard,
+body[data-theme="dark"] .attendance-stats-section,
+body[data-theme="dark"] .top-students-section,
+body[data-theme="dark"] .guide-card,
+body[data-theme="dark"] #guidedTour > div { background: #16232f; color: #e7e0c9; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+body[data-theme="dark"] .result-form-container h2, body[data-theme="dark"] .result-form-container h3,
+body[data-theme="dark"] .student-dashboard h2, body[data-theme="dark"] .attendance-stats-section h2,
+body[data-theme="dark"] .top-students-header h2, body[data-theme="dark"] .guide-card h2,
+body[data-theme="dark"] .input-group label, body[data-theme="dark"] .stats p,
+body[data-theme="dark"] .top-grade-tab, body[data-theme="dark"] .top-student-name { color: #e7e0c9; }
+body[data-theme="dark"] .input-group input { background: #0F2432; color: #e7e0c9; border-color: #6b5a24; }
+body[data-theme="dark"] table { background: #16232f; }
+body[data-theme="dark"] td { background: #16232f; color: #e7e0c9; }
+body[data-theme="dark"] tr:hover td { background: #1d3040; }
+body[data-theme="dark"] .no-attendance-message { background: #3a331a; color: #f0d080; }
+body[data-theme="dark"] .stat-card, body[data-theme="dark"] .date-card, body[data-theme="dark"] .top-grade-tab { background: #1d3040; }
+body[data-theme="dark"] .violation-search-block { background: #241a19; border-color: #7a4038; }
+body[data-theme="dark"] .welcome-message { box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+
 
   </style>
 </head>
 <body>
+    <script>(function(){ try { if (localStorage.getItem('theme') === 'dark') document.body.setAttribute('data-theme', 'dark'); } catch(e){} })();</script>
     <header class="main-header">
         <div class="logo-wrap" id="logoWrap">
             <img src="logo.png" alt="شعار المعهد" class="logo" onerror="this.style.display='none'; this.parentElement.classList.add('logo-fallback');">
         </div>
         <h1>نتايج الطلاب - معهد رعاية الضبعية الفني للتمريض</h1>
+        <button class="theme-toggle-btn" id="themeToggleBtn" title="الوضع الليلي"><i class="fas fa-moon"></i></button>
         <button class="logout-btn">تسجيل الخروج</button>
     </header>
 
@@ -471,7 +503,7 @@
                 <div id="noAttendanceMessage" class="no-attendance-message" style="display: none;">📌 لم يتم تسجيل أي حضور أو غياب لك حتى الآن.</div>
             </section>
 
-            <section class="result-table"><h3>النتيجة</h3><div class="table-wrapper"><table><thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead><tbody id="result-table-body"><tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr></tbody></table></div></section>
+            <section class="result-table"><h3>النتيجة <button type="button" id="printResultBtn" class="print-result-btn" style="display:none;"><i class="fas fa-print"></i> طباعة النتيجة</button></h3><div class="table-wrapper"><table id="printableResultTable"><thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead><tbody id="result-table-body"><tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr></tbody></table></div></section>
             <section class="violations-section"><h3>الإنذارات والمخالفات</h3><div class="table-wrapper violations-table"><table><thead><tr><th>النوع</th><th>السبب</th><th>العقوبة</th><th>استدعاء ولي الأمر</th><th>تاريخ الإضافة</th></tr></thead><tbody id="violations-table-body"><tr><td colspan="5">✅ لا توجد مخالفات مسجلة</td></tr></tbody></table></div></section>
             <div class="notifications-section"><h3>الإشعارات</h3><div class="table-wrapper notifications-table"><table><thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead><tbody id="notifications-table-body"><tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr></tbody></table></div></div>
 
@@ -551,6 +583,7 @@
                 <button class="guide-btn guide-btn-secondary" id="guideFirstYear"><i class="fas fa-arrow-right"></i> اذهب لنتائج الأولى</button>
             </div>
             <div class="guide-progress"><div class="guide-progress-bar" id="guideProgressBar"></div></div>
+            <button id="guideDontShowAgain" style="background:transparent;border:none;color:#94a3b8;font-size:0.75rem;margin-top:12px;cursor:pointer;text-decoration:underline;">لا تظهر لي مرة أخرى</button>
         </div>
     </div>
 
@@ -574,7 +607,8 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const guideOverlay = document.getElementById('guideOverlay'), guideGotIt = document.getElementById('guideGotIt'), guideFirstYear = document.getElementById('guideFirstYear'), guideClickHere = document.getElementById('guideClickHere');
+            const guideOverlay = document.getElementById('guideOverlay'), guideGotIt = document.getElementById('guideGotIt'), guideFirstYear = document.getElementById('guideFirstYear'), guideClickHere = document.getElementById('guideClickHere'), guideDontShowAgain = document.getElementById('guideDontShowAgain');
+            if (localStorage.getItem('hideWelcomeGuide') === '1') { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; return; }
             let guideTimeout = null;
             guideOverlay.classList.add('show');
             guideTimeout = setTimeout(function() { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; }, 20000);
@@ -582,6 +616,20 @@
             guideFirstYear.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
             guideClickHere.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
             guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; } });
+            if (guideDontShowAgain) guideDontShowAgain.addEventListener('click', function() { localStorage.setItem('hideWelcomeGuide', '1'); clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
+
+            const themeToggleBtn = document.getElementById('themeToggleBtn');
+            if (themeToggleBtn) {
+                const themeIcon = themeToggleBtn.querySelector('i');
+                function updateThemeIcon() { const isDark = document.body.getAttribute('data-theme') === 'dark'; if (themeIcon) { themeIcon.className = isDark ? 'fas fa-sun' : 'fas fa-moon'; } themeToggleBtn.title = isDark ? 'الوضع النهاري' : 'الوضع الليلي'; }
+                updateThemeIcon();
+                themeToggleBtn.addEventListener('click', function() {
+                    const isDark = document.body.getAttribute('data-theme') === 'dark';
+                    if (isDark) { document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); }
+                    else { document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); }
+                    updateThemeIcon();
+                });
+            }
         });
     </script>
     <!-- ✅ ملفات البصمة (نفس اللي في login.html) - بس الجزء الخاص بالبصمة، من غير باقي auth.js -->
