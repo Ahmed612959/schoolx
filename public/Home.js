@@ -24,7 +24,7 @@ function showToast(message, type = 'success') {
         Toastify({
             text: message, duration: 4000, gravity: "top", position: "right",
             backgroundColor: type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8',
-            style: { fontFamily: '"Tajawal", sans-serif', fontSize: '18px', direction: 'rtl', borderRadius: '12px', padding: '16px 24px' }
+            style: { fontFamily: '"Cairo", sans-serif', fontSize: '18px', direction: 'rtl', borderRadius: '12px', padding: '16px 24px' }
         }).showToast();
     } else { alert(message); }
 }
@@ -265,6 +265,12 @@ function renderDashboardBoth(student) {
     if (!terms.length) { container.innerHTML = `<div class="stats"><p>📊 لا توجد درجات مسجلة حتى الآن</p></div>`; return; }
 
     let html = '';
+    if (terms.length === 2) {
+        html += `<div class="dashboard-term-block" style="margin-bottom:20px;width:100%;">
+            <div class="stats" style="text-align:center;"><p>📈 مقارنة الترمين</p></div>
+            <div class="chart-container" style="max-width:700px;"><canvas id="gradesChart-compare"></canvas></div>
+        </div>`;
+    }
     terms.forEach(term => {
         const percentage = calculateStudentPercentage(student, term), total = calculateStudentTotal(student, term);
         const totalPossible = getTotalPossible(term), semesterName = getSemesterName(term);
@@ -295,6 +301,15 @@ function renderDashboardBoth(student) {
             window[key] = new Chart(ctx, { type: 'bar', data: { labels: subjectsWithGrades.map(s => s.name), datasets: [{ label: 'درجاتك', data: subjectsWithGrades.map(s => s.grade), backgroundColor: 'rgba(212, 175, 55, 0.8)', borderColor: '#d4af37', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, max: Math.max(...subjectsWithGrades.map(s => s.max)) + 5 } }, plugins: { legend: { display: false } } } });
         }
     });
+
+    if (terms.length === 2) {
+        const percentageFirst = calculateStudentPercentage(student, 'first'), percentageSecond = calculateStudentPercentage(student, 'second');
+        const compareCtx = document.getElementById('gradesChart-compare')?.getContext('2d');
+        if (compareCtx && typeof Chart !== 'undefined') {
+            if (window.gradesChart_compare) window.gradesChart_compare.destroy();
+            window.gradesChart_compare = new Chart(compareCtx, { type: 'bar', data: { labels: [getSemesterName('first'), getSemesterName('second')], datasets: [{ label: 'نسبة النجاح %', data: [percentageFirst, percentageSecond], backgroundColor: ['rgba(15, 36, 50, 0.85)', 'rgba(212, 175, 55, 0.85)'], borderColor: ['#0F2432', '#d4af37'], borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, max: 100 } }, plugins: { legend: { display: false } } } });
+        }
+    }
 }
 
 // ✅ هل الطالب عنده أي درجة (في أي ترم من الترمين)؟
@@ -316,6 +331,11 @@ function buildTermResultBlock(student, term) {
 }
 
 // ====================== عرض النتيجة ======================
+function togglePrintButton(show) {
+    const btn = document.getElementById('printResultBtn');
+    if (btn) btn.style.display = show ? 'inline-flex' : 'none';
+}
+
 function renderStudentResult(student, studentViolations, resultBody, violationsBody, searchName = '', searchMethod = '') {
     // ✅ إذا لم توجد درجات حقيقية بأي ترم (كلها صفر - مثل النتائج المؤرشفة) – لا نعرض نتيجة إطلاقًا
     if (!hasAnyGradeAnyTerm(student)) {
@@ -336,6 +356,7 @@ function renderStudentResult(student, studentViolations, resultBody, violationsB
 
     resultBody.innerHTML = `${searchMethodMessage}${nameMatchMessage}${nameHeader}${blocksHtml}`;
     if (violationsBody) { if (studentViolations && studentViolations.length) violationsBody.innerHTML = studentViolations.map(v => `<tr><td data-label="النوع">${v.type==='warning'?'⚠️ إنذار':'🚫 مخالفة'}</td><td data-label="السبب">${v.reason||'-'}</td><td data-label="العقوبة">${v.penalty||'-'}</td><td data-label="استدعاء ولي الأمر">${v.parentSummons?'✅ نعم':'❌ لا'}</td><td data-label="تاريخ الإضافة">${v.date||'-'}</td></tr>`).join(''); else violationsBody.innerHTML = '<tr><td colspan="5" style="color:#28a745;">✅ لا توجد مخالفات مسجلة</td></tr>'; }
+    togglePrintButton(true);
 }
 
 function renderMultipleResults(results, resultBody, violationsBody, searchMethod = '') {
@@ -343,6 +364,7 @@ function renderMultipleResults(results, resultBody, violationsBody, searchMethod
     results = (results || []).filter(hasAnyGradeAnyTerm);
     if (!results || results.length === 0) { renderNoResultForStudent(resultBody, violationsBody); return; }
     if (results.length === 1) { fetchViolationsForStudent(results[0].studentCode).then(v => renderStudentResult(results[0], v, resultBody, violationsBody, '', searchMethod)); return; }
+    togglePrintButton(false);
     let html = `<tr><td colspan="4" style="background:#e3f2fd;padding:10px;text-align:center;color:#1a2526;">🔍 تم العثور على <strong>${results.length}</strong> نتائج. اضغط على أي صف للتفاصيل.</td></tr>`;
     results.forEach(student => {
         const parts = [];
@@ -359,12 +381,27 @@ window.viewStudentDetail = async function(studentCode) { const student = window.
 // ====================== البحث متعدد المستويات ======================
 function setupSearchForm() {
     const form = document.getElementById('search-form'); if (!form) return;
+    const submitBtn = form.querySelector('.submit-btn');
+    const submitBtnDefaultHtml = submitBtn ? submitBtn.innerHTML : '';
+
+    // ✅ استرجاع آخر بحث محفوظ محليًا وتعبئته تلقائيًا
+    try {
+        const lastSearch = JSON.parse(localStorage.getItem('lastStudentSearch') || 'null');
+        if (lastSearch) {
+            const nameInput = document.getElementById('search-name'), idInput = document.getElementById('search-id');
+            if (nameInput && lastSearch.name) nameInput.value = lastSearch.name;
+            if (idInput && lastSearch.studentCode) idInput.value = lastSearch.studentCode;
+        }
+    } catch { /* تجاهل أي خطأ في القراءة من التخزين المحلي */ }
+
     form.querySelectorAll('input').forEach(input => { input.addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); form.dispatchEvent(new Event('submit')); } }); });
     form.addEventListener('submit', async function(e) {
         e.preventDefault(); const name = document.getElementById('search-name')?.value.trim(); const studentCode = document.getElementById('search-id')?.value.trim(); const resultBody = document.getElementById('result-table-body'); const violationsBody = document.getElementById('violations-table-body');
         if (!name) { showToast('⚠️ يرجى إدخال اسم الطالب!', 'error'); document.getElementById('search-name')?.focus(); return; }
         if (!studentCode) { showToast('⚠️ يرجى إدخال رقم الجلوس!', 'error'); document.getElementById('search-id')?.focus(); return; }
+        try { localStorage.setItem('lastStudentSearch', JSON.stringify({ name, studentCode })); } catch { /* تجاهل أي خطأ في الحفظ */ }
         showToast('🔍 جاري البحث...', 'info');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري البحث...'; }
         try {
             // ✅ في كل مرحلة: نستبعد أي طالب نتيجته متصفرة تمامًا في الترمين (مؤرشفة/غير منشورة) قبل العرض،
             // مع الاحتفاظ بالنتائج الخام لمعرفة هل الطالب مسجل أصلاً أم لا (لعرض الرسالة الصحيحة)
@@ -392,8 +429,10 @@ function setupSearchForm() {
 
             resultBody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;"><div style="color:#dc3545;font-size:1.1em;margin-bottom:10px;">❌ لم يتم العثور على أي طالب</div><div style="color:#666;font-size:0.85em;">تأكد من:<br>• صحة كتابة الاسم ورقم الجلوس<br>• عدم وجود مسافات زائدة<br>• أن الطالب مسجل في النظام</div></td></tr>`;
             if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ لا توجد نتيجة!</td></tr>';
+            togglePrintButton(false);
             showToast('❌ لم يتم العثور على الطالب. تأكد من البيانات أو تواصل مع الإدارة.', 'error');
-        } catch (error) { console.error('❌ خطأ في البحث:', error); resultBody.innerHTML = '<tr><td colspan="4">❌ حدث خطأ في البحث!</td></tr>'; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ حدث خطأ!</td></tr>'; showToast('❌ حدث خطأ في الاتصال بالسيرفر', 'error'); }
+        } catch (error) { console.error('❌ خطأ في البحث:', error); resultBody.innerHTML = '<tr><td colspan="4">❌ حدث خطأ في البحث!</td></tr>'; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ حدث خطأ!</td></tr>'; togglePrintButton(false); showToast('❌ حدث خطأ في الاتصال بالسيرفر', 'error'); }
+        finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = submitBtnDefaultHtml; } }
     });
 }
 
@@ -673,5 +712,6 @@ function setupViolationSearchForm() {
 }
 
 async function init() { if (!(await verifySession())) return; window.initBiometricPrompt?.(); await loadNotifications(); renderNavbar(); renderWelcomeMessage(); await renderDashboard(); setupSearchForm(); setupViolationSearchForm(); setupLogoutButton(); initLibraryTour(); setupAttendanceChannel();
+    document.getElementById('printResultBtn')?.addEventListener('click', function() { window.print(); });
 await loadTopStudents(); setInterval(async () => { try { await fetch(`${BASE_URL}/api/refresh-token`, { method: 'POST', credentials: 'include' }); } catch (e) {} }, 55 * 60 * 1000); setTimeout(() => { if (document.getElementById('liveBot')) window.smartBot = new SmartAssistantBot(); }, 800); }
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
