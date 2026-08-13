@@ -244,41 +244,57 @@ let attendancePollingInterval = null;
 function startAttendancePolling(studentCode) { if (attendancePollingInterval) clearInterval(attendancePollingInterval); fetchAttendanceStats(studentCode, true); attendancePollingInterval = setInterval(() => fetchAttendanceStats(studentCode, true), ATTENDANCE_FETCH_INTERVAL); }
 function stopAttendancePolling() { if (attendancePollingInterval) { clearInterval(attendancePollingInterval); attendancePollingInterval = null; } }
 
-// ====================== لوحة التحكم ======================
+// ====================== لوحة التحكم (الترمين تلقائيًا من غير اختيار) ======================
 let currentStudentCode = null;
 let currentDashboardStudent = null;
-// ✅ الترم المُختار لعرض لوحة تحكم الطالب نفسه (له select خاص بالداشبورد)
-function getDashboardTerm() { return document.getElementById('dashboard-term-select')?.value === 'second' ? 'second' : 'first'; }
-window.switchDashboardTerm = function() { renderDashboardForTerm(currentDashboardStudent); };
 
 async function renderDashboard() {
     const user = getLoggedInUser(); const dashboard = document.getElementById('dashboard');
     if (!dashboard || !user || user.type !== 'student') { if (dashboard) dashboard.style.display = 'none'; const as = document.getElementById('attendanceStatsSection'); if (as) as.style.display = 'none'; return; }
     const student = await fetchStudentByCode(user.id); if (!student) { dashboard.style.display = 'none'; return; }
     dashboard.style.display = 'block'; currentStudentCode = student.studentCode; currentDashboardStudent = student;
-    renderDashboardForTerm(student);
+    renderDashboardBoth(student);
     if (student.studentCode) { await fetchAttendanceStats(student.studentCode, true); renderAttendanceStats(); startAttendancePolling(student.studentCode); }
 }
 
-function renderDashboardForTerm(student) {
+function renderDashboardBoth(student) {
     if (!student) return;
-    const term = getDashboardTerm();
-    if (hasAnyGrade(student, term)) {
+    const container = document.getElementById('dashboard-content');
+    if (!container) return;
+    const terms = ['first', 'second'].filter(term => hasAnyGrade(student, term));
+    if (!terms.length) { container.innerHTML = `<div class="stats"><p>📊 لا توجد درجات مسجلة حتى الآن</p></div>`; return; }
+
+    let html = '';
+    terms.forEach(term => {
         const percentage = calculateStudentPercentage(student, term), total = calculateStudentTotal(student, term);
         const totalPossible = getTotalPossible(term), semesterName = getSemesterName(term);
-        document.getElementById('student-percentage').innerHTML = `📊 نسبة نجاحك: <strong>${percentage.toFixed(1)}%</strong><br><small>(المجموع: ${total} / ${totalPossible}) - ${semesterName}</small>`;
-        document.getElementById('class-average').innerHTML = `📈 --`;
         const config = getSubjectConfig(term); let religionGrade = 0;
         const subjects = getTermSubjects(student, term);
         const extraSubject = Object.entries(config).find(([_, v]) => v.isExtra);
         if (extraSubject) { const sub = subjects.find(s => normalizeSubjectName(s.name) === extraSubject[0]); religionGrade = sub ? Math.round(Number(sub.grade) || 0) : 0; }
-        let religionDiv = document.getElementById('religionDisplay'); if (!religionDiv) { religionDiv = document.createElement('div'); religionDiv.id = 'religionDisplay'; religionDiv.style.cssText = 'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 8px; text-align: center;'; const statsDiv = document.querySelector('.stats'); if (statsDiv) statsDiv.appendChild(religionDiv); }
-        if (religionGrade > 0 || extraSubject) religionDiv.innerHTML = extraSubject ? `📖 ${extraSubject[0]}: <strong>${religionGrade} / ${extraSubject[1].max}</strong> (خارج المجموع)` : '';
+        const religionHtml = extraSubject ? `<div style="margin-top:10px;padding:8px;background:#f0f0f0;border-radius:8px;text-align:center;">📖 ${extraSubject[0]}: <strong>${religionGrade} / ${extraSubject[1].max}</strong> (خارج المجموع)</div>` : '';
+        html += `<div class="dashboard-term-block" style="margin-bottom:20px;">
+            <div class="stats">
+                <p>📊 ${semesterName} — نسبة نجاحك: <strong>${percentage.toFixed(1)}%</strong><br><small>(المجموع: ${total} / ${totalPossible})</small></p>
+                ${religionHtml}
+            </div>
+            <div class="chart-container"><canvas id="gradesChart-${term}"></canvas></div>
+        </div>`;
+    });
+    container.innerHTML = html;
+
+    terms.forEach(term => {
+        const config = getSubjectConfig(term);
+        const subjects = getTermSubjects(student, term);
         const orderedSubjects = getOrderedSubjects(term);
         const subjectsWithGrades = orderedSubjects.filter(n => !config[n]?.isExtra).map(subjName => { const subject = subjects.find(s => normalizeSubjectName(s.name) === subjName); return { name: subjName, grade: subject ? Math.round(Number(subject.grade) || 0) : 0, max: config[subjName]?.max || 100 }; });
-        const ctx = document.getElementById('gradesChart')?.getContext('2d');
-        if (ctx && typeof Chart !== 'undefined') { if (window.gradesChart) window.gradesChart.destroy(); window.gradesChart = new Chart(ctx, { type: 'bar', data: { labels: subjectsWithGrades.map(s => s.name), datasets: [{ label: 'درجاتك', data: subjectsWithGrades.map(s => s.grade), backgroundColor: 'rgba(212, 175, 55, 0.8)', borderColor: '#d4af37', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, max: Math.max(...subjectsWithGrades.map(s => s.max)) + 5 } }, plugins: { legend: { display: false } } } }); }
-    } else { document.getElementById('student-percentage').innerHTML = `📊 لا توجد درجات مسجلة حتى الآن (${getSemesterName(term)})`; document.getElementById('class-average').innerHTML = `📈 --`; }
+        const ctx = document.getElementById(`gradesChart-${term}`)?.getContext('2d');
+        if (ctx && typeof Chart !== 'undefined') {
+            const key = `gradesChart_${term}`;
+            if (window[key]) window[key].destroy();
+            window[key] = new Chart(ctx, { type: 'bar', data: { labels: subjectsWithGrades.map(s => s.name), datasets: [{ label: 'درجاتك', data: subjectsWithGrades.map(s => s.grade), backgroundColor: 'rgba(212, 175, 55, 0.8)', borderColor: '#d4af37', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, max: Math.max(...subjectsWithGrades.map(s => s.max)) + 5 } }, plugins: { legend: { display: false } } } });
+        }
+    });
 }
 
 // ✅ هل الطالب عنده أي درجة (في أي ترم من الترمين)؟
