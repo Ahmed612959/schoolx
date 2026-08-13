@@ -634,8 +634,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (usernameInput) {
         usernameInput.addEventListener('input', (e) => {
+            // ✅ توحيد الحالة لحروف صغيرة أثناء الكتابة نفسها (مش بس وقت الإرسال)
+            // عشان يبقى واضح للمستخدم إن اسم المستخدم مش بيفرق بين كابتل وسمول
+            const cursorPos = e.target.selectionStart;
+            e.target.value = e.target.value.toLowerCase();
+            e.target.setSelectionRange(cursorPos, cursorPos);
+
             if (usernameTimeout) clearTimeout(usernameTimeout);
-            const username = e.target.value.trim().toLowerCase();
+            const username = e.target.value.trim();
             if (username.length >= 3) {
                 usernameTimeout = setTimeout(() => checkUsernameAvailability(username), 500);
             }
