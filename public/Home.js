@@ -431,7 +431,7 @@ function setupSearchForm() {
             if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ لا توجد نتيجة!</td></tr>';
             togglePrintButton(false);
             showToast('❌ لم يتم العثور على الطالب. تأكد من البيانات أو تواصل مع الإدارة.', 'error');
-        } catch (error) { console.error('❌ خطأ في البحث:', error); resultBody.innerHTML = '<tr><td colspan="4">❌ حدث خطأ في البحث!</td></tr>'; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ حدث خطأ!</td></tr>'; togglePrintButton(false); showToast('❌ حدث خطأ في الاتصال بالسيرفر', 'error'); }
+        } catch (error) { console.error('❌ خطأ في البحث:', error); resultBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#dc3545;">❌ لا توجد نتائج لهذا الطالب</td></tr>'; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ لا توجد نتيجة!</td></tr>'; togglePrintButton(false); showToast('❌ لا توجد نتائج لهذا الطالب', 'error'); }
         finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = submitBtnDefaultHtml; } }
     });
 }
@@ -705,8 +705,8 @@ function setupViolationSearchForm() {
             showToast(`⚠️ ${student.fullName} - تم العثور على ${violations.length} مخالفة/إنذار`, 'warning');
         } catch (error) {
             console.error('❌ خطأ في بحث المخالفات:', error);
-            resultBody.innerHTML = '<tr><td colspan="5">❌ حدث خطأ في البحث!</td></tr>';
-            showToast('❌ حدث خطأ في الاتصال بالسيرفر', 'error');
+            resultBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:#dc3545;">❌ لا توجد نتائج لهذا الطالب</td></tr>';
+            showToast('❌ لا توجد نتائج لهذا الطالب', 'error');
         }
     });
 }
