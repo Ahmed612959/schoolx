@@ -130,9 +130,9 @@ function getTermSubjects(st, term = 'first') {
     return [];
 }
 
-function calculateStudentTotal(st, term = 'first') { const t = getTermInfo(term); const subs = getTermSubjects(st, term); let total = 0; subs.forEach(s => { const n = normalizeSubjectName(s.name); const c = t.config[n]; if (c && !c.isExtra) total += Math.round(Number(s.grade) || 0); }); return Math.round(total); }
+function calculateStudentTotal(st, term = 'first') { const t = getTermInfo(term); const subs = getTermSubjects(st, term); let total = 0; subs.forEach(s => { const n = normalizeSubjectName(s.name); const c = t.config[n]; if (c && !c.isExtra) total += Number(s.grade) || 0; }); return total; }
 function calculateStudentPercentage(st, term = 'first') { const t = getTermInfo(term); const total = calculateStudentTotal(st, term); return (total / t.total) * 100; }
-function getStudentFormattedGrades(st, term = 'first') { const t = getTermInfo(term); const subs = getTermSubjects(st, term); let g = {}; t.ordered.forEach(n => { const c = t.config[n]; const sub = subs.find(s => normalizeSubjectName(s.name) === n); g[n] = { grade: sub ? Math.round(Number(sub.grade) || 0) : 0, max: c.max, isExtra: c.isExtra || false }; }); return g; }
+function getStudentFormattedGrades(st, term = 'first') { const t = getTermInfo(term); const subs = getTermSubjects(st, term); let g = {}; t.ordered.forEach(n => { const c = t.config[n]; const sub = subs.find(s => normalizeSubjectName(s.name) === n); g[n] = { grade: sub ? Number(sub.grade) || 0 : 0, max: c.max, isExtra: c.isExtra || false }; }); return g; }
 function getStudentsWithGrades(l, term = 'first') { return l.filter(s => getTermSubjects(s, term).length > 0); }
 
 // ✅ الترم المُختار حاليًا لعرض/تحليل النتائج في لوحة التحكم (يُحدَّث من قائمة اختيار الترم بالواجهة)
@@ -178,7 +178,7 @@ function renderArchiveTable() {
         // ✅ الأرشيف بيحتفظ بدرجات الترمين، نعرض حسب الترم المُختار حاليًا في الواجهة
         const t = getTermInfo(currentResultsTerm);
         let total = 0; const subs = t.field === 'subjectsFirst' && (!r.subjectsFirst || !r.subjectsFirst.length) && r.subjects?.length ? r.subjects : (r[t.field] || []);
-        subs.forEach(s => { const n = normalizeSubjectName(s.name); const c = t.config[n]; if (c && !c.isExtra) total += Math.round(Number(s.grade) || 0); }); total = Math.round(total);
+        subs.forEach(s => { const n = normalizeSubjectName(s.name); const c = t.config[n]; if (c && !c.isExtra) total += Number(s.grade) || 0; });
         return `<tr><td>${escapeHtml(r.fullName)}</td><td>${escapeHtml(r.studentCode)}</td><td>${gradeLabel[r.grade] || r.grade || '-'}</td><td>${escapeHtml(r.academicYear)}</td><td>${total} / ${t.total}</td><td>${isManagerRole() ? `<button class="delete-btn" onclick="deleteArchivedResult('${r._id}')"><i class="fas fa-trash"></i> حذف</button>` : ''}</td></tr>`;
     }).join('');
 }
@@ -269,7 +269,7 @@ window.deleteStudent = async (code) => { if (confirm('⚠️ حذف الطالب
 const FIRST_FIELD_IDS = { 'اللغة العربية': 'subject2', 'اللغة الإنجليزية': 'subject3', 'علوم تطبيقية': 'subject4', 'طب باطنة': 'subject5', 'تمريض باطني جراحي': 'subject6', 'حاسب آلي': 'subject8', 'الدين': 'subject7' };
 const SECOND_FIELD_IDS = { 'اللغة العربية': 'subject-second-arabic', 'اللغة الإنجليزية': 'subject-second-english', 'علوم تطبيقية': 'subject-second-science', 'إحصاء': 'subject-second-stats', 'طب الباطني': 'subject-second-internalmed', 'طب الجراحة': 'subject-second-surgery', 'تمريض باطني جراحي': 'subject-second-nursing', 'حاسب آلي': 'subject-second-computer', 'صحة مجتمع': 'subject-second-health', 'الدين': 'subject-second-religion' };
 function getFieldIdsForTerm(term) { return term === 'second' ? SECOND_FIELD_IDS : FIRST_FIELD_IDS; }
-function buildSubjectsFromForm(term) { const ids = getFieldIdsForTerm(term); return Object.entries(ids).map(([name, id]) => ({ name, grade: parseInt(document.getElementById(id)?.value) || 0 })); }
+function buildSubjectsFromForm(term) { const ids = getFieldIdsForTerm(term); return Object.entries(ids).map(([name, id]) => ({ name, grade: parseFloat(document.getElementById(id)?.value) || 0 })); }
 
 window.editStudent = (code) => {
     let s = allStudents.find(st => st.studentCode === code); if (!s) return;
@@ -280,7 +280,7 @@ window.editStudent = (code) => {
     window.toggleSubjects();
     document.querySelectorAll('#add-result-form input[type="number"]').forEach(inp => inp.value = 0);
     const t = getTermInfo(term), ids = getFieldIdsForTerm(term);
-    (getTermSubjects(s, term)).forEach(sub => { const nn = normalizeSubjectName(sub.name); const inputId = ids[nn]; if (inputId) { const el = document.getElementById(inputId); if (el) el.value = Math.round(Number(sub.grade) || 0); } });
+    (getTermSubjects(s, term)).forEach(sub => { const nn = normalizeSubjectName(sub.name); const inputId = ids[nn]; if (inputId) { const el = document.getElementById(inputId); if (el) el.value = Number(sub.grade) || 0; } });
     showToast(`✏️ قم بتعديل البيانات (${t.label}) ثم اضغط حفظ`, 'info');
     window.scrollTo(0, 0);
 };
@@ -360,7 +360,7 @@ window.analyzeExcel = async () => {
                 }
                 
                 let subjects = [];
-                const put = (name, val) => { if (val !== undefined && val !== '' && val !== null) subjects.push({ name, grade: Math.round(Number(val)) || 0 }); };
+                const put = (name, val) => { if (val !== undefined && val !== '' && val !== null) subjects.push({ name, grade: Number(val) || 0 }); };
                 
                 if (term === 'second') {
                     // C=عربي D=إنجليزي E=علوم F=إحصاء G=طب الباطني H=طب الجراحة I=تمريض J=حاسب K=صحة مجتمع L=مجموع(تجاهل) M=تربية دينية
