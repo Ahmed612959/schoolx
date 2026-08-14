@@ -22,7 +22,7 @@ function getLoggedInUser() {
 function showToast(message, type = 'success') {
     if (typeof Toastify !== 'undefined') {
         Toastify({
-            text: message, duration: 4000, gravity: "top", position: "right",
+            text: message, duration: 4000, gravity: "top", position: "center",
             backgroundColor: type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8',
             style: { fontFamily: '"Cairo", sans-serif', fontSize: '18px', direction: 'rtl', borderRadius: '12px', padding: '16px 24px' }
         }).showToast();
@@ -343,18 +343,12 @@ function renderStudentResult(student, studentViolations, resultBody, violationsB
         return;
     }
 
-    let searchMethodMessage = '';
-    if (searchMethod === 'code_only') searchMethodMessage = `<div style="background:#e3f2fd;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;font-size:0.85em;">💡 تم العثور على الطالب برقم الجلوس فقط. الاسم المسجل: <strong>${escapeHtml(student.fullName)}</strong></div>`;
-    else if (searchMethod === 'name_only') searchMethodMessage = `<div style="background:#fff3e0;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;font-size:0.85em;">💡 تم العثور على الطالب بالاسم فقط. رقم الجلوس المسجل: <strong>${student.studentCode}</strong></div>`;
-    let similarity = 0, nameMatchMessage = '';
-    if (searchName) { similarity = calculateSimilarity(searchName, student.fullName || ''); if (similarity < 80 && similarity >= 50) nameMatchMessage = `<div style="background:#fff3cd;padding:8px;border-radius:8px;margin-bottom:10px;text-align:center;">⚠️ الاسم المدخل قريب من الاسم المسجل. تأكد من صحة البيانات.</div>`; }
-
     const nameHeader = `<tr><td colspan="4" style="text-align:center;padding:10px;background:#fdf8ed;"><strong>📋 ${escapeHtml(student.fullName)}</strong> &nbsp;|&nbsp; 🔢 رقم الجلوس: ${student.studentCode}</td></tr>`;
     let blocksHtml = '';
     if (hasAnyGrade(student, 'first')) blocksHtml += buildTermResultBlock(student, 'first');
     if (hasAnyGrade(student, 'second')) blocksHtml += buildTermResultBlock(student, 'second');
 
-    resultBody.innerHTML = `${searchMethodMessage}${nameMatchMessage}${nameHeader}${blocksHtml}`;
+    resultBody.innerHTML = `${nameHeader}${blocksHtml}`;
     if (violationsBody) { if (studentViolations && studentViolations.length) violationsBody.innerHTML = studentViolations.map(v => `<tr><td data-label="النوع">${v.type==='warning'?'⚠️ إنذار':'🚫 مخالفة'}</td><td data-label="السبب">${v.reason||'-'}</td><td data-label="العقوبة">${v.penalty||'-'}</td><td data-label="استدعاء ولي الأمر">${v.parentSummons?'✅ نعم':'❌ لا'}</td><td data-label="تاريخ الإضافة">${v.date||'-'}</td></tr>`).join(''); else violationsBody.innerHTML = '<tr><td colspan="5" style="color:#28a745;">✅ لا توجد مخالفات مسجلة</td></tr>'; }
     togglePrintButton(true);
 }
@@ -408,17 +402,17 @@ function setupSearchForm() {
             // ✅ النتيجة بتتعرض تلقائيًا بالترمين (الأول ونهاية العام) من غير ما يختار المستخدم أي ترم
             const rawBoth = await searchStudentsByNameAndCode(name, studentCode);
             let results = rawBoth.filter(hasAnyGradeAnyTerm);
-            if (results.length > 0) { const violations = await fetchViolationsForStudent(results[0].studentCode); renderStudentResult(results[0], violations, resultBody, violationsBody, name, results.length === 1 && calculateSimilarity(name, results[0].fullName || '') < 80 ? 'code_only' : ''); const similarity = calculateSimilarity(name, results[0].fullName || ''); showToast(similarity >= 90 ? `✅ تم العثور: ${results[0].fullName}` : `✅ تم العثور برقم الجلوس: ${results[0].fullName}`, similarity >= 90 ? 'success' : 'warning'); return; }
+            if (results.length > 0) { const violations = await fetchViolationsForStudent(results[0].studentCode); renderStudentResult(results[0], violations, resultBody, violationsBody, name); showToast(`✅ تم العثور على النتيجة: ${results[0].fullName}`, 'success'); return; }
 
             const rawCode = await searchByCodeOnly(studentCode);
             const codeResults = rawCode.filter(hasAnyGradeAnyTerm);
-            if (codeResults.length === 1) { const violations = await fetchViolationsForStudent(codeResults[0].studentCode); renderStudentResult(codeResults[0], violations, resultBody, violationsBody, name, 'code_only'); showToast(`✅ تم العثور برقم الجلوس: ${codeResults[0].fullName} (الاسم مختلف)`, 'warning'); return; }
-            else if (codeResults.length > 1) { renderMultipleResults(codeResults, resultBody, violationsBody, 'code_only'); showToast(`✅ تم العثور على ${codeResults.length} طلاب بنفس رقم الجلوس`, 'info'); return; }
+            if (codeResults.length === 1) { const violations = await fetchViolationsForStudent(codeResults[0].studentCode); renderStudentResult(codeResults[0], violations, resultBody, violationsBody, name); showToast(`✅ تم العثور على النتيجة: ${codeResults[0].fullName}`, 'success'); return; }
+            else if (codeResults.length > 1) { renderMultipleResults(codeResults, resultBody, violationsBody); showToast(`🔍 تم العثور على ${codeResults.length} نتائج. اضغط على أي صف للتفاصيل`, 'info'); return; }
 
             const rawName = await searchByNameOnly(name);
             const nameResults = rawName.filter(hasAnyGradeAnyTerm);
-            if (nameResults.length === 1) { const violations = await fetchViolationsForStudent(nameResults[0].studentCode); renderStudentResult(nameResults[0], violations, resultBody, violationsBody, name, 'name_only'); showToast(`✅ تم العثور بالاسم: ${nameResults[0].fullName}`, 'warning'); return; }
-            else if (nameResults.length > 1) { renderMultipleResults(nameResults, resultBody, violationsBody, 'name_only'); showToast(`✅ تم العثور على ${nameResults.length} طلاب بالاسم. اختر الصحيح`, 'info'); return; }
+            if (nameResults.length === 1) { const violations = await fetchViolationsForStudent(nameResults[0].studentCode); renderStudentResult(nameResults[0], violations, resultBody, violationsBody, name); showToast(`✅ تم العثور على النتيجة: ${nameResults[0].fullName}`, 'success'); return; }
+            else if (nameResults.length > 1) { renderMultipleResults(nameResults, resultBody, violationsBody); showToast(`🔍 تم العثور على ${nameResults.length} نتائج. اضغط على أي صف للتفاصيل`, 'info'); return; }
 
             // ✅ لو فيه سجل طالب مطابق فعليًا (بالاسم أو الكود) لكن نتيجته متصفرة/مؤرشفة، نوضح الرسالة الصحيحة
             if (rawBoth.length > 0 || rawCode.length > 0 || rawName.length > 0) {
@@ -427,11 +421,11 @@ function setupSearchForm() {
                 return;
             }
 
-            resultBody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;"><div style="color:#dc3545;font-size:1.1em;margin-bottom:10px;">❌ لم يتم العثور على أي طالب</div><div style="color:#666;font-size:0.85em;">تأكد من:<br>• صحة كتابة الاسم ورقم الجلوس<br>• عدم وجود مسافات زائدة<br>• أن الطالب مسجل في النظام</div></td></tr>`;
+            resultBody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;"><div style="color:#dc3545;font-size:1.1em;">❌ تحقق من اسم الطالب أو رقم الجلوس</div></td></tr>`;
             if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ لا توجد نتيجة!</td></tr>';
             togglePrintButton(false);
-            showToast('❌ لم يتم العثور على الطالب. تأكد من البيانات أو تواصل مع الإدارة.', 'error');
-        } catch (error) { console.error('❌ خطأ في البحث:', error); resultBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#dc3545;">❌ لا توجد نتائج لهذا الطالب</td></tr>'; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ لا توجد نتيجة!</td></tr>'; togglePrintButton(false); showToast('❌ لا توجد نتائج لهذا الطالب', 'error'); }
+            showToast('❌ تحقق من اسم الطالب أو رقم الجلوس', 'error');
+        } catch (error) { console.error('❌ خطأ في البحث:', error); resultBody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;color:#dc3545;">❌ تحقق من اسم الطالب أو رقم الجلوس</td></tr>`; if (violationsBody) violationsBody.innerHTML = '<tr><td colspan="5">❌ لا توجد نتيجة!</td></tr>'; togglePrintButton(false); showToast('❌ تحقق من اسم الطالب أو رقم الجلوس', 'error'); }
         finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = submitBtnDefaultHtml; } }
     });
 }
