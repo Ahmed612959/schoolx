@@ -124,8 +124,8 @@ function calculateStudentTotal(student, term = 'first') {
     const subjects = getTermSubjects(student, term);
     if (!subjects) return 0;
     const config = getSubjectConfig(term); let t = 0;
-    subjects.forEach(s => { const n = normalizeSubjectName(s.name); const c = config[n]; if (c && !c.isExtra) t += Math.round(Number(s.grade) || 0); });
-    return Math.round(t);
+    subjects.forEach(s => { const n = normalizeSubjectName(s.name); const c = config[n]; if (c && !c.isExtra) t += Number(s.grade) || 0; });
+    return t;
 }
 
 function calculateStudentPercentage(student, term = 'first') {
@@ -285,7 +285,7 @@ function renderDashboardBoth(student) {
         const config = getSubjectConfig(term); let religionGrade = 0;
         const subjects = getTermSubjects(student, term);
         const extraSubject = Object.entries(config).find(([_, v]) => v.isExtra);
-        if (extraSubject) { const sub = subjects.find(s => normalizeSubjectName(s.name) === extraSubject[0]); religionGrade = sub ? Math.round(Number(sub.grade) || 0) : 0; }
+        if (extraSubject) { const sub = subjects.find(s => normalizeSubjectName(s.name) === extraSubject[0]); religionGrade = sub ? Number(sub.grade) || 0 : 0; }
         const religionHtml = extraSubject ? `<div style="margin-top:10px;padding:8px;background:#f0f0f0;border-radius:8px;text-align:center;">📖 ${extraSubject[0]}: <strong>${religionGrade} / ${extraSubject[1].max}</strong> (خارج المجموع)</div>` : '';
         html += `<div class="dashboard-term-block" style="margin-bottom:20px;">
             <div class="stats">
@@ -301,7 +301,7 @@ function renderDashboardBoth(student) {
         const config = getSubjectConfig(term);
         const subjects = getTermSubjects(student, term);
         const orderedSubjects = getOrderedSubjects(term);
-        const subjectsWithGrades = orderedSubjects.filter(n => !config[n]?.isExtra).map(subjName => { const subject = subjects.find(s => normalizeSubjectName(s.name) === subjName); return { name: subjName, grade: subject ? Math.round(Number(subject.grade) || 0) : 0, max: config[subjName]?.max || 100 }; });
+        const subjectsWithGrades = orderedSubjects.filter(n => !config[n]?.isExtra).map(subjName => { const subject = subjects.find(s => normalizeSubjectName(s.name) === subjName); return { name: subjName, grade: subject ? Number(subject.grade) || 0 : 0, max: config[subjName]?.max || 100 }; });
         const ctx = document.getElementById(`gradesChart-${term}`)?.getContext('2d');
         if (ctx && typeof Chart !== 'undefined') {
             const key = `gradesChart_${term}`;
@@ -329,8 +329,7 @@ function buildTermResultBlock(student, term) {
     const orderedSubjects = getOrderedSubjects(term), totalPossible = getTotalPossible(term);
     const subjects = getTermSubjects(student, term);
     let total = 0; const subjectGrades = [];
-    orderedSubjects.forEach(subjName => { const sc = config[subjName]; const subject = subjects.find(s => normalizeSubjectName(s.name) === subjName); const grade = subject ? Math.round(Number(subject.grade) || 0) : 0; if (sc?.isExtra) subjectGrades.push({ name: `${subjName} (خارج المجموع)`, grade, max: sc.max, isExtra: true }); else { subjectGrades.push({ name: subjName, grade, max: sc?.max || 100, isExtra: false }); total += grade; } });
-    total = Math.round(total);
+    orderedSubjects.forEach(subjName => { const sc = config[subjName]; const subject = subjects.find(s => normalizeSubjectName(s.name) === subjName); const grade = subject ? Number(subject.grade) || 0 : 0; if (sc?.isExtra) subjectGrades.push({ name: `${subjName} (خارج المجموع)`, grade, max: sc.max, isExtra: true }); else { subjectGrades.push({ name: subjName, grade, max: sc?.max || 100, isExtra: false }); total += grade; } });
     const percentage = totalPossible > 0 ? (total / totalPossible) * 100 : 0;
     const percentageClass = percentage >= 85 ? 'high-percentage' : (percentage >= 60 ? 'medium-percentage' : 'low-percentage');
     const labels = [...subjectGrades.map(s => s.name)];
