@@ -30,13 +30,68 @@
         .main-header h1 { font-family: 'Lalezar', 'Cairo', 'Tajawal', sans-serif; font-size: 1.3em; font-weight: 700; margin: 0; color: #fff; }
         .main-container { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 15px; padding-bottom: 100px; }
         .result-form-container { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); width: 100%; max-width: 1400px; border: 1px solid #d4af37; }
-        .violation-search-block { margin-top: 25px; padding: 18px 15px; border: 1px dashed #c0392b; border-radius: 10px; background: #fff9f8; }
-        .violation-search-block h2 { color: #c0392b; font-family: 'Cairo', sans-serif; font-size: 1.1em; font-weight: 700; margin-bottom: 8px; text-align: center; }
-        .violation-search-hint { color: #7a5a56; font-size: 0.82em; text-align: center; margin-bottom: 14px; }
-        .violation-search-block .submit-btn { background: #c0392b; color: #fff; }
-        .violation-search-block .submit-btn:hover { background: #0F2432; color: #c0392b; }
-        .violation-search-block .input-group input:focus { border-color: #c0392b; box-shadow: 0 0 5px rgba(192,57,43,0.3); }
+        .violation-search-block {
+            margin-top: 30px;
+            padding: 28px 22px;
+            border: 1px solid #ecdca0;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #fffdf7 0%, #ffffff 100%);
+            box-shadow: 0 6px 20px rgba(15,36,50,0.06);
+            position: relative;
+            overflow: hidden;
+        }
+        .violation-search-block::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(90deg, #d4af37, #eccb6b, #d4af37);
+        }
+        .violation-search-icon {
+            width: 56px; height: 56px; margin: 0 auto 12px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0F2432, #1d3040);
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid #d4af37;
+            box-shadow: 0 4px 12px rgba(15,36,50,0.25);
+        }
+        .violation-search-icon i { color: #d4af37; font-size: 1.4rem; }
+        .violation-search-block h2 {
+            color: #0F2432;
+            font-family: 'Foda Kufi Free', 'Cairo', sans-serif;
+            font-size: 1.25em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-align: center;
+            letter-spacing: 0.3px;
+        }
+        .violation-search-hint {
+            color: #7d8896;
+            font-size: 0.85em;
+            text-align: center;
+            margin-bottom: 20px;
+            line-height: 1.6;
+            max-width: 460px;
+            margin-left: auto; margin-right: auto;
+        }
+        .violation-search-block form { max-width: 460px; margin: 0 auto; }
+        .violation-search-block .input-group input {
+            background: #fbfaf6;
+            border: 1px solid #e3dcc4;
+            border-radius: 10px;
+            padding: 11px 14px;
+        }
+        .violation-search-block .input-group input:focus { border-color: #d4af37; box-shadow: 0 0 0 3px rgba(212,175,55,0.15); background: #fff; }
+        .violation-search-block .submit-btn {
+            background: linear-gradient(135deg, #0F2432, #1d3040);
+            color: #d4af37;
+            border-radius: 10px;
+            margin-top: 4px;
+            letter-spacing: 0.3px;
+        }
+        .violation-search-block .submit-btn:hover { background: linear-gradient(135deg, #d4af37, #c29d45); color: #0F2432; }
         #violation-search-match-msg:empty { display: none; }
+        #violation-search-match-msg { text-align: center; margin: 10px auto 0; max-width: 460px; }
+        .violation-search-block .violations-table { margin-top: 18px; }
+        .violation-search-block .violations-table table { background: #fbfaf6; }
         .welcome-message { color: #d4af37; background: #0F2432; padding: 10px; border-radius: 8px; text-align: center; font-size: 1.1em; font-weight: bold; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .result-form-container h2 { color: #0F2432; font-family: 'Cairo', sans-serif; font-size: 1.15em; margin-bottom: 15px; font-weight: 700; text-align: center; }
         .result-form-container h3 { color: #0F2432; font-family: 'Cairo', sans-serif; font-size: 0.95em; margin-bottom: 12px; font-weight: 700; text-align: center; }
@@ -457,7 +512,10 @@ body[data-theme="dark"] td { background: #16232f; color: #e7e0c9; }
 body[data-theme="dark"] tr:hover td { background: #1d3040; }
 body[data-theme="dark"] .no-attendance-message { background: #3a331a; color: #f0d080; }
 body[data-theme="dark"] .stat-card, body[data-theme="dark"] .date-card, body[data-theme="dark"] .top-grade-tab { background: #1d3040; }
-body[data-theme="dark"] .violation-search-block { background: #241a19; border-color: #7a4038; }
+body[data-theme="dark"] .violation-search-block { background: linear-gradient(180deg, #16232f 0%, #16232f 100%); border-color: #3a4a58; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+body[data-theme="dark"] .violation-search-block .input-group input { background: #0F2432; border-color: #3a4a58; color: #e7e0c9; }
+body[data-theme="dark"] .violation-search-block .input-group input:focus { background: #0F2432; border-color: #d4af37; }
+body[data-theme="dark"] .violation-search-block .violations-table table { background: #0F2432; }
 body[data-theme="dark"] .welcome-message { box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
 body[data-theme="dark"] .violations-section h3,
 body[data-theme="dark"] .notifications-section h3,
@@ -507,18 +565,28 @@ body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
     right: auto !important;
     bottom: auto !important;
     transform: translate(-50%, -50%) !important;
-    max-width: min(92vw, 420px) !important;
+    max-width: min(92vw, 380px) !important;
     width: auto !important;
     white-space: normal !important;
     word-wrap: break-word !important;
     text-align: center !important;
     font-family: 'Cairo', 'Tajawal', sans-serif !important;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.35) !important;
-    border-radius: 10px !important;
+    font-size: 0.95em !important;
+    font-weight: 600 !important;
+    line-height: 1.7 !important;
+    padding: 15px 24px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3) !important;
     z-index: 100001 !important;
+    animation: toastPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
+@keyframes toastPop {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.app-toast-warning { color: #0F2432 !important; }
 @media (max-width: 480px) {
-    .toastify { max-width: 90vw !important; font-size: 0.85em !important; padding: 10px 14px !important; }
+    .toastify { max-width: 88vw !important; font-size: 0.85em !important; padding: 12px 18px !important; }
 }
 
 
@@ -570,7 +638,8 @@ body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
             <div class="notifications-section"><h3>الإشعارات</h3><div class="table-wrapper notifications-table"><table><thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead><tbody id="notifications-table-body"><tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr></tbody></table></div></div>
 
             <div class="violation-search-block">
-                <h2><i class="fas fa-triangle-exclamation"></i> البحث عن المخالفات والإنذارات</h2>
+                <div class="violation-search-icon"><i class="fas fa-shield-halved"></i></div>
+                <h2>البحث عن المخالفات والإنذارات</h2>
                 <p class="violation-search-hint">دوّر على مخالفات أي طالب باسمه وآخر 7 أرقام من بطاقته المسجلة في النظام - مش لازم تكتب الاسم كامل بالظبط.</p>
                 <form id="violation-search-form">
                     <div class="input-group"><label for="violation-search-name">اسم الطالب</label><input type="text" id="violation-search-name" placeholder="أدخل اسم الطالب" required></div>
