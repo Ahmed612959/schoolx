@@ -738,17 +738,7 @@ body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const guideOverlay = document.getElementById('guideOverlay'), guideGotIt = document.getElementById('guideGotIt'), guideFirstYear = document.getElementById('guideFirstYear'), guideClickHere = document.getElementById('guideClickHere'), guideDontShowAgain = document.getElementById('guideDontShowAgain');
-            if (localStorage.getItem('hideWelcomeGuide') === '1') { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; return; }
-            let guideTimeout = null;
-            guideOverlay.classList.add('show');
-            guideTimeout = setTimeout(function() { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; }, 20000);
-            guideGotIt.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
-            guideFirstYear.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
-            guideClickHere.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
-            guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; } });
-            if (guideDontShowAgain) guideDontShowAgain.addEventListener('click', function() { localStorage.setItem('hideWelcomeGuide', '1'); clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
-
+            // ✅ إعداد زرار الوضع الداكن أولًا - قبل أي return مبكر - عشان يشتغل دايمًا حتى لو المستخدم قفل شاشة الترحيب قبل كده
             const themeToggleBtn = document.getElementById('themeToggleBtn');
             if (themeToggleBtn) {
                 const themeIcon = themeToggleBtn.querySelector('i');
@@ -761,6 +751,17 @@ body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
                     updateThemeIcon();
                 });
             }
+
+            const guideOverlay = document.getElementById('guideOverlay'), guideGotIt = document.getElementById('guideGotIt'), guideFirstYear = document.getElementById('guideFirstYear'), guideClickHere = document.getElementById('guideClickHere'), guideDontShowAgain = document.getElementById('guideDontShowAgain');
+            if (localStorage.getItem('hideWelcomeGuide') === '1') { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; return; }
+            let guideTimeout = null;
+            guideOverlay.classList.add('show');
+            guideTimeout = setTimeout(function() { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; }, 20000);
+            guideGotIt.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
+            guideFirstYear.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
+            guideClickHere.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
+            guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; } });
+            if (guideDontShowAgain) guideDontShowAgain.addEventListener('click', function() { localStorage.setItem('hideWelcomeGuide', '1'); clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
         });
     </script>
     <!-- ✅ ملفات البصمة (نفس اللي في login.html) - بس الجزء الخاص بالبصمة، من غير باقي auth.js -->
