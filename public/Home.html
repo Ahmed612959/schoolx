@@ -46,7 +46,8 @@
         .input-group input:focus { outline: none; border-color: #0F2432; box-shadow: 0 0 5px rgba(15,36,50,0.3); }
         .submit-btn { background: #d4af37; color: #0F2432; border: none; padding: 10px 18px; border-radius: 5px; font-size: 0.95em; font-weight: bold; cursor: pointer; transition: background 0.3s ease; width: 100%; }
         .submit-btn:hover { background: #0F2432; color: #d4af37; }
-        #search-form .input-group label, #search-form .input-group input, #search-form .submit-btn { font-family: 'Foda Kufi Free', 'Cairo', 'Tajawal', sans-serif; }
+        #search-form .input-group label, #search-form .input-group input { font-family: 'Foda Kufi Free', 'Cairo', 'Tajawal', sans-serif; }
+        #search-form .submit-btn { font-family: 'Cairo', 'Tajawal', sans-serif; }
         .result-table { margin-top: 15px; animation: fadeIn 0.5s ease-in; }
         .result-table h3 { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
         .print-result-btn { background: #0F2432; color: #d4af37; border: 1px solid #d4af37; padding: 6px 14px; border-radius: 20px; font-size: 0.75em; font-weight: bold; cursor: pointer; transition: background 0.3s ease; }
@@ -458,6 +459,67 @@ body[data-theme="dark"] .no-attendance-message { background: #3a331a; color: #f0
 body[data-theme="dark"] .stat-card, body[data-theme="dark"] .date-card, body[data-theme="dark"] .top-grade-tab { background: #1d3040; }
 body[data-theme="dark"] .violation-search-block { background: #241a19; border-color: #7a4038; }
 body[data-theme="dark"] .welcome-message { box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+body[data-theme="dark"] .violations-section h3,
+body[data-theme="dark"] .notifications-section h3,
+body[data-theme="dark"] .violation-search-block h2,
+body[data-theme="dark"] .result-table h3 { color: #e7e0c9; }
+body[data-theme="dark"] .violation-search-hint { color: #c9a29c; }
+body[data-theme="dark"] .violation-search-block .input-group label { color: #e7e0c9; }
+body[data-theme="dark"] .notifications-table table,
+body[data-theme="dark"] .violations-table table { background: #16232f; }
+body[data-theme="dark"] .notifications-table td,
+body[data-theme="dark"] .violations-table td { background: #16232f; color: #e7e0c9; }
+body[data-theme="dark"] .violations-table tr { background: #16232f; border-color: #3a3020; }
+body[data-theme="dark"] .violations-table td { border-bottom-color: #2a3b48; }
+body[data-theme="dark"] .violations-table td::before { color: #d4af37; }
+body[data-theme="dark"] .print-result-btn { border-color: #d4af37; }
+body[data-theme="dark"] .stats p,
+body[data-theme="dark"] .stat-label,
+body[data-theme="dark"] .date-card { color: #e7e0c9; }
+body[data-theme="dark"] .stat-card,
+body[data-theme="dark"] .date-card { background: #1d3040; }
+body[data-theme="dark"] .attendance-dates { border-top-color: #2a3b48; }
+body[data-theme="dark"] .no-attendance-message { background: #3a331a; color: #f0d080; }
+body[data-theme="dark"] .top-students-section { background: #16232f; border-color: #6b5a24; }
+body[data-theme="dark"] .top-students-header { border-bottom-color: #6b5a24; }
+body[data-theme="dark"] .top-students-header p,
+body[data-theme="dark"] .loading-top-students,
+body[data-theme="dark"] .top-student-code,
+body[data-theme="dark"] .top-percentage-label,
+body[data-theme="dark"] .no-top-students { color: #c9c2a8; }
+body[data-theme="dark"] .no-top-students h3 { color: #e7e0c9; }
+body[data-theme="dark"] .top-grade-tab { background: #1d3040; color: #e7e0c9; border-color: #6b5a24; }
+body[data-theme="dark"] .top-grade-tab:hover { background: #24384a; }
+body[data-theme="dark"] .top-student-card { background: #1d3040; box-shadow: 0 3px 12px rgba(0,0,0,0.3); }
+body[data-theme="dark"] .top-student-card.rank-1 { background: linear-gradient(135deg, #2a2410, #1d3040); }
+body[data-theme="dark"] .top-student-card.rank-2 { background: linear-gradient(135deg, #22262a, #1d3040); }
+body[data-theme="dark"] .top-student-card.rank-3 { background: linear-gradient(135deg, #2a2015, #1d3040); }
+body[data-theme="dark"] .top-student-name { color: #e7e0c9; }
+body[data-theme="dark"] .guide-card p,
+body[data-theme="dark"] #guidedTour > div p { color: #c9c2a8; }
+body[data-theme="dark"] .guide-card .highlight-box { background: #1d3040; }
+body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
+
+/* ====================== 🔔 رسائل التنبيه (Toastify) - منتصف الشاشة ومتجاوبة ====================== */
+.toastify {
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    max-width: min(92vw, 420px) !important;
+    width: auto !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    text-align: center !important;
+    font-family: 'Cairo', 'Tajawal', sans-serif !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.35) !important;
+    border-radius: 10px !important;
+    z-index: 100001 !important;
+}
+@media (max-width: 480px) {
+    .toastify { max-width: 90vw !important; font-size: 0.85em !important; padding: 10px 14px !important; }
+}
 
 
   </style>
