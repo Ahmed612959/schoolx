@@ -19,12 +19,20 @@ function getLoggedInUser() {
     try { return JSON.parse(userStr); } catch { return null; }
 }
 
+const TOAST_PALETTE = {
+    success: 'linear-gradient(135deg, #16a34a, #15803d)',
+    error: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+    warning: 'linear-gradient(135deg, #d4af37, #b8941f)',
+    info: 'linear-gradient(135deg, #0F2432, #1d3040)'
+};
 function showToast(message, type = 'success') {
     if (typeof Toastify !== 'undefined') {
+        // نشيل أي إشعار سابق فورًا قبل ما نعرض الجديد عشان مايظهروش فوق بعض
+        document.querySelectorAll('.toastify').forEach(el => el.remove());
         Toastify({
-            text: message, duration: 4000, gravity: "top", position: "center",
-            backgroundColor: type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8',
-            style: { fontFamily: '"Cairo", sans-serif', fontSize: '18px', direction: 'rtl', borderRadius: '12px', padding: '16px 24px' }
+            text: message, duration: 3200, gravity: "top", position: "center", stopOnFocus: true,
+            className: `app-toast app-toast-${type}`,
+            style: { background: TOAST_PALETTE[type] || TOAST_PALETTE.info, fontFamily: '"Cairo", "Tajawal", sans-serif' }
         }).showToast();
     } else { alert(message); }
 }
