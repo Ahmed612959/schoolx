@@ -9,13 +9,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
     <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
-        @font-face { font-family: 'Cairo'; src: url('Cairo-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; }
-        @font-face { font-family: 'Cairo'; src: url('Cairo-Bold.ttf') format('truetype'); font-weight: bold; font-style: normal; }
-        @font-face { font-family: 'Foda Kufi Free'; src: url('foda-kufi-free.otf') format('opentype'); font-weight: normal; font-style: normal; }
-        @font-face { font-family: 'Lalezar'; src: url('Lalezar-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Cairo'; src: url('Cairo-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Cairo'; src: url('Cairo-Bold.ttf') format('truetype'); font-weight: bold; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Foda Kufi Free'; src: url('foda-kufi-free.otf') format('opentype'); font-weight: normal; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Lalezar'; src: url('Lalezar-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: swap; }
         html, body { margin: 0; padding: 0; width: 100%; min-height: 100vh; font-family: 'Cairo', 'Tajawal', sans-serif; background: #0F2432; display: flex; flex-direction: column; box-sizing: border-box; }
         *, *:before, *:after { box-sizing: inherit; }
         .main-header { background: #0F2432; color: #d4af37; padding: 18px 15px; text-align: center; border-bottom: 3px solid #d4af37; position: relative; }
@@ -227,7 +227,7 @@
 
         /* ====================== 🧭 المرشد التفاعلي لشرح الصفحة ====================== */
         .tour-fab {
-            position: fixed; bottom: 85px; left: 15px; width: 52px; height: 52px;
+            position: fixed; bottom: 135px; left: 15px; width: 52px; height: 52px;
             border-radius: 50%; background: linear-gradient(135deg, #0F2432, #1d3040); color: #d4af37;
             border: 2px solid #d4af37; font-size: 1.25rem; display: flex; align-items: center; justify-content: center;
             cursor: pointer; z-index: 950; box-shadow: 0 6px 18px rgba(0,0,0,0.35); transition: transform 0.25s ease;
@@ -247,6 +247,7 @@
         .site-tour-tooltip h4 { color: #0F2432; font-size: 1.05rem; margin-bottom: 8px; font-family: 'Cairo', sans-serif; }
         .site-tour-tooltip p { color: #475569; font-size: 0.88rem; line-height: 1.7; margin-bottom: 14px; }
         .site-tour-tooltip .tour-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .site-tour-tooltip .tour-count { font-size: 0.75rem; color: #94a3b8; order: 3; flex-basis: 100%; text-align: center; }
         .site-tour-tooltip .tour-dots { display: flex; gap: 5px; order: 2; flex-basis: 100%; justify-content: center; margin-top: 10px; }
         .site-tour-tooltip .tour-dots span { width: 6px; height: 6px; border-radius: 50%; background: #e2d9b8; transition: all 0.25s ease; }
         .site-tour-tooltip .tour-dots span.active { background: #d4af37; width: 16px; border-radius: 4px; }
@@ -255,7 +256,7 @@
         .site-tour-tooltip .tour-next { background: linear-gradient(135deg, #d4af37, #c29d45); color: #0F2432; }
         .site-tour-tooltip .tour-prev { background: #f1f5f9; color: #334155; }
         .site-tour-tooltip .tour-skip { background: transparent; color: #94a3b8; text-decoration: underline; padding: 6px 4px; margin-top: 8px; width: 100%; text-align: center; }
-        @media (max-width: 480px) { .tour-fab { bottom: 78px; width: 46px; height: 46px; font-size: 1.1rem; } .site-tour-tooltip { max-width: 90vw; padding: 15px 16px; } }
+        @media (max-width: 480px) { .tour-fab { bottom: 118px; width: 46px; height: 46px; font-size: 1.1rem; } .site-tour-tooltip { max-width: 90vw; padding: 15px 16px; } }
         @media (max-width: 768px) { .logo-wrap { width: 68px; height: 68px; } .main-header h1 { font-size: 1.1em; } .result-form-container { padding: 12px; max-width: 100%; } .input-group input { font-size: 0.9em; } .submit-btn { font-size: 0.9em; padding: 8px 12px; } th, td { font-size: 10px; padding: 8px; } th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 120px; } th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 100px; } th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; } th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; } .main-container { padding-bottom: 100px; } .nav-bar { width: 95%; padding: 10px 12px; bottom: 8px; border-radius: 40px; gap: 2px; } .nav-bar a { font-size: 0.7em; padding: 4px 8px; } .nav-bar a i { font-size: 1.1em; } .nav-bar a span { font-size: 0.5em; } footer { width: 95%; bottom: 68px; padding: 6px 12px; border-radius: 25px; } footer p { font-size: 0.65em; } .attendance-stats-grid { grid-template-columns: repeat(2, 1fr); } .stat-number { font-size: 1.4rem; } .attendance-dates { flex-direction: column; } }
         @media (max-width: 480px) { .logo-wrap { width: 56px; height: 56px; } .main-header h1 { font-size: 0.95em; } .result-form-container { padding: 10px; } .input-group input { font-size: 0.85em; } .submit-btn { font-size: 0.85em; padding: 7px 10px; } th, td { font-size: 9px; padding: 6px; } th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 100px; } th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 80px; } th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 40px; } th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 40px; } .nav-bar { width: 98%; padding: 8px 6px; bottom: 5px; border-radius: 30px; gap: 1px; } .nav-bar a { font-size: 0.6em; padding: 3px 5px; } .nav-bar a i { font-size: 0.9em; } .nav-bar a span { display: none; } footer { width: 98%; bottom: 58px; padding: 5px 8px; border-radius: 20px; } footer p { font-size: 0.55em; } }
   
@@ -732,7 +733,7 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
         <a href="developer.html"><i class="fa-solid fa-microchip"></i><span>المطور</span></a>
     </nav>
 
-    <div class="guide-overlay show" id="guideOverlay">
+    <div class="guide-overlay show" id="guideOverlay" role="dialog" aria-modal="true" aria-label="رسالة ترحيب">
         <div class="guide-card">
             <div class="guide-icon"><i class="fas fa-compass"></i></div>
             <h2>👋 مرحباً بك في صفحة النتائج</h2>
@@ -755,7 +756,7 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
         </div>
     </div>
 
-    <div id="guidedTour" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100000;align-items:center;justify-content:center;backdrop-filter:blur(5px);">
+    <div id="guidedTour" role="dialog" aria-modal="true" aria-label="مكتبة الملفات التعليمية" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100000;align-items:center;justify-content:center;backdrop-filter:blur(5px);">
         <div style="background:white;border-radius:28px;max-width:400px;width:90%;padding:35px;text-align:center;animation:fadeInUp 0.4s ease;box-shadow:0 25px 50px rgba(0,0,0,0.3);">
             <div style="width:80px;height:80px;background:linear-gradient(135deg,#1e3c4a,#0f2c38);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;"><i class="fas fa-folder-open" style="font-size:2.5rem;color:#d4af37;"></i></div>
             <h3 style="color:#0F2432;margin-bottom:10px;font-size:1.4rem;">📚 مكتبة الملفات التعليمية</h3>
@@ -773,13 +774,13 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
         </div>
     </div>
 
-    <div id="siteTourOverlay" class="site-tour-overlay">
+    <div id="siteTourOverlay" class="site-tour-overlay" role="dialog" aria-modal="true" aria-label="جولة إرشادية">
         <div class="site-tour-panel" id="tourPanelTop"></div>
         <div class="site-tour-panel" id="tourPanelBottom"></div>
         <div class="site-tour-panel" id="tourPanelLeft"></div>
         <div class="site-tour-panel" id="tourPanelRight"></div>
         <div class="site-tour-ring" id="tourRing"></div>
-        <div class="site-tour-tooltip" id="siteTourTooltip"></div>
+        <div class="site-tour-tooltip" id="siteTourTooltip" aria-live="polite"></div>
     </div>
     <button class="tour-fab" id="tourFabBtn" title="جولة إرشادية لشرح الصفحة"><span class="tour-fab-pulse"></span><i class="fas fa-route"></i></button>
 
@@ -793,11 +794,15 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                 updateThemeIcon();
                 themeToggleBtn.addEventListener('click', function() {
                     const isDark = document.body.getAttribute('data-theme') === 'dark';
-                    if (isDark) { document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); }
-                    else { document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); }
+                    if (isDark) { document.body.removeAttribute('data-theme'); safeSet('theme', 'light'); }
+                    else { document.body.setAttribute('data-theme', 'dark'); safeSet('theme', 'dark'); }
                     updateThemeIcon();
                 });
             }
+
+            // ✅ عشان الكود مايقفش لو المتصفح شغال Private/Incognito ومامعاهوش localStorage
+            function safeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+            function safeSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
 
             // ====================== 🧭 المرشد التفاعلي لشرح الصفحة ======================
             const TOUR_STEPS = [
@@ -910,7 +915,7 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                 const step = TOUR_STEPS[tourIndex];
                 const isFirst = tourIndex === 0, isLast = tourIndex === TOUR_STEPS.length - 1;
                 const dots = TOUR_STEPS.map((_, i) => `<span class="${i === tourIndex ? 'active' : ''}"></span>`).join('');
-                tourTooltip.innerHTML = `<h4>${step.title}</h4><p>${step.text}</p><div class="tour-footer"><div class="tour-btns">${!isFirst ? '<button class="tour-prev" id="tourPrevBtn">السابق</button>' : ''}<button class="tour-next" id="tourNextBtn">${isLast ? 'إنهاء' : 'التالي'}</button></div><div class="tour-dots">${dots}</div></div><button class="tour-skip" id="tourSkipBtn">تخطي الجولة</button>`;
+                tourTooltip.innerHTML = `<h4>${step.title}</h4><p>${step.text}</p><div class="tour-footer"><span class="tour-count">${tourIndex + 1} من ${TOUR_STEPS.length}</span><div class="tour-btns">${!isFirst ? '<button class="tour-prev" id="tourPrevBtn">السابق</button>' : ''}<button class="tour-next" id="tourNextBtn">${isLast ? 'إنهاء' : 'التالي'}</button></div><div class="tour-dots">${dots}</div></div><button class="tour-skip" id="tourSkipBtn">تخطي الجولة</button>`;
 
                 if (step.type === 'spot') {
                     const el = document.querySelector(`[data-tour="${step.tour}"]`);
@@ -935,39 +940,83 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
             function tourStart() {
                 tourIndex = 0; tourActive = true;
                 tourOverlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
                 tourRenderStep();
-                localStorage.setItem('sawSiteTour', '1');
+                safeSet('sawSiteTour', '1');
                 tourResizeHandler = function() { tourSyncCurrent(); };
                 window.addEventListener('resize', tourResizeHandler);
                 window.addEventListener('scroll', tourResizeHandler, true);
+                document.addEventListener('keydown', tourKeyHandler);
             }
             function tourEnd() {
                 tourActive = false;
                 tourRestoreTempShow();
                 tourCurrentEl = null;
                 tourOverlay.classList.remove('active');
+                document.body.style.overflow = '';
                 if (tourResizeHandler) { window.removeEventListener('resize', tourResizeHandler); window.removeEventListener('scroll', tourResizeHandler, true); tourResizeHandler = null; }
+                document.removeEventListener('keydown', tourKeyHandler);
             }
-            function tourMaybeAutoStart() { if (!localStorage.getItem('sawSiteTour')) setTimeout(tourStart, 500); }
+            function tourKeyHandler(e) {
+                if (!tourActive) return;
+                if (e.key === 'Escape') { tourEnd(); }
+                else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    // الصفحة RTL: السهم لليسار = التالي، السهم لليمين = السابق
+                    const forward = e.key === 'ArrowLeft';
+                    const isLast = tourIndex === TOUR_STEPS.length - 1, isFirst = tourIndex === 0;
+                    if (forward) { if (isLast) tourEnd(); else { tourIndex++; tourRenderStep(); } }
+                    else if (!isFirst) { tourIndex--; tourRenderStep(); }
+                }
+            }
+            function tourMaybeAutoStart() { if (!safeGet('sawSiteTour')) setTimeout(tourStart, 500); }
 
             if (tourFabBtn) tourFabBtn.addEventListener('click', tourStart);
 
             const guideOverlay = document.getElementById('guideOverlay'), guideGotIt = document.getElementById('guideGotIt'), guideFirstYear = document.getElementById('guideFirstYear'), guideClickHere = document.getElementById('guideClickHere'), guideDontShowAgain = document.getElementById('guideDontShowAgain');
-            if (localStorage.getItem('hideWelcomeGuide') === '1') { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); return; }
             let guideTimeout = null;
-            guideOverlay.classList.add('show');
-            guideTimeout = setTimeout(function() { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); }, 20000);
-            guideGotIt.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); });
-            guideFirstYear.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
-            guideClickHere.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
-            guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); } });
-            if (guideDontShowAgain) guideDontShowAgain.addEventListener('click', function() { localStorage.setItem('hideWelcomeGuide', '1'); clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); });
+            function closeGuide() {
+                clearTimeout(guideTimeout);
+                guideOverlay.classList.remove('show');
+                guideOverlay.style.display = 'none';
+                showLibraryAnnounce();
+            }
+            if (safeGet('hideWelcomeGuide') === '1') {
+                guideOverlay.classList.remove('show');
+                guideOverlay.style.display = 'none';
+                showLibraryAnnounce();
+            } else {
+                guideOverlay.classList.add('show');
+                guideTimeout = setTimeout(closeGuide, 20000);
+                // ✅ نوقف عد الـ 20 ثانية لو المستخدم لسه بيقرا/بيتفاعل مع الشاشة
+                guideOverlay.addEventListener('mouseenter', function() { clearTimeout(guideTimeout); });
+                guideGotIt.addEventListener('click', closeGuide);
+                guideFirstYear.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
+                guideClickHere.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
+                guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) closeGuide(); });
+                if (guideDontShowAgain) guideDontShowAgain.addEventListener('click', function() { safeSet('hideWelcomeGuide', '1'); closeGuide(); });
+            }
+
+            // ====================== 📚 رسالة التعريف بالمكتبة - تظهر قبل الجولة الإرشادية ======================
+            const libraryModal = document.getElementById('guidedTour'), libraryClose = document.getElementById('closeTourBtn'), libraryGoto = document.getElementById('gotoLibraryBtn'), libraryDontShowAgain = document.getElementById('dontShowAgain');
+            function closeLibraryAnnounce() {
+                if (libraryModal) libraryModal.style.display = 'none';
+                tourMaybeAutoStart();
+            }
+            function showLibraryAnnounce() {
+                if (!libraryModal || safeGet('seenLibraryAnnounce') === '1') { tourMaybeAutoStart(); return; }
+                safeSet('seenLibraryAnnounce', '1');
+                libraryModal.style.display = 'flex';
+            }
+            if (libraryClose) libraryClose.addEventListener('click', closeLibraryAnnounce);
+            if (libraryGoto) libraryGoto.addEventListener('click', function() { window.location.href = 'file-library.html'; });
+            if (libraryDontShowAgain) libraryDontShowAgain.addEventListener('click', closeLibraryAnnounce);
+            if (libraryModal) libraryModal.addEventListener('click', function(e) { if (e.target === libraryModal) closeLibraryAnnounce(); });
         });
     </script>
     <!-- ✅ ملفات البصمة (نفس اللي في login.html) - بس الجزء الخاص بالبصمة، من غير باقي auth.js -->
-    <script src="webauthn-lib.js"></script>
-    <script src="biometric.js"></script>
-    <script src="Home.js"></script>
+    <script defer src="webauthn-lib.js"></script>
+    <script defer src="biometric.js"></script>
+    <script defer src="Home.js"></script>
 </body>
 
 </html>
