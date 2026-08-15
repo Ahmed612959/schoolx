@@ -238,7 +238,8 @@
         .site-tour-overlay { position: fixed; inset: 0; z-index: 100010; display: none; }
         .site-tour-overlay.active { display: block; }
         .site-tour-dim { position: fixed; inset: 0; background: rgba(4,10,16,0.45); z-index: 100010; }
-        .site-tour-highlight { position: relative !important; z-index: 100011 !important; box-shadow: 0 0 0 4px #d4af37, 0 0 0 9999px rgba(4,10,16,0.7) !important; border-radius: 14px !important; transition: box-shadow 0.3s ease; }
+        .site-tour-highlight { z-index: 100011 !important; box-shadow: 0 0 0 4px #d4af37, 0 0 0 9999px rgba(4,10,16,0.7) !important; border-radius: 14px !important; transition: box-shadow 0.3s ease; }
+        .site-tour-highlight.site-tour-needs-relative { position: relative !important; }
         .site-tour-tooltip {
             position: fixed; z-index: 100012; background: #fff; border: 2px solid #d4af37; border-radius: 18px;
             padding: 18px 20px; max-width: 320px; width: 88vw; box-shadow: 0 20px 45px rgba(0,0,0,0.45);
@@ -814,7 +815,22 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
             const tourTooltip = document.getElementById('siteTourTooltip');
             const tourFabBtn = document.getElementById('tourFabBtn');
 
-            function tourClearHighlight() { if (tourHighlightedEl) { tourHighlightedEl.classList.remove('site-tour-highlight'); tourHighlightedEl = null; } }
+            function tourClearHighlight() {
+                if (tourHighlightedEl) {
+                    tourHighlightedEl.classList.remove('site-tour-highlight', 'site-tour-needs-relative');
+                    tourHighlightedEl = null;
+                }
+            }
+
+            function tourWaitScrollSettle(el, cb, prevTop, stableCount) {
+                prevTop = prevTop === undefined ? null : prevTop;
+                stableCount = stableCount || 0;
+                const rect = el.getBoundingClientRect();
+                if (prevTop !== null && Math.abs(rect.top - prevTop) < 0.5) stableCount++;
+                else stableCount = 0;
+                if (stableCount >= 3) { cb(rect); return; }
+                requestAnimationFrame(() => tourWaitScrollSettle(el, cb, rect.top, stableCount));
+            }
 
             function tourPositionTooltip(rect) {
                 const margin = 14, tw = tourTooltip.offsetWidth, th = tourTooltip.offsetHeight;
@@ -846,7 +862,12 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                     const el = document.querySelector(step.selector);
                     if (el) {
                         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        setTimeout(() => { el.classList.add('site-tour-highlight'); tourHighlightedEl = el; tourPositionTooltip(el.getBoundingClientRect()); }, 380);
+                        tourWaitScrollSettle(el, function(rect) {
+                            if (window.getComputedStyle(el).position === 'static') el.classList.add('site-tour-needs-relative');
+                            el.classList.add('site-tour-highlight');
+                            tourHighlightedEl = el;
+                            tourPositionTooltip(el.getBoundingClientRect());
+                        });
                     } else { tourCenterTooltip(); }
                 } else { tourCenterTooltip(); }
 
