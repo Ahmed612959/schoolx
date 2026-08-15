@@ -857,13 +857,36 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
             }
 
             function tourPositionTooltip(rect) {
-                const margin = 14, tw = tourTooltip.offsetWidth, th = tourTooltip.offsetHeight;
+                const margin = 14, vh = window.innerHeight, vw = window.innerWidth;
+                // إعادة الضبط عشان نقيس الارتفاع الطبيعي للمرشد قبل ما نحدد مكانه
+                tourTooltip.style.maxHeight = '';
+                tourTooltip.style.overflowY = '';
+                const naturalH = tourTooltip.offsetHeight, tw = tourTooltip.offsetWidth;
+                const spaceBelow = vh - rect.bottom - margin;
+                const spaceAbove = rect.top - margin;
                 let top;
-                if (rect.bottom + th + margin < window.innerHeight) top = rect.bottom + margin;
-                else if (rect.top - th - margin > 0) top = rect.top - th - margin;
-                else top = Math.max(margin, (window.innerHeight - th) / 2);
+                if (spaceBelow >= naturalH) {
+                    // فيه مساحة تحت العنصر كفاية
+                    top = rect.bottom + margin;
+                } else if (spaceAbove >= naturalH) {
+                    // مفيش مساحة تحت، بس فيه فوق
+                    top = rect.top - margin - naturalH;
+                } else if (spaceBelow >= spaceAbove) {
+                    // مفيش مساحة كفاية في أي ناحية: بناخد الناحية الأكبر (تحت) ونخلي المرشد يتمرر جواه لو طال
+                    const h = Math.max(120, spaceBelow);
+                    tourTooltip.style.maxHeight = h + 'px';
+                    tourTooltip.style.overflowY = 'auto';
+                    top = rect.bottom + margin;
+                } else {
+                    // نفس الفكرة بس فوق العنصر
+                    const h = Math.max(120, spaceAbove);
+                    tourTooltip.style.maxHeight = h + 'px';
+                    tourTooltip.style.overflowY = 'auto';
+                    top = Math.max(margin, rect.top - margin - h);
+                }
+                top = Math.min(Math.max(margin, top), vh - margin - 40);
                 let left = rect.left + rect.width / 2 - tw / 2;
-                left = Math.min(Math.max(margin, left), window.innerWidth - tw - margin);
+                left = Math.min(Math.max(margin, left), vw - tw - margin);
                 tourTooltip.style.transform = '';
                 tourTooltip.style.top = top + 'px';
                 tourTooltip.style.left = left + 'px';
