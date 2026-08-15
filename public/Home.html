@@ -237,9 +237,8 @@
         @keyframes tourPulse { 0% { transform: scale(0.85); opacity: 0.9; } 100% { transform: scale(1.55); opacity: 0; } }
         .site-tour-overlay { position: fixed; inset: 0; z-index: 100010; display: none; }
         .site-tour-overlay.active { display: block; }
-        .site-tour-dim { position: fixed; inset: 0; background: rgba(4,10,16,0.45); z-index: 100010; }
-        .site-tour-highlight { z-index: 100011 !important; box-shadow: 0 0 0 4px #d4af37, 0 0 0 9999px rgba(4,10,16,0.7) !important; border-radius: 14px !important; transition: box-shadow 0.3s ease; }
-        .site-tour-highlight.site-tour-needs-relative { position: relative !important; }
+        .site-tour-panel { position: fixed; background: rgba(4,10,16,0.72); z-index: 100010; transition: all 0.3s ease; }
+        .site-tour-ring { position: fixed; z-index: 100011; border: 3px solid #d4af37; border-radius: 14px; box-shadow: 0 0 0 4px rgba(212,175,55,0.25), 0 0 22px rgba(212,175,55,0.55); pointer-events: none; transition: all 0.3s ease; display: none; }
         .site-tour-tooltip {
             position: fixed; z-index: 100012; background: #fff; border: 2px solid #d4af37; border-radius: 18px;
             padding: 18px 20px; max-width: 320px; width: 88vw; box-shadow: 0 20px 45px rgba(0,0,0,0.45);
@@ -637,7 +636,7 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
             <img src="logo.png" alt="شعار المعهد" class="logo" onerror="this.style.display='none'; this.parentElement.classList.add('logo-fallback');">
         </div>
         <h1>نتايج الطلاب - معهد رعاية الضبعية الفني للتمريض</h1>
-        <button class="theme-toggle-btn" id="themeToggleBtn" title="الوضع الليلي"><i class="fas fa-moon"></i></button>
+        <button class="theme-toggle-btn" id="themeToggleBtn" data-tour="theme-toggle" title="الوضع الليلي"><i class="fas fa-moon"></i></button>
         <button class="logout-btn">تسجيل الخروج</button>
     </header>
 
@@ -645,10 +644,10 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
         <div class="result-form-container">
             <div class="welcome-message" id="welcome-message"></div>
             <h2>ابحث عن نتيجتك</h2>
-            <form id="search-form">
+            <form id="search-form" data-tour="search-form">
                 <div class="input-group"><label for="search-name">اسم الطالب</label><input type="text" id="search-name" name="student-name" placeholder="أدخل اسم الطالب" required></div>
                 <div class="input-group"><label for="search-id">رقم الجلوس</label><input type="text" id="search-id" name="student-id" placeholder="رقم الجلوس فقط" required></div>
-                <button type="submit" class="submit-btn">عرض النتيجة</button>
+                <button type="submit" class="submit-btn" data-tour="search-submit">عرض النتيجة</button>
             </form>
 
             <section class="student-dashboard" id="dashboard" style="display: none;">
@@ -656,7 +655,7 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                 <div class="dashboard-content" id="dashboard-content"></div>
             </section>
 
-            <section class="attendance-stats-section" id="attendanceStatsSection" style="display: none;">
+            <section class="attendance-stats-section" id="attendanceStatsSection" data-tour="attendance-stats" style="display: none;">
                 <h2>📋 إحصائيات الحضور والغياب</h2>
                 <div class="attendance-stats-grid">
                     <div class="stat-card present"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div><div class="stat-number" id="presentCount">0</div><div class="stat-label">أيام الحضور</div></div></div>
@@ -671,11 +670,11 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                 <div id="noAttendanceMessage" class="no-attendance-message" style="display: none;">📌 لم يتم تسجيل أي حضور أو غياب لك حتى الآن.</div>
             </section>
 
-            <section class="result-table"><h3>النتيجة <button type="button" id="printResultBtn" class="print-result-btn" style="display:none;"><i class="fas fa-print"></i> طباعة النتيجة</button></h3><div class="table-wrapper"><table id="printableResultTable"><thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead><tbody id="result-table-body"><tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr></tbody></table></div></section>
-            <section class="violations-section"><h3>الإنذارات والمخالفات</h3><div class="table-wrapper violations-table"><table><thead><tr><th>النوع</th><th>السبب</th><th>العقوبة</th><th>استدعاء ولي الأمر</th><th>تاريخ الإضافة</th></tr></thead><tbody id="violations-table-body"><tr><td colspan="5">✅ لا توجد مخالفات مسجلة</td></tr></tbody></table></div></section>
-            <div class="notifications-section"><h3>الإشعارات</h3><div class="table-wrapper notifications-table"><table><thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead><tbody id="notifications-table-body"><tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr></tbody></table></div></div>
+            <section class="result-table" data-tour="result-table"><h3>النتيجة <button type="button" id="printResultBtn" class="print-result-btn" style="display:none;"><i class="fas fa-print"></i> طباعة النتيجة</button></h3><div class="table-wrapper"><table id="printableResultTable"><thead><tr><th>البيانات</th><th>القيم</th><th>المجموع</th><th>النسبة</th></tr></thead><tbody id="result-table-body"><tr><td colspan="4">🔍 قم بالبحث لعرض النتيجة</td></tr></tbody></table></div></section>
+            <section class="violations-section" data-tour="violations-section"><h3>الإنذارات والمخالفات</h3><div class="table-wrapper violations-table"><table><thead><tr><th>النوع</th><th>السبب</th><th>العقوبة</th><th>استدعاء ولي الأمر</th><th>تاريخ الإضافة</th></tr></thead><tbody id="violations-table-body"><tr><td colspan="5">✅ لا توجد مخالفات مسجلة</td></tr></tbody></table></div></section>
+            <div class="notifications-section" data-tour="notifications-section"><h3>الإشعارات</h3><div class="table-wrapper notifications-table"><table><thead><tr><th>نص الإشعار</th><th>تاريخ الإضافة</th></tr></thead><tbody id="notifications-table-body"><tr><td colspan="2">📭 لا توجد إشعارات حاليًا</td></tr></tbody></table></div></div>
 
-            <div class="violation-search-block">
+            <div class="violation-search-block" data-tour="violation-search-block">
                 <div class="violation-search-icon"><i class="fas fa-shield-halved"></i></div>
                 <h2>البحث عن المخالفات والإنذارات</h2>
                 <p class="violation-search-hint">دوّر على مخالفات أي طالب باسمه وآخر 7 أرقام من بطاقته المسجلة في النظام - مش لازم تكتب الاسم كامل بالظبط.</p>
@@ -695,7 +694,7 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
         </div>
     </div>
 <!-- ====================== 🏆 الطلاب المتفوقون ====================== -->
-<section class="top-students-section" id="topStudentsSection">
+<section class="top-students-section" id="topStudentsSection" data-tour="top-students">
     <div class="top-students-header">
         <i class="fas fa-trophy"></i>
         <h2>الطلاب المتفوقون</h2>
@@ -721,7 +720,7 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
 
     <footer><p>Developed by Ahmed Moussa <span class="heart">❤</span></p></footer>
 
-    <nav class="nav-bar" id="nav-bar">
+    <nav class="nav-bar" id="nav-bar" data-tour="nav-bar">
         <a href="index.html"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a>
         <a href="Home.html" class="active"><i class="fa-solid fa-chart-simple"></i><span>النتائج</span></a>
         <a href="profile.html"><i class="fa-solid fa-user"></i><span>الملف</span></a>
@@ -775,7 +774,11 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
     </div>
 
     <div id="siteTourOverlay" class="site-tour-overlay">
-        <div class="site-tour-dim"></div>
+        <div class="site-tour-panel" id="tourPanelTop"></div>
+        <div class="site-tour-panel" id="tourPanelBottom"></div>
+        <div class="site-tour-panel" id="tourPanelLeft"></div>
+        <div class="site-tour-panel" id="tourPanelRight"></div>
+        <div class="site-tour-ring" id="tourRing"></div>
         <div class="site-tour-tooltip" id="siteTourTooltip"></div>
     </div>
     <button class="tour-fab" id="tourFabBtn" title="جولة إرشادية لشرح الصفحة"><span class="tour-fab-pulse"></span><i class="fas fa-route"></i></button>
@@ -799,27 +802,29 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
             // ====================== 🧭 المرشد التفاعلي لشرح الصفحة ======================
             const TOUR_STEPS = [
                 { type: 'center', title: 'أهلاً بيك! 👋', text: 'هنعمل جولة سريعة تعرّفك بكل جزء في الصفحة، وإزاي تدوّر على نتيجتك خطوة بخطوة.' },
-                { type: 'spot', selector: '#search-form', title: '🔍 خانة البحث عن النتيجة', text: 'اكتب اسم الطالب كامل ورقم الجلوس هنا. تقدر تكتب واحد بس من الاتنين لو مش فاكر التاني، والنظام هيدوّرلك.' },
-                { type: 'spot', selector: '#search-form .submit-btn', title: '✅ زرار عرض النتيجة', text: 'بعد ما تكتب بياناتك، دوس هنا وهتظهر نتيجتك في نفس الصفحة على طول.' },
-                { type: 'spot', selector: '#themeToggleBtn', title: '🌙 الوضع الليلي', text: 'تقدر تبدّل بين الوضع النهاري والوضع الليلي المريح للعين من هنا في أي وقت.' },
-                { type: 'center', title: '📅 إحصائيات الحضور', text: 'بعد ما تدوّر على نتيجتك، هتظهر لوحة فيها عدد أيام حضورك وغيابك وتأخيرك ونسبة حضورك، وآخر يوم حضرت وغبت فيه.' },
-                { type: 'spot', selector: '.result-table', title: '📋 جدول النتيجة', text: 'هنا هتلاقي درجاتك في كل مادة والمجموع الكلي والنسبة المئوية، وفي زرار طباعة فوق الجدول تقدر تطبع نتيجتك منه.' },
-                { type: 'spot', selector: '.violations-section', title: '⚠️ الإنذارات والمخالفات', text: 'أي مخالفة أو إنذار مسجل عليك هيظهر هنا تلقائيًا بعد ما تدوّر على نتيجتك.' },
-                { type: 'spot', selector: '.notifications-section', title: '🔔 الإشعارات', text: 'أي إشعارات عامة أو خاصة بيك هتلاقيها هنا.' },
-                { type: 'spot', selector: '.violation-search-block', title: '🛡️ البحث عن المخالفات بس', text: 'لو عايز تتأكد من مخالفاتك بس من غير ما تدوّر على النتيجة كاملة، استخدم الفورم ده باسمك وآخر 7 أرقام من رقم بطاقتك.' },
-                { type: 'spot', selector: '#topStudentsSection', title: '🏆 أوائل الطلاب', text: 'قائمة بأوائل الطلاب في كل صف دراسي، وتقدر تبدّل بين الصفوف من التابات اللي فوق.' },
-                { type: 'spot', selector: '#nav-bar', title: '🧭 شريط التنقل', text: 'من هنا تقدر تتنقل بسهولة بين صفحات نتائج الصفوف المختلفة والمكتبة التعليمية.' }
+                { type: 'spot', tour: 'search-form', title: '🔍 خانة البحث عن النتيجة', text: 'لازم تكتب اسم الطالب كامل ورقم الجلوس في الخانتين مع بعض عشان تقدر تدور على نتيجتك - النظام مش هيقبل البحث من غير ما تملأ الخانتين الاتنين.' },
+                { type: 'spot', tour: 'search-submit', title: '✅ زرار عرض النتيجة', text: 'بعد ما تملأ الخانتين، دوس هنا وهتظهر نتيجتك في نفس الصفحة على طول.' },
+                { type: 'spot', tour: 'theme-toggle', title: '🌙 الوضع الليلي', text: 'تقدر تبدّل بين الوضع النهاري والوضع الليلي المريح للعين من هنا في أي وقت.' },
+                { type: 'spot', tour: 'attendance-stats', title: '📅 إحصائيات الحضور', text: 'بعد ما تدوّر على نتيجتك، هتلاقي هنا عدد أيام حضورك وغيابك وتأخيرك ونسبة حضورك، وآخر يوم حضرت وغبت فيه.' },
+                { type: 'spot', tour: 'result-table', title: '📋 جدول النتيجة', text: 'هنا هتلاقي درجاتك في كل مادة والمجموع الكلي والنسبة المئوية، وفي زرار طباعة فوق الجدول تقدر تطبع نتيجتك منه.' },
+                { type: 'spot', tour: 'violations-section', title: '⚠️ الإنذارات والمخالفات', text: 'أي مخالفة أو إنذار مسجل عليك هيظهر هنا تلقائيًا بعد ما تدوّر على نتيجتك.' },
+                { type: 'spot', tour: 'notifications-section', title: '🔔 الإشعارات', text: 'أي إشعارات عامة أو خاصة بيك هتلاقيها هنا.' },
+                { type: 'spot', tour: 'violation-search-block', title: '🛡️ البحث عن المخالفات بس', text: 'لو عايز تتأكد من مخالفاتك بس من غير ما تدوّر على النتيجة كاملة، استخدم الفورم ده باسمك وآخر 7 أرقام من رقم بطاقتك.' },
+                { type: 'spot', tour: 'top-students', title: '🏆 أوائل الطلاب', text: 'قائمة بأوائل الطلاب في كل صف دراسي، وتقدر تبدّل بين الصفوف من التابات اللي فوق.' },
+                { type: 'spot', tour: 'nav-bar', title: '🧭 شريط التنقل', text: 'من هنا تقدر تتنقل بسهولة بين صفحات نتائج الصفوف المختلفة والمكتبة التعليمية.' }
             ];
-            let tourIndex = 0, tourHighlightedEl = null;
+            let tourIndex = 0, tourActive = false, tourTempShownEl = null, tourCurrentEl = null, tourResizeHandler = null;
             const tourOverlay = document.getElementById('siteTourOverlay');
             const tourTooltip = document.getElementById('siteTourTooltip');
             const tourFabBtn = document.getElementById('tourFabBtn');
+            const tourPanelTop = document.getElementById('tourPanelTop');
+            const tourPanelBottom = document.getElementById('tourPanelBottom');
+            const tourPanelLeft = document.getElementById('tourPanelLeft');
+            const tourPanelRight = document.getElementById('tourPanelRight');
+            const tourRing = document.getElementById('tourRing');
 
-            function tourClearHighlight() {
-                if (tourHighlightedEl) {
-                    tourHighlightedEl.classList.remove('site-tour-highlight', 'site-tour-needs-relative');
-                    tourHighlightedEl = null;
-                }
+            function tourRestoreTempShow() {
+                if (tourTempShownEl) { tourTempShownEl.style.display = 'none'; tourTempShownEl = null; }
             }
 
             function tourWaitScrollSettle(el, cb, prevTop, stableCount) {
@@ -828,8 +833,27 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                 const rect = el.getBoundingClientRect();
                 if (prevTop !== null && Math.abs(rect.top - prevTop) < 0.5) stableCount++;
                 else stableCount = 0;
-                if (stableCount >= 3) { cb(rect); return; }
+                if (stableCount >= 4 || !tourActive) { cb(rect); return; }
                 requestAnimationFrame(() => tourWaitScrollSettle(el, cb, rect.top, stableCount));
+            }
+
+            function tourDimFullScreen() {
+                tourPanelTop.style.cssText = `top:0;left:0;width:100%;height:100%;`;
+                tourPanelBottom.style.cssText = `top:0;left:0;width:0;height:0;`;
+                tourPanelLeft.style.cssText = `top:0;left:0;width:0;height:0;`;
+                tourPanelRight.style.cssText = `top:0;left:0;width:0;height:0;`;
+                tourRing.style.display = 'none';
+            }
+
+            function tourSpotlightRect(rect) {
+                const pad = 8, vw = window.innerWidth, vh = window.innerHeight;
+                const top = Math.max(0, rect.top - pad), left = Math.max(0, rect.left - pad);
+                const right = Math.min(vw, rect.right + pad), bottom = Math.min(vh, rect.bottom + pad);
+                tourPanelTop.style.cssText = `top:0;left:0;width:${vw}px;height:${top}px;`;
+                tourPanelBottom.style.cssText = `top:${bottom}px;left:0;width:${vw}px;height:${Math.max(0, vh - bottom)}px;`;
+                tourPanelLeft.style.cssText = `top:${top}px;left:0;width:${left}px;height:${bottom - top}px;`;
+                tourPanelRight.style.cssText = `top:${top}px;left:${right}px;width:${Math.max(0, vw - right)}px;height:${bottom - top}px;`;
+                tourRing.style.cssText = `display:block;top:${top}px;left:${left}px;width:${right - left}px;height:${bottom - top}px;`;
             }
 
             function tourPositionTooltip(rect) {
@@ -851,25 +875,33 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                 tourTooltip.style.transform = 'translate(-50%, -50%)';
             }
 
+            function tourSyncCurrent() {
+                if (!tourActive || !tourCurrentEl) return;
+                tourSpotlightRect(tourCurrentEl.getBoundingClientRect());
+                tourPositionTooltip(tourCurrentEl.getBoundingClientRect());
+            }
+
             function tourRenderStep() {
-                tourClearHighlight();
+                tourRestoreTempShow();
+                tourCurrentEl = null;
                 const step = TOUR_STEPS[tourIndex];
                 const isFirst = tourIndex === 0, isLast = tourIndex === TOUR_STEPS.length - 1;
                 const dots = TOUR_STEPS.map((_, i) => `<span class="${i === tourIndex ? 'active' : ''}"></span>`).join('');
                 tourTooltip.innerHTML = `<h4>${step.title}</h4><p>${step.text}</p><div class="tour-footer"><div class="tour-btns">${!isFirst ? '<button class="tour-prev" id="tourPrevBtn">السابق</button>' : ''}<button class="tour-next" id="tourNextBtn">${isLast ? 'إنهاء' : 'التالي'}</button></div><div class="tour-dots">${dots}</div></div><button class="tour-skip" id="tourSkipBtn">تخطي الجولة</button>`;
 
                 if (step.type === 'spot') {
-                    const el = document.querySelector(step.selector);
+                    const el = document.querySelector(`[data-tour="${step.tour}"]`);
                     if (el) {
+                        if (window.getComputedStyle(el).display === 'none') { el.style.display = 'block'; tourTempShownEl = el; }
                         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         tourWaitScrollSettle(el, function(rect) {
-                            if (window.getComputedStyle(el).position === 'static') el.classList.add('site-tour-needs-relative');
-                            el.classList.add('site-tour-highlight');
-                            tourHighlightedEl = el;
-                            tourPositionTooltip(el.getBoundingClientRect());
+                            if (!tourActive) return;
+                            tourCurrentEl = el;
+                            tourSpotlightRect(rect);
+                            tourPositionTooltip(rect);
                         });
-                    } else { tourCenterTooltip(); }
-                } else { tourCenterTooltip(); }
+                    } else { tourDimFullScreen(); tourCenterTooltip(); }
+                } else { tourDimFullScreen(); tourCenterTooltip(); }
 
                 document.getElementById('tourNextBtn').addEventListener('click', function() { if (isLast) tourEnd(); else { tourIndex++; tourRenderStep(); } });
                 const prevBtn = document.getElementById('tourPrevBtn');
@@ -877,8 +909,22 @@ body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a
                 document.getElementById('tourSkipBtn').addEventListener('click', tourEnd);
             }
 
-            function tourStart() { tourIndex = 0; tourOverlay.classList.add('active'); tourRenderStep(); localStorage.setItem('sawSiteTour', '1'); }
-            function tourEnd() { tourClearHighlight(); tourOverlay.classList.remove('active'); }
+            function tourStart() {
+                tourIndex = 0; tourActive = true;
+                tourOverlay.classList.add('active');
+                tourRenderStep();
+                localStorage.setItem('sawSiteTour', '1');
+                tourResizeHandler = function() { tourSyncCurrent(); };
+                window.addEventListener('resize', tourResizeHandler);
+                window.addEventListener('scroll', tourResizeHandler, true);
+            }
+            function tourEnd() {
+                tourActive = false;
+                tourRestoreTempShow();
+                tourCurrentEl = null;
+                tourOverlay.classList.remove('active');
+                if (tourResizeHandler) { window.removeEventListener('resize', tourResizeHandler); window.removeEventListener('scroll', tourResizeHandler, true); tourResizeHandler = null; }
+            }
             function tourMaybeAutoStart() { if (!localStorage.getItem('sawSiteTour')) setTimeout(tourStart, 500); }
 
             if (tourFabBtn) tourFabBtn.addEventListener('click', tourStart);
