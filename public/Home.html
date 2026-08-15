@@ -224,6 +224,38 @@
         #guidedTour { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         #guidedTour > div { background: white; border-radius: 28px; max-width: 400px; width: 90%; padding: 35px; text-align: center; animation: fadeInUp 0.4s ease; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ====================== 🧭 المرشد التفاعلي لشرح الصفحة ====================== */
+        .tour-fab {
+            position: fixed; bottom: 85px; left: 15px; width: 52px; height: 52px;
+            border-radius: 50%; background: linear-gradient(135deg, #0F2432, #1d3040); color: #d4af37;
+            border: 2px solid #d4af37; font-size: 1.25rem; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 950; box-shadow: 0 6px 18px rgba(0,0,0,0.35); transition: transform 0.25s ease;
+        }
+        .tour-fab:hover { transform: scale(1.08); }
+        .tour-fab-pulse { position: absolute; inset: -5px; border-radius: 50%; border: 2px solid rgba(212,175,55,0.55); animation: tourPulse 2.4s ease-out infinite; pointer-events: none; }
+        @keyframes tourPulse { 0% { transform: scale(0.85); opacity: 0.9; } 100% { transform: scale(1.55); opacity: 0; } }
+        .site-tour-overlay { position: fixed; inset: 0; z-index: 100010; display: none; }
+        .site-tour-overlay.active { display: block; }
+        .site-tour-dim { position: fixed; inset: 0; background: rgba(4,10,16,0.45); z-index: 100010; }
+        .site-tour-highlight { position: relative !important; z-index: 100011 !important; box-shadow: 0 0 0 4px #d4af37, 0 0 0 9999px rgba(4,10,16,0.7) !important; border-radius: 14px !important; transition: box-shadow 0.3s ease; }
+        .site-tour-tooltip {
+            position: fixed; z-index: 100012; background: #fff; border: 2px solid #d4af37; border-radius: 18px;
+            padding: 18px 20px; max-width: 320px; width: 88vw; box-shadow: 0 20px 45px rgba(0,0,0,0.45);
+            text-align: right; animation: fadeInUp 0.3s ease;
+        }
+        .site-tour-tooltip h4 { color: #0F2432; font-size: 1.05rem; margin-bottom: 8px; font-family: 'Cairo', sans-serif; }
+        .site-tour-tooltip p { color: #475569; font-size: 0.88rem; line-height: 1.7; margin-bottom: 14px; }
+        .site-tour-tooltip .tour-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .site-tour-tooltip .tour-dots { display: flex; gap: 5px; order: 2; flex-basis: 100%; justify-content: center; margin-top: 10px; }
+        .site-tour-tooltip .tour-dots span { width: 6px; height: 6px; border-radius: 50%; background: #e2d9b8; transition: all 0.25s ease; }
+        .site-tour-tooltip .tour-dots span.active { background: #d4af37; width: 16px; border-radius: 4px; }
+        .site-tour-tooltip .tour-btns { display: flex; gap: 6px; }
+        .site-tour-tooltip button { border: none; border-radius: 50px; padding: 7px 14px; font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: 'Cairo', sans-serif; }
+        .site-tour-tooltip .tour-next { background: linear-gradient(135deg, #d4af37, #c29d45); color: #0F2432; }
+        .site-tour-tooltip .tour-prev { background: #f1f5f9; color: #334155; }
+        .site-tour-tooltip .tour-skip { background: transparent; color: #94a3b8; text-decoration: underline; padding: 6px 4px; margin-top: 8px; width: 100%; text-align: center; }
+        @media (max-width: 480px) { .tour-fab { bottom: 78px; width: 46px; height: 46px; font-size: 1.1rem; } .site-tour-tooltip { max-width: 90vw; padding: 15px 16px; } }
         @media (max-width: 768px) { .logo-wrap { width: 68px; height: 68px; } .main-header h1 { font-size: 1.1em; } .result-form-container { padding: 12px; max-width: 100%; } .input-group input { font-size: 0.9em; } .submit-btn { font-size: 0.9em; padding: 8px 12px; } th, td { font-size: 10px; padding: 8px; } th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 120px; } th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 100px; } th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 50px; } th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 50px; } .main-container { padding-bottom: 100px; } .nav-bar { width: 95%; padding: 10px 12px; bottom: 8px; border-radius: 40px; gap: 2px; } .nav-bar a { font-size: 0.7em; padding: 4px 8px; } .nav-bar a i { font-size: 1.1em; } .nav-bar a span { font-size: 0.5em; } footer { width: 95%; bottom: 68px; padding: 6px 12px; border-radius: 25px; } footer p { font-size: 0.65em; } .attendance-stats-grid { grid-template-columns: repeat(2, 1fr); } .stat-number { font-size: 1.4rem; } .attendance-dates { flex-direction: column; } }
         @media (max-width: 480px) { .logo-wrap { width: 56px; height: 56px; } .main-header h1 { font-size: 0.95em; } .result-form-container { padding: 10px; } .input-group input { font-size: 0.85em; } .submit-btn { font-size: 0.85em; padding: 7px 10px; } th, td { font-size: 9px; padding: 6px; } th:nth-child(1), td:nth-child(1) { width: 35%; min-width: 100px; } th:nth-child(2), td:nth-child(2) { width: 25%; min-width: 80px; } th:nth-child(3), td:nth-child(3) { width: 20%; min-width: 40px; } th:nth-child(4), td:nth-child(4) { width: 20%; min-width: 40px; } .nav-bar { width: 98%; padding: 8px 6px; bottom: 5px; border-radius: 30px; gap: 1px; } .nav-bar a { font-size: 0.6em; padding: 3px 5px; } .nav-bar a i { font-size: 0.9em; } .nav-bar a span { display: none; } footer { width: 98%; bottom: 58px; padding: 5px 8px; border-radius: 20px; } footer p { font-size: 0.55em; } }
   
@@ -557,6 +589,11 @@ body[data-theme="dark"] .guide-card p,
 body[data-theme="dark"] #guidedTour > div p { color: #c9c2a8; }
 body[data-theme="dark"] .guide-card .highlight-box { background: #1d3040; }
 body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
+body[data-theme="dark"] .site-tour-tooltip { background: #16232f; border-color: #6b5a24; }
+body[data-theme="dark"] .site-tour-tooltip h4 { color: #e7e0c9; }
+body[data-theme="dark"] .site-tour-tooltip p { color: #c9c2a8; }
+body[data-theme="dark"] .site-tour-tooltip .tour-prev { background: #1d3040; color: #e7e0c9; }
+body[data-theme="dark"] .site-tour-tooltip .tour-dots span { background: #3a3a2a; }
 
 /* ====================== 🔔 رسائل التنبيه (Toastify) - منتصف الشاشة ومتجاوبة ====================== */
 .toastify {
@@ -736,6 +773,12 @@ body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
         </div>
     </div>
 
+    <div id="siteTourOverlay" class="site-tour-overlay">
+        <div class="site-tour-dim"></div>
+        <div class="site-tour-tooltip" id="siteTourTooltip"></div>
+    </div>
+    <button class="tour-fab" id="tourFabBtn" title="جولة إرشادية لشرح الصفحة"><span class="tour-fab-pulse"></span><i class="fas fa-route"></i></button>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // ✅ إعداد زرار الوضع الداكن أولًا - قبل أي return مبكر - عشان يشتغل دايمًا حتى لو المستخدم قفل شاشة الترحيب قبل كده
@@ -752,16 +795,83 @@ body[data-theme="dark"] #violation-search-match-msg { color: #e7e0c9; }
                 });
             }
 
+            // ====================== 🧭 المرشد التفاعلي لشرح الصفحة ======================
+            const TOUR_STEPS = [
+                { type: 'center', title: 'أهلاً بيك! 👋', text: 'هنعمل جولة سريعة تعرّفك بكل جزء في الصفحة، وإزاي تدوّر على نتيجتك خطوة بخطوة.' },
+                { type: 'spot', selector: '#search-form', title: '🔍 خانة البحث عن النتيجة', text: 'اكتب اسم الطالب كامل ورقم الجلوس هنا. تقدر تكتب واحد بس من الاتنين لو مش فاكر التاني، والنظام هيدوّرلك.' },
+                { type: 'spot', selector: '#search-form .submit-btn', title: '✅ زرار عرض النتيجة', text: 'بعد ما تكتب بياناتك، دوس هنا وهتظهر نتيجتك في نفس الصفحة على طول.' },
+                { type: 'spot', selector: '#themeToggleBtn', title: '🌙 الوضع الليلي', text: 'تقدر تبدّل بين الوضع النهاري والوضع الليلي المريح للعين من هنا في أي وقت.' },
+                { type: 'center', title: '📅 إحصائيات الحضور', text: 'بعد ما تدوّر على نتيجتك، هتظهر لوحة فيها عدد أيام حضورك وغيابك وتأخيرك ونسبة حضورك، وآخر يوم حضرت وغبت فيه.' },
+                { type: 'spot', selector: '.result-table', title: '📋 جدول النتيجة', text: 'هنا هتلاقي درجاتك في كل مادة والمجموع الكلي والنسبة المئوية، وفي زرار طباعة فوق الجدول تقدر تطبع نتيجتك منه.' },
+                { type: 'spot', selector: '.violations-section', title: '⚠️ الإنذارات والمخالفات', text: 'أي مخالفة أو إنذار مسجل عليك هيظهر هنا تلقائيًا بعد ما تدوّر على نتيجتك.' },
+                { type: 'spot', selector: '.notifications-section', title: '🔔 الإشعارات', text: 'أي إشعارات عامة أو خاصة بيك هتلاقيها هنا.' },
+                { type: 'spot', selector: '.violation-search-block', title: '🛡️ البحث عن المخالفات بس', text: 'لو عايز تتأكد من مخالفاتك بس من غير ما تدوّر على النتيجة كاملة، استخدم الفورم ده باسمك وآخر 7 أرقام من رقم بطاقتك.' },
+                { type: 'spot', selector: '#topStudentsSection', title: '🏆 أوائل الطلاب', text: 'قائمة بأوائل الطلاب في كل صف دراسي، وتقدر تبدّل بين الصفوف من التابات اللي فوق.' },
+                { type: 'spot', selector: '#nav-bar', title: '🧭 شريط التنقل', text: 'من هنا تقدر تتنقل بسهولة بين صفحات نتائج الصفوف المختلفة والمكتبة التعليمية.' }
+            ];
+            let tourIndex = 0, tourHighlightedEl = null;
+            const tourOverlay = document.getElementById('siteTourOverlay');
+            const tourTooltip = document.getElementById('siteTourTooltip');
+            const tourFabBtn = document.getElementById('tourFabBtn');
+
+            function tourClearHighlight() { if (tourHighlightedEl) { tourHighlightedEl.classList.remove('site-tour-highlight'); tourHighlightedEl = null; } }
+
+            function tourPositionTooltip(rect) {
+                const margin = 14, tw = tourTooltip.offsetWidth, th = tourTooltip.offsetHeight;
+                let top;
+                if (rect.bottom + th + margin < window.innerHeight) top = rect.bottom + margin;
+                else if (rect.top - th - margin > 0) top = rect.top - th - margin;
+                else top = Math.max(margin, (window.innerHeight - th) / 2);
+                let left = rect.left + rect.width / 2 - tw / 2;
+                left = Math.min(Math.max(margin, left), window.innerWidth - tw - margin);
+                tourTooltip.style.transform = '';
+                tourTooltip.style.top = top + 'px';
+                tourTooltip.style.left = left + 'px';
+            }
+
+            function tourCenterTooltip() {
+                tourTooltip.style.top = '50%';
+                tourTooltip.style.left = '50%';
+                tourTooltip.style.transform = 'translate(-50%, -50%)';
+            }
+
+            function tourRenderStep() {
+                tourClearHighlight();
+                const step = TOUR_STEPS[tourIndex];
+                const isFirst = tourIndex === 0, isLast = tourIndex === TOUR_STEPS.length - 1;
+                const dots = TOUR_STEPS.map((_, i) => `<span class="${i === tourIndex ? 'active' : ''}"></span>`).join('');
+                tourTooltip.innerHTML = `<h4>${step.title}</h4><p>${step.text}</p><div class="tour-footer"><div class="tour-btns">${!isFirst ? '<button class="tour-prev" id="tourPrevBtn">السابق</button>' : ''}<button class="tour-next" id="tourNextBtn">${isLast ? 'إنهاء' : 'التالي'}</button></div><div class="tour-dots">${dots}</div></div><button class="tour-skip" id="tourSkipBtn">تخطي الجولة</button>`;
+
+                if (step.type === 'spot') {
+                    const el = document.querySelector(step.selector);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(() => { el.classList.add('site-tour-highlight'); tourHighlightedEl = el; tourPositionTooltip(el.getBoundingClientRect()); }, 380);
+                    } else { tourCenterTooltip(); }
+                } else { tourCenterTooltip(); }
+
+                document.getElementById('tourNextBtn').addEventListener('click', function() { if (isLast) tourEnd(); else { tourIndex++; tourRenderStep(); } });
+                const prevBtn = document.getElementById('tourPrevBtn');
+                if (prevBtn) prevBtn.addEventListener('click', function() { tourIndex--; tourRenderStep(); });
+                document.getElementById('tourSkipBtn').addEventListener('click', tourEnd);
+            }
+
+            function tourStart() { tourIndex = 0; tourOverlay.classList.add('active'); tourRenderStep(); localStorage.setItem('sawSiteTour', '1'); }
+            function tourEnd() { tourClearHighlight(); tourOverlay.classList.remove('active'); }
+            function tourMaybeAutoStart() { if (!localStorage.getItem('sawSiteTour')) setTimeout(tourStart, 500); }
+
+            if (tourFabBtn) tourFabBtn.addEventListener('click', tourStart);
+
             const guideOverlay = document.getElementById('guideOverlay'), guideGotIt = document.getElementById('guideGotIt'), guideFirstYear = document.getElementById('guideFirstYear'), guideClickHere = document.getElementById('guideClickHere'), guideDontShowAgain = document.getElementById('guideDontShowAgain');
-            if (localStorage.getItem('hideWelcomeGuide') === '1') { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; return; }
+            if (localStorage.getItem('hideWelcomeGuide') === '1') { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); return; }
             let guideTimeout = null;
             guideOverlay.classList.add('show');
-            guideTimeout = setTimeout(function() { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; }, 20000);
-            guideGotIt.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
+            guideTimeout = setTimeout(function() { guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); }, 20000);
+            guideGotIt.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); });
             guideFirstYear.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
             guideClickHere.addEventListener('click', function() { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; window.location.href = 'First-Gards.html'; });
-            guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; } });
-            if (guideDontShowAgain) guideDontShowAgain.addEventListener('click', function() { localStorage.setItem('hideWelcomeGuide', '1'); clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; });
+            guideOverlay.addEventListener('click', function(e) { if (e.target === guideOverlay) { clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); } });
+            if (guideDontShowAgain) guideDontShowAgain.addEventListener('click', function() { localStorage.setItem('hideWelcomeGuide', '1'); clearTimeout(guideTimeout); guideOverlay.classList.remove('show'); guideOverlay.style.display = 'none'; tourMaybeAutoStart(); });
         });
     </script>
     <!-- ✅ ملفات البصمة (نفس اللي في login.html) - بس الجزء الخاص بالبصمة، من غير باقي auth.js -->
