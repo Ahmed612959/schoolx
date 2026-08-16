@@ -323,6 +323,11 @@ const studentSchema = new mongoose.Schema({
     // premium_clinical_sim (محاكي مواقف إكلينيكية) / premium_lecture_audio (ملخص صوتي للمحاضرات)
     // premium_video_sim (محاكاة قرارات بفيديو/مشهد متفرّع)
     premiumFeatures: { type: [String], default: [] },
+    // لو موجودة وتاريخها في المستقبل، الطالب متوقف مؤقتًا ومش هيقدر يسجل دخول لحد ما
+    // التاريخ ده يعدي (أو الأدمن يمسحها يدويًا قبل كده). null = مش موقف.
+    // نفس فكرة lockedUntil الموجودة أصلًا، بس ده إيقاف يدوي من الأدمن مش قفل تلقائي بسبب فشل باسورد.
+    suspendedUntil: { type: Date, default: null },
+    suspendedReason: { type: String, default: '' },
     refreshToken: String
 }, { timestamps: true });
 
@@ -3294,6 +3299,11 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         if (user.lockedUntil && user.lockedUntil > new Date()) {
             const remainingMinutes = Math.ceil((user.lockedUntil - new Date()) / 60000);
             return res.status(401).json({ error: `الحساب مقفل مؤقتاً. حاول مرة أخرى بعد ${remainingMinutes} دقيقة` });
+        }
+        if (userType === 'student' && user.suspendedUntil && user.suspendedUntil > new Date()) {
+            const remainingHours = Math.ceil((user.suspendedUntil - new Date()) / 3600000);
+            const reasonPart = user.suspendedReason ? ` — السبب: ${user.suspendedReason}` : '';
+            return res.status(403).json({ error: `الحساب موقوف مؤقتًا من الأدمن، هيرجع تلقائيًا بعد حوالي ${remainingHours} ساعة${reasonPart}` });
         }
         const isMatch = await verifyPassword(password, user.password);
         if (!isMatch) {
@@ -7031,7 +7041,10 @@ const presenceSchema = new mongoose.Schema({
   dayKey: { type: String, default: '' },
   questionsToday: { type: Number, default: 0 },
   messagesToday: { type: Number, default: 0 },
-  timeTodaySeconds: { type: Number, default: 0 }
+  timeTodaySeconds: { type: Number, default: 0 },
+  // عدّاد إجمالي — من غير تصفير يومي، لعرضه في لوحة الأدمن ("عدد الأسئلة اللي سألها" إجمالًا)
+  totalQuestions: { type: Number, default: 0 },
+  totalMessages: { type: Number, default: 0 }
 }, { timestamps: true });
 presenceSchema.index({ lastSeen: 1 });
 const Presence = mongoose.models.Presence || mongoose.model('Presence', presenceSchema);
@@ -7075,6 +7088,78 @@ function buildArabicFlexRegex(query) {
   return new RegExp(withVariants.split(' ').filter(Boolean).join('[\\s\\-_.,]+'), 'i');
 }
 
+// ====================== لوحة "الحسابات المرتبطة" — صفحة أدمن منفصلة ======================
+// بترجع كل الطلاب اللي عندهم حساب، مدموجين ببيانات الحضور بتاعتهم (آخر ظهور، متصل
+// دلوقتي ولا لأ، عدد الأسئلة الإجمالي)، وحالة الإيقاف المؤقت لو موجودة. endpoint منفصل
+// عن /api/admin/students القديم (اللي لسه شغال زي ما هو لصفحة admin-premium.html)
+// عشان محدش من الاتنين يتأثر بالتاني.
+app.get('/api/admin/students-overview', verifyToken, isAdmin, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const [students, presences] = await Promise.all([
+      Student.find().select('-password -refreshToken').lean(),
+      Presence.find({ userType: 'student' })
+        .select('username lastSeen totalQuestions totalMessages questionsToday messagesToday')
+        .lean()
+    ]);
+    const presenceMap = new Map(presences.map(p => [p.username, p]));
+    const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+    const now = new Date();
+
+    const result = students.map(s => {
+      const p = presenceMap.get(s.username) || null;
+      const lastSeen = p?.lastSeen || null;
+      const suspended = !!(s.suspendedUntil && new Date(s.suspendedUntil) > now);
+      return {
+        studentCode: s.studentCode,
+        username: s.username,
+        fullName: s.fullName,
+        grade: s.grade,
+        premiumFeatures: s.premiumFeatures || [],
+        suspended,
+        suspendedUntil: s.suspendedUntil || null,
+        suspendedReason: s.suspendedReason || '',
+        lastSeen,
+        online: !!(lastSeen && lastSeen >= onlineSince),
+        totalQuestions: p?.totalQuestions || 0,
+        totalMessages: p?.totalMessages || 0
+      };
+    });
+
+    res.json({ success: true, students: result });
+  } catch (error) {
+    console.error('❌ students-overview error:', error.message);
+    res.status(500).json({ error: 'خطأ في جلب بيانات الحسابات: ' + error.message });
+  }
+});
+
+// ====================== إيقاف / إرجاع حساب طالب ======================
+// body: { suspendedUntil: <ISO date string> } لإيقافه لحد التاريخ ده، أو
+// body: { suspendedUntil: null } لإرجاعه فورًا (إلغاء الإيقاف قبل معاده).
+app.patch('/api/admin/students/:studentCode/suspend', verifyToken, isAdmin, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const { suspendedUntil, suspendedReason } = req.body;
+    let until = null;
+    if (suspendedUntil) {
+      until = new Date(suspendedUntil);
+      if (isNaN(until.getTime())) return res.status(400).json({ error: 'تاريخ غير صالح' });
+    }
+    const updateData = { suspendedUntil: until };
+    if (suspendedReason !== undefined) updateData.suspendedReason = String(suspendedReason || '').slice(0, 200);
+    if (!until) updateData.suspendedReason = ''; // إرجاع الحساب بيمسح السبب القديم كمان
+    const updated = await Student.findOneAndUpdate(
+      { studentCode: req.params.studentCode },
+      { $set: updateData },
+      { new: true }
+    ).select('username fullName studentCode suspendedUntil suspendedReason');
+    if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
+    res.json({ success: true, student: updated });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في تحديث حالة الإيقاف: ' + error.message });
+  }
+});
+
 // ---------- 1) نبضة الحضور: المتصفح بيبعتها كل 30 ثانية ----------
 app.post('/api/presence/heartbeat', verifyToken, async (req, res) => {
   try {
@@ -7098,6 +7183,8 @@ app.post('/api/presence/heartbeat', verifyToken, async (req, res) => {
     p.questionsToday += incQuestions;
     p.messagesToday += incMessages;
     p.timeTodaySeconds += incSeconds;
+    p.totalQuestions = (p.totalQuestions || 0) + incQuestions;
+    p.totalMessages = (p.totalMessages || 0) + incMessages;
     await p.save();
 
     // إحصائيات الأسبوع (دي اللي بتبني لوحة الصدارة)
