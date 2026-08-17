@@ -196,11 +196,33 @@ function sanitizeForStorage(str) {
     return safe || 'file';
 }
 
+// تنضيف اسم ملف مع الحفاظ على الامتداد دايمًا (.pdf, .docx, ...).
+// ⚠️ سبب إضافة الدالة دي: sanitizeForStorage القديمة كانت بتشيل أي حرف عربي،
+// فلو اسم الملف كله عربي (زي "ملخص الكيمياء.pdf")، بعد شيل الحروف العربية
+// كان بيفضل ".pdf" بس، وبعدين خطوة تنظيف النقط في الأول/الآخر كانت بتشيل
+// النقطة دي كمان فيبقى المفتاح المخزّن في R2 من غير امتداد خالص (زي
+// "170000000-pdf" بدل "170000000-ملخص_الكيمياء.pdf"). ده كان بيبوّظ معاينة
+// الملفات في الفرونت إند (اللي بتحدد نوع الملف عن طريق آخر جزء بعد نقطة في
+// الرابط)، فكل ملف اسمه عربي كان بيروح على معاينة "النوع مش مدعوم" ويحوّل
+// للتحميل المباشر بدل ما يتفتح جوه الموقع.
+function sanitizeFileName(str) {
+    const original = String(str || '');
+    const dotIndex = original.lastIndexOf('.');
+    // امتداد صالح: بعد آخر نقطة، من 1 لـ 10 حروف/أرقام إنجليزي بس (عشان
+    // نتفادى نتوهم إن نقطة عادية جوه اسم الملف هي بداية امتداد)
+    const hasExt = dotIndex > -1 && /^[A-Za-z0-9]{1,10}$/.test(original.slice(dotIndex + 1));
+    const base = hasExt ? original.slice(0, dotIndex) : original;
+    const ext = hasExt ? original.slice(dotIndex + 1).toLowerCase() : '';
+
+    const safeBase = sanitizeForStorage(base);
+    return ext ? `${safeBase}.${ext}` : safeBase;
+}
+
 // دالة رفع ملف إلى R2 من Buffer (نفس الاسم والشكل القديم عشان باقي الكود
 // اللي بينادي عليها متتغيرش)
 const uploadToCloudinary = async (buffer, folder, fileName) => {
     const safeFolder = folder ? folder.split('/').map(sanitizeForStorage).join('/') : '';
-    const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
+    const safeName = `${Date.now()}-${sanitizeFileName(fileName)}`;
     const path = safeFolder ? `${safeFolder}/${safeName}` : safeName;
 
     await r2.send(new PutObjectCommand({
@@ -4925,7 +4947,7 @@ app.post('/api/files/upload-url', verifyToken, isAdmin, async (req, res) => {
         }
 
         const safeFolder = `school/${grade}/${subject}`.split('/').map(sanitizeForStorage).join('/');
-        const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
+        const safeName = `${Date.now()}-${sanitizeFileName(fileName)}`;
         const path = `${safeFolder}/${safeName}`;
 
         // ملحوظة مهمة: من غير ما نحدد ContentType هنا عمدًا. لو حطيناه، PutObjectCommand
@@ -5210,7 +5232,7 @@ app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
         }
 
         const safeFolder = `shared/${grade}/${subject}`.split('/').map(sanitizeForStorage).join('/');
-        const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
+        const safeName = `${Date.now()}-${sanitizeFileName(fileName)}`;
         const path = `${safeFolder}/${safeName}`;
 
         // من غير ContentType هنا عمدًا (زي مسار الأدمن بالظبط) — عشان نتفادى
