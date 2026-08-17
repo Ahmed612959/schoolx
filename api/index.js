@@ -5160,6 +5160,265 @@ app.post('/api/files/view/:id', verifyToken, async (req, res) => {
 // وغير مستخدم فعليًا في الفرونت إند). الرفع دلوقتي بيتم عن طريق
 // /api/files/upload-multiple اللي بيرفع مباشرة على Cloudflare R2.
 
+// ====================== المكتبة المشتركة (ملخصات الطلاب) ======================
+// الفكرة: أي طالب يقدر يرفع ملخص (موضوع + مادة + صف)، لكن الملف مايظهرش في
+// المكتبة للباقي غير بعد ما الأدمن يوافق عليه. status: pending -> approved/rejected.
+const sharedSummarySchema = new mongoose.Schema({
+    name: { type: String, required: true },        // اسم الملف الأصلي
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
+    size: { type: Number },
+    type: { type: String },
+    topic: { type: String, required: true },        // موضوع الملف
+    subject: { type: String, required: true },      // اسم المادة
+    grade: { type: String, enum: ['first', 'second', 'third'], required: true },
+    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    rejectionReason: { type: String, default: '' },
+    uploadedBy: { type: String, required: true },       // username بتاع الطالب اللي رفع
+    uploadedByName: { type: String, default: '' },      // اسمه وقت الرفع (نسخة للعرض)
+    reviewedBy: { type: String, default: '' },
+    reviewedAt: { type: Date },
+    downloads: { type: Number, default: 0 },
+    views: { type: Number, default: 0 }
+}, { timestamps: true });
+const SharedSummary = mongoose.models.SharedSummary || mongoose.model('SharedSummary', sharedSummarySchema);
+
+// رابط رفع موقّع للطالب (نفس فكرة /api/files/upload-url بتاعة الأدمن، بس متاحة
+// لأي طالب مسجل دخول بدل ما تكون مقصورة على الأدمن)
+app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
+    try {
+        if (req.user?.type !== 'student') {
+            return res.status(403).json({ error: 'رفع الملخصات متاح للطلاب فقط' });
+        }
+        const { fileName, grade, subject } = req.body;
+        if (!fileName || !grade || !subject) {
+            return res.status(400).json({ error: 'اسم الملف والصف والمادة مطلوبين' });
+        }
+        if (!['first', 'second', 'third'].includes(grade)) {
+            return res.status(400).json({ error: 'الصف غير صالح' });
+        }
+
+        const safeFolder = `shared/${grade}/${subject}`.split('/').map(sanitizeForStorage).join('/');
+        const safeName = `${Date.now()}-${sanitizeForStorage(fileName)}`;
+        const path = `${safeFolder}/${safeName}`;
+
+        // من غير ContentType هنا عمدًا (زي مسار الأدمن بالظبط) — عشان نتفادى
+        // SignatureDoesNotMatch لو الفرونت إند بعت Content-Type مختلف وقت الـ PUT.
+        const command = new PutObjectCommand({ Bucket: R2_BUCKET, Key: path });
+        const signedUrl = await getSignedUrl(r2, command, { expiresIn: 600 });
+
+        res.json({ success: true, path, uploadUrl: signedUrl, publicUrl: `${R2_PUBLIC_URL}/${path}` });
+    } catch (error) {
+        console.error('❌ Shared summary upload-url error:', error);
+        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' + error.message });
+    }
+});
+
+// حفظ معلومات الملف بعد الرفع المباشر على R2 — بيتسجل status: pending
+// لحد ما الأدمن يراجعه ويوافق عليه أو يرفضه.
+app.post('/api/shared-summaries/save', verifyToken, async (req, res) => {
+    try {
+        if (req.user?.type !== 'student') {
+            return res.status(403).json({ error: 'المشاركة في المكتبة متاحة للطلاب فقط' });
+        }
+        await connectToDatabase();
+        const { name, url, publicId, size, type, topic, subject, grade } = req.body;
+
+        if (!name || !url || !publicId || !topic || !subject || !grade) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة (اسم الملف، الموضوع، المادة، الصف)' });
+        }
+        if (!['first', 'second', 'third'].includes(grade)) {
+            return res.status(400).json({ error: 'الصف غير صالح' });
+        }
+
+        const doc = new SharedSummary({
+            name,
+            url,
+            publicId,
+            size: size || 0,
+            type: type || name.split('.').pop().toLowerCase(),
+            topic: String(topic).trim().slice(0, 200),
+            subject: String(subject).trim().slice(0, 100),
+            grade,
+            status: 'pending',
+            uploadedBy: req.user.username,
+            uploadedByName: req.user.fullName || req.user.username
+        });
+        await doc.save();
+
+        // إشعار كل الأدمنز إن في ملف جديد محتاج مراجعة (مش بيوقف الرد لو فشل)
+        connectToDatabase()
+            .then(() => Admin.find().select('username'))
+            .then(admins => Promise.all(admins.map(a => sendPushToUser(a.username, {
+                title: 'ملخص جديد محتاج مراجعة',
+                body: `${doc.uploadedByName} رفع "${doc.topic}" (${doc.subject})`,
+                data: { type: 'shared_summary_pending', summaryId: String(doc._id) }
+            }))))
+            .catch(() => {});
+
+        res.json({ success: true, summary: doc, message: 'تم رفع الملف بنجاح، هيتم مراجعة محتواه ليظهر على الصفحة من قبل الأدمن' });
+    } catch (error) {
+        console.error('❌ Shared summary save error:', error);
+        res.status(500).json({ error: 'خطأ في حفظ الملف: ' + error.message });
+    }
+});
+
+// المكتبة المشتركة — الملفات الموافَق عليها بس (تصفية اختيارية بالصف/المادة)
+app.get('/api/shared-summaries', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const query = { status: 'approved' };
+        if (req.query.grade) query.grade = req.query.grade;
+        if (req.query.subject) query.subject = req.query.subject;
+        const summaries = await SharedSummary.find(query).sort({ createdAt: -1 }).limit(200);
+        res.json(summaries);
+    } catch (error) {
+        console.error('❌ خطأ في جلب المكتبة المشتركة:', error);
+        res.status(500).json({ error: 'خطأ في جلب المكتبة المشتركة' });
+    }
+});
+
+// ملفات الطالب اللي رفعها هو بنفسه (بكل حالاتها) عشان يتابع حالة المراجعة
+app.get('/api/shared-summaries/mine', verifyToken, async (req, res) => {
+    try {
+        if (req.user?.type !== 'student') return res.status(403).json({ error: 'غير مصرح' });
+        await connectToDatabase();
+        const summaries = await SharedSummary.find({ uploadedBy: req.user.username }).sort({ createdAt: -1 });
+        res.json(summaries);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب ملفاتك' });
+    }
+});
+
+// طابور المراجعة للأدمن
+app.get('/api/shared-summaries/pending', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const summaries = await SharedSummary.find({ status: 'pending' }).sort({ createdAt: 1 });
+        res.json(summaries);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب الملفات المعلّقة' });
+    }
+});
+
+// موافقة الأدمن على الملف — يظهر في المكتبة المشتركة بعدها
+app.post('/api/shared-summaries/:id/approve', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await SharedSummary.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+        doc.status = 'approved';
+        doc.reviewedBy = req.user.username || 'admin';
+        doc.reviewedAt = new Date();
+        doc.rejectionReason = '';
+        await doc.save();
+
+        sendPushToUser(doc.uploadedBy, {
+            title: 'تمت الموافقة على ملخصك ✅',
+            body: `"${doc.topic}" بقى ظاهر دلوقتي في المكتبة المشتركة`,
+            data: { type: 'shared_summary_approved', summaryId: String(doc._id) }
+        }).catch(() => {});
+
+        res.json({ success: true, summary: doc });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في الموافقة على الملف' });
+    }
+});
+
+// رفض الأدمن للملف — مع سبب اختياري بيتبعت للطالب
+app.post('/api/shared-summaries/:id/reject', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { reason } = req.body;
+        const doc = await SharedSummary.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+        doc.status = 'rejected';
+        doc.reviewedBy = req.user.username || 'admin';
+        doc.reviewedAt = new Date();
+        doc.rejectionReason = (reason || '').toString().trim().slice(0, 300);
+        await doc.save();
+
+        sendPushToUser(doc.uploadedBy, {
+            title: 'تم رفض ملخصك',
+            body: doc.rejectionReason ? `"${doc.topic}": ${doc.rejectionReason}` : `"${doc.topic}" محتاج تعديل قبل النشر`,
+            data: { type: 'shared_summary_rejected', summaryId: String(doc._id) }
+        }).catch(() => {});
+
+        res.json({ success: true, summary: doc });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في رفض الملف' });
+    }
+});
+
+// تحميل ملف من المكتبة المشتركة — لازم يكون موافَق عليه، أو تكون أنت صاحبه، أو تكون أدمن
+app.get('/api/shared-summaries/download/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await SharedSummary.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+
+        const isOwner = req.user?.type === 'student' && req.user?.username === doc.uploadedBy;
+        if (doc.status !== 'approved' && req.user?.type !== 'admin' && !isOwner) {
+            return res.status(403).json({ error: 'الملف ده لسه تحت المراجعة' });
+        }
+
+        doc.downloads = (doc.downloads || 0) + 1;
+        await doc.save();
+
+        const getCommand = new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.publicId });
+        const r2Object = await r2.send(getCommand);
+
+        const originalName = doc.name || 'file';
+        const encodedName = encodeURIComponent(originalName);
+        res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
+        if (r2Object.ContentType) res.setHeader('Content-Type', r2Object.ContentType);
+        if (r2Object.ContentLength) res.setHeader('Content-Length', r2Object.ContentLength);
+        r2Object.Body.pipe(res);
+    } catch (error) {
+        console.error('❌ خطأ في تحميل الملف المشترك:', error);
+        res.status(500).json({ error: 'خطأ في تحميل الملف' });
+    }
+});
+
+// تحديث عدد المشاهدات لملف من المكتبة المشتركة
+app.post('/api/shared-summaries/view/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await SharedSummary.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+        doc.views = (doc.views || 0) + 1;
+        await doc.save();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
+    }
+});
+
+// حذف: الطالب صاحب الملف (بس لو لسه pending) أو مدير المعهد في أي وقت
+app.delete('/api/shared-summaries/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await SharedSummary.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+
+        const isAdminUser = req.user?.type === 'admin';
+        const isOwner = req.user?.type === 'student' && req.user?.username === doc.uploadedBy;
+        if (!isAdminUser && !(isOwner && doc.status === 'pending')) {
+            return res.status(403).json({ error: 'مش مصرح لك تمسح الملف ده' });
+        }
+
+        try {
+            await deleteFromSupabase(doc.publicId);
+        } catch (e) {
+            console.log('⚠️ R2 delete error:', e.message);
+        }
+        await SharedSummary.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف الملف' });
+    }
+});
+
 
 // 1. إنشاء واجب جديد (للأدمن)
 app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
