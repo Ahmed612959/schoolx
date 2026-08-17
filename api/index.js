@@ -150,7 +150,14 @@ const r2 = new S3Client({
     credentials: {
         accessKeyId: process.env.R2_ACCESS_KEY_ID,
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY
-    }
+    },
+    // ⚠️ نسخ جديدة من aws-sdk v3 بتضيف تلقائيًا x-amz-checksum-crc32 و
+    // x-amz-sdk-checksum-algorithm لكل طلب (حتى الروابط الموقّعة/presigned).
+    // R2 مش بيدعمهم زي AWS الأصلي، فده بيفشّل الـ CORS preflight بتاع
+    // رفع الملفات المباشر من المتصفح (PUT signed URL). تعطيلهم هنا يخلي
+    // التوقيع "نضيف" زي الوضع القديم قبل ما الميزة دي تتفعّل افتراضيًا.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED'
 });
 
 // ====================== إعداد Multer ======================
