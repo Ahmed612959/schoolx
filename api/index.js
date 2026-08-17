@@ -205,6 +205,27 @@ function sanitizeForStorage(str) {
 // الملفات في الفرونت إند (اللي بتحدد نوع الملف عن طريق آخر جزء بعد نقطة في
 // الرابط)، فكل ملف اسمه عربي كان بيروح على معاينة "النوع مش مدعوم" ويحوّل
 // للتحميل المباشر بدل ما يتفتح جوه الموقع.
+// R2 بيخزّن أي ملف من غير Content-Type محدد كـ application/octet-stream افتراضيًا
+// (من غير ما يستنتجه من امتداد الملف زي بعض الخدمات التانية) — وده كان بيخلي
+// المتصفح يعامل كل الملفات (حتى الصور والـ PDF) كتحميل إجباري بدل ما يعرضها
+// جوه الصفحة. الجدول ده بيدّي كل ملف الـ Content-Type الصح وقت الرفع.
+const MIME_TYPES = {
+    pdf: 'application/pdf',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+    txt: 'text/plain; charset=utf-8',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+};
+function getMimeType(fileName) {
+    const ext = String(fileName || '').split('.').pop().toLowerCase();
+    return MIME_TYPES[ext] || 'application/octet-stream';
+}
+
 function sanitizeFileName(str) {
     const original = String(str || '');
     const dotIndex = original.lastIndexOf('.');
@@ -5220,8 +5241,10 @@ const SharedSummary = mongoose.models.SharedSummary || mongoose.model('SharedSum
 // لأي طالب مسجل دخول بدل ما تكون مقصورة على الأدمن)
 app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
     try {
-        if (req.user?.type !== 'student') {
-            return res.status(403).json({ error: 'رفع الملخصات متاح للطلاب فقط' });
+        // كان مقصور على الطلاب بس (type !== 'student')، فأي حد مسجل دخول كأدمن
+        // كان بياخد 403 فورًا من هنا — ده سبب الـ 403 اللي ظاهر في الكونسول.
+        if (!['student', 'admin'].includes(req.user?.type)) {
+            return res.status(403).json({ error: 'لازم تكون مسجل دخول كطالب أو أدمن عشان ترفع ملف' });
         }
         const { fileName, grade, subject } = req.body;
         if (!fileName || !grade || !subject) {
@@ -5234,13 +5257,15 @@ app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
         const safeFolder = `shared/${grade}/${subject}`.split('/').map(sanitizeForStorage).join('/');
         const safeName = `${Date.now()}-${sanitizeFileName(fileName)}`;
         const path = `${safeFolder}/${safeName}`;
+        const contentType = getMimeType(fileName);
 
-        // من غير ContentType هنا عمدًا (زي مسار الأدمن بالظبط) — عشان نتفادى
-        // SignatureDoesNotMatch لو الفرونت إند بعت Content-Type مختلف وقت الـ PUT.
-        const command = new PutObjectCommand({ Bucket: R2_BUCKET, Key: path });
+        // بنحدد الـ ContentType هنا وبنرجّعه للفرونت إند عشان يبعت نفس القيمة
+        // بالظبط كـ header وقت الـ PUT (لازم يتطابقوا، وإلا التوقيع (signature)
+        // هيفشل). من غيرها، R2 كان بيخزن كل حاجة application/octet-stream.
+        const command = new PutObjectCommand({ Bucket: R2_BUCKET, Key: path, ContentType: contentType });
         const signedUrl = await getSignedUrl(r2, command, { expiresIn: 600 });
 
-        res.json({ success: true, path, uploadUrl: signedUrl, publicUrl: `${R2_PUBLIC_URL}/${path}` });
+        res.json({ success: true, path, uploadUrl: signedUrl, publicUrl: `${R2_PUBLIC_URL}/${path}`, contentType });
     } catch (error) {
         console.error('❌ Shared summary upload-url error:', error);
         res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' + error.message });
@@ -5251,8 +5276,8 @@ app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
 // لحد ما الأدمن يراجعه ويوافق عليه أو يرفضه.
 app.post('/api/shared-summaries/save', verifyToken, async (req, res) => {
     try {
-        if (req.user?.type !== 'student') {
-            return res.status(403).json({ error: 'المشاركة في المكتبة متاحة للطلاب فقط' });
+        if (!['student', 'admin'].includes(req.user?.type)) {
+            return res.status(403).json({ error: 'لازم تكون مسجل دخول كطالب أو أدمن عشان تشارك ملف' });
         }
         await connectToDatabase();
         const { name, url, publicId, size, type, topic, subject, grade } = req.body;
@@ -5314,7 +5339,7 @@ app.get('/api/shared-summaries', verifyToken, async (req, res) => {
 // ملفات الطالب اللي رفعها هو بنفسه (بكل حالاتها) عشان يتابع حالة المراجعة
 app.get('/api/shared-summaries/mine', verifyToken, async (req, res) => {
     try {
-        if (req.user?.type !== 'student') return res.status(403).json({ error: 'غير مصرح' });
+        if (!['student', 'admin'].includes(req.user?.type)) return res.status(403).json({ error: 'غير مصرح' });
         await connectToDatabase();
         const summaries = await SharedSummary.find({ uploadedBy: req.user.username }).sort({ createdAt: -1 });
         res.json(summaries);
