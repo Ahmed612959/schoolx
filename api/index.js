@@ -35,6 +35,10 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
+    // من غير السطر ده، المتصفح مايقدرش يقرا Content-Disposition/Content-Length
+    // في استجابات التحميل (حتى لو الطلب نجح) — وده كان بيبوّظ استخراج اسم الملف
+    // وحساب نسبة التقدم أثناء التحميل من الفرونت إند.
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
 });
@@ -5377,9 +5381,20 @@ app.get('/api/shared-summaries/download/:id', verifyToken, async (req, res) => {
 
         const originalName = doc.name || 'file';
         const encodedName = encodeURIComponent(originalName);
+
         res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
-        if (r2Object.ContentType) res.setHeader('Content-Type', r2Object.ContentType);
+        res.setHeader('Content-Type', r2Object.ContentType || 'application/octet-stream');
         if (r2Object.ContentLength) res.setHeader('Content-Length', r2Object.ContentLength);
+
+        // ⚠️ من غير هاندلر هنا، أي خطأ يحصل في نص نقل الملف من R2 (انقطاع شبكة،
+        // مشكلة مؤقتة في R2، إلخ) كان بيسيب الطلب معلّق للأبد من غير أي رد للمتصفح —
+        // وده بالظبط اللي بيظهر للمستخدم كأن "الملف مش بينزل" من غير أي رسالة خطأ.
+        r2Object.Body.on('error', (streamErr) => {
+            console.error('❌ خطأ في تدفق الملف من R2:', streamErr);
+            if (!res.headersSent) res.status(500).json({ error: 'خطأ أثناء نقل الملف' });
+            else res.destroy();
+        });
+
         r2Object.Body.pipe(res);
     } catch (error) {
         console.error('❌ خطأ في تحميل الملف المشترك:', error);
