@@ -21,8 +21,12 @@ const allowedOrigins = [
     'http://localhost:5500',
     'https://schoolx-eta.vercel.app',
     'https://school-system-fiv.vercel.app',
-    // دومينات إضافية (زي مشروع chatx) بتتحط كـ Environment Variable
-    // EXTRA_ALLOWED_ORIGINS = "https://chatx-xxxx.vercel.app,https://another.com"
+    // مشروع chatx (تطبيق الطالب) — مضاف هنا مباشرة (مش بس عن طريق
+    // EXTRA_ALLOWED_ORIGINS) عشان الاعتماد عليه في env var كان بيتنسى ويسبب
+    // CORS errors في تسجيل الدخول وكل طلب بعده.
+    'https://chatx-wheat.vercel.app',
+    // دومينات إضافية (لو احتجت دومين تاني بسرعة من غير ما تعدّل الكود) بتتحط
+    // كـ Environment Variable: EXTRA_ALLOWED_ORIGINS = "https://x.vercel.app,https://y.com"
     ...(process.env.EXTRA_ALLOWED_ORIGINS
         ? process.env.EXTRA_ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
         : [])
@@ -3276,6 +3280,10 @@ function isManager(req, res, next) {
     if (req.user.role === 'teacher') return res.status(403).json({ error: 'هذا الإجراء متاح لمدير المعهد فقط' });
     next();
 }
+
+// ====================== German Pro (تعلّم الألمانية الاحترافي - تمريض) ======================
+// راوت مستقل في ملف german-pro-routes.js (لازم يكون جنب الملف ده في نفس الفولدر).
+require('./german-pro-routes')(app, { verifyToken, isAdmin, connectToDatabase, Student });
 
 // ====================== TEST ENDPOINT ======================
 app.get('/api/test', async (req, res) => {
