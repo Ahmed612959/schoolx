@@ -3221,6 +3221,23 @@ const adminMessageSchema = new mongoose.Schema({
 });
 const AdminMessage = mongoose.models.AdminMessage || mongoose.model('AdminMessage', adminMessageSchema);
 
+// ====================== تقييم ردود الذكاء الاصطناعي 👍/👎 (من Chat X) ======================
+// أي طالب (عادي أو Premium) يقدر يقيّم أي رد بوت في محادثته. الهدف إن الأدمن يعرف
+// فعليًا أي موديل بيدي إجابات ضعيفة، بدل ما يعتمد بس على شكاوى بتوصله بالصدفة.
+// studentCode بييجي من التوكن نفسه (مش من جسم الطلب) عشان محدش يقدر ينتحل شخصية
+// طالب تاني وهو بيبعت تقييم. clientMessageId مُعرِّف الرسالة من الفرونت إند (ثابت لكل
+// رسالة في نفس المحادثة عند نفس الطالب) — بنستخدمه مع studentCode كمفتاح فريد
+// (upsert) عشان دوسة تانية على نفس الزرار تحدّث نفس السجل بدل ما تضيف تكرار.
+const messageRatingSchema = new mongoose.Schema({
+    studentCode: { type: String, required: true, index: true },
+    clientMessageId: { type: String, required: true },
+    model: { type: String, required: true, index: true }, // 'cerebras' / 'claude-opus' / 'groq' / ... (قيمة msg.source من الفرونت إند)
+    rating: { type: String, enum: ['up', 'down'], required: true },
+    excerpt: { type: String, default: '' } // أول ~200 حرف من رد البوت — للسياق بس وقت مراجعة الأدمن
+}, { timestamps: true });
+messageRatingSchema.index({ studentCode: 1, clientMessageId: 1 }, { unique: true });
+const MessageRating = mongoose.models.MessageRating || mongoose.model('MessageRating', messageRatingSchema);
+
 // ====================== دوال مساعدة ======================
 function setAuthCookie(res, token) {
     res.cookie('authToken', token, {
@@ -3496,6 +3513,83 @@ app.delete('/api/push/subscribe', verifyToken, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في إلغاء الإشعارات: ' + error.message });
+    }
+});
+
+// ====================== تقييم ردود الذكاء الاصطناعي 👍/👎 (Chat X) ======================
+// حفظ/تحديث تقييم رسالة — upsert على (studentCode, clientMessageId) عشان دوسة تانية
+// على نفس الزرار تحدّث نفس السجل بدل ما تضيف تكرار.
+app.post('/api/message-ratings', verifyToken, async (req, res) => {
+    try {
+        if (req.user.type !== 'student') return res.status(403).json({ error: 'غير مصرح' });
+        await connectToDatabase();
+        const { clientMessageId, model, rating, excerpt } = req.body;
+        if (!clientMessageId || !model || !['up', 'down'].includes(rating)) {
+            return res.status(400).json({ error: 'بيانات التقييم غير صالحة' });
+        }
+        const student = await Student.findById(req.user.id).select('studentCode');
+        if (!student) return res.status(404).json({ error: 'المستخدم غير موجود' });
+
+        await MessageRating.findOneAndUpdate(
+            { studentCode: student.studentCode, clientMessageId: String(clientMessageId).slice(0, 100) },
+            {
+                studentCode: student.studentCode,
+                clientMessageId: String(clientMessageId).slice(0, 100),
+                model: String(model).slice(0, 50),
+                rating,
+                excerpt: String(excerpt || '').slice(0, 200)
+            },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حفظ التقييم: ' + error.message });
+    }
+});
+
+// إلغاء تقييم سابق (الطالب دوس على نفس الزرار تاني عشان يشيل تقييمه)
+app.delete('/api/message-ratings/:clientMessageId', verifyToken, async (req, res) => {
+    try {
+        if (req.user.type !== 'student') return res.status(403).json({ error: 'غير مصرح' });
+        await connectToDatabase();
+        const student = await Student.findById(req.user.id).select('studentCode');
+        if (!student) return res.status(404).json({ error: 'المستخدم غير موجود' });
+        await MessageRating.deleteOne({ studentCode: student.studentCode, clientMessageId: req.params.clientMessageId });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف التقييم: ' + error.message });
+    }
+});
+
+// صفحة الأدمن المصغّرة: ملخص تقييمات كل موديل (👍/👎/الإجمالي/نسبة الرضا)، بالإضافة
+// لآخر 15 تقييم سلبي كأمثلة حقيقية سريعة — بدل ما الأدمن يفتح كل رسالة لوحدها.
+app.get('/api/message-ratings/summary', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const summary = await MessageRating.aggregate([
+            { $group: {
+                _id: '$model',
+                up: { $sum: { $cond: [{ $eq: ['$rating', 'up'] }, 1, 0] } },
+                down: { $sum: { $cond: [{ $eq: ['$rating', 'down'] }, 1, 0] } },
+                total: { $sum: 1 }
+            }},
+            { $sort: { total: -1 } }
+        ]);
+        const recentNegative = await MessageRating.find({ rating: 'down' })
+            .sort({ createdAt: -1 }).limit(15)
+            .select('model excerpt studentCode createdAt').lean();
+        res.json({
+            summary: summary.map(s => ({
+                model: s._id,
+                up: s.up,
+                down: s.down,
+                total: s.total,
+                approvalRate: s.total > 0 ? Math.round((s.up / s.total) * 100) : null
+            })),
+            recentNegative
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب ملخص التقييمات: ' + error.message });
     }
 });
 
