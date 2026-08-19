@@ -7,7 +7,7 @@
 //
 // Env vars المطلوبة:
 //   GERMAN_API_KEY   -> مفتاح Gemini API اللي جبته (مطلوب)
-//   GEMINI_MODEL     -> اسم الموديل (اختياري، افتراضيًا 'gemini-2.0-flash')
+//   GEMINI_MODEL     -> اسم الموديل (اختياري، افتراضيًا 'gemini-3.6-flash')
 //                       لو المفتاح بتاعك بيدعم موديل أحدث، حطه في المتغير ده
 //                       من غير ما تلمس الكود.
 // ====================================================================
@@ -15,7 +15,7 @@
 const mongoose = require('mongoose');
 
 const PREMIUM_KEY = 'premium_german_pro';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const MAX_HISTORY_TURNS = 16; // آخر كام رسالة (طالب+بوت) تتبعت كسياق خام
 const META_START = '<<META>>';
 const META_END = '<<END_META>>';
@@ -160,7 +160,10 @@ async function callGemini(systemPrompt, historyMsgs, userMessage) {
         body: JSON.stringify({
             system_instruction: { parts: [{ text: systemPrompt }] },
             contents,
-            generationConfig: { temperature: 0.6, maxOutputTokens: 2048 }
+            generationConfig: { maxOutputTokens: 2048 }
+            // ملحوظة: متشلش temperature/top_p/top_k هنا — جوجل بتتجاهلهم مع
+            // موديلات Gemini 3.x دلوقتي، وبتقول إن الإصدارات الجاية ممكن ترفضهم
+            // بخطأ 400 لو اتبعتوا، فالأسلم إننا نسيبهم من غير ما نحطهم أصلًا.
         })
     });
 
