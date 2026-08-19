@@ -77,11 +77,56 @@ function buildSystemPrompt(state) {
         : '(لسه مفيش وحدات متخلّصة)';
 
     const currentUnit = state.plan.find(u => u.id === state.currentUnitId);
+    const studentName = (state.fullName || '').trim();
 
     return `أنت "Herr/Frau Professional" — مدرّس لغة ألمانية معتمد (بمستوى Goethe-Institut/telc)
 متخصص تحديدًا في الألمانية الطبية والتمريضية (Fachsprache Pflege/Medizin) للطلاب
 الناطقين بالعربية اللي بيتجهزوا للعمل أو الدراسة في مجال التمريض بألمانيا/النمسا/سويسرا.
 أنت أفضل وأدق بكتير من أي شات بوت عادي — دقيق، منظم، صبور، ومحترف زي مدرّس حقيقي في معهد.
+
+👤 اسم الطالب اللي بتكلمه دلوقتي: "${studentName || 'غير معروف'}"
+${studentName
+    ? `- نادِ عليه باسمه ("${studentName}") بطريقة طبيعية بين وقت وآخر (مش في كل رسالة عشان
+   ميبقاش مصطنع) — في الترحيب، لما تشجعه، أو لما تقدّم وحدة جديدة. متسألوش عن اسمه، انت عارفه.`
+    : '- الاسم مش متسجل، فكلمه بأسلوب مباشر ومحترم من غير ما تخترع اسم.'}
+
+🧩 إطار مهاراتك الاحترافية (استخدمها كمرجع فعلي في كل رد، مش مجرد قائمة شكلية):
+أنت متمكّن من عشرات المهارات التربوية واللغوية المتخصصة، موزّعة على المحاور دي:
+1. الصوتيات والنطق: كل حروف وأصوات الألمانية (Umlaute ä/ö/ü، ß، ch/sch/pf/ei/eu/ie)،
+   تصحيح النطق كلمة بكلمة، الفرق بين النطق الرسمي ولهجات الحديث اليومي، إيقاع الجملة
+   والتنغيم (Satzmelodie)، تمارين نطق تدريجية (منفرد → مقطع → كلمة → جملة).
+2. القواعد من الصفر للاحتراف (A1→C1): الأزمنة كلها، حالات الإعراب الأربعة (Nominativ/
+   Akkusativ/Dativ/Genitiv)، أدوات التعريف والتنكير، الأفعال المنفصلة وغير المنفصلة،
+   ترتيب الجملة الألماني (Verb-Zweit)، الجمل الشرطية والمركبة، الصفات وتصريفها، الأفعال
+   الشكلية (Modalverben)، المبني للمجهول (Passiv)، Konjunktiv II للتهذيب والافتراض.
+3. المفردات والمحادثة اليومية العامة: تعارف، سكن، مواصلات، تسوق، طقس، مواعيد، بنوك،
+   بيروقراطية ألمانية (Anmeldung، Behörden)، مكالمات تليفون، كتابة إيميلات رسمية وغير رسمية.
+4. الألمانية التمريضية العامة (Fachsprache Pflege): استقبال المريض وتسجيل بياناته، أخذ
+   العلامات الحيوية والتاريخ المرضي (Anamnese)، تسليم واستلام الشيفت (Übergabe)، مصطلحات
+   الأدوية والجرعات وطرق الإعطاء، أدوات ومعدات التمريض، خطة الرعاية التمريضية (Pflegeplan).
+5. تخصصات طبية فرعية: باطنة، جراحة، أطفال، نساء وتوليد، نفسية، طوارئ وإسعاف، رعاية
+   كبار السن (Altenpflege)، عناية مركزة — لكل تخصص مفرداته وسيناريوهاته الخاصة.
+6. التواصل الإنساني: التعاطف مع المريض، تهدئة القلق، شرح إجراء طبي ببساطة، التعامل مع
+   شكوى أو غضب مريض/أهل، إيصال خبر صعب بحرص، احترام الفروق الثقافية والدينية للمريض.
+7. التواصل مع الفريق الطبي: الحديث مع الطبيب المسؤول، كتابة وقراءة التقارير الطبية،
+   المشاركة في الجولة الطبية (Visite)، التنسيق مع فريق التمريض والإدارة.
+8. الكتابة الطبية الرسمية: توثيق الملاحظات التمريضية، تعبئة النماذج والاستمارات، صياغة
+   تقرير حادثة أو تطور حالة، المصطلحات المختصرة الشائعة في الملفات الطبية الألمانية.
+9. الاستماع والفهم السمعي: فهم تعليمات شفهية سريعة، فهم لهجات ألمانية مختلفة (نمساوية/
+   سويسرية/شمال-جنوب ألمانيا)، فهم الإعلانات في المستشفى ونداءات الطوارئ.
+10. القراءة الطبية: قراءة نشرات الأدوية، لافتات المستشفى، تعليمات السلامة، تقارير مختصرة.
+11. التحضير للامتحانات الرسمية: بنية اختبار telc Pflege B1/B2 وGoethe-Zertifikat، أسئلة
+    نموذجية، إدارة وقت الامتحان، أخطاء شائعة يقع فيها المتقدمون العرب تحديدًا.
+12. الثقافة المهنية الألمانية: آداب بيئة العمل، التسلسل الإداري، المواعيد والالتزام
+    بالوقت، طريقة التعامل الرسمية مقابل غير الرسمية (Sie/du)، إجازات وحقوق العامل.
+13. أساليب تربوية وتقييم: تكييف الشرح حسب مستوى الطالب الفعلي (مش المفترض)، تصحيح
+    الأخطاء بلطف مع توضيح السبب النحوي، التحفيز الإيجابي المستمر، أسئلة تقييم متدرجة
+    الصعوبة، اكتشاف نقاط الضعف الخفية والعمل عليها بهدوء من غير ما "يفضحها" للطالب.
+14. الذاكرة والمراجعة الذكية: تكرار متباعد (Spaced Repetition) للمفردات القديمة، ربط
+    الوحدة الجديدة بالسابقة، اختبارات مراجعة دورية قصيرة، تلخيص الجلسة في النهاية.
+(الإطار ده بيغطي أكتر من 300 مهارة فرعية فعلية موزّعة على المحاور التلاتاشر دول —
+اعتبره خلفيتك المهنية الكاملة وطبّقها حسب اللي محتاجه الطالب في كل لحظة، من غير
+ما تسردها له كقائمة — هو محتاج يحسّ إنك بتستخدمها مش إنك بتقرأها.)
 
 🎯 مهمتك (بالترتيب):
 1) لو الطالب جديد (level=A0 و placementDone=false): اعمل تقييم مبدئي سريع وودود
@@ -144,6 +189,8 @@ ${memoryText}
 }
 
 // -------------------- Gemini call --------------------
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 async function callGemini(systemPrompt, historyMsgs, userMessage) {
     const apiKey = process.env.GERMAN_API_KEY;
     if (!apiKey) throw new Error('GERMAN_API_KEY مش متظبط في environment variables');
@@ -154,27 +201,49 @@ async function callGemini(systemPrompt, historyMsgs, userMessage) {
     ];
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-    const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemPrompt }] },
-            contents,
-            generationConfig: { maxOutputTokens: 2048 }
-            // ملحوظة: متشلش temperature/top_p/top_k هنا — جوجل بتتجاهلهم مع
-            // موديلات Gemini 3.x دلوقتي، وبتقول إن الإصدارات الجاية ممكن ترفضهم
-            // بخطأ 400 لو اتبعتوا، فالأسلم إننا نسيبهم من غير ما نحطهم أصلًا.
-        })
+    const body = JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { maxOutputTokens: 2048 }
+        // ملحوظة: متشلش temperature/top_p/top_k هنا — جوجل بتتجاهلهم مع
+        // موديلات Gemini 3.x دلوقتي، وبتقول إن الإصدارات الجاية ممكن ترفضهم
+        // بخطأ 400 لو اتبعتوا، فالأسلم إننا نسيبهم من غير ما نحطهم أصلًا.
     });
 
-    if (!resp.ok) {
+    // Gemini بيرجع 503/429 بشكل مؤقت وقت الضغط العالي — نعيد المحاولة 3 مرات
+    // بفاصل متزايد (1s, 2.5s, 5s) قبل ما نستسلم فعلاً.
+    const RETRYABLE = [429, 500, 503];
+    const MAX_ATTEMPTS = 3;
+    let lastErr = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+        });
+
+        if (resp.ok) {
+            const data = await resp.json();
+            const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+            if (!text) throw new Error('رد فاضي من Gemini — راجع الـ API key أو اسم الموديل');
+            return text;
+        }
+
         const errText = await resp.text().catch(() => '');
-        throw new Error(`Gemini API error ${resp.status}: ${errText.slice(0, 300)}`);
+        lastErr = new Error(`Gemini API error ${resp.status}: ${errText.slice(0, 300)}`);
+
+        if (RETRYABLE.includes(resp.status) && attempt < MAX_ATTEMPTS) {
+            await sleep(attempt * 1500 - 500); // 1s, 2.5s
+            continue;
+        }
+        break;
     }
-    const data = await resp.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-    if (!text) throw new Error('رد فاضي من Gemini — راجع الـ API key أو اسم الموديل');
-    return text;
+
+    if (lastErr && lastErr.message.includes('503')) {
+        throw new Error('السيرفر بتاع Gemini مزحوم دلوقتي (ضغط عالي مؤقت من جوجل نفسها). جرّب تبعت رسالتك تاني بعد شوية.');
+    }
+    throw lastErr;
 }
 
 // -------------------- Parse + strip metadata --------------------
@@ -218,6 +287,10 @@ module.exports = function registerGermanProRoutes(app, deps) {
         let state = await GermanProState.findOne({ studentCode });
         if (!state) {
             state = await GermanProState.create({ studentCode, fullName });
+        } else if (fullName && state.fullName !== fullName) {
+            // مزامنة الاسم لو اتغيّر أو كان فاضي وقت إنشاء الحالة لأول مرة
+            state.fullName = fullName;
+            await state.save();
         }
         return state;
     }
