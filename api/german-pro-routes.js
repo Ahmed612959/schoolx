@@ -209,6 +209,10 @@ ${META_END}
   عن اللي الـ JSON نفسه محتاجه — يعني ابعته كـ JSON خام صحيح 100% يقدر أي JSON.parse
   عادي يقرأه من أول مرة.
 - ممنوع تكرار بلوك الميتاداتا مرتين في نفس الرد، وممنوع تسيب أي نص بعد ${META_END}.
+- "track" لازم يكون **بالظبط** واحدة من كلمتين بس: "general" أو "nursing" (كلمة واحدة
+  من غير دمج، ممنوع "generalnursing" أو أي قيمة تانية).
+- "status" لازم يكون **بالظبط** واحدة من: "locked" أو "active" أو "done" (ممنوع
+  "pending" أو أي قيمة تانية غير التلاتة دول).
 - "newVocab": ابعت فيها **كل كلمة/تعبير ألماني جديد علّمته في الرد ده تحديدًا** (حتى
   لو الوحدة لسه مخلصتش) بالشكل: word / ipa / meaning / exampleDe / exampleAr. لو
   الرد ده كان مراجعة/اختبار من غير كلمات جديدة، ابعت newVocab: [].
@@ -250,10 +254,9 @@ async function callGemini(systemPrompt, historyMsgs, userMessage) {
     const body = JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents,
-        generationConfig: { maxOutputTokens: 2048 }
-        // ملحوظة: متشلش temperature/top_p/top_k هنا — جوجل بتتجاهلهم مع
-        // موديلات Gemini 3.x دلوقتي، وبتقول إن الإصدارات الجاية ممكن ترفضهم
-        // بخطأ 400 لو اتبعتوا، فالأسلم إننا نسيبهم من غير ما نحطهم أصلًا.
+        generationConfig: { maxOutputTokens: 8192 }
+        // رفعناها من 2048 لـ 8192 لأن الرد بيحتوي شرح + جدول + خطة 7 وحدات كـ JSON
+        // في آخره — الحد القديم كان بيقطع الرد قبل ما يكمّل الميتاداتا فتظهر ناقصة.
     });
 
     // Gemini بيرجع 503/429 بشكل مؤقت وقت الضغط العالي — نعيد المحاولة 3 مرات
@@ -310,26 +313,37 @@ function tryParseJson(raw) {
 }
 
 function extractMeta(rawText) {
-    // بناخد آخر ظهور للماركرز (لو الموديل غلط وكرر البلوك، ناخد الأحدث)
-    const start = rawText.lastIndexOf(META_START);
-    const end = rawText.lastIndexOf(META_END);
+    // نلاقي أول ظهور للماركر — أي حاجة بعده (شكلها اتكتب صح أو اتقطعت في النص)
+    // بتتشال فورًا من اللي هيشوفه الطالب، حتى لو الـ JSON نفسه اتقطع ومكملش لآخره.
+    // ده أهم فرق عن النسخة القديمة اللي كانت بتستنى تلاقي علامة النهاية الأول،
+    // فلو الرد اتقطع (خلص الـ tokens) قبل علامة النهاية، كانت بتسيب الـ JSON
+    // كامل ظاهر للطالب كنص خام.
+    const start = rawText.indexOf(META_START);
 
-    let visibleText, jsonRaw;
-    if (start === -1 || end === -1 || end < start) {
-        visibleText = rawText;
-        jsonRaw = null;
+    let visibleText, meta = null;
+    if (start !== -1) {
+        visibleText = rawText.slice(0, start);
+        const end = rawText.indexOf(META_END, start);
+        if (end !== -1) {
+            const jsonRaw = rawText.slice(start + META_START.length, end).trim();
+            meta = tryParseJson(jsonRaw);
+        }
+        // لو end === -1 (الرد اتقطع قبل ما يكمّل الميتاداتا): meta بتفضل null،
+        // وده مقبول — هنبعت رسالة عادية من غير تحديث خطة في الرد ده، بدل ما نعرض
+        // كود خام للطالب. الرسالة الجاية غالبًا هتظبط لوحدها.
     } else {
-        visibleText = (rawText.slice(0, start) + rawText.slice(end + META_END.length));
-        jsonRaw = rawText.slice(start + META_START.length, end).trim();
+        // شبكة أمان: الموديل ممكن (نادرًا) ينسى الماركر ويبعت الـ JSON مباشرة.
+        // بندوّر على بداية أي بلوك شكله زي الميتاداتا ونقطع من هناك.
+        const idx = rawText.search(/\{\s*"level"\s*:\s*"/);
+        if (idx !== -1) {
+            visibleText = rawText.slice(0, idx);
+            meta = tryParseJson(rawText.slice(idx));
+        } else {
+            visibleText = rawText;
+        }
     }
 
-    // شبكة أمان إضافية: لو لأي سبب فضل جزء من JSON خام ظاهر في النص (مثلاً الموديل
-    // كرر الميتاداتا من غير ماركرز، أو حطها في الأول بدل الآخر) امسحه برضو —
-    // بندوّر على أي بلوك { ... } فيه "placementDone" أو "currentUnitId" ونشيله.
-    visibleText = visibleText.replace(/\{[^{}]*"(placementDone|currentUnitId|unitJustCompleted)"[\s\S]*?\}\s*$/g, '').trim();
     visibleText = visibleText.replace(/<<\/?(META|END_META)>>/g, '').trim();
-
-    const meta = tryParseJson(jsonRaw);
     return { visibleText: visibleText || '(الرد وصل فاضي — جرّب تاني)', meta };
 }
 
@@ -448,14 +462,20 @@ module.exports = function registerGermanProRoutes(app, deps) {
                 if (typeof meta.level === 'string') state.level = meta.level;
                 if (typeof meta.placementDone === 'boolean') state.placementDone = meta.placementDone;
                 if (Array.isArray(meta.plan) && meta.plan.length) {
-                    state.plan = meta.plan.map(u => ({
-                        id: String(u.id || '').slice(0, 40),
-                        track: u.track === 'nursing' ? 'nursing' : 'general',
-                        title: String(u.title || '').slice(0, 200),
-                        level: String(u.level || state.level).slice(0, 10),
-                        objectives: Array.isArray(u.objectives) ? u.objectives.slice(0, 10).map(String) : [],
-                        status: ['locked', 'active', 'done'].includes(u.status) ? u.status : 'locked'
-                    }));
+                    state.plan = meta.plan.map(u => {
+                        const rawTrack = String(u.track || '').toLowerCase();
+                        const rawStatus = String(u.status || '').toLowerCase();
+                        return {
+                            id: String(u.id || '').slice(0, 40),
+                            // لو الموديل بعت قيمة مش مضبوطة (زي "generalnursing")، بنحسمها
+                            // بناءً على وجود كلمة "nursing" فيها بدل ما نرفضها بالكامل
+                            track: rawTrack.includes('nursing') ? 'nursing' : 'general',
+                            title: String(u.title || '').slice(0, 200),
+                            level: String(u.level || state.level).slice(0, 10),
+                            objectives: Array.isArray(u.objectives) ? u.objectives.slice(0, 10).map(String) : [],
+                            status: ['locked', 'active', 'done'].includes(rawStatus) ? rawStatus : 'locked'
+                        };
+                    });
                 }
                 if (meta.currentUnitId) state.currentUnitId = String(meta.currentUnitId).slice(0, 40);
 
