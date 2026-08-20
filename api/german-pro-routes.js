@@ -518,6 +518,58 @@ module.exports = function registerGermanProRoutes(app, deps) {
     });
 
     // تصفير كامل (إعادة التقييم من الصفر)
+    // -------- نطق صوتي من السيرفر (بيشتغل مع أي طالب على أي جهاز، مش معتمد
+    // على وجود صوت ألماني مثبّت على هاتفه) --------
+    // بنستخدم خدمة Google Translate الصوتية (مجانية، من غير أي مفتاح إضافي)
+    // كل طلب محدود بـ ~200 حرف، فبنقسّم النص الطويل لأجزاء ونلزقهم مع بعض.
+    async function fetchTtsChunk(text) {
+        const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=de&client=tw-ob&ttsspeed=0.24`;
+        const resp = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://translate.google.com/'
+            }
+        });
+        if (!resp.ok) throw new Error('tts provider status ' + resp.status);
+        return Buffer.from(await resp.arrayBuffer());
+    }
+
+    function splitForTts(text, maxLen = 180) {
+        const sentences = text.split(/(?<=[.!?،,])\s+/);
+        const chunks = [];
+        let current = '';
+        for (const s of sentences) {
+            if ((current + ' ' + s).trim().length > maxLen) {
+                if (current.trim()) chunks.push(current.trim());
+                current = s.length > maxLen ? s.slice(0, maxLen) : s;
+            } else {
+                current = (current + ' ' + s).trim();
+            }
+        }
+        if (current.trim()) chunks.push(current.trim());
+        return chunks.slice(0, 6); // سقف أمان: 6 أجزاء بالكتير (~1000 حرف)
+    }
+
+    app.post('/api/german-pro/tts', verifyToken, requireGermanPremium, async (req, res) => {
+        try {
+            const text = String(req.body?.text || '').trim();
+            if (!text) return res.status(400).json({ error: 'مفيش نص للنطق' });
+
+            const chunks = splitForTts(text);
+            if (!chunks.length) return res.status(400).json({ error: 'النص فاضي بعد التنظيف' });
+
+            const buffers = await Promise.all(chunks.map(c => fetchTtsChunk(c)));
+            const finalBuffer = Buffer.concat(buffers);
+
+            res.set('Content-Type', 'audio/mpeg');
+            res.set('Cache-Control', 'no-store');
+            res.send(finalBuffer);
+        } catch (e) {
+            console.error('❌ german-pro/tts error:', e.message);
+            res.status(502).json({ error: 'تعذر توليد الصوت من السيرفر دلوقتي: ' + e.message });
+        }
+    });
+
     app.post('/api/german-pro/reset', verifyToken, requireGermanPremium, async (req, res) => {
         try {
             await connectToDatabase();
