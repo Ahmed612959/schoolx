@@ -3,13 +3,11 @@
 // ====================================================================
 // ملف مستقل عمداً (مش داخل server-index.js) عشان ميعرّضش السيرفر الأساسي
 // لأي خطر أثناء التركيب. اربطه بسطرين بس في server-index.js (شوف التعليمات
-// تحت آخر الملف).
+// في INTEGRATION.md).
 //
 // Env vars المطلوبة:
 //   GERMAN_API_KEY   -> مفتاح Gemini API اللي جبته (مطلوب)
 //   GEMINI_MODEL     -> اسم الموديل (اختياري، افتراضيًا 'gemini-3.6-flash')
-//                       لو المفتاح بتاعك بيدعم موديل أحدث، حطه في المتغير ده
-//                       من غير ما تلمس الكود.
 // ====================================================================
 
 const mongoose = require('mongoose');
@@ -49,6 +47,26 @@ const germanProStateSchema = new mongoose.Schema({
         completedAt: { type: Date, default: Date.now }
     }],
 
+    // دفتر المفردات التراكمي — بيتزوّد أوتوماتيك من أي كلمة جديدة يعلّمها الموديل
+    // في أي رسالة (مش بس عند إقفال الوحدة)
+    vocabulary: [{
+        word: String,        // الكلمة الألمانية
+        ipa: String,         // [IPA] + نطق تقريبي بالعربي
+        meaning: String,     // المعنى بالعربي
+        exampleDe: String,   // جملة مثال بالألماني
+        exampleAr: String,   // ترجمة الجملة
+        unitId: String,
+        addedAt: { type: Date, default: Date.now }
+    }],
+
+    // قواعد نحوية اتشرحت — عشان تصدير PDF لاحقًا
+    grammarNotes: [{
+        title: String,
+        explanation: String, // نص Markdown كامل للشرح
+        unitId: String,
+        addedAt: { type: Date, default: Date.now }
+    }],
+
     // آخر رسايل خام (سياق قريب) — بيتقص لآخر MAX_HISTORY_TURNS
     history: [{
         role: { type: String, enum: ['user', 'model'] },
@@ -61,6 +79,22 @@ const germanProStateSchema = new mongoose.Schema({
 
 const GermanProState = mongoose.models.GermanProState ||
     mongoose.model('GermanProState', germanProStateSchema);
+
+// -------------------- هوية المستخدم (طالب أو أدمن) --------------------
+// الـ JWT بتاع السيرفر أصلاً فيه fullName/studentCode جاهزين (للطالب والأدمن
+// مع بعض) فمحتاجين نستخدمهم مباشرة من غير أي query إضافي على قاعدة البيانات.
+function resolveIdentity(req) {
+    if (req.user.type === 'admin') {
+        return {
+            studentCode: 'admin_' + req.user.id,
+            fullName: req.user.fullName || req.user.username || 'الأدمن'
+        };
+    }
+    return {
+        studentCode: req.user.studentCode || req.user.id,
+        fullName: req.user.fullName || ''
+    };
+}
 
 // -------------------- System Prompt --------------------
 function buildSystemPrompt(state) {
@@ -78,13 +112,15 @@ function buildSystemPrompt(state) {
 
     const currentUnit = state.plan.find(u => u.id === state.currentUnitId);
     const studentName = (state.fullName || '').trim();
+    const recentVocabCount = state.vocabulary.length;
 
     return `أنت "Herr/Frau Professional" — مدرّس لغة ألمانية معتمد (بمستوى Goethe-Institut/telc)
 متخصص تحديدًا في الألمانية الطبية والتمريضية (Fachsprache Pflege/Medizin) للطلاب
 الناطقين بالعربية اللي بيتجهزوا للعمل أو الدراسة في مجال التمريض بألمانيا/النمسا/سويسرا.
-أنت أفضل وأدق بكتير من أي شات بوت عادي — دقيق، منظم، صبور، ومحترف زي مدرّس حقيقي في معهد.
+أسلوبك في التدريس زي تطبيقات تعلّم اللغة الاحترافية (نمط Duolingo): خطوة صغيرة،
+تفاعل، تقييم فوري، تحفيز — مش محاضرة طويلة.
 
-👤 اسم الطالب اللي بتكلمه دلوقتي: "${studentName || 'غير معروف'}"
+👤 اسم اللي بتكلمه دلوقتي: "${studentName || 'غير معروف'}"
 ${studentName
     ? `- نادِ عليه باسمه ("${studentName}") بطريقة طبيعية بين وقت وآخر (مش في كل رسالة عشان
    ميبقاش مصطنع) — في الترحيب، لما تشجعه، أو لما تقدّم وحدة جديدة. متسألوش عن اسمه، انت عارفه.`
@@ -112,70 +148,78 @@ ${studentName
    المشاركة في الجولة الطبية (Visite)، التنسيق مع فريق التمريض والإدارة.
 8. الكتابة الطبية الرسمية: توثيق الملاحظات التمريضية، تعبئة النماذج والاستمارات، صياغة
    تقرير حادثة أو تطور حالة، المصطلحات المختصرة الشائعة في الملفات الطبية الألمانية.
-9. الاستماع والفهم السمعي: فهم تعليمات شفهية سريعة، فهم لهجات ألمانية مختلفة (نمساوية/
-   سويسرية/شمال-جنوب ألمانيا)، فهم الإعلانات في المستشفى ونداءات الطوارئ.
-10. القراءة الطبية: قراءة نشرات الأدوية، لافتات المستشفى، تعليمات السلامة، تقارير مختصرة.
-11. التحضير للامتحانات الرسمية: بنية اختبار telc Pflege B1/B2 وGoethe-Zertifikat، أسئلة
-    نموذجية، إدارة وقت الامتحان، أخطاء شائعة يقع فيها المتقدمون العرب تحديدًا.
-12. الثقافة المهنية الألمانية: آداب بيئة العمل، التسلسل الإداري، المواعيد والالتزام
-    بالوقت، طريقة التعامل الرسمية مقابل غير الرسمية (Sie/du)، إجازات وحقوق العامل.
-13. أساليب تربوية وتقييم: تكييف الشرح حسب مستوى الطالب الفعلي (مش المفترض)، تصحيح
-    الأخطاء بلطف مع توضيح السبب النحوي، التحفيز الإيجابي المستمر، أسئلة تقييم متدرجة
-    الصعوبة، اكتشاف نقاط الضعف الخفية والعمل عليها بهدوء من غير ما "يفضحها" للطالب.
-14. الذاكرة والمراجعة الذكية: تكرار متباعد (Spaced Repetition) للمفردات القديمة، ربط
-    الوحدة الجديدة بالسابقة، اختبارات مراجعة دورية قصيرة، تلخيص الجلسة في النهاية.
-(الإطار ده بيغطي أكتر من 300 مهارة فرعية فعلية موزّعة على المحاور التلاتاشر دول —
-اعتبره خلفيتك المهنية الكاملة وطبّقها حسب اللي محتاجه الطالب في كل لحظة، من غير
-ما تسردها له كقائمة — هو محتاج يحسّ إنك بتستخدمها مش إنك بتقرأها.)
+9. الاستماع والفهم السمعي، القراءة الطبية (نشرات أدوية، لافتات، تعليمات سلامة).
+10. التحضير للامتحانات الرسمية: بنية اختبار telc Pflege B1/B2 وGoethe-Zertifikat، أخطاء
+    شائعة يقع فيها المتقدمون العرب تحديدًا.
+11. الثقافة المهنية الألمانية: آداب بيئة العمل، الالتزام بالوقت، Sie/du، حقوق العامل.
+12. أساليب تربوية وتقييم: تكييف الشرح حسب مستوى الطالب الفعلي، تصحيح الأخطاء بلطف مع
+    توضيح السبب، تحفيز مستمر، اكتشاف نقاط الضعف والعمل عليها بهدوء.
+13. الذاكرة والمراجعة الذكية: تكرار متباعد (Spaced Repetition)، اختبارات مراجعة دورية.
+(الإطار ده بيغطي أكتر من 300 مهارة فرعية فعلية — اعتبره خلفيتك المهنية، وطبّقها حسب
+اللي محتاجه الطالب في كل لحظة من غير ما تسردها له كقائمة.)
+
+🐢 قاعدة إلزامية جدًا — التدرّج والتقسيم (زي Duolingo بالظبط):
+- **ممنوع نهائيًا** إنك تكبّس معلومات كتير في رسالة واحدة. كل رسالة منك تقدّم **حاجة
+  واحدة صغيرة بس**: 3 إلى 6 كلمات/تعبيرات جديدة، أو قاعدة نحوية واحدة بس، مش أكتر.
+- بعد ما تقدّم الحاجة الصغيرة دي، سيب الطالب يتفاعل ويجرّب (سؤال أو تمرين قصير)
+  قبل ما تكمّل لحاجة جديدة. ميبقاش عندك "شرح طويل من غير توقف".
+- لما تحس إن جزء منطقي اتغطى كويس (مثلاً كل مفردات موضوع فرعي، أو قاعدة نحوية
+  واحدة بتفاصيلها)، اعمل **اختبار قصير جدًا** (2-4 أسئلة بس) على **الجزء ده تحديدًا**
+  (مش على الوحدة كلها) — قيّم إجابات الطالب فور ما يردّ، وضّح الصح والغلط بلطف مع
+  السبب، وبعد كده كمّل للجزء اللي بعده.
+- **كل رد منك تقريبًا لازم يحتوي على جملة تحفيزية واحدة على الأقل** (زي "👏 ممتاز!"،
+  "كمّل كده!"، "قربت خلّصت الوحدة!") — التحفيز المستمر جزء أساسي من أسلوبك.
+- لما الوحدة كلها تخلص فعلاً (كل أجزائها اتغطت واتختبرت)، اعمل ملخص قصير واعتبرها done.
+
+📖 تنسيق الكتابة (مهم جدًا عشان العرض يبقى نضيف في الشات):
+- استخدم Markdown بسيط ومرتب: عناوين قصيرة بـ **bold**، قوائم نقطية، وجداول Markdown
+  (| عمود | عمود |) للتصريفات والقواعد (مثلاً تصريف فعل باستخدام جدول Nominativ/
+  Akkusativ) — الجداول بتتعرض بشكل منظم في الواجهة فاستخدمها بدل ما تكتب كل حاجة
+  في سطر واحد طويل.
+- خلي كل رسالة قصيرة ومركزة (فقرة أو اتنين + جدول أو قائمة صغيرة عند الحاجة) —
+  مش صفحة كاملة دفعة واحدة.
+- لكل كلمة ألمانية جديدة اكتب النطق بصيغتين: [IPA] + نطق تقريبي بالعربي بين قوسين،
+  مثال: Krankenschwester [kʁaŋkn̩ˌʃvɛstɐ] (كرانكن-شفيستَر).
 
 🎯 مهمتك (بالترتيب):
 1) لو الطالب جديد (level=A0 و placementDone=false): اعمل تقييم مبدئي سريع وودود
    (كام سؤال بسيط: هل درس ألماني قبل كده؟ يعرف يقرأ الحروف؟ جرّب يترجم/ينطق جملة بسيطة؟)
    عشان تحدد نقطة البداية الصح (ممكن يكون فعلاً من الصفر).
 2) بعد التقييم مباشرة، اقترح خطة تعلّم كاملة مقسّمة لوحدات (units) متسلسلة ومترابطة،
-   بتمزج 3 مسارات مع بعض بشكل متوازن:
-   - أساسيات اللغة (حروف، نطق، قواعد، جمل يومية عامة)
-   - محادثات يومية عامة (تعارف، سفر، سوق، مواصلات...)
-   - ألمانية التمريض/المستشفى (Fachsprache Pflege): استقبال مريض، قياس العلامات
-     الحيوية، تسليم الشيفت (Übergabe), أدوية وجرعات, تواصل مع الطبيب/المريض/الأهل,
-     مصطلحات تشريح وأعضاء, حالات طوارئ, أوراق ونماذج طبية، تعبيرات التعاطف والدعم النفسي للمريض.
-   اعرض الخطة كاملة للطالب في رسالتك بشكل مرتب وواضح (نص عادي، مش JSON) قبل ما تبدأ.
-3) بعد كده امشِ وحدة وحدة بالترتيب. في كل وحدة:
-   - علّم المفردات والجمل الجديدة، وديمًا اكتب النطق الصحيح لكل كلمة/جملة ألمانية
-     بصيغتين: [IPA] + نطق تقريبي بالعربي بين قوسين، مثال: Krankenschwester [kʁaŋkn̩ˌʃvɛstɐ] (كرانكن-شفيستَر).
-   - اشرح القاعدة النحوية المرتبطة ببساطة مع أمثلة من نفس سياق التمريض قدر الإمكان.
-   - اعمل تمارين وأسئلة تفاعلية قصيرة أثناء الشرح مش بس في الآخر.
-   - في نهاية الوحدة اعمل اختبار فهم قصير (5-8 أسئلة/مواقف)، وقيّم إجابات الطالب بصراحة.
-   - لو الطالب مستوعب (أغلب الإجابات صح): اعتبر الوحدة خلصت، لخّص أهم حاجة اتعلمها في
-     سطرين، وابدأ الوحدة اللي بعدها في نفس الرد أو اللي بعده.
-   - لو مش مستوعب: راجع بطريقة مختلفة (أمثلة أكتر/أبسط) قبل ما تكمل، وما تديش انطباع إنه فشل.
-4) قبل ما تبدأ أي وحدة جديدة، اربطها بسرعة بحاجة اتعلمها قبل كده (تكرار متباعد Spaced
-   Repetition) عشان المعلومات القديمة متتنساش — استخدم "ذاكرة الوحدات المخلّصة" تحت.
-5) خليك دايمًا مشجّع ومحترف، صحّح الأخطاء بلطف ووضّح ليه غلط، واستخدم اللغة العربية
-   للشرح مع دمج الألماني كمحتوى تعليمي (مش العكس).
+   بتمزج 3 مسارات مع بعض بشكل متوازن: أساسيات اللغة، محادثات يومية عامة، وألمانية
+   التمريض/المستشفى (استقبال مريض، علامات حيوية، تسليم شيفت، أدوية، تواصل مع الطبيب/
+   المريض/الأهل، تشريح، طوارئ، أوراق طبية، تعاطف ودعم نفسي). اعرض الخطة كاملة نصيًا
+   ومرتبة قبل ما تبدأ (5 إلى 10 وحدات كافية، مش لازم مبالغة).
+3) بعد كده امشِ وحدة وحدة، وجوه كل وحدة امشِ **جزء صغير صغير** زي القاعدة فوق —
+   بدّل بين تعليم مفردات، شرح قاعدة، تمرين، اختبار مصغّر، مراجعة سريعة لحاجة قديمة.
+4) قبل ما تبدأ أي وحدة جديدة، اربطها بسرعة بحاجة اتعلمها قبل كده (Spaced Repetition)
+   عشان المعلومات القديمة متتنساش — استخدم "ذاكرة الوحدات المخلّصة" تحت.
+5) صحّح الأخطاء بلطف ووضّح ليه غلط، واستخدم العربية للشرح مع دمج الألماني كمحتوى.
 
-⚠️ قاعدة تقنية إلزامية جدًا: في **آخر** كل رد منك، وبعد كل اللي هيشوفه الطالب، لازم
-تضيف بلوك ميتاداتا مخفي (الطالب مش هيشوفه، هيتشال قبل ما يوصله) بالشكل ده بالظبط:
+⚠️ قاعدة تقنية إلزامية جدًا وحساسة: في **آخر** كل رد منك، وبعد كل اللي هيشوفه الطالب،
+لازم تضيف بلوك ميتاداتا مخفي (الطالب مش هيشوفه، هيتشال قبل ما يوصله) بالشكل ده **بالظبط**:
 
 ${META_START}
-{
-  "level": "A1",
-  "placementDone": true,
-  "plan": [ {"id":"u1","track":"general","title":"...","level":"A1","status":"active"}, ... ],
-  "currentUnitId": "u1",
-  "unitJustCompleted": null,
-  "unitSummary": null,
-  "keyVocab": []
-}
+{"level":"A1","placementDone":true,"plan":[{"id":"u1","track":"general","title":"...","level":"A1","status":"active"}],"currentUnitId":"u1","unitJustCompleted":null,"unitSummary":null,"keyVocab":[],"newVocab":[{"word":"Krankenschwester","ipa":"[kʁaŋkn̩ˌʃvɛstɐ] (كرانكن-شفيستَر)","meaning":"ممرضة","exampleDe":"Die Krankenschwester misst den Blutdruck.","exampleAr":"الممرضة بتقيس ضغط الدم."}],"grammarNote":null}
 ${META_END}
 
+قواعد صارمة لازم تتبعها بالحرف عشان الميتاداتا متتقرأش غلط:
+- اكتب الـ JSON في **سطر واحد** (compact، من غير newlines جواه)، وابعته **مرة واحدة بس**
+  في آخر الرد، ومن غير code fence (متكتبش \`\`\`json حواليه)، ومن غير أي escaping زيادة
+  عن اللي الـ JSON نفسه محتاجه — يعني ابعته كـ JSON خام صحيح 100% يقدر أي JSON.parse
+  عادي يقرأه من أول مرة.
+- ممنوع تكرار بلوك الميتاداتا مرتين في نفس الرد، وممنوع تسيب أي نص بعد ${META_END}.
+- "newVocab": ابعت فيها **كل كلمة/تعبير ألماني جديد علّمته في الرد ده تحديدًا** (حتى
+  لو الوحدة لسه مخلصتش) بالشكل: word / ipa / meaning / exampleDe / exampleAr. لو
+  الرد ده كان مراجعة/اختبار من غير كلمات جديدة، ابعت newVocab: [].
+- "grammarNote": لو شرحت قاعدة نحوية جديدة في الرد ده، ابعت {"title":"اسم القاعدة",
+  "explanation":"ملخص الشرح بصيغة Markdown مختصرة"}. غير كده ابعت null.
 - لو الخطة اتحطت قبل كده (شايفها تحت في "الخطة الحالية")، ابعتها تاني كاملة زي ما هي
   (غيّر بس status لو اتغيّر)، متبعتش خطة فاضية أو تنسى وحدات.
-- لو وحدة خلصت دلوقتي في الرد ده: حط unitJustCompleted = id بتاعها، و unitSummary
-  ملخص سطرين، و keyVocab لستة أهم 5-10 كلمات اتعلمت فيها، وخلي status بتاعها "done"
-  و status بتاع اللي بعدها "active" و currentUnitId = الوحدة الجديدة.
+- لو وحدة خلصت فعلاً دلوقتي: حط unitJustCompleted = id بتاعها، unitSummary ملخص سطرين،
+  keyVocab لأهم 5-10 كلمات، status بتاعها "done"، status اللي بعدها "active"،
+  currentUnitId = الوحدة الجديدة.
 - لو لسه مفيش خطة (أول تقييم لسه شغال): ابعت plan: [] و placementDone: false.
-- ابعت الـ JSON صحيح 100% (مفيش تعليقات جوه الـ JSON)، وميتكتبش أي حاجة بعد ${META_END}.
 
 📋 الخطة الحالية:
 ${planText}
@@ -184,6 +228,8 @@ ${planText}
 
 🧠 ذاكرة الوحدات اللي خلصت (استخدمها للربط والمراجعة، ما تكررش شرحها من الصفر):
 ${memoryText}
+
+📗 عدد الكلمات المحفوظة في دفتر مفردات الطالب لحد دلوقتي: ${recentVocabCount}
 
 مستوى الطالب الحالي: ${state.level}`;
 }
@@ -211,7 +257,7 @@ async function callGemini(systemPrompt, historyMsgs, userMessage) {
     });
 
     // Gemini بيرجع 503/429 بشكل مؤقت وقت الضغط العالي — نعيد المحاولة 3 مرات
-    // بفاصل متزايد (1s, 2.5s, 5s) قبل ما نستسلم فعلاً.
+    // بفاصل متزايد (1s, 2.5s) قبل ما نستسلم فعلاً.
     const RETRYABLE = [429, 500, 503];
     const MAX_ATTEMPTS = 3;
     let lastErr = null;
@@ -246,18 +292,45 @@ async function callGemini(systemPrompt, historyMsgs, userMessage) {
     throw lastErr;
 }
 
-// -------------------- Parse + strip metadata --------------------
+// -------------------- Parse + strip metadata (مقوّاة ضد أخطاء تنسيق الموديل) --------------------
+function tryParseJson(raw) {
+    if (!raw) return null;
+    // محاولة 1: مباشرة
+    try { return JSON.parse(raw); } catch (e) { /* كمّل */ }
+    // محاولة 2: شيل code fences لو موجودة
+    let cleaned = raw.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+    try { return JSON.parse(cleaned); } catch (e) { /* كمّل */ }
+    // محاولة 3: الموديل ممكن يبعت الجملة كـ string متعمل لها escape زيادة (\" بدل ")
+    // — شيل الـ backslash escaping الزيادة وجرّب تاني
+    try {
+        const unescaped = cleaned.replace(/\\"/g, '"').replace(/\\n/g, ' ');
+        return JSON.parse(unescaped);
+    } catch (e) { /* استسلم */ }
+    return null;
+}
+
 function extractMeta(rawText) {
-    const start = rawText.indexOf(META_START);
-    const end = rawText.indexOf(META_END);
+    // بناخد آخر ظهور للماركرز (لو الموديل غلط وكرر البلوك، ناخد الأحدث)
+    const start = rawText.lastIndexOf(META_START);
+    const end = rawText.lastIndexOf(META_END);
+
+    let visibleText, jsonRaw;
     if (start === -1 || end === -1 || end < start) {
-        return { visibleText: rawText.trim(), meta: null };
+        visibleText = rawText;
+        jsonRaw = null;
+    } else {
+        visibleText = (rawText.slice(0, start) + rawText.slice(end + META_END.length));
+        jsonRaw = rawText.slice(start + META_START.length, end).trim();
     }
-    const visibleText = (rawText.slice(0, start) + rawText.slice(end + META_END.length)).trim();
-    const jsonRaw = rawText.slice(start + META_START.length, end).trim();
-    let meta = null;
-    try { meta = JSON.parse(jsonRaw); } catch (e) { meta = null; }
-    return { visibleText, meta };
+
+    // شبكة أمان إضافية: لو لأي سبب فضل جزء من JSON خام ظاهر في النص (مثلاً الموديل
+    // كرر الميتاداتا من غير ماركرز، أو حطها في الأول بدل الآخر) امسحه برضو —
+    // بندوّر على أي بلوك { ... } فيه "placementDone" أو "currentUnitId" ونشيله.
+    visibleText = visibleText.replace(/\{[^{}]*"(placementDone|currentUnitId|unitJustCompleted)"[\s\S]*?\}\s*$/g, '').trim();
+    visibleText = visibleText.replace(/<<\/?(META|END_META)>>/g, '').trim();
+
+    const meta = tryParseJson(jsonRaw);
+    return { visibleText: visibleText || '(الرد وصل فاضي — جرّب تاني)', meta };
 }
 
 // -------------------- Route registration --------------------
@@ -267,16 +340,15 @@ module.exports = function registerGermanProRoutes(app, deps) {
         throw new Error('german-pro-routes: deps ناقصة (verifyToken/connectToDatabase/Student)');
     }
 
-    // طالب Premium بالميزة دي، أو أدمن
+    // طالب Premium بالميزة دي، أو أي أدمن (الأدمن مسموح له يستخدم الميزة برضو)
     async function requireGermanPremium(req, res, next) {
         try {
             if (req.user?.type === 'admin') return next();
             await connectToDatabase();
-            const student = await Student.findById(req.user.id).select('premiumFeatures fullName studentCode');
+            const student = await Student.findById(req.user.id).select('premiumFeatures');
             if (!student || !student.premiumFeatures?.includes(PREMIUM_KEY)) {
                 return res.status(403).json({ error: 'الميزة دي متاحة لطلاب Premium فقط (German Pro)' });
             }
-            req.germanStudent = student;
             next();
         } catch (e) {
             res.status(500).json({ error: 'خطأ في التحقق من الاشتراك: ' + e.message });
@@ -288,28 +360,67 @@ module.exports = function registerGermanProRoutes(app, deps) {
         if (!state) {
             state = await GermanProState.create({ studentCode, fullName });
         } else if (fullName && state.fullName !== fullName) {
-            // مزامنة الاسم لو اتغيّر أو كان فاضي وقت إنشاء الحالة لأول مرة
             state.fullName = fullName;
             await state.save();
         }
         return state;
     }
 
-    // حالة الطالب الحالية (بيستخدمها الفرونت إند لعرض الخطة والتقدم)
+    function addVocab(state, newVocab, unitId) {
+        if (!Array.isArray(newVocab) || !newVocab.length) return;
+        const existing = new Set(state.vocabulary.map(v => (v.word || '').trim().toLowerCase()));
+        for (const v of newVocab) {
+            const word = String(v?.word || '').trim();
+            if (!word || existing.has(word.toLowerCase())) continue;
+            state.vocabulary.push({
+                word: word.slice(0, 100),
+                ipa: String(v.ipa || '').slice(0, 150),
+                meaning: String(v.meaning || '').slice(0, 200),
+                exampleDe: String(v.exampleDe || '').slice(0, 300),
+                exampleAr: String(v.exampleAr || '').slice(0, 300),
+                unitId: unitId || null
+            });
+            existing.add(word.toLowerCase());
+        }
+        // سقف أمان: منمنعش الطالب لكن منسيبش المصفوفة تكبر من غير حد منطقي
+        if (state.vocabulary.length > 1500) state.vocabulary = state.vocabulary.slice(-1500);
+    }
+
+    function addGrammarNote(state, note, unitId) {
+        if (!note || !note.title) return;
+        const title = String(note.title).trim();
+        if (!title) return;
+        const already = state.grammarNotes.find(g => g.title === title);
+        if (already) return;
+        state.grammarNotes.push({
+            title: title.slice(0, 150),
+            explanation: String(note.explanation || '').slice(0, 3000),
+            unitId: unitId || null
+        });
+        if (state.grammarNotes.length > 300) state.grammarNotes = state.grammarNotes.slice(-300);
+    }
+
+    function stateResponse(state) {
+        return {
+            success: true,
+            level: state.level,
+            placementDone: state.placementDone,
+            plan: state.plan,
+            currentUnitId: state.currentUnitId,
+            completedUnits: state.completedUnits,
+            vocabulary: state.vocabulary,
+            grammarNotes: state.grammarNotes,
+            history: state.history.slice(-MAX_HISTORY_TURNS)
+        };
+    }
+
+    // حالة الطالب/الأدمن الحالية (بيستخدمها الفرونت إند لعرض الخطة والتقدم)
     app.get('/api/german-pro/state', verifyToken, requireGermanPremium, async (req, res) => {
         try {
             await connectToDatabase();
-            const s = req.germanStudent || await Student.findById(req.user.id).select('fullName studentCode');
-            const state = await loadOrCreateState(s.studentCode, s.fullName);
-            res.json({
-                success: true,
-                level: state.level,
-                placementDone: state.placementDone,
-                plan: state.plan,
-                currentUnitId: state.currentUnitId,
-                completedUnits: state.completedUnits,
-                history: state.history.slice(-MAX_HISTORY_TURNS)
-            });
+            const { studentCode, fullName } = resolveIdentity(req);
+            const state = await loadOrCreateState(studentCode, fullName);
+            res.json(stateResponse(state));
         } catch (e) {
             res.status(500).json({ error: 'خطأ في تحميل الحالة: ' + e.message });
         }
@@ -323,8 +434,8 @@ module.exports = function registerGermanProRoutes(app, deps) {
                 return res.status(400).json({ error: 'اكتب رسالة الأول' });
             }
             await connectToDatabase();
-            const s = req.germanStudent || await Student.findById(req.user.id).select('fullName studentCode');
-            const state = await loadOrCreateState(s.studentCode, s.fullName);
+            const { studentCode, fullName } = resolveIdentity(req);
+            const state = await loadOrCreateState(studentCode, fullName);
 
             const systemPrompt = buildSystemPrompt(state);
             const recentHistory = state.history.slice(-MAX_HISTORY_TURNS);
@@ -347,6 +458,10 @@ module.exports = function registerGermanProRoutes(app, deps) {
                     }));
                 }
                 if (meta.currentUnitId) state.currentUnitId = String(meta.currentUnitId).slice(0, 40);
+
+                addVocab(state, meta.newVocab, state.currentUnitId);
+                addGrammarNote(state, meta.grammarNote, state.currentUnitId);
+
                 if (meta.unitJustCompleted) {
                     state.completedUnits.push({
                         unitId: String(meta.unitJustCompleted).slice(0, 40),
@@ -371,7 +486,10 @@ module.exports = function registerGermanProRoutes(app, deps) {
                 level: state.level,
                 plan: state.plan,
                 currentUnitId: state.currentUnitId,
-                completedUnits: state.completedUnits
+                completedUnits: state.completedUnits,
+                vocabulary: state.vocabulary,
+                grammarNotes: state.grammarNotes,
+                metaParsed: !!meta // مفيد للفرونت إند لو حاب يعرض تحذير صامت وقت مشاكل تزامن
             });
         } catch (e) {
             console.error('❌ german-pro/message error:', e.message);
@@ -379,14 +497,14 @@ module.exports = function registerGermanProRoutes(app, deps) {
         }
     });
 
-    // تصفير كامل (الطالب يعيد التقييم من الصفر)
+    // تصفير كامل (إعادة التقييم من الصفر)
     app.post('/api/german-pro/reset', verifyToken, requireGermanPremium, async (req, res) => {
         try {
             await connectToDatabase();
-            const s = req.germanStudent || await Student.findById(req.user.id).select('fullName studentCode');
+            const { studentCode, fullName } = resolveIdentity(req);
             await GermanProState.findOneAndUpdate(
-                { studentCode: s.studentCode },
-                { $set: { level: 'A0', placementDone: false, plan: [], currentUnitId: null, completedUnits: [], history: [], totalMessages: 0 } },
+                { studentCode },
+                { $set: { fullName, level: 'A0', placementDone: false, plan: [], currentUnitId: null, completedUnits: [], vocabulary: [], grammarNotes: [], history: [], totalMessages: 0 } },
                 { upsert: true }
             );
             res.json({ success: true });
