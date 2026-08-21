@@ -3285,6 +3285,10 @@ function isManager(req, res, next) {
 // راوت مستقل في ملف german-pro-routes.js (لازم يكون جنب الملف ده في نفس الفولدر).
 require('./german-pro-routes')(app, { verifyToken, isAdmin, connectToDatabase, Student });
 
+// ====================== English Pro (تعلّم الإنجليزية الاحترافي - تمريض) ======================
+// راوت مستقل في ملف english-pro-routes.js (لازم يكون جنب الملف ده في نفس الفولدر).
+require('./english-pro-routes')(app, { verifyToken, isAdmin, connectToDatabase, Student });
+
 // ====================== TEST ENDPOINT ======================
 app.get('/api/test', async (req, res) => {
     let dbStatus = 'disconnected';
