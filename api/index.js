@@ -349,7 +349,15 @@ const adminSchema = new mongoose.Schema({
     failedAttempts: { type: Number, default: 0 },
     lockedUntil: Date,
     profile: { phone: String, email: String },
-    refreshToken: String
+    refreshToken: String,
+    // ====== جلسة واحدة فقط في نفس الوقت (single active session) ======
+    // activeSessionId: معرّف عشوائي بيتولّد مع كل تسجيل دخول ناجح، ومتحفوظ هنا
+    // في الداتابيز (مش بس في التوكن) عشان نقدر نتحقق منه وقت أي محاولة دخول جديدة.
+    // sessionLastSeenAt: بيتحدّث كل شوية من الجهاز الشغال (endpoint /api/heartbeat)
+    // طول ما التطبيق مفتوح عنده — لو عدّى عليه وقت طويل من غير تحديث (يعني الجهاز
+    // قفل التطبيق من غير تسجيل خروج صريح)، بنعتبر الجلسة "ماتت" ونسمح لجهاز تاني يدخل.
+    activeSessionId: { type: String, default: null },
+    sessionLastSeenAt: { type: Date, default: null }
 }, { timestamps: true });
 
 const studentSchema = new mongoose.Schema({
@@ -382,7 +390,10 @@ const studentSchema = new mongoose.Schema({
     // نفس فكرة lockedUntil الموجودة أصلًا، بس ده إيقاف يدوي من الأدمن مش قفل تلقائي بسبب فشل باسورد.
     suspendedUntil: { type: Date, default: null },
     suspendedReason: { type: String, default: '' },
-    refreshToken: String
+    refreshToken: String,
+    // ====== جلسة واحدة فقط في نفس الوقت — نفس فكرة الحقول المشروحة في adminSchema فوق ======
+    activeSessionId: { type: String, default: null },
+    sessionLastSeenAt: { type: Date, default: null }
 }, { timestamps: true });
 
 const violationSchema = new mongoose.Schema({
@@ -3260,12 +3271,22 @@ messageRatingSchema.index({ studentCode: 1, clientMessageId: 1 }, { unique: true
 const MessageRating = mongoose.models.MessageRating || mongoose.model('MessageRating', messageRatingSchema);
 
 // ====================== دوال مساعدة ======================
+// مدة صلاحية الجلسة — كانت 24 ساعة بس (تخلي الطالب يضطر يعمل تسجيل دخول/ربط من
+// جديد كل يوم)، رفعناها لـ 30 يوم عشان يفضل مسجّل دخول تلقائيًا. الأمان اللي كان
+// بيعتمد على قصر المدة دلوقتي بيعتمد بدل منه على قفل "جلسة واحدة بس في نفس الوقت"
+// (شوف activeSessionId تحت) بدل ما يعتمد على انتهاء صلاحية سريع.
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 يوم
+const SESSION_JWT_EXPIRY = '30d';
+// أد إيه من الوقت من غير أي heartbeat قبل ما نعتبر إن الجلسة "ماتت" (الجهاز قفل
+// التطبيق من غير تسجيل خروج صريح) ونسمح لجهاز تاني يسجل دخول بنفس الحساب.
+const SESSION_ALIVE_WINDOW_MS = 5 * 60 * 1000; // 5 دقايق
+
 function setAuthCookie(res, token) {
     res.cookie('authToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: SESSION_MAX_AGE_MS,
         path: '/'
     });
 }
@@ -3412,15 +3433,34 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             await user.save();
             return res.status(401).json({ error: 'بيانات غير صحيحة' });
         }
+
+        // ====== منع تسجيل الدخول من جهاز تاني طول ما فيه جلسة شغالة بالفعل ======
+        // "شغالة" هنا معناها: فيه جلسة متسجّلة، ووصلها آخر heartbeat خلال آخر 5
+        // دقايق (شوف SESSION_ALIVE_WINDOW_MS فوق). لو الجهاز الأول قفل التطبيق من
+        // غير تسجيل خروج صريح، الجلسة بتتعتبر "ماتت" تلقائيًا بعد المدة دي وأي
+        // جهاز تاني يقدر يدخل عادي — مفيش قفل دائم لو حد نسي يعمل logout.
+        const now = new Date();
+        const hasLiveSession = user.activeSessionId && user.sessionLastSeenAt &&
+            (now - new Date(user.sessionLastSeenAt)) < SESSION_ALIVE_WINDOW_MS;
+        if (hasLiveSession) {
+            return res.status(409).json({
+                error: 'الحساب ده مسجّل دخول بالفعل على جهاز تاني دلوقتي. سجّل خروج من هناك الأول، أو استنى كام دقيقة لو الجهاز مقفول من غير خروج.',
+                code: 'ACCOUNT_IN_USE'
+            });
+        }
+
+        const sessionId = crypto.randomBytes(16).toString('hex');
         user.failedAttempts = 0;
         user.lockedUntil = null;
-        user.lastLogin = new Date();
+        user.lastLogin = now;
         user.lastIP = clientIP;
+        user.activeSessionId = sessionId;
+        user.sessionLastSeenAt = now;
         await user.save();
         const token = jwt.sign(
-            { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode, role: userType === 'admin' ? (user.role || 'manager') : undefined },
+            { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode, role: userType === 'admin' ? (user.role || 'manager') : undefined, sid: sessionId },
             JWT_SECRET,
-            { expiresIn: '24h' }
+            { expiresIn: SESSION_JWT_EXPIRY }
         );
         setAuthCookie(res, token);
         // بيترجع الـ token في الـ body كمان (مش بس كوكي) عشان أي مشروع تاني
@@ -3431,19 +3471,63 @@ app.post('/api/login', loginLimiter, async (req, res) => {
     }
 });
 
+// ====================== نبضة حياة الجلسة (heartbeat) ======================
+// بينادى عليها دوريًا (كل دقيقتين مثلاً) من أي جهاز لسه فاتح التطبيق، عشان تحديث
+// آخر وقت "شوهدت فيه" الجلسة — ده اللي بيخلي /api/login يعرف يفرّق بين جلسة شغالة
+// فعلاً وجلسة اتسابت (تاب اتقفل من غير logout) وممكن تتحل محلها جلسة جديدة.
+app.post('/api/heartbeat', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const Model = req.user.type === 'admin' ? Admin : Student;
+        // الشرط على activeSessionId يمنع جلسة قديمة (اتحلت محلها جلسة تانية) من
+        // إنها "تحيي نفسها" بالغلط لو التوكن القديم لسه شغال عند حد.
+        await Model.updateOne(
+            { _id: req.user.id, activeSessionId: req.user.sid },
+            { sessionLastSeenAt: new Date() }
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث الجلسة' });
+    }
+});
+
+// ====================== تسجيل خروج صريح ======================
+// بيمسح الجلسة الشغالة من الداتابيز فورًا، عشان جهاز تاني يقدر يدخل بنفس الحساب
+// على طول من غير ما يستنى انتهاء نافذة الـ heartbeat (5 دقايق).
+app.post('/api/logout', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const Model = req.user.type === 'admin' ? Admin : Student;
+        await Model.updateOne(
+            { _id: req.user.id, activeSessionId: req.user.sid },
+            { activeSessionId: null, sessionLastSeenAt: null }
+        );
+        res.clearCookie('authToken', { path: '/' });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تسجيل الخروج' });
+    }
+});
+
 // ====================== تجديد التوكن ======================
 app.post('/api/refresh-token', async (req, res) => {
-    const token = req.cookies?.authToken;
+    let token = req.cookies?.authToken;
+    if (!token) {
+        const authHeader = req.headers['authorization'];
+        token = authHeader?.split(' ')[1];
+    }
     if (!token) return res.status(401).json({ error: 'لا توجد جلسة' });
     try {
         const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
         const newToken = jwt.sign(
-            { id: decoded.id, username: decoded.username, type: decoded.type, fullName: decoded.fullName, studentCode: decoded.studentCode, role: decoded.role },
+            { id: decoded.id, username: decoded.username, type: decoded.type, fullName: decoded.fullName, studentCode: decoded.studentCode, role: decoded.role, sid: decoded.sid },
             JWT_SECRET,
-            { expiresIn: '24h' }
+            { expiresIn: SESSION_JWT_EXPIRY }
         );
         setAuthCookie(res, newToken);
-        res.json({ success: true });
+        // بيترجع التوكن الجديد في الـ body كمان (مش بس كوكي) — عشان مشاريع
+        // الدومين التاني (زي chatx) اللي بتخزنه في localStorage تقدر تحدّثه.
+        res.json({ success: true, token: newToken });
     } catch (error) {
         res.status(401).json({ error: 'جلسة منتهية' });
     }
@@ -7018,6 +7102,23 @@ app.post('/api/biometric/login-finish', async (req, res) => {
             return res.status(401).json({ success: false, error: 'المستخدم غير موجود' });
         }
 
+        // نفس قفل "جلسة واحدة بس في نفس الوقت" المطبّق في /api/login العادي —
+        // شوف الشرح الكامل هناك.
+        const nowBio = new Date();
+        const hasLiveSessionBio = user.activeSessionId && user.sessionLastSeenAt &&
+            (nowBio - new Date(user.sessionLastSeenAt)) < SESSION_ALIVE_WINDOW_MS;
+        if (hasLiveSessionBio) {
+            return res.status(409).json({
+                success: false,
+                error: 'الحساب ده مسجّل دخول بالفعل على جهاز تاني دلوقتي. سجّل خروج من هناك الأول، أو استنى كام دقيقة لو الجهاز مقفول من غير خروج.',
+                code: 'ACCOUNT_IN_USE'
+            });
+        }
+        const bioSessionId = crypto.randomBytes(16).toString('hex');
+        user.activeSessionId = bioSessionId;
+        user.sessionLastSeenAt = nowBio;
+        await user.save();
+
         const token = jwt.sign(
             {
                 id: user._id,
@@ -7025,10 +7126,11 @@ app.post('/api/biometric/login-finish', async (req, res) => {
                 type: userType,
                 fullName: user.fullName,
                 studentCode: user.studentCode,
-                role: userType === 'admin' ? (user.role || 'manager') : undefined
+                role: userType === 'admin' ? (user.role || 'manager') : undefined,
+                sid: bioSessionId
             },
             JWT_SECRET,
-            { expiresIn: '24h' }
+            { expiresIn: SESSION_JWT_EXPIRY }
         );
 
         setAuthCookie(res, token);
