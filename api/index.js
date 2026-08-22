@@ -80,6 +80,16 @@ const loginLimiter = rateLimit({
 });
 
 // ====================== متغيرات البيئة ======================
+// ⚠️ لازم JWT_SECRET يتحط كـ Environment Variable ثابت في الإنتاج. الـ fallback
+// العشوائي هنا موجود بس عشان السيرفر ميقعش لو حد نسي يضبطه، لكنه بيولّد سر
+// مختلف مع كل cold start على Vercel (كل instance سيرفرلس ليها نسخة لوحدها) —
+// يعني أي توكن اتعمل على instance معينة ممكن يفشل التحقق منه على instance تانية،
+// وده بيسبب تسجيل خروج عشوائي للمستخدمين. لو حصل ده، دي علامة إنك نسيت تضبط
+// JWT_SECRET في Vercel Environment Variables — اتأكد إنه string طويل وعشوائي
+// وثابت (متغيرش بين الديبلويز) عشان الجلسات تفضل شغالة صح.
+if (!process.env.JWT_SECRET) {
+    console.error('❌ JWT_SECRET غير مضبوط في Environment Variables — بيتولّد سر عشوائي مؤقت لكل instance، وده هيسبب تسجيل خروج عشوائي للمستخدمين. اضبطه فورًا في إعدادات Vercel.');
+}
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
@@ -274,7 +284,7 @@ const saveFileInfo = async (fileData, user) => {
         await newFile.save();
         return newFile;
     } catch (error) {
-        throw new Error('خطأ في حفظ معلومات الملف: ' + error.message);
+        throw new Error('خطأ في حفظ معلومات الملف: ');
     }
 };
 
@@ -315,8 +325,15 @@ async function verifyPassword(password, hash) {
     return new Promise((resolve, reject) => {
         const [salt, key] = hash.split(':');
         crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
-            if (err) reject(err);
-            resolve(key === derivedKey.toString('hex'));
+            if (err) return reject(err);
+            // مقارنة بزمن ثابت (constant-time) بدل === العادية، عشان نمنع
+            // timing attack ممكن يستخدمه مهاجم يقارن زمن الرد عشان يستنتج
+            // بايتات الـ hash الصح واحد واحد. لازم الطولين يتطابقوا الأول
+            // (Buffer.compare/timingSafeEqual بيرموا exception لو الطول مختلف).
+            const keyBuf = Buffer.from(key, 'hex');
+            const derivedBuf = Buffer.from(derivedKey.toString('hex'), 'hex');
+            if (keyBuf.length !== derivedBuf.length) return resolve(false);
+            resolve(crypto.timingSafeEqual(keyBuf, derivedBuf));
         });
     });
 }
@@ -530,7 +547,7 @@ app.get('/api/progress-comm1', verifyToken, async (req, res) => {
         let progress = await Progress.findOne({ userId });
         if (!progress) { progress = new Progress({ userId }); await progress.save(); }
         res.json(progress);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
 });
 
 app.post('/api/progress-comm1/xp', verifyToken, async (req, res) => {
@@ -542,7 +559,7 @@ app.post('/api/progress-comm1/xp', verifyToken, async (req, res) => {
         progress.xp = (progress.xp || 0) + amount;
         await progress.save();
         res.json({ success: true, xp: progress.xp });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث XP' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث XP' }); }
 });
 
 app.post('/api/progress-comm1/bookmarks', verifyToken, async (req, res) => {
@@ -555,7 +572,7 @@ app.post('/api/progress-comm1/bookmarks', verifyToken, async (req, res) => {
         else { progress.bookmarks = progress.bookmarks.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, bookmarks: progress.bookmarks });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
 });
 
 app.post('/api/progress-comm1/hard', verifyToken, async (req, res) => {
@@ -568,7 +585,7 @@ app.post('/api/progress-comm1/hard', verifyToken, async (req, res) => {
         else { progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, hardQuestions: progress.hardQuestions });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
 });
 
 app.post('/api/progress-comm1/notes', verifyToken, async (req, res) => {
@@ -580,7 +597,7 @@ app.post('/api/progress-comm1/notes', verifyToken, async (req, res) => {
         progress.notes.set(questionId, note);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
 });
 
 app.post('/api/progress-comm1/quiz', verifyToken, async (req, res) => {
@@ -596,7 +613,7 @@ app.post('/api/progress-comm1/quiz', verifyToken, async (req, res) => {
         }
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
 });
 
 app.post('/api/progress-comm1/achievements', verifyToken, async (req, res) => {
@@ -608,7 +625,7 @@ app.post('/api/progress-comm1/achievements', verifyToken, async (req, res) => {
         if (!progress.achievements.includes(achievementId)) progress.achievements.push(achievementId);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
 });
 
 app.post('/api/progress-comm1/difficulty', verifyToken, async (req, res) => {
@@ -620,7 +637,7 @@ app.post('/api/progress-comm1/difficulty', verifyToken, async (req, res) => {
         progress.difficulties.set(questionId, difficulty);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
 });
 
 // ====================== الواجبات (Homework) — موديل Comm1Homework منفصل ======================
@@ -639,7 +656,7 @@ app.post('/api/homework-comm1', verifyToken, isAdmin, async (req, res) => {
         });
         await newHomework.save();
         res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' }); }
 });
 
 app.get('/api/homework-comm1/all', verifyToken, isAdmin, async (req, res) => {
@@ -664,7 +681,7 @@ app.get('/api/homework-comm1/all', verifyToken, isAdmin, async (req, res) => {
             };
         }));
         res.status(200).json(homeworkWithStats);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات: ' }); }
 });
 
 app.get('/api/homework-comm1/pending', verifyToken, async (req, res) => {
@@ -679,7 +696,7 @@ app.get('/api/homework-comm1/pending', verifyToken, async (req, res) => {
             return { ...hw._doc, id: hw._id, isSubmitted: !!submission, hasSubmission: !!submission, myScore: submission ? submission.score : null };
         }));
         res.status(200).json(pendingHomeworks);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' }); }
 });
 
 app.get('/api/homework-comm1/:id', verifyToken, async (req, res) => {
@@ -694,7 +711,7 @@ app.get('/api/homework-comm1/:id', verifyToken, async (req, res) => {
         if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
         const questionsWithoutAnswers = (homework.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
         res.status(200).json({ ...homework._doc, id: homework._id, questions: questionsWithoutAnswers });
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجب: ' }); }
 });
 
 app.post('/api/homework-comm1/:id/submit', verifyToken, async (req, res) => {
@@ -738,7 +755,7 @@ app.post('/api/homework-comm1/:id/submit', verifyToken, async (req, res) => {
         });
         await submission.save();
         res.json({ success: true, message: 'تم تسليم الواجب بنجاح', score });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الواجب: ' }); }
 });
 
 app.get('/api/homework-comm1/:id/submissions', verifyToken, async (req, res) => {
@@ -755,7 +772,7 @@ app.get('/api/homework-comm1/:id/submissions', verifyToken, async (req, res) => 
         const submission = await Comm1HomeworkSubmission.findOne({ homeworkId: req.params.id, studentId: req.user.username });
         if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الواجب' });
         res.json([submission]);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
 });
 
 app.delete('/api/homework-comm1/:id', verifyToken, isManager, async (req, res) => {
@@ -765,7 +782,7 @@ app.delete('/api/homework-comm1/:id', verifyToken, isManager, async (req, res) =
         if (!deletedHomework) return res.status(404).json({ error: 'الواجب غير موجود' });
         const deletedSubmissions = await Comm1HomeworkSubmission.deleteMany({ homeworkId: req.params.id });
         res.json({ success: true, message: 'تم حذف الواجب وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الواجب: ' }); }
 });
 
 // ====================== البطولات (Tournaments) — موديل Comm1Tournament منفصل ======================
@@ -793,7 +810,7 @@ app.post('/api/tournaments-comm1', verifyToken, isAdmin, async (req, res) => {
         });
         await newTournament.save();
         res.status(201).json({ success: true, message: 'تم إنشاء البطولة بنجاح', tournament: newTournament });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' }); }
 });
 
 app.get('/api/tournaments-comm1/active', verifyToken, async (req, res) => {
@@ -813,7 +830,7 @@ app.get('/api/tournaments-comm1/active', verifyToken, async (req, res) => {
             };
         });
         res.json(result);
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' }); }
 });
 
 app.post('/api/tournaments-comm1/join-by-code', verifyToken, async (req, res) => {
@@ -831,7 +848,7 @@ app.post('/api/tournaments-comm1/join-by-code', verifyToken, async (req, res) =>
         if (alreadyJoined) return res.status(400).json({ success: false, error: 'لقد شاركت في هذه البطولة مسبقاً', alreadyParticipated: true, score: alreadyJoined.score });
         const questionsWithoutAnswers = tournament.questions.map(q => ({ text: q.text || '', translation: q.translation || '', cat: q.cat || 'mcq', options: q.options || [] }));
         res.json({ success: true, tournamentId: tournament._id, title: tournament.title, chapterName: tournament.chapterName, timeLimitMinutes: tournament.timeLimitMinutes || 10, endDate: tournament.endDate, questions: questionsWithoutAnswers, message: 'تم التحقق بنجاح. ابدأ الحل الآن!' });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' }); }
 });
 
 app.post('/api/tournaments-comm1/:id/participate', verifyToken, async (req, res) => {
@@ -870,7 +887,7 @@ app.post('/api/tournaments-comm1/:id/participate', verifyToken, async (req, res)
         await Progress.findOneAndUpdate({ userId: (req.user.username) + '_comm1' }, { $inc: { xp: xpReward } }, { upsert: true, new: true });
 
         res.json({ success: true, score, rank: userRank, correctCount, wrongCount, totalQuestions, xpEarned: xpReward, message: `أحسنت! حصلت على ${score}%` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' }); }
 });
 
 app.get('/api/tournaments-comm1/:id/results', verifyToken, async (req, res) => {
@@ -884,7 +901,7 @@ app.get('/api/tournaments-comm1/:id/results', verifyToken, async (req, res) => {
         }
         const participants = (tournament.participants || []).map((p, index) => ({ rank: index + 1, studentName: p.studentName, score: p.score, correctCount: p.correctCount || 0, wrongCount: p.wrongCount || 0, timeTaken: p.timeTaken, submittedAt: p.submittedAt }));
         res.json({ success: true, title: tournament.title, chapterName: tournament.chapterName, participants, top3: participants.slice(0, 3), totalParticipants: participants.length });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' }); }
 });
 
 app.post('/api/tournaments-comm1/:id/finish', verifyToken, isAdmin, async (req, res) => {
@@ -904,7 +921,7 @@ app.post('/api/tournaments-comm1/:id/finish', verifyToken, isAdmin, async (req, 
         }
         await tournament.save();
         res.json({ success: true, message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح', winners: { first: participants[0]?.studentName || 'لا يوجد', second: participants[1]?.studentName || 'لا يوجد', third: participants[2]?.studentName || 'لا يوجد' } });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' }); }
 });
 
 // ====================== المراجعة الذكية (Smart Review) — خاصة بصحة المجتمع ======================
@@ -945,7 +962,7 @@ app.post('/api/smart-review-comm1', verifyToken, async (req, res) => {
         if (chapterId && chapterId !== 'all') { const firstQ = allQuestions.find(q => q.chapterId === chapterId); if (firstQ) chapterName = firstQ.chapterName || chapterId; }
 
         res.json({ success: true, questions: questionsWithoutAnswers, total: selected.length, reasons, chapterName, message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية من ${chapterName}` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' }); }
 });
 
 app.post('/api/smart-review-comm1/save-progress', verifyToken, async (req, res) => {
@@ -963,7 +980,7 @@ app.post('/api/smart-review-comm1/save-progress', verifyToken, async (req, res) 
         }
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ التقدم: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ التقدم: ' }); }
 });
 
 // ==========================================================================
@@ -1082,7 +1099,7 @@ app.get('/api/progress-fon', verifyToken, async (req, res) => {
         let progress = await Progress.findOne({ userId });
         if (!progress) { progress = new Progress({ userId }); await progress.save(); }
         res.json(progress);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
 });
 
 app.post('/api/progress-fon/xp', verifyToken, async (req, res) => {
@@ -1094,7 +1111,7 @@ app.post('/api/progress-fon/xp', verifyToken, async (req, res) => {
         progress.xp = (progress.xp || 0) + amount;
         await progress.save();
         res.json({ success: true, xp: progress.xp });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث XP' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث XP' }); }
 });
 
 app.post('/api/progress-fon/bookmarks', verifyToken, async (req, res) => {
@@ -1107,7 +1124,7 @@ app.post('/api/progress-fon/bookmarks', verifyToken, async (req, res) => {
         else { progress.bookmarks = progress.bookmarks.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, bookmarks: progress.bookmarks });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
 });
 
 app.post('/api/progress-fon/hard', verifyToken, async (req, res) => {
@@ -1120,7 +1137,7 @@ app.post('/api/progress-fon/hard', verifyToken, async (req, res) => {
         else { progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, hardQuestions: progress.hardQuestions });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
 });
 
 app.post('/api/progress-fon/notes', verifyToken, async (req, res) => {
@@ -1132,7 +1149,7 @@ app.post('/api/progress-fon/notes', verifyToken, async (req, res) => {
         progress.notes.set(questionId, note);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
 });
 
 // ✅ إصلاح: /quiz دلوقتي بيسجل سجل الاختبار بس، ومابيلمسش wrongQuestions
@@ -1146,7 +1163,7 @@ app.post('/api/progress-fon/quiz', verifyToken, async (req, res) => {
         progress.quizHistory.push({ date: new Date().toISOString(), total: total || 0, correct: correct || 0, score: score || 0, chapter: chapter || 'all' });
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
 });
 
 // ✅ راوت جديد مخصص للأسئلة الخاطئة: add / remove / clear
@@ -1174,7 +1191,7 @@ app.post('/api/progress-fon/wrong', verifyToken, async (req, res) => {
 
         await progress.save();
         res.json({ success: true, wrongQuestions: progress.wrongQuestions });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الأسئلة الخاطئة: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الأسئلة الخاطئة: ' }); }
 });
 
 app.post('/api/progress-fon/achievements', verifyToken, async (req, res) => {
@@ -1186,7 +1203,7 @@ app.post('/api/progress-fon/achievements', verifyToken, async (req, res) => {
         if (!progress.achievements.includes(achievementId)) progress.achievements.push(achievementId);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
 });
 
 app.post('/api/progress-fon/difficulty', verifyToken, async (req, res) => {
@@ -1198,7 +1215,7 @@ app.post('/api/progress-fon/difficulty', verifyToken, async (req, res) => {
         progress.difficulties.set(questionId, difficulty);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
 });
 
 // ====================== الواجبات (Homework) — موديل FonHomework منفصل ======================
@@ -1217,7 +1234,7 @@ app.post('/api/homework-fon', verifyToken, isAdmin, async (req, res) => {
         });
         await newHomework.save();
         res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' }); }
 });
 
 app.get('/api/homework-fon/all', verifyToken, isAdmin, async (req, res) => {
@@ -1242,7 +1259,7 @@ app.get('/api/homework-fon/all', verifyToken, isAdmin, async (req, res) => {
             };
         }));
         res.status(200).json(homeworkWithStats);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات: ' }); }
 });
 
 app.get('/api/homework-fon/pending', verifyToken, async (req, res) => {
@@ -1257,7 +1274,7 @@ app.get('/api/homework-fon/pending', verifyToken, async (req, res) => {
             return { ...hw._doc, id: hw._id, isSubmitted: !!submission, hasSubmission: !!submission, myScore: submission ? submission.score : null };
         }));
         res.status(200).json(pendingHomeworks);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' }); }
 });
 
 app.get('/api/homework-fon/:id', verifyToken, async (req, res) => {
@@ -1272,7 +1289,7 @@ app.get('/api/homework-fon/:id', verifyToken, async (req, res) => {
         if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
         const questionsWithoutAnswers = (homework.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
         res.status(200).json({ ...homework._doc, id: homework._id, questions: questionsWithoutAnswers });
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجب: ' }); }
 });
 
 app.post('/api/homework-fon/:id/submit', verifyToken, async (req, res) => {
@@ -1316,7 +1333,7 @@ app.post('/api/homework-fon/:id/submit', verifyToken, async (req, res) => {
         });
         await submission.save();
         res.json({ success: true, message: 'تم تسليم الواجب بنجاح', score });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الواجب: ' }); }
 });
 
 app.get('/api/homework-fon/:id/submissions', verifyToken, async (req, res) => {
@@ -1333,7 +1350,7 @@ app.get('/api/homework-fon/:id/submissions', verifyToken, async (req, res) => {
         const submission = await FonHomeworkSubmission.findOne({ homeworkId: req.params.id, studentId: req.user.username });
         if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الواجب' });
         res.json([submission]);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
 });
 
 app.delete('/api/homework-fon/:id', verifyToken, isAdmin, async (req, res) => {
@@ -1343,7 +1360,7 @@ app.delete('/api/homework-fon/:id', verifyToken, isAdmin, async (req, res) => {
         if (!deletedHomework) return res.status(404).json({ error: 'الواجب غير موجود' });
         const deletedSubmissions = await FonHomeworkSubmission.deleteMany({ homeworkId: req.params.id });
         res.json({ success: true, message: 'تم حذف الواجب وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الواجب: ' }); }
 });
 
 // ====================== البطولات (Tournaments) — موديل FonTournament منفصل ======================
@@ -1371,7 +1388,7 @@ app.post('/api/tournaments-fon', verifyToken, isAdmin, async (req, res) => {
         });
         await newTournament.save();
         res.status(201).json({ success: true, message: 'تم إنشاء البطولة بنجاح', tournament: newTournament });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' }); }
 });
 
 app.get('/api/tournaments-fon/active', verifyToken, async (req, res) => {
@@ -1391,7 +1408,7 @@ app.get('/api/tournaments-fon/active', verifyToken, async (req, res) => {
             };
         });
         res.json(result);
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' }); }
 });
 
 app.post('/api/tournaments-fon/join-by-code', verifyToken, async (req, res) => {
@@ -1409,7 +1426,7 @@ app.post('/api/tournaments-fon/join-by-code', verifyToken, async (req, res) => {
         if (alreadyJoined) return res.status(400).json({ success: false, error: 'لقد شاركت في هذه البطولة مسبقاً', alreadyParticipated: true, score: alreadyJoined.score });
         const questionsWithoutAnswers = tournament.questions.map(q => ({ text: q.text || '', translation: q.translation || '', cat: q.cat || 'mcq', options: q.options || [] }));
         res.json({ success: true, tournamentId: tournament._id, title: tournament.title, chapterName: tournament.chapterName, timeLimitMinutes: tournament.timeLimitMinutes || 10, endDate: tournament.endDate, questions: questionsWithoutAnswers, message: 'تم التحقق بنجاح. ابدأ الحل الآن!' });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' }); }
 });
 
 app.post('/api/tournaments-fon/:id/participate', verifyToken, async (req, res) => {
@@ -1448,7 +1465,7 @@ app.post('/api/tournaments-fon/:id/participate', verifyToken, async (req, res) =
         await Progress.findOneAndUpdate({ userId: (req.user.username) + '_fon' }, { $inc: { xp: xpReward } }, { upsert: true, new: true });
 
         res.json({ success: true, score, rank: userRank, correctCount, wrongCount, totalQuestions, xpEarned: xpReward, message: `أحسنت! حصلت على ${score}%` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' }); }
 });
 
 app.get('/api/tournaments-fon/:id/results', verifyToken, async (req, res) => {
@@ -1462,7 +1479,7 @@ app.get('/api/tournaments-fon/:id/results', verifyToken, async (req, res) => {
         }
         const participants = (tournament.participants || []).map((p, index) => ({ rank: index + 1, studentName: p.studentName, score: p.score, correctCount: p.correctCount || 0, wrongCount: p.wrongCount || 0, timeTaken: p.timeTaken, submittedAt: p.submittedAt }));
         res.json({ success: true, title: tournament.title, chapterName: tournament.chapterName, participants, top3: participants.slice(0, 3), totalParticipants: participants.length });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' }); }
 });
 
 app.post('/api/tournaments-fon/:id/finish', verifyToken, isAdmin, async (req, res) => {
@@ -1482,7 +1499,7 @@ app.post('/api/tournaments-fon/:id/finish', verifyToken, isAdmin, async (req, re
         }
         await tournament.save();
         res.json({ success: true, message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح', winners: { first: participants[0]?.studentName || 'لا يوجد', second: participants[1]?.studentName || 'لا يوجد', third: participants[2]?.studentName || 'لا يوجد' } });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' }); }
 });
 
 // ====================== المراجعة الذكية (Smart Review) — خاصة بمبادئ وأسس التمريض ======================
@@ -1528,7 +1545,7 @@ app.post('/api/smart-review-fon', verifyToken, async (req, res) => {
         if (chapterId && chapterId !== 'all') { const firstQ = allQuestions.find(q => q.chapterId === chapterId); if (firstQ) chapterName = firstQ.chapterName || chapterId; }
 
         res.json({ success: true, questions: questionsWithAnswers, total: selected.length, reasons, chapterName, message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية من ${chapterName}` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' }); }
 });
 
 app.post('/api/smart-review-fon/save-progress', verifyToken, async (req, res) => {
@@ -1546,7 +1563,7 @@ app.post('/api/smart-review-fon/save-progress', verifyToken, async (req, res) =>
         }
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ التقدم: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ التقدم: ' }); }
 });
 
 // ==========================================================================
@@ -1650,7 +1667,7 @@ app.get('/api/progress-gs', verifyToken, async (req, res) => {
         let progress = await Progress.findOne({ userId });
         if (!progress) { progress = new Progress({ userId }); await progress.save(); }
         res.json(progress);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
 });
 
 app.post('/api/progress-gs/xp', verifyToken, async (req, res) => {
@@ -1662,7 +1679,7 @@ app.post('/api/progress-gs/xp', verifyToken, async (req, res) => {
         progress.xp = (progress.xp || 0) + amount;
         await progress.save();
         res.json({ success: true, xp: progress.xp });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث XP' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث XP' }); }
 });
 
 app.post('/api/progress-gs/bookmarks', verifyToken, async (req, res) => {
@@ -1675,7 +1692,7 @@ app.post('/api/progress-gs/bookmarks', verifyToken, async (req, res) => {
         else { progress.bookmarks = progress.bookmarks.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, bookmarks: progress.bookmarks });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
 });
 
 app.post('/api/progress-gs/hard', verifyToken, async (req, res) => {
@@ -1688,7 +1705,7 @@ app.post('/api/progress-gs/hard', verifyToken, async (req, res) => {
         else { progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, hardQuestions: progress.hardQuestions });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
 });
 
 app.post('/api/progress-gs/notes', verifyToken, async (req, res) => {
@@ -1700,7 +1717,7 @@ app.post('/api/progress-gs/notes', verifyToken, async (req, res) => {
         progress.notes.set(questionId, note);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
 });
 
 app.post('/api/progress-gs/quiz', verifyToken, async (req, res) => {
@@ -1716,7 +1733,7 @@ app.post('/api/progress-gs/quiz', verifyToken, async (req, res) => {
         }
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
 });
 
 app.post('/api/progress-gs/achievements', verifyToken, async (req, res) => {
@@ -1728,7 +1745,7 @@ app.post('/api/progress-gs/achievements', verifyToken, async (req, res) => {
         if (!progress.achievements.includes(achievementId)) progress.achievements.push(achievementId);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
 });
 
 app.post('/api/progress-gs/difficulty', verifyToken, async (req, res) => {
@@ -1740,7 +1757,7 @@ app.post('/api/progress-gs/difficulty', verifyToken, async (req, res) => {
         progress.difficulties.set(questionId, difficulty);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
 });
 
 // ====================== الواجبات (Homework) — موديل GsHomework منفصل ======================
@@ -1759,7 +1776,7 @@ app.post('/api/homework-gs', verifyToken, isAdmin, async (req, res) => {
         });
         await newHomework.save();
         res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' }); }
 });
 
 app.get('/api/homework-gs/all', verifyToken, isAdmin, async (req, res) => {
@@ -1784,7 +1801,7 @@ app.get('/api/homework-gs/all', verifyToken, isAdmin, async (req, res) => {
             };
         }));
         res.status(200).json(homeworkWithStats);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات: ' }); }
 });
 
 app.get('/api/homework-gs/pending', verifyToken, async (req, res) => {
@@ -1799,7 +1816,7 @@ app.get('/api/homework-gs/pending', verifyToken, async (req, res) => {
             return { ...hw._doc, id: hw._id, isSubmitted: !!submission, hasSubmission: !!submission, myScore: submission ? submission.score : null };
         }));
         res.status(200).json(pendingHomeworks);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' }); }
 });
 
 app.get('/api/homework-gs/:id', verifyToken, async (req, res) => {
@@ -1814,7 +1831,7 @@ app.get('/api/homework-gs/:id', verifyToken, async (req, res) => {
         if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
         const questionsWithoutAnswers = (homework.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
         res.status(200).json({ ...homework._doc, id: homework._id, questions: questionsWithoutAnswers });
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجب: ' }); }
 });
 
 app.post('/api/homework-gs/:id/submit', verifyToken, async (req, res) => {
@@ -1858,7 +1875,7 @@ app.post('/api/homework-gs/:id/submit', verifyToken, async (req, res) => {
         });
         await submission.save();
         res.json({ success: true, message: 'تم تسليم الواجب بنجاح', score });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الواجب: ' }); }
 });
 
 app.get('/api/homework-gs/:id/submissions', verifyToken, async (req, res) => {
@@ -1875,7 +1892,7 @@ app.get('/api/homework-gs/:id/submissions', verifyToken, async (req, res) => {
         const submission = await GsHomeworkSubmission.findOne({ homeworkId: req.params.id, studentId: req.user.username });
         if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الواجب' });
         res.json([submission]);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
 });
 
 app.delete('/api/homework-gs/:id', verifyToken, isManager, async (req, res) => {
@@ -1885,7 +1902,7 @@ app.delete('/api/homework-gs/:id', verifyToken, isManager, async (req, res) => {
         if (!deletedHomework) return res.status(404).json({ error: 'الواجب غير موجود' });
         const deletedSubmissions = await GsHomeworkSubmission.deleteMany({ homeworkId: req.params.id });
         res.json({ success: true, message: 'تم حذف الواجب وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الواجب: ' }); }
 });
 
 // ====================== البطولات (Tournaments) — موديل GsTournament منفصل ======================
@@ -1913,7 +1930,7 @@ app.post('/api/tournaments-gs', verifyToken, isAdmin, async (req, res) => {
         });
         await newTournament.save();
         res.status(201).json({ success: true, message: 'تم إنشاء البطولة بنجاح', tournament: newTournament });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' }); }
 });
 
 app.get('/api/tournaments-gs/active', verifyToken, async (req, res) => {
@@ -1933,7 +1950,7 @@ app.get('/api/tournaments-gs/active', verifyToken, async (req, res) => {
             };
         });
         res.json(result);
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' }); }
 });
 
 app.post('/api/tournaments-gs/join-by-code', verifyToken, async (req, res) => {
@@ -1951,7 +1968,7 @@ app.post('/api/tournaments-gs/join-by-code', verifyToken, async (req, res) => {
         if (alreadyJoined) return res.status(400).json({ success: false, error: 'لقد شاركت في هذه البطولة مسبقاً', alreadyParticipated: true, score: alreadyJoined.score });
         const questionsWithoutAnswers = tournament.questions.map(q => ({ text: q.text || '', translation: q.translation || '', cat: q.cat || 'mcq', options: q.options || [] }));
         res.json({ success: true, tournamentId: tournament._id, title: tournament.title, chapterName: tournament.chapterName, timeLimitMinutes: tournament.timeLimitMinutes || 10, endDate: tournament.endDate, questions: questionsWithoutAnswers, message: 'تم التحقق بنجاح. ابدأ الحل الآن!' });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' }); }
 });
 
 app.post('/api/tournaments-gs/:id/participate', verifyToken, async (req, res) => {
@@ -1990,7 +2007,7 @@ app.post('/api/tournaments-gs/:id/participate', verifyToken, async (req, res) =>
         await Progress.findOneAndUpdate({ userId: (req.user.username) + '_gs' }, { $inc: { xp: xpReward } }, { upsert: true, new: true });
 
         res.json({ success: true, score, rank: userRank, correctCount, wrongCount, totalQuestions, xpEarned: xpReward, message: `أحسنت! حصلت على ${score}%` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' }); }
 });
 
 app.get('/api/tournaments-gs/:id/results', verifyToken, async (req, res) => {
@@ -2004,7 +2021,7 @@ app.get('/api/tournaments-gs/:id/results', verifyToken, async (req, res) => {
         }
         const participants = (tournament.participants || []).map((p, index) => ({ rank: index + 1, studentName: p.studentName, score: p.score, correctCount: p.correctCount || 0, wrongCount: p.wrongCount || 0, timeTaken: p.timeTaken, submittedAt: p.submittedAt }));
         res.json({ success: true, title: tournament.title, chapterName: tournament.chapterName, participants, top3: participants.slice(0, 3), totalParticipants: participants.length });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' }); }
 });
 
 app.post('/api/tournaments-gs/:id/finish', verifyToken, isAdmin, async (req, res) => {
@@ -2024,7 +2041,7 @@ app.post('/api/tournaments-gs/:id/finish', verifyToken, isAdmin, async (req, res
         }
         await tournament.save();
         res.json({ success: true, message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح', winners: { first: participants[0]?.studentName || 'لا يوجد', second: participants[1]?.studentName || 'لا يوجد', third: participants[2]?.studentName || 'لا يوجد' } });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' }); }
 });
 
 // ====================== المراجعة الذكية (Smart Review) — خاصة بالجراحة العامة ======================
@@ -2065,7 +2082,7 @@ app.post('/api/smart-review-gs', verifyToken, async (req, res) => {
         if (chapterId && chapterId !== 'all') { const firstQ = allQuestions.find(q => q.chapterId === chapterId); if (firstQ) chapterName = firstQ.chapterName || chapterId; }
 
         res.json({ success: true, questions: questionsWithoutAnswers, total: selected.length, reasons, chapterName, message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية من ${chapterName}` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' }); }
 });
 
 app.post('/api/smart-review-gs/save-progress', verifyToken, async (req, res) => {
@@ -2083,7 +2100,7 @@ app.post('/api/smart-review-gs/save-progress', verifyToken, async (req, res) => 
         }
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ التقدم: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ التقدم: ' }); }
 });
 
 // ==========================================================================
@@ -2192,7 +2209,7 @@ app.get('/api/progress-an1', verifyToken, async (req, res) => {
         let progress = await Progress.findOne({ userId });
         if (!progress) { progress = new Progress({ userId }); await progress.save(); }
         res.json(progress);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
 });
 
 app.post('/api/progress-an1/xp', verifyToken, async (req, res) => {
@@ -2204,7 +2221,7 @@ app.post('/api/progress-an1/xp', verifyToken, async (req, res) => {
         progress.xp = (progress.xp || 0) + amount;
         await progress.save();
         res.json({ success: true, xp: progress.xp });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث XP' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث XP' }); }
 });
 
 app.post('/api/progress-an1/bookmarks', verifyToken, async (req, res) => {
@@ -2217,7 +2234,7 @@ app.post('/api/progress-an1/bookmarks', verifyToken, async (req, res) => {
         else { progress.bookmarks = progress.bookmarks.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, bookmarks: progress.bookmarks });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
 });
 
 app.post('/api/progress-an1/hard', verifyToken, async (req, res) => {
@@ -2230,7 +2247,7 @@ app.post('/api/progress-an1/hard', verifyToken, async (req, res) => {
         else { progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId); }
         await progress.save();
         res.json({ success: true, hardQuestions: progress.hardQuestions });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
 });
 
 app.post('/api/progress-an1/notes', verifyToken, async (req, res) => {
@@ -2242,7 +2259,7 @@ app.post('/api/progress-an1/notes', verifyToken, async (req, res) => {
         progress.notes.set(questionId, note);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
 });
 
 app.post('/api/progress-an1/quiz', verifyToken, async (req, res) => {
@@ -2258,7 +2275,7 @@ app.post('/api/progress-an1/quiz', verifyToken, async (req, res) => {
         }
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
 });
 
 app.post('/api/progress-an1/achievements', verifyToken, async (req, res) => {
@@ -2270,7 +2287,7 @@ app.post('/api/progress-an1/achievements', verifyToken, async (req, res) => {
         if (!progress.achievements.includes(achievementId)) progress.achievements.push(achievementId);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
 });
 
 app.post('/api/progress-an1/difficulty', verifyToken, async (req, res) => {
@@ -2282,7 +2299,7 @@ app.post('/api/progress-an1/difficulty', verifyToken, async (req, res) => {
         progress.difficulties.set(questionId, difficulty);
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
 });
 
 // ====================== الواجبات (Homework) — موديل An1Homework منفصل ======================
@@ -2301,7 +2318,7 @@ app.post('/api/homework-an1', verifyToken, isAdmin, async (req, res) => {
         });
         await newHomework.save();
         res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' }); }
 });
 
 app.get('/api/homework-an1/all', verifyToken, isAdmin, async (req, res) => {
@@ -2326,7 +2343,7 @@ app.get('/api/homework-an1/all', verifyToken, isAdmin, async (req, res) => {
             };
         }));
         res.status(200).json(homeworkWithStats);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات: ' }); }
 });
 
 app.get('/api/homework-an1/pending', verifyToken, async (req, res) => {
@@ -2341,7 +2358,7 @@ app.get('/api/homework-an1/pending', verifyToken, async (req, res) => {
             return { ...hw._doc, id: hw._id, isSubmitted: !!submission, hasSubmission: !!submission, myScore: submission ? submission.score : null };
         }));
         res.status(200).json(pendingHomeworks);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' }); }
 });
 
 app.get('/api/homework-an1/:id', verifyToken, async (req, res) => {
@@ -2356,7 +2373,7 @@ app.get('/api/homework-an1/:id', verifyToken, async (req, res) => {
         if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
         const questionsWithoutAnswers = (homework.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
         res.status(200).json({ ...homework._doc, id: homework._id, questions: questionsWithoutAnswers });
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجب: ' }); }
 });
 
 app.post('/api/homework-an1/:id/submit', verifyToken, async (req, res) => {
@@ -2400,7 +2417,7 @@ app.post('/api/homework-an1/:id/submit', verifyToken, async (req, res) => {
         });
         await submission.save();
         res.json({ success: true, message: 'تم تسليم الواجب بنجاح', score });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الواجب: ' }); }
 });
 
 app.get('/api/homework-an1/:id/submissions', verifyToken, async (req, res) => {
@@ -2417,7 +2434,7 @@ app.get('/api/homework-an1/:id/submissions', verifyToken, async (req, res) => {
         const submission = await An1HomeworkSubmission.findOne({ homeworkId: req.params.id, studentId: req.user.username });
         if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الواجب' });
         res.json([submission]);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
 });
 
 app.delete('/api/homework-an1/:id', verifyToken, isManager, async (req, res) => {
@@ -2427,7 +2444,7 @@ app.delete('/api/homework-an1/:id', verifyToken, isManager, async (req, res) => 
         if (!deletedHomework) return res.status(404).json({ error: 'الواجب غير موجود' });
         const deletedSubmissions = await An1HomeworkSubmission.deleteMany({ homeworkId: req.params.id });
         res.json({ success: true, message: 'تم حذف الواجب وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الواجب: ' }); }
 });
 
 // ====================== البطولات (Tournaments) — موديل An1Tournament منفصل ======================
@@ -2455,7 +2472,7 @@ app.post('/api/tournaments-an1', verifyToken, isAdmin, async (req, res) => {
         });
         await newTournament.save();
         res.status(201).json({ success: true, message: 'تم إنشاء البطولة بنجاح', tournament: newTournament });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' }); }
 });
 
 app.get('/api/tournaments-an1/active', verifyToken, async (req, res) => {
@@ -2475,7 +2492,7 @@ app.get('/api/tournaments-an1/active', verifyToken, async (req, res) => {
             };
         });
         res.json(result);
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' }); }
 });
 
 app.post('/api/tournaments-an1/join-by-code', verifyToken, async (req, res) => {
@@ -2493,7 +2510,7 @@ app.post('/api/tournaments-an1/join-by-code', verifyToken, async (req, res) => {
         if (alreadyJoined) return res.status(400).json({ success: false, error: 'لقد شاركت في هذه البطولة مسبقاً', alreadyParticipated: true, score: alreadyJoined.score });
         const questionsWithoutAnswers = tournament.questions.map(q => ({ text: q.text || '', translation: q.translation || '', cat: q.cat || 'mcq', options: q.options || [] }));
         res.json({ success: true, tournamentId: tournament._id, title: tournament.title, chapterName: tournament.chapterName, timeLimitMinutes: tournament.timeLimitMinutes || 10, endDate: tournament.endDate, questions: questionsWithoutAnswers, message: 'تم التحقق بنجاح. ابدأ الحل الآن!' });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' }); }
 });
 
 app.post('/api/tournaments-an1/:id/participate', verifyToken, async (req, res) => {
@@ -2532,7 +2549,7 @@ app.post('/api/tournaments-an1/:id/participate', verifyToken, async (req, res) =
         await Progress.findOneAndUpdate({ userId: (req.user.username) + '_an1' }, { $inc: { xp: xpReward } }, { upsert: true, new: true });
 
         res.json({ success: true, score, rank: userRank, correctCount, wrongCount, totalQuestions, xpEarned: xpReward, message: `أحسنت! حصلت على ${score}%` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' }); }
 });
 
 app.get('/api/tournaments-an1/:id/results', verifyToken, async (req, res) => {
@@ -2546,7 +2563,7 @@ app.get('/api/tournaments-an1/:id/results', verifyToken, async (req, res) => {
         }
         const participants = (tournament.participants || []).map((p, index) => ({ rank: index + 1, studentName: p.studentName, score: p.score, correctCount: p.correctCount || 0, wrongCount: p.wrongCount || 0, timeTaken: p.timeTaken, submittedAt: p.submittedAt }));
         res.json({ success: true, title: tournament.title, chapterName: tournament.chapterName, participants, top3: participants.slice(0, 3), totalParticipants: participants.length });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' }); }
 });
 
 app.post('/api/tournaments-an1/:id/finish', verifyToken, isAdmin, async (req, res) => {
@@ -2566,7 +2583,7 @@ app.post('/api/tournaments-an1/:id/finish', verifyToken, isAdmin, async (req, re
         }
         await tournament.save();
         res.json({ success: true, message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح', winners: { first: participants[0]?.studentName || 'لا يوجد', second: participants[1]?.studentName || 'لا يوجد', third: participants[2]?.studentName || 'لا يوجد' } });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' }); }
 });
 
 // ====================== المراجعة الذكية (Smart Review) — خاصة بالتشريح (الصف الأول الثانوي) ======================
@@ -2607,7 +2624,7 @@ app.post('/api/smart-review-an1', verifyToken, async (req, res) => {
         if (chapterId && chapterId !== 'all') { const firstQ = allQuestions.find(q => q.chapterId === chapterId); if (firstQ) chapterName = firstQ.chapterName || chapterId; }
 
         res.json({ success: true, questions: questionsWithoutAnswers, total: selected.length, reasons, chapterName, message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية من ${chapterName}` });
-    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' + error.message }); }
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' }); }
 });
 
 app.post('/api/smart-review-an1/save-progress', verifyToken, async (req, res) => {
@@ -2625,7 +2642,7 @@ app.post('/api/smart-review-an1/save-progress', verifyToken, async (req, res) =>
         }
         await progress.save();
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ التقدم: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ التقدم: ' }); }
 });
 
 // ==========================================================================
@@ -2958,7 +2975,7 @@ app.post('/api/events', verifyToken, isManager, async (req, res) => {
         await newEvent.save();
         res.json({ success: true, message: 'تم إضافة الفعالية بنجاح', event: newEvent });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في إضافة الفعالية: ' + error.message });
+        res.status(500).json({ error: 'خطأ في إضافة الفعالية: ' });
     }
 });
 
@@ -3261,7 +3278,7 @@ function verifyToken(req, res, next) {
     }
     if (!token) return res.status(401).json({ error: 'غير مصرح. يرجى تسجيل الدخول' });
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
         req.user = decoded;
         next();
     } catch (error) {
@@ -3323,6 +3340,27 @@ app.post('/api/students/register', async (req, res) => {
         await connectToDatabase();
         const { fullName, username, password, grade, studentCode, phone, parentName, parentId } = req.body;
         if (!fullName || !username || !password || !grade || !studentCode) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+
+        // ✅ تحقق صارم من شكل البيانات قبل التخزين — دفاع في العمق: حتى لو حصل
+        // خطأ إفلات (escaping) في أي صفحة فرونت إند بتعرض بيانات الطلاب (زي
+        // لوحة الأدمن)، البيانات المخزّنة نفسها بقت متحكم في شكلها من الأساس
+        // فمينفعش تحمل علامات اقتباس/HTML tags تكسر أي سياق بتتعرض فيه.
+        if (!/^\d{7}$/.test(String(studentCode))) {
+            return res.status(400).json({ error: 'آخر 7 أرقام من البطاقة لازم تكون أرقام بس (7 أرقام)' });
+        }
+        if (!/^[a-zA-Z0-9_.]{3,32}$/.test(String(username))) {
+            return res.status(400).json({ error: 'اسم المستخدم لازم يكون حروف إنجليزي/أرقام/underscore بس (3-32 حرف)' });
+        }
+        if (String(fullName).length > 100 || /[<>`]/.test(String(fullName))) {
+            return res.status(400).json({ error: 'الاسم الكامل غير صالح' });
+        }
+        if (phone !== undefined && phone !== '' && !/^[\d+\-\s]{6,20}$/.test(String(phone))) {
+            return res.status(400).json({ error: 'رقم الهاتف غير صالح' });
+        }
+        if (parentName !== undefined && (String(parentName).length > 100 || /[<>`]/.test(String(parentName)))) {
+            return res.status(400).json({ error: 'اسم ولي الأمر غير صالح' });
+        }
+
         const existingUser = await Student.findOne({ username: username.toLowerCase() });
         if (existingUser) return res.status(400).json({ error: 'اسم المستخدم موجود مسبقاً' });
         const existingCode = await Student.findOne({ studentCode });
@@ -3340,7 +3378,7 @@ app.post('/api/students/register', async (req, res) => {
         await student.save();
         res.json({ success: true, message: 'تم إنشاء الحساب بنجاح' });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في إنشاء الحساب: ' + error.message });
+        res.status(500).json({ error: 'خطأ في إنشاء الحساب: ' });
     }
 });
 
@@ -3389,7 +3427,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         // على دومين مختلف (زي chatx) يقدر يخزنه ويبعته كـ Authorization: Bearer
         res.json({ success: true, token, user: { username: user.username, fullName: user.fullName, type: userType, id: user.studentCode || user._id, role: userType === 'admin' ? (user.role || 'manager') : undefined } });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في السيرفر: ' + error.message });
+        res.status(500).json({ error: 'خطأ في السيرفر: ' });
     }
 });
 
@@ -3398,7 +3436,7 @@ app.post('/api/refresh-token', async (req, res) => {
     const token = req.cookies?.authToken;
     if (!token) return res.status(401).json({ error: 'لا توجد جلسة' });
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
         const newToken = jwt.sign(
             { id: decoded.id, username: decoded.username, type: decoded.type, fullName: decoded.fullName, studentCode: decoded.studentCode, role: decoded.role },
             JWT_SECRET,
@@ -3432,7 +3470,7 @@ app.get('/api/premium-status', verifyToken, async (req, res) => {
         if (!student) return res.status(404).json({ error: 'المستخدم غير موجود' });
         res.json({ type: 'student', premiumFeatures: student.premiumFeatures || [] });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في السيرفر: ' + error.message });
+        res.status(500).json({ error: 'خطأ في السيرفر: ' });
     }
 });
 
@@ -3485,7 +3523,7 @@ app.get('/api/me', verifyToken, async (req, res) => {
         });
         res.json({ type: 'student', profile: student, violations, attendance, examResults: enrichedExamResults, pendingHomework, activeTournaments });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب البيانات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في جلب البيانات: ' });
     }
 });
 
@@ -3511,7 +3549,7 @@ app.post('/api/push/subscribe', verifyToken, async (req, res) => {
         );
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في حفظ توكن الإشعارات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حفظ توكن الإشعارات: ' });
     }
 });
 
@@ -3524,7 +3562,7 @@ app.delete('/api/push/subscribe', verifyToken, async (req, res) => {
         else await PushToken.deleteMany({ username: req.user.username }); // مفيش توكن معين؟ امسح كل توكنات المستخدم
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في إلغاء الإشعارات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في إلغاء الإشعارات: ' });
     }
 });
 
@@ -3555,7 +3593,7 @@ app.post('/api/message-ratings', verifyToken, async (req, res) => {
         );
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في حفظ التقييم: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حفظ التقييم: ' });
     }
 });
 
@@ -3569,7 +3607,7 @@ app.delete('/api/message-ratings/:clientMessageId', verifyToken, async (req, res
         await MessageRating.deleteOne({ studentCode: student.studentCode, clientMessageId: req.params.clientMessageId });
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في حذف التقييم: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حذف التقييم: ' });
     }
 });
 
@@ -3601,7 +3639,7 @@ app.get('/api/message-ratings/summary', verifyToken, isAdmin, async (req, res) =
             recentNegative
         });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب ملخص التقييمات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في جلب ملخص التقييمات: ' });
     }
 });
 
@@ -3612,7 +3650,7 @@ app.get('/api/student/by-code/:studentCode', verifyToken, async (req, res) => {
         const student = await Student.findOne({ studentCode: req.params.studentCode }).select('-password -refreshToken');
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
         res.json(student);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب بيانات الطالب' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب بيانات الطالب' }); }
 });
 
 app.get('/api/student/by-username/:username', verifyToken, async (req, res) => {
@@ -3621,7 +3659,7 @@ app.get('/api/student/by-username/:username', verifyToken, async (req, res) => {
         const student = await Student.findOne({ username: req.params.username }).select('-password -refreshToken');
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
         res.json(student);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب بيانات الطالب' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب بيانات الطالب' }); }
 });
 
 // ====================== APIs الاختبارات ======================
@@ -3635,7 +3673,7 @@ app.post('/api/exams', verifyToken, isAdmin, async (req, res) => {
         const newExam = new Exam({ name, stage, code, duration, questions });
         await newExam.save();
         res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' }); }
 });
 
 app.get('/api/exams', verifyToken, isAdmin, async (req, res) => {
@@ -3643,7 +3681,7 @@ app.get('/api/exams', verifyToken, isAdmin, async (req, res) => {
         await connectToDatabase();
         const exams = await Exam.find().sort({ createdAt: -1 }).select('-questions');
         res.json(exams);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الاختبارات' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات' }); }
 });
 
 app.get('/api/exams/:code', verifyToken, async (req, res) => {
@@ -3652,7 +3690,7 @@ app.get('/api/exams/:code', verifyToken, async (req, res) => {
         const exam = await Exam.findOne({ code: req.params.code });
         if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
         res.json(exam);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الاختبار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبار' }); }
 });
 
 app.delete('/api/exams/:code', verifyToken, isManager, async (req, res) => {
@@ -3662,7 +3700,7 @@ app.delete('/api/exams/:code', verifyToken, isManager, async (req, res) => {
         if (!deleted) return res.status(404).json({ error: 'الاختبار غير موجود' });
         await ExamResult.deleteMany({ examCode: req.params.code });
         res.json({ success: true, message: 'تم حذف الاختبار بنجاح' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الاختبار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار' }); }
 });
 
 app.post('/api/exams/:code/submit', verifyToken, async (req, res) => {
@@ -3686,7 +3724,7 @@ app.post('/api/exams/:code/submit', verifyToken, async (req, res) => {
         const examResult = new ExamResult({ examCode: code, studentId: studentId || req.user.username, score: percentage });
         await examResult.save();
         res.json({ success: true, message: 'تم حفظ النتيجة', score: percentage });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حفظ النتيجة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ النتيجة' }); }
 });
 
 app.get('/api/exams/:code/results', verifyToken, isAdmin, async (req, res) => {
@@ -3694,7 +3732,7 @@ app.get('/api/exams/:code/results', verifyToken, isAdmin, async (req, res) => {
         await connectToDatabase();
         const results = await ExamResult.find({ examCode: req.params.code }).sort({ completionTime: -1 });
         res.json(results);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب النتائج' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب النتائج' }); }
 });
 
 // ====================== الإشعارات ======================
@@ -3703,7 +3741,7 @@ app.get('/api/notifications', async (req, res) => {
         await connectToDatabase();
         const notifications = await Notification.find().sort({ createdAt: -1 });
         res.json(notifications);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الإشعارات' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الإشعارات' }); }
 });
 
 app.post('/api/notifications', verifyToken, isManager, async (req, res) => {
@@ -3714,7 +3752,7 @@ app.post('/api/notifications', verifyToken, isManager, async (req, res) => {
         const newNotification = new Notification({ text: text.trim(), date: date || new Date().toLocaleString('ar-EG') });
         await newNotification.save();
         res.json({ success: true, message: 'تم إضافة الإشعار بنجاح', notification: newNotification });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إضافة الإشعار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إضافة الإشعار' }); }
 });
 
 app.delete('/api/notifications/:id', verifyToken, isManager, async (req, res) => {
@@ -3723,7 +3761,7 @@ app.delete('/api/notifications/:id', verifyToken, isManager, async (req, res) =>
         const deleted = await Notification.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ error: 'الإشعار غير موجود' });
         res.json({ success: true, message: 'تم حذف الإشعار بنجاح' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الإشعار' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الإشعار' }); }
 });
 
 // ====================== رسايل الطلاب للأدمن (Chat X) ======================
@@ -3739,7 +3777,7 @@ function optionalAuthLoose(req, res, next) {
     }
     if (!token) { req.user = null; return next(); }
     try {
-        req.user = jwt.verify(token, JWT_SECRET);
+        req.user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     } catch (error) {
         req.user = null;
     }
@@ -3762,7 +3800,7 @@ app.post('/api/admin-messages', optionalAuthLoose, async (req, res) => {
             senderName: isAnonymous ? null : (req.user.fullName || req.user.username)
         });
         res.json({ success: true, id: doc._id });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إرسال الرسالة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إرسال الرسالة' }); }
 });
 
 app.get('/api/admin-messages', verifyToken, isAdmin, async (req, res) => {
@@ -3770,7 +3808,7 @@ app.get('/api/admin-messages', verifyToken, isAdmin, async (req, res) => {
         await connectToDatabase();
         const messages = await AdminMessage.find().sort({ createdAt: -1 }).limit(500);
         res.json({ messages });
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الرسايل' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الرسايل' }); }
 });
 
 app.patch('/api/admin-messages/:id/read', verifyToken, isAdmin, async (req, res) => {
@@ -3779,7 +3817,7 @@ app.patch('/api/admin-messages/:id/read', verifyToken, isAdmin, async (req, res)
         const updated = await AdminMessage.findByIdAndUpdate(req.params.id, { read: true });
         if (!updated) return res.status(404).json({ error: 'الرسالة غير موجودة' });
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: 'خطأ في تحديث الرسالة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الرسالة' }); }
 });
 
 // ====================== المخالفات ======================
@@ -3788,7 +3826,7 @@ app.get('/api/violations', verifyToken, isAdmin, async (req, res) => {
         await connectToDatabase();
         const violations = await Violation.find().sort({ createdAt: -1 });
         res.json(violations);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب المخالفات' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب المخالفات' }); }
 });
 
 app.post('/api/violations', verifyToken, isAdmin, async (req, res) => {
@@ -3801,7 +3839,7 @@ app.post('/api/violations', verifyToken, isAdmin, async (req, res) => {
         const newViolation = new Violation({ studentId, type, reason, penalty, parentSummons: parentSummons || false, date: date || new Date().toLocaleString('ar-EG') });
         await newViolation.save();
         res.json({ success: true, message: 'تم إضافة المخالفة بنجاح', violation: newViolation });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إضافة المخالفة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إضافة المخالفة' }); }
 });
 
 app.delete('/api/violations/:id', verifyToken, isManager, async (req, res) => {
@@ -3810,7 +3848,7 @@ app.delete('/api/violations/:id', verifyToken, isManager, async (req, res) => {
         const deleted = await Violation.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ error: 'المخالفة غير موجودة' });
         res.json({ success: true, message: 'تم حذف المخالفة بنجاح' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف المخالفة' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف المخالفة' }); }
 });
 
 // ====================== APIs الحضور (Attendance) كاملة ======================
@@ -3841,7 +3879,7 @@ app.post('/api/attendance', verifyToken, isAdmin, async (req, res) => {
         await newAttendance.save();
         res.json({ success: true, message: 'تم تسجيل الحضور بنجاح', attendance: newAttendance });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في تسجيل الحضور: ' + error.message });
+        res.status(500).json({ error: 'خطأ في تسجيل الحضور: ' });
     }
 });
 
@@ -3970,7 +4008,7 @@ app.post('/api/attendance/bulk', verifyToken, isAdmin, async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Bulk attendance error:', error);
-        res.status(500).json({ error: 'خطأ في حفظ الحضور الجماعي: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حفظ الحضور الجماعي: ' });
     }
 });
 
@@ -3980,7 +4018,7 @@ app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
         await connectToDatabase();
         const students = await Student.find().select('-password -refreshToken');
         res.json(students);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
 });
 
 app.get('/api/admins', verifyToken, isManager, async (req, res) => {
@@ -3988,7 +4026,7 @@ app.get('/api/admins', verifyToken, isManager, async (req, res) => {
         await connectToDatabase();
         const admins = await Admin.find().select('-password -refreshToken');
         res.json(admins);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الأدمنز' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الأدمنز' }); }
 });
 
 app.post('/api/admins', verifyToken, isManager, async (req, res) => {
@@ -4003,7 +4041,7 @@ app.post('/api/admins', verifyToken, isManager, async (req, res) => {
         const admin = new Admin({ fullName, username, password: hashedPassword, role: finalRole });
         await admin.save();
         res.json({ message: 'تم إضافة الأدمن بنجاح', admin: { fullName, username, role: finalRole } });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إضافة الأدمن' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إضافة الأدمن' }); }
 });
 
 app.delete('/api/admins/:username', verifyToken, isManager, async (req, res) => {
@@ -4016,7 +4054,7 @@ app.delete('/api/admins/:username', verifyToken, isManager, async (req, res) => 
         const deleted = await Admin.findOneAndDelete({ username });
         if (!deleted) return res.status(404).json({ error: 'الأدمن غير موجود' });
         res.json({ message: 'تم حذف الأدمن بنجاح' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الأدمن' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الأدمن' }); }
 });
 
 // ====================== إضافة طالب جديد بدرجاته (من نموذج لوحة التحكم) ======================
@@ -4037,7 +4075,7 @@ app.post('/api/students', verifyToken, isAdmin, async (req, res) => {
             else throw err;
         }
         res.json({ success: true, message: 'تم إضافة الطالب بنجاح' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في إضافة الطالب: ' + error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إضافة الطالب: ' }); }
 });
 
 // ====================== تحديث بيانات الطالب (نسخة محسنة) ======================
@@ -4050,7 +4088,19 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         console.log('📝 تحديث الطالب:', studentCode, req.body);
         
         const updateData = {};
-        
+
+        // ✅ نفس التحقق من الشكل المستخدم في التسجيل — حتى في مسار الأدمن، عشان
+        // منمنعش أي بيانات تتخزن بشكل ممكن يكسر أي صفحة عرض تانية بعدين.
+        if (fullName !== undefined && (String(fullName).length > 100 || /[<>`]/.test(String(fullName)))) {
+            return res.status(400).json({ error: 'الاسم الكامل غير صالح' });
+        }
+        if (username !== undefined && !/^[a-zA-Z0-9_.]{3,32}$/.test(String(username))) {
+            return res.status(400).json({ error: 'اسم المستخدم غير صالح' });
+        }
+        if (newStudentCode !== undefined && newStudentCode !== studentCode && !/^\d{7}$/.test(String(newStudentCode))) {
+            return res.status(400).json({ error: 'رقم الجلوس لازم يكون 7 أرقام' });
+        }
+
         // تحديث كل الحقول لو موجودة
         if (fullName !== undefined) updateData.fullName = fullName;
         if (username !== undefined) updateData.username = username;
@@ -4107,7 +4157,7 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         
     } catch (error) {
         console.error('❌ خطأ في تحديث البيانات:', error);
-        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' });
     }
 });
 
@@ -4134,7 +4184,7 @@ app.patch('/api/admin/students/:studentCode/premium', verifyToken, isAdmin, asyn
         if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
         res.json({ success: true, student: updated });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في تحديث مميزات Premium: ' + error.message });
+        res.status(500).json({ error: 'خطأ في تحديث مميزات Premium: ' });
     }
 });
 
@@ -4257,7 +4307,7 @@ app.post('/api/admin/archive-results', verifyToken, isManager, async (req, res) 
 
         res.json({ success: true, message: `تم أرشفة ${archiveDocs.length} نتيجة بنجاح تحت سنة "${academicYear.trim()}"`, count: archiveDocs.length });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في أرشفة النتائج: ' + error.message });
+        res.status(500).json({ error: 'خطأ في أرشفة النتائج: ' });
     }
 });
 
@@ -4270,7 +4320,7 @@ app.get('/api/admin/archive/years', verifyToken, isAdmin, async (req, res) => {
             { $sort: { _id: -1 } }
         ]);
         res.json(years.map(y => ({ academicYear: y._id, count: y.count, archivedAt: y.archivedAt })));
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب سنوات الأرشيف' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب سنوات الأرشيف' }); }
 });
 
 // تصفح/البحث داخل أرشيف النتائج (متاح للمدير والمدرس - عرض فقط)
@@ -4285,7 +4335,7 @@ app.get('/api/admin/archive', verifyToken, isAdmin, async (req, res) => {
         if (name) query.fullName = { $regex: new RegExp(name.replace(/\s+/g, '.*'), 'i') };
         const results = await ArchivedResult.find(query).sort({ fullName: 1 }).limit(500);
         res.json(results);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الأرشيف' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الأرشيف' }); }
 });
 
 // حذف سجل مؤرشف واحد (مدير المعهد فقط)
@@ -4295,7 +4345,7 @@ app.delete('/api/admin/archive/:id', verifyToken, isManager, async (req, res) =>
         const deleted = await ArchivedResult.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ error: 'السجل غير موجود' });
         res.json({ success: true, message: 'تم حذف السجل من الأرشيف' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف السجل' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف السجل' }); }
 });
 
 // حذف سنة كاملة من الأرشيف (مدير المعهد فقط)
@@ -4304,7 +4354,7 @@ app.delete('/api/admin/archive/year/:academicYear', verifyToken, isManager, asyn
         await connectToDatabase();
         const result = await ArchivedResult.deleteMany({ academicYear: req.params.academicYear });
         res.json({ success: true, message: `تم حذف أرشيف سنة ${req.params.academicYear} بالكامل (${result.deletedCount} سجل)` });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف سنة الأرشيف' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف سنة الأرشيف' }); }
 });
 
 
@@ -4352,7 +4402,7 @@ app.put('/api/student/profile', verifyToken, async (req, res) => {
         
     } catch (error) {
         console.error('❌ خطأ في تحديث بروفايل الطالب:', error);
-        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' });
     }
 });
 
@@ -4391,7 +4441,7 @@ app.put('/api/admin/profile', verifyToken, async (req, res) => {
         
     } catch (error) {
         console.error('❌ خطأ في تحديث بروفايل الأدمن:', error);
-        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في تحديث البيانات: ' });
     }
 });
 
@@ -4405,7 +4455,7 @@ app.delete('/api/students/:studentCode', verifyToken, isManager, async (req, res
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
         await Violation.deleteMany({ studentId: studentCode });
         res.json({ message: 'تم حذف الطالب بنجاح' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في حذف الطالب' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الطالب' }); }
 });
 
 // ====================== جلب الطلاب حسب الصف ======================
@@ -4416,7 +4466,7 @@ app.get('/api/students/by-grade/:grade', verifyToken, isAdmin, async (req, res) 
         if (!['first', 'second', 'third'].includes(gradeValue)) return res.status(400).json({ error: 'صف غير صحيح' });
         const students = await Student.find({ grade: gradeValue }).select('-password -refreshToken');
         res.json(students);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
 });
 
 // ====================== إنشاء مدير أول ======================
@@ -4431,7 +4481,7 @@ app.post('/api/create-initial-admin', async (req, res) => {
         const admin = new Admin({ fullName, username, password: hashedPassword, role: 'manager' });
         await admin.save();
         res.json({ success: true, message: 'تم إنشاء المدير الأول بنجاح' });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في السيرفر' }); }
 });
 
 // ====================== APIs ولي الأمر ======================
@@ -4447,7 +4497,7 @@ app.post('/api/parent/login', async (req, res) => {
         const token = jwt.sign({ id: student._id, type: 'parent', studentCode: student.studentCode, fullName: student.fullName }, JWT_SECRET, { expiresIn: '24h' });
         setAuthCookie(res, token);
         res.json({ success: true, studentId: student._id, studentName: student.fullName, studentCode: student.studentCode, parentName: student.profile?.parentName || 'ولي الأمر' });
-    } catch (error) { res.status(500).json({ error: 'خطأ في السيرفر' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في السيرفر' }); }
 });
 
 app.get('/api/parent/student/:studentCode', verifyToken, async (req, res) => {
@@ -4457,7 +4507,7 @@ app.get('/api/parent/student/:studentCode', verifyToken, async (req, res) => {
         const student = await Student.findOne({ studentCode: req.params.studentCode }).select('-password -refreshToken');
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
         res.json(student);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب بيانات الطالب' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب بيانات الطالب' }); }
 });
 
 app.get('/api/parent/student/:studentCode/results', verifyToken, async (req, res) => {
@@ -4468,7 +4518,7 @@ app.get('/api/parent/student/:studentCode/results', verifyToken, async (req, res
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
         const subjectsFirst = (student.subjectsFirst && student.subjectsFirst.length) ? student.subjectsFirst : (student.subjects || []);
         res.json({ fullName: student.fullName, studentCode: student.studentCode, subjectsFirst, subjectsSecond: student.subjectsSecond || [] });
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب النتائج' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب النتائج' }); }
 });
 
 app.get('/api/parent/student/:studentCode/attendance', verifyToken, async (req, res) => {
@@ -4482,7 +4532,7 @@ app.get('/api/parent/student/:studentCode/attendance', verifyToken, async (req, 
         const total = attendance.length;
         const percentage = total > 0 ? (present / total) * 100 : 0;
         res.json({ present, absent, late, total, percentage: percentage.toFixed(1), records: attendance });
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب الحضور' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الحضور' }); }
 });
 
 app.get('/api/parent/student/:studentCode/violations', verifyToken, async (req, res) => {
@@ -4491,7 +4541,7 @@ app.get('/api/parent/student/:studentCode/violations', verifyToken, async (req, 
         if (req.user.type === 'parent' && req.user.studentCode !== req.params.studentCode) return res.status(403).json({ error: 'غير مصرح' });
         const violations = await Violation.find({ studentId: req.params.studentCode }).sort({ date: -1 });
         res.json(violations);
-    } catch (error) { res.status(500).json({ error: 'خطأ في جلب المخالفات' }); }
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب المخالفات' }); }
 });
 
 // ====================== DeepSeek AI (كامل) ======================
@@ -5097,7 +5147,7 @@ app.post('/api/files/upload-url', verifyToken, isAdmin, async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Upload URL error:', error);
-        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' + error.message });
+        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' });
     }
 });
 
@@ -5149,7 +5199,7 @@ app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files
 
     } catch (error) {
         console.error('❌ Upload error:', error);
-        res.status(500).json({ error: 'خطأ في رفع الملفات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في رفع الملفات: ' });
     }
 });
 
@@ -5162,7 +5212,7 @@ app.get('/api/files', verifyToken, async (req, res) => {
         res.json(files);
     } catch (error) {
         console.error('❌ خطأ في جلب الملفات:', error);
-        res.status(500).json({ error: 'خطأ في جلب الملفات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في جلب الملفات: ' });
     }
 });
 
@@ -5294,7 +5344,7 @@ app.post('/api/files/save', verifyToken, isAdmin, async (req, res) => {
         res.json({ success: true, file: fileData });
     } catch (error) {
         console.error('❌ Save file error:', error);
-        res.status(500).json({ error: 'خطأ في حفظ معلومات الملف: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حفظ معلومات الملف: ' });
     }
 });
 
@@ -5369,7 +5419,7 @@ app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
         res.json({ success: true, path, uploadUrl: signedUrl, publicUrl: `${R2_PUBLIC_URL}/${path}` });
     } catch (error) {
         console.error('❌ Shared summary upload-url error:', error);
-        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' + error.message });
+        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع: ' });
     }
 });
 
@@ -5418,7 +5468,7 @@ app.post('/api/shared-summaries/save', verifyToken, async (req, res) => {
         res.json({ success: true, summary: doc, message: 'تم رفع الملف بنجاح، هيتم مراجعة محتواه ليظهر على الصفحة من قبل الأدمن' });
     } catch (error) {
         console.error('❌ Shared summary save error:', error);
-        res.status(500).json({ error: 'خطأ في حفظ الملف: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حفظ الملف: ' });
     }
 });
 
@@ -5620,7 +5670,7 @@ app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
         res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
     } catch (error) {
         console.error('❌ خطأ في إنشاء الواجب:', error);
-        res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' + error.message });
+        res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' });
     }
 });
 
@@ -5695,7 +5745,7 @@ app.get('/api/homework/all', verifyToken, isAdmin, async (req, res) => {
     } catch (error) {
         console.error('❌ خطأ في جلب الواجبات:', error);
         return res.status(500).json({ 
-            error: 'خطأ في جلب الواجبات: ' + error.message,
+            error: 'خطأ في جلب الواجبات: ',
             details: error.stack
         });
     }
@@ -5741,7 +5791,7 @@ app.get('/api/homework/pending', verifyToken, async (req, res) => {
         return res.status(200).json(pendingHomeworks);
     } catch (error) {
         console.error('❌ خطأ في جلب الواجبات المعلقة:', error);
-        res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' + error.message });
+        res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' });
     }
 });
 
@@ -5785,7 +5835,7 @@ app.get('/api/homework/:id', verifyToken, async (req, res) => {
         });
     } catch (error) {
         console.error('❌ خطأ في جلب الواجب:', error);
-        res.status(500).json({ error: 'خطأ في جلب الواجب: ' + error.message });
+        res.status(500).json({ error: 'خطأ في جلب الواجب: ' });
     }
 });
 
@@ -5884,7 +5934,7 @@ app.post('/api/homework/:id/submit', verifyToken, async (req, res) => {
         });
     } catch (error) {
         console.error('❌ خطأ في تسليم الواجب:', error);
-        res.status(500).json({ error: 'خطأ في تسليم الواجب: ' + error.message });
+        res.status(500).json({ error: 'خطأ في تسليم الواجب: ' });
     }
 });
 
@@ -5929,7 +5979,7 @@ app.get('/api/homework/:id/submissions', verifyToken, async (req, res) => {
         
     } catch (error) {
         console.error('❌ خطأ في جلب التسليمات:', error);
-        res.status(500).json({ error: 'خطأ في جلب التسليمات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في جلب التسليمات: ' });
     }
 });
 
@@ -5954,7 +6004,7 @@ app.delete('/api/homework/:id', verifyToken, isManager, async (req, res) => {
         });
     } catch (error) {
         console.error('❌ خطأ في حذف الواجب:', error);
-        res.status(500).json({ error: 'خطأ في حذف الواجب: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حذف الواجب: ' });
     }
 });
 
@@ -6170,7 +6220,7 @@ app.post('/api/tournaments', verifyToken, isAdmin, async (req, res) => {
         
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في إنشاء البطولة: ' + error.message 
+            error: 'خطأ في إنشاء البطولة: ' 
         });
     }
 });
@@ -6225,7 +6275,7 @@ app.get('/api/tournaments/active', verifyToken, async (req, res) => {
         console.error('❌ خطأ في جلب البطولات:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في جلب البطولات النشطة: ' + error.message 
+            error: 'خطأ في جلب البطولات النشطة: ' 
         });
     }
 });
@@ -6322,7 +6372,7 @@ app.post('/api/tournaments/join-by-code', verifyToken, async (req, res) => {
         console.error('❌ خطأ في الانضمام:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في الانضمام للبطولة: ' + error.message 
+            error: 'خطأ في الانضمام للبطولة: ' 
         });
     }
 });
@@ -6516,7 +6566,7 @@ app.post('/api/tournaments/:id/participate', verifyToken, async (req, res) => {
         console.error('❌ خطأ في المشاركة:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في معالجة المشاركة: ' + error.message 
+            error: 'خطأ في معالجة المشاركة: ' 
         });
     }
 });
@@ -6592,7 +6642,7 @@ app.get('/api/tournaments/:id/results', verifyToken, async (req, res) => {
         console.error('❌ خطأ في جلب النتائج:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في جلب نتائج البطولة: ' + error.message 
+            error: 'خطأ في جلب نتائج البطولة: ' 
         });
     }
 });
@@ -6683,7 +6733,7 @@ app.post('/api/tournaments/:id/finish', verifyToken, isAdmin, async (req, res) =
         console.error('❌ خطأ في إنهاء البطولة:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في إنهاء البطولة: ' + error.message 
+            error: 'خطأ في إنهاء البطولة: ' 
         });
     }
 });
@@ -6735,7 +6785,7 @@ app.get('/api/tournaments/all', verifyToken, isAdmin, async (req, res) => {
         console.error('❌ خطأ في جلب جميع البطولات:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في جلب البطولات: ' + error.message 
+            error: 'خطأ في جلب البطولات: ' 
         });
     }
 });
@@ -6820,7 +6870,7 @@ app.post('/api/biometric/register-start', verifyToken, async (req, res) => {
         res.json({ success: true, options });
     } catch (error) {
         console.error('❌ Biometric register start error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
     }
 });
 
@@ -6874,7 +6924,7 @@ app.post('/api/biometric/register-finish', verifyToken, async (req, res) => {
         res.json({ success: true, message: '✅ تم تسجيل البصمة بنجاح! يمكنك الآن تسجيل الدخول بالبصمة' });
     } catch (error) {
         console.error('❌ Biometric register finish error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
     }
 });
 
@@ -6911,7 +6961,7 @@ app.post('/api/biometric/login-start', async (req, res) => {
         res.json({ success: true, options });
     } catch (error) {
         console.error('❌ Biometric login start error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
     }
 });
 
@@ -6997,7 +7047,7 @@ app.post('/api/biometric/login-finish', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Biometric login finish error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
     }
 });
 
@@ -7036,7 +7086,7 @@ app.delete('/api/biometric', verifyToken, async (req, res) => {
             message: '✅ تم حذف البصمة بنجاح'
         });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
     }
 });
 
@@ -7174,7 +7224,7 @@ app.post('/api/smart-review', verifyToken, async (req, res) => {
         console.error('❌ خطأ في المراجعة الذكية:', error);
         res.status(500).json({ 
             success: false,
-            error: 'خطأ في جلب أسئلة المراجعة: ' + error.message
+            error: 'خطأ في جلب أسئلة المراجعة: '
         });
     }
 });
@@ -7224,7 +7274,7 @@ app.post('/api/smart-review/save-progress', verifyToken, async (req, res) => {
         
     } catch (error) {
         console.error('❌ خطأ في حفظ تقدم المراجعة:', error);
-        res.status(500).json({ error: 'خطأ في حفظ التقدم: ' + error.message });
+        res.status(500).json({ error: 'خطأ في حفظ التقدم: ' });
     }
 });
 
@@ -7335,7 +7385,7 @@ app.post('/api/upload-grades', verifyToken, isAdmin, async (req, res) => {
         
     } catch (error) {
         console.error('❌ Upload grades error:', error);
-        res.status(500).json({ error: 'خطأ في رفع الدرجات: ' + error.message });
+        res.status(500).json({ error: 'خطأ في رفع الدرجات: ' });
     }
 });
 
@@ -7375,7 +7425,7 @@ app.get('/api/check-auth-status', async (req, res) => {
         }
         
         try {
-            const decoded = jwt.verify(token, JWT_SECRET);
+            const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
             // التوكن سليم - المستخدم مسجل دخول
             return res.json({ 
                 isLoggedIn: true, 
@@ -7558,7 +7608,7 @@ app.get('/api/admin/students-overview', verifyToken, isAdmin, async (req, res) =
     res.json({ success: true, students: result });
   } catch (error) {
     console.error('❌ students-overview error:', error.message);
-    res.status(500).json({ error: 'خطأ في جلب بيانات الحسابات: ' + error.message });
+    res.status(500).json({ error: 'خطأ في جلب بيانات الحسابات: ' });
   }
 });
 
@@ -7585,7 +7635,7 @@ app.patch('/api/admin/students/:studentCode/suspend', verifyToken, isAdmin, asyn
     if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
     res.json({ success: true, student: updated });
   } catch (error) {
-    res.status(500).json({ error: 'خطأ في تحديث حالة الإيقاف: ' + error.message });
+    res.status(500).json({ error: 'خطأ في تحديث حالة الإيقاف: ' });
   }
 });
 
