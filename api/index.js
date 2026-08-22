@@ -147,6 +147,74 @@ async function sendPushToUser(username, { title, body, link, data }) {
     }
 }
 
+// بيبعت إشعار push لكل التوكنات المسجّلة (كل الطلاب اللي فعّلوا الإشعارات) — مستخدمة
+// للإعلانات العامة من الأدمن. نفس منطق sendPushToUser بس من غير فلترة بـ username.
+async function sendPushBroadcast({ title, body, link, data }) {
+    if (!firebaseApp) return { sent: 0 };
+    try {
+        await connectToDatabase();
+        const tokens = await PushToken.find().select('fcmToken');
+        if (!tokens.length) return { sent: 0 };
+        const dataPayload = data
+            ? Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, String(v)]))
+            : undefined;
+        const results = await Promise.allSettled(tokens.map(t =>
+            admin.messaging().send({
+                token: t.fcmToken,
+                notification: { title, body },
+                data: dataPayload,
+                webpush: link ? { fcmOptions: { link } } : undefined
+            })
+        ));
+        const deadTokens = [];
+        results.forEach((r, i) => { if (r.status === 'rejected') deadTokens.push(tokens[i].fcmToken); });
+        if (deadTokens.length) await PushToken.deleteMany({ fcmToken: { $in: deadTokens } });
+        return { sent: tokens.length - deadTokens.length };
+    } catch (e) {
+        console.error('❌ فشل إرسال Push Broadcast:', e.message);
+        return { sent: 0 };
+    }
+}
+
+// ====================== بصمة الجهاز — لكشف مشاركة الحسابات ======================
+// بنستنتج نوع الجهاز/النظام/المتصفح من User-Agent نفسه (سيرفر-سايد، الطالب مقدرش
+// يتلاعب فيه بسهولة زي أي قيمة تانية بيبعتها الفرونت إند). بصمة الجهاز التفصيلية
+// (fingerprint hash) بتيجي جاهزة من الفرونت إند لإنها بتعتمد على تفاصيل مش متاحة
+// للسيرفر أصلاً (دقة الشاشة، الـ canvas، إلخ) — شوف تعليق الفرونت إند لتفاصيلها.
+function parseDeviceInfo(userAgent) {
+    const ua = String(userAgent || '');
+    let deviceType = 'desktop';
+    if (/iPad/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua))) deviceType = 'tablet';
+    else if (/Mobi|iPhone|Android/i.test(ua)) deviceType = 'mobile';
+
+    let os = 'unknown';
+    if (/Windows/i.test(ua)) os = 'Windows';
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+    else if (/Mac OS X/i.test(ua)) os = 'macOS';
+    else if (/Android/i.test(ua)) os = 'Android';
+    else if (/Linux/i.test(ua)) os = 'Linux';
+
+    let browser = 'unknown';
+    if (/SamsungBrowser/i.test(ua)) browser = 'Samsung Internet';
+    else if (/EdgA|Edg\//i.test(ua)) browser = 'Edge';
+    else if (/OPR\/|Opera/i.test(ua)) browser = 'Opera';
+    else if (/CriOS|Chrome/i.test(ua)) browser = 'Chrome';
+    else if (/FxiOS|Firefox/i.test(ua)) browser = 'Firefox';
+    else if (/Safari/i.test(ua)) browser = 'Safari';
+
+    return { deviceType, os, browser };
+}
+
+// بيسجّل حدث جلسة (دخول/منع/اختلاف بصمة) — مش بيوقف الطلب لو فشل التسجيل نفسه،
+// لإن ده تحليل مساعد للأدمن مش جزء أساسي من عملية الدخول.
+async function logSessionEvent({ username, userType, event, fingerprint, req }) {
+    try {
+        const { deviceType, os, browser } = parseDeviceInfo(req.headers['user-agent']);
+        const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || '';
+        await SessionEvent.create({ username, userType, event, fingerprint: fingerprint || '', deviceType, os, browser, ip: String(ip).split(',')[0].trim() });
+    } catch (e) { /* تسجيل تحليلي بس — فشله مايوقفش تسجيل الدخول نفسه */ }
+}
+
 // ====================== Cloudflare R2 Storage و Multer ======================
 const multer = require('multer');
 const {
@@ -357,7 +425,8 @@ const adminSchema = new mongoose.Schema({
     // طول ما التطبيق مفتوح عنده — لو عدّى عليه وقت طويل من غير تحديث (يعني الجهاز
     // قفل التطبيق من غير تسجيل خروج صريح)، بنعتبر الجلسة "ماتت" ونسمح لجهاز تاني يدخل.
     activeSessionId: { type: String, default: null },
-    sessionLastSeenAt: { type: Date, default: null }
+    sessionLastSeenAt: { type: Date, default: null },
+    activeSessionFingerprint: { type: String, default: null }
 }, { timestamps: true });
 
 const studentSchema = new mongoose.Schema({
@@ -393,7 +462,8 @@ const studentSchema = new mongoose.Schema({
     refreshToken: String,
     // ====== جلسة واحدة فقط في نفس الوقت — نفس فكرة الحقول المشروحة في adminSchema فوق ======
     activeSessionId: { type: String, default: null },
-    sessionLastSeenAt: { type: Date, default: null }
+    sessionLastSeenAt: { type: Date, default: null },
+    activeSessionFingerprint: { type: String, default: null }
 }, { timestamps: true });
 
 const violationSchema = new mongoose.Schema({
@@ -416,6 +486,38 @@ const pushTokenSchema = new mongoose.Schema({
     username: { type: String, required: true, index: true },
     fcmToken: { type: String, required: true, unique: true }
 }, { timestamps: true });
+
+// ====== سجل أحداث الجلسات — لكشف مشاركة الحسابات بدقة عالية ======
+// كل حدث (دخول ناجح / محاولة دخول اتمنعت لإن الحساب شغال على جهاز تاني / اختلاف
+// بصمة جهاز أثناء heartbeat) بيتسجّل هنا مع بصمة الجهاز الكاملة (نوعه، نظامه،
+// متصفحه) — ده اللي بيدّي الأدمن دقة عالية بدل ما يعتمد بس على IP (اللي ممكن يبقى
+// نفسه لجهازين على نفس شبكة الواي فاي، فمش دليل كافي لوحده).
+// expires: 60 يوم — تنضيف تلقائي (TTL index) عشان الكولكشن مايكبرش من غير حد.
+const sessionEventSchema = new mongoose.Schema({
+    username: { type: String, required: true, index: true },
+    userType: { type: String, enum: ['student', 'admin'], default: 'student' },
+    event: { type: String, enum: ['login', 'blocked', 'heartbeat_mismatch'], required: true },
+    fingerprint: String, // هاش بصمة الجهاز (متولّد من الفرونت إند)
+    deviceType: String,  // mobile / tablet / desktop / unknown
+    os: String,           // Android / iOS / Windows / macOS / Linux / unknown
+    browser: String,      // Chrome / Safari / Firefox / Edge / Samsung Internet / unknown
+    ip: String,
+    at: { type: Date, default: Date.now, expires: 60 * 24 * 60 * 60 }
+});
+const SessionEvent = mongoose.models.SessionEvent || mongoose.model('SessionEvent', sessionEventSchema);
+
+// ====== بنك الأسئلة الشائعة (مجهول المصدر تمامًا) ======
+// عمدًا معندهاش أي حقل studentId/username — مفيش وسيلة تقنية تربط السؤال بصاحبه،
+// مش بس "إخفاء" في العرض. askCount بيتزود لو سؤال مشابه (بعد التطبيع) اتسأل قبل
+// كده، فالأسئلة اللي بتظهر للكل هي فعلاً اللي أكتر من طالب سألها، مش أي سؤال فردي.
+const sharedQuestionSchema = new mongoose.Schema({
+    normalizedText: { type: String, index: true },
+    displayText: String,
+    answerText: String,
+    askCount: { type: Number, default: 1 },
+    lastAskedAt: { type: Date, default: Date.now, index: true }
+}, { timestamps: true });
+const SharedQuestion = mongoose.models.SharedQuestion || mongoose.model('SharedQuestion', sharedQuestionSchema);
 
 const attendanceSchema = new mongoose.Schema({
     studentCode: { type: String, required: true },
@@ -3233,8 +3335,7 @@ const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Student = mongoose.models.Student || mongoose.model('Student', studentSchema);
 const Violation = mongoose.models.Violation || mongoose.model('Violation', violationSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
-const PushToken = mongoose.models.PushToken || mongoose.model('PushToken', pushTokenSchema);
-const Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
+const PushToken = mongoose.models.PushToken || mongoose.model('PushToken', pushTokenSchema);const Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
 const Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 const ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
 const ArchivedResult = mongoose.models.ArchivedResult || mongoose.model('ArchivedResult', archivedResultSchema);
@@ -3318,6 +3419,70 @@ function isManager(req, res, next) {
     if (req.user.role === 'teacher') return res.status(403).json({ error: 'هذا الإجراء متاح لمدير المعهد فقط' });
     next();
 }
+
+// ====================== كشف مشاركة الحسابات ======================
+// بيجمّع أحداث الجلسات (SessionEvent) لكل طالب على مدار فترة معينة، ويحسب "درجة
+// شك" (riskScore) مبنية على 3 إشارات مختلفة مجتمعة (مش إشارة واحدة بس عشان الدقة):
+//   • blockedAttempts: عدد المرات اللي جهاز تاني حاول يدخل والحساب شغال بالفعل
+//     (الوزن الأعلى نسبيًا x3 — ده أقوى دليل مباشر على محاولة استخدام من غير إذن)
+//   • sessionMismatches: عدد المرات اللي نفس التوكن (نفس الجلسة المسجّلة) اتكشف
+//     شغال من بصمة جهاز مختلفة عن اللي سجّل دخول بيها (الوزن الأعلى x4 — ده معناه
+//     التوكن نفسه اتشارك، مش مجرد اسم مستخدم وباسورد)
+//   • distinctFingerprints: عدد الأجهزة المختلفة اللي دخلت بيها الحساب في الفترة
+//     (وزن أقل x2 لكل جهاز زيادة عن الأول — طالب عادي ممكن يستخدم موبايل ولابتوب
+//     بشكل شرعي، فمجرد وجود جهازين مش دليل قاطع لوحده)
+// النتيجة: قايمة مرتبة بالأعلى شكًا الأول، مع تفاصيل الأجهزة الفعلية (نوع/نظام/
+// متصفح) عشان الأدمن يقدر يحكم بعينه مش يعتمد على الرقم بس.
+app.get('/api/admin/account-sharing', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const days = Math.min(60, Math.max(1, parseInt(req.query.days) || 14));
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const events = await SessionEvent.find({ at: { $gte: since }, userType: 'student' }).sort({ at: 1 }).lean();
+
+        const byUser = {};
+        for (const e of events) {
+            if (!byUser[e.username]) {
+                byUser[e.username] = {
+                    username: e.username, fingerprints: new Set(), devices: new Set(),
+                    blockedAttempts: 0, sessionMismatches: 0, firstSeen: e.at, lastSeen: e.at, timeline: []
+                };
+            }
+            const u = byUser[e.username];
+            if (e.fingerprint) u.fingerprints.add(e.fingerprint);
+            const deviceLabel = `${e.deviceType || '?'} · ${e.os || '?'} · ${e.browser || '?'}`;
+            u.devices.add(deviceLabel);
+            if (e.event === 'blocked') u.blockedAttempts++;
+            if (e.event === 'heartbeat_mismatch') u.sessionMismatches++;
+            if (e.at > u.lastSeen) u.lastSeen = e.at;
+            if (e.at < u.firstSeen) u.firstSeen = e.at;
+            // آخر 10 أحداث بس لكل طالب (تفاصيل خام للمراجعة اليدوية لو الأدمن حاب يتعمّق)
+            u.timeline.push({ event: e.event, device: deviceLabel, ip: e.ip, at: e.at });
+            if (u.timeline.length > 10) u.timeline.shift();
+        }
+
+        const list = Object.values(byUser).map(u => ({
+            username: u.username,
+            distinctDevices: u.devices.size,
+            deviceList: Array.from(u.devices),
+            distinctFingerprints: u.fingerprints.size,
+            blockedAttempts: u.blockedAttempts,
+            sessionMismatches: u.sessionMismatches,
+            firstSeen: u.firstSeen,
+            lastSeen: u.lastSeen,
+            timeline: u.timeline,
+            riskScore: u.blockedAttempts * 3 + u.sessionMismatches * 4 + Math.max(0, u.fingerprints.size - 1) * 2
+        }))
+        .filter(u => u.riskScore > 0)
+        .sort((a, b) => b.riskScore - a.riskScore)
+        .slice(0, 100);
+
+        res.json({ success: true, days, count: list.length, students: list });
+    } catch (error) {
+        console.error('❌ خطأ في تحليل مشاركة الحسابات:', error.message);
+        res.status(500).json({ error: 'خطأ في تحليل مشاركة الحسابات' });
+    }
+});
 
 // ====================== German Pro (تعلّم الألمانية الاحترافي - تمريض) ======================
 // راوت مستقل في ملف german-pro-routes.js (لازم يكون جنب الملف ده في نفس الفولدر).
@@ -3407,7 +3572,7 @@ app.post('/api/students/register', async (req, res) => {
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         await connectToDatabase();
-        const { username, password } = req.body;
+        const { username, password, deviceFingerprint } = req.body;
         const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
         if (!username || !password) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
         let user = await Admin.findOne({ username: username.toLowerCase() });
@@ -3443,6 +3608,10 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         const hasLiveSession = user.activeSessionId && user.sessionLastSeenAt &&
             (now - new Date(user.sessionLastSeenAt)) < SESSION_ALIVE_WINDOW_MS;
         if (hasLiveSession) {
+            // الحساب مستخدم بالفعل — نسجّل محاولة الدخول المرفوضة دي ببصمة الجهاز
+            // بتاعها. لو ده بيتكرر من نفس البصمة "الغريبة" مرات كتير، ده أقوى
+            // دليل على مشاركة حساب فعلية (مش مجرد نسيان تسجيل خروج مرة واحدة).
+            logSessionEvent({ username: user.username, userType, event: 'blocked', fingerprint: deviceFingerprint, req });
             return res.status(409).json({
                 error: 'الحساب ده مسجّل دخول بالفعل على جهاز تاني دلوقتي. سجّل خروج من هناك الأول، أو استنى كام دقيقة لو الجهاز مقفول من غير خروج.',
                 code: 'ACCOUNT_IN_USE'
@@ -3456,7 +3625,9 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         user.lastIP = clientIP;
         user.activeSessionId = sessionId;
         user.sessionLastSeenAt = now;
+        user.activeSessionFingerprint = deviceFingerprint || null;
         await user.save();
+        logSessionEvent({ username: user.username, userType, event: 'login', fingerprint: deviceFingerprint, req });
         const token = jwt.sign(
             { id: user._id, username: user.username, type: userType, fullName: user.fullName, studentCode: user.studentCode, role: userType === 'admin' ? (user.role || 'manager') : undefined, sid: sessionId },
             JWT_SECRET,
@@ -3478,9 +3649,18 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 app.post('/api/heartbeat', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
+        const { deviceFingerprint } = req.body || {};
         const Model = req.user.type === 'admin' ? Admin : Student;
-        // الشرط على activeSessionId يمنع جلسة قديمة (اتحلت محلها جلسة تانية) من
-        // إنها "تحيي نفسها" بالغلط لو التوكن القديم لسه شغال عند حد.
+        const userDoc = await Model.findOne({ _id: req.user.id, activeSessionId: req.user.sid }).select('activeSessionFingerprint username');
+        if (userDoc) {
+            // نفس الـ sid (التوكن) بس بصمة الجهاز اختلفت — ده مش سيناريو "جهاز تاني
+            // حاول يدخل" (ده اتمنع أصلاً من /api/login)، ده سيناريو أخطر: نفس
+            // التوكن بالظبط بيتستخدم من جهاز مختلف — يعني التوكن نفسه (مش مجرد
+            // اسم مستخدم وباسورد) اتشارك أو اتنسخ حرفيًا بين جهازين.
+            if (deviceFingerprint && userDoc.activeSessionFingerprint && deviceFingerprint !== userDoc.activeSessionFingerprint) {
+                logSessionEvent({ username: userDoc.username, userType: req.user.type, event: 'heartbeat_mismatch', fingerprint: deviceFingerprint, req });
+            }
+        }
         await Model.updateOne(
             { _id: req.user.id, activeSessionId: req.user.sid },
             { sessionLastSeenAt: new Date() }
@@ -3500,7 +3680,7 @@ app.post('/api/logout', verifyToken, async (req, res) => {
         const Model = req.user.type === 'admin' ? Admin : Student;
         await Model.updateOne(
             { _id: req.user.id, activeSessionId: req.user.sid },
-            { activeSessionId: null, sessionLastSeenAt: null }
+            { activeSessionId: null, sessionLastSeenAt: null, activeSessionFingerprint: null }
         );
         res.clearCookie('authToken', { path: '/' });
         res.json({ success: true });
@@ -3609,12 +3789,6 @@ app.get('/api/me', verifyToken, async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب البيانات: ' });
     }
-});
-
-// ====================== تسجيل الخروج ======================
-app.post('/api/logout', verifyToken, (req, res) => {
-    res.clearCookie('authToken', { path: '/' });
-    res.json({ success: true });
 });
 
 // ====================== البوش نوتيفيكيشن (Firebase Cloud Messaging) ======================
@@ -3835,6 +4009,14 @@ app.post('/api/notifications', verifyToken, isManager, async (req, res) => {
         if (!text || text.trim() === '') return res.status(400).json({ error: 'نص الإشعار مطلوب' });
         const newNotification = new Notification({ text: text.trim(), date: date || new Date().toLocaleString('ar-EG') });
         await newNotification.save();
+        // بوش نوتيفيكيشن فوري لكل الطلاب اللي فعّلوا الإشعارات — "fire and forget"،
+        // مش بنستنى نتيجة الإرسال قبل ما نرد على الأدمن (لو فشل جزئيًا مش مشكلة
+        // في تجربة الأدمن، الإشعار نفسه اتحفظ في الداتابيز بنجاح أصلاً).
+        sendPushBroadcast({
+            title: '📢 إعلان جديد من School X',
+            body: text.trim().slice(0, 120),
+            data: { type: 'announcement', notificationId: String(newNotification._id) }
+        }).catch(() => {});
         res.json({ success: true, message: 'تم إضافة الإشعار بنجاح', notification: newNotification });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إضافة الإشعار' }); }
 });
@@ -3846,6 +4028,73 @@ app.delete('/api/notifications/:id', verifyToken, isManager, async (req, res) =>
         if (!deleted) return res.status(404).json({ error: 'الإشعار غير موجود' });
         res.json({ success: true, message: 'تم حذف الإشعار بنجاح' });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الإشعار' }); }
+});
+
+// ====================== بنك الأسئلة الشائعة (مجهول تمامًا) ======================
+// بيتطبّع النص عشان "ايه أعراض النزيف؟" و"ايه هي اعراض النزيف" يتحسبوا نفس
+// السؤال ويتجمعوا مع بعض، مش يتسجلوا كسؤالين منفصلين.
+function normalizeQuestionText(text) {
+    return String(text || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[إأآا]/g, 'ا')
+        .replace(/ى/g, 'ي')
+        .replace(/ة/g, 'ه')
+        .replace(/[\u064B-\u0652]/g, '') // إزالة التشكيل
+        .replace(/[^\u0600-\u06FFa-z0-9\s]/g, '') // إزالة علامات الترقيم
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// بيتسجّل من غير أي verifyToken أو username عمدًا — مفيش أي بيانات هوية بتتبعت
+// أصلاً، فمفيش حاجة تقنية تربط السؤال بصاحبه حتى لو حبينا (مش بس "إخفاء" في العرض).
+app.post('/api/shared-questions/submit', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { question, answer } = req.body || {};
+        const text = String(question || '').trim();
+        if (!text || text.length < 8 || text.length > 300) return res.status(400).json({ success: false });
+        const normalized = normalizeQuestionText(text);
+        if (!normalized || normalized.length < 6) return res.status(400).json({ success: false });
+
+        const existing = await SharedQuestion.findOne({ normalizedText: normalized });
+        if (existing) {
+            existing.askCount += 1;
+            existing.lastAskedAt = new Date();
+            if (answer && !existing.answerText) existing.answerText = String(answer).slice(0, 2000);
+            await existing.save();
+        } else {
+            await SharedQuestion.create({
+                normalizedText: normalized,
+                displayText: text.slice(0, 300),
+                answerText: answer ? String(answer).slice(0, 2000) : '',
+                askCount: 1
+            });
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في تسجيل سؤال مشترك:', error.message);
+        res.status(500).json({ success: false });
+    }
+});
+
+// بيرجّع بس الأسئلة اللي askCount >= 2 — يعني أكتر من طالب سألها فعلاً، مش أي
+// سؤال فردي حصل مرة واحدة. ده بيحمي الخصوصية طبيعيًا (سؤال شخصي جدًا ما حدش
+// غيرك سأله مش هيظهر للكل خالص) وفي نفس الوقت يضمن إن اللي بيظهر فعلاً "شائع".
+app.get('/api/shared-questions/top', async (req, res) => {
+    try {
+        await connectToDatabase();
+        const days = Math.min(30, Math.max(1, parseInt(req.query.days) || 3));
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const list = await SharedQuestion.find({ lastAskedAt: { $gte: since }, askCount: { $gte: 2 } })
+            .sort({ askCount: -1, lastAskedAt: -1 })
+            .limit(20)
+            .select('displayText answerText askCount lastAskedAt');
+        res.json({ success: true, questions: list });
+    } catch (error) {
+        console.error('❌ خطأ في جلب الأسئلة الشائعة:', error.message);
+        res.status(500).json({ success: false, questions: [] });
+    }
 });
 
 // ====================== رسايل الطلاب للأدمن (Chat X) ======================
@@ -7053,7 +7302,7 @@ app.post('/api/biometric/login-start', async (req, res) => {
 app.post('/api/biometric/login-finish', async (req, res) => {
     try {
         await connectToDatabase();
-        const { credential } = req.body;
+        const { credential, deviceFingerprint } = req.body;
 
         if (!credential || !credential.id) {
             return res.status(400).json({ success: false, error: 'بيانات البصمة غير صحيحة' });
@@ -7108,6 +7357,7 @@ app.post('/api/biometric/login-finish', async (req, res) => {
         const hasLiveSessionBio = user.activeSessionId && user.sessionLastSeenAt &&
             (nowBio - new Date(user.sessionLastSeenAt)) < SESSION_ALIVE_WINDOW_MS;
         if (hasLiveSessionBio) {
+            logSessionEvent({ username: user.username, userType, event: 'blocked', fingerprint: deviceFingerprint, req });
             return res.status(409).json({
                 success: false,
                 error: 'الحساب ده مسجّل دخول بالفعل على جهاز تاني دلوقتي. سجّل خروج من هناك الأول، أو استنى كام دقيقة لو الجهاز مقفول من غير خروج.',
@@ -7117,7 +7367,9 @@ app.post('/api/biometric/login-finish', async (req, res) => {
         const bioSessionId = crypto.randomBytes(16).toString('hex');
         user.activeSessionId = bioSessionId;
         user.sessionLastSeenAt = nowBio;
+        user.activeSessionFingerprint = deviceFingerprint || null;
         await user.save();
+        logSessionEvent({ username: user.username, userType, event: 'login', fingerprint: deviceFingerprint, req });
 
         const token = jwt.sign(
             {
