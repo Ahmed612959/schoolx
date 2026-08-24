@@ -7895,6 +7895,133 @@ weeklyStatsSchema.index({ username: 1, weekStart: 1 }, { unique: true });
 weeklyStatsSchema.index({ weekStart: 1, timeSpentSeconds: -1 });
 const WeeklyStats = mongoose.models.WeeklyStats || mongoose.model('WeeklyStats', weeklyStatsSchema);
 
+// ====================== تتبّع استخدام الميزات (لوحة المتابعة الشاملة) ======================
+// هدف الـ schema ده: نعرف لكل طالب، لكل ميزة لوحدها (الشات الرئيسي، مكتبة الأدوية،
+// امتحانات المحاكاة... إلخ) — استخدمها كام مرة، آخر مرة استخدمها إمتى، ولو الميزة
+// فيها أكتر من موديل (زي الشات الرئيسي) — استخدم كل موديل كام مرة بالظبط.
+// بيتغذى من /api/usage/track اللي العميل (index.html) بينده عليه فور ما الطالب
+// يستخدم الميزة فعليًا (مش مجرد فتح الصفحة) — زي pingActivity بالظبط: fire & forget.
+const featureUsageSchema = new mongoose.Schema({
+  studentCode: { type: String, required: true, index: true },
+  username: { type: String, default: '' },
+  fullName: { type: String, default: '' },
+  feature: { type: String, required: true }, // main_chat / premium_mock_exams / ...
+  totalCount: { type: Number, default: 0 },
+  models: { type: Map, of: Number, default: {} }, // بس مهم فعليًا لـ main_chat (فيه أكتر من موديل)
+  lastUsedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+featureUsageSchema.index({ studentCode: 1, feature: 1 }, { unique: true });
+const FeatureUsage = mongoose.models.FeatureUsage || mongoose.model('FeatureUsage', featureUsageSchema);
+
+// بيتنادى من العميل كل ما طالب يستخدم ميزة فعليًا (رسالة شات، فتح مكتبة أدوية،
+// استخدام برومبت جاهز، تشغيل صوت...إلخ). Upsert بسيط + عدّاد لكل موديل لو اتبعت.
+app.post('/api/usage/track', verifyToken, async (req, res) => {
+  try {
+    if (req.user.type !== 'student') return res.json({ success: true, skipped: true });
+    await connectToDatabase();
+    const feature = String(req.body?.feature || '').trim().slice(0, 60);
+    const model = req.body?.model ? String(req.body.model).trim().replace(/[.$]/g, '_').slice(0, 40) : null;
+    if (!feature) return res.status(400).json({ error: 'feature مطلوب' });
+
+    const studentCode = req.user.studentCode || req.user.id;
+    const update = {
+      $set: { username: req.user.username || '', fullName: req.user.fullName || '', lastUsedAt: new Date() },
+      $inc: { totalCount: 1 }
+    };
+    if (model) update.$inc[`models.${model}`] = 1;
+
+    await FeatureUsage.findOneAndUpdate(
+      { studentCode, feature },
+      update,
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ usage/track error:', error.message);
+    res.status(500).json({ error: 'خطأ في تسجيل الاستخدام' });
+  }
+});
+
+// ====================== لوحة المتابعة الشاملة (كل الطلاب دفعة واحدة) ======================
+// إندبوينت واحد بيرجّع صف جاهز لكل طالب — بدل ما الأدمن يفتح كل حساب لوحده.
+// بيجمع من: Student (الاشتراكات) + Presence (رسايل/أسئلة/آخر ظهور) + FeatureUsage
+// (تفصيل كل ميزة/موديل) + EnglishProState/GermanProState (المستوى وعدد الكلمات).
+// كل الاستعلامات بالجملة (find واحد لكل كوليكشن) مش لكل طالب لوحده — عشان الأداء
+// يفضل كويس حتى مع عدد كبير من الطلاب.
+app.get('/api/admin/dashboard/overview', verifyToken, isAdmin, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const EnglishProState = mongoose.models.EnglishProState || null;
+    const GermanProState = mongoose.models.GermanProState || null;
+
+    const [students, presenceDocs, usageDocs, englishDocs, germanDocs] = await Promise.all([
+      Student.find({}).select('fullName studentCode username premiumFeatures createdAt lastLogin').lean(),
+      Presence.find({}).lean(),
+      FeatureUsage.find({}).lean(),
+      EnglishProState
+        ? EnglishProState.aggregate([{ $project: { studentCode: 1, level: 1, totalMessages: 1, updatedAt: 1, wordCount: { $size: { $ifNull: ['$vocabulary', []] } } } }])
+        : [],
+      GermanProState
+        ? GermanProState.aggregate([{ $project: { studentCode: 1, level: 1, totalMessages: 1, updatedAt: 1, wordCount: { $size: { $ifNull: ['$vocabulary', []] } } } }])
+        : []
+    ]);
+
+    const presenceByUsername = new Map(presenceDocs.map(p => [p.username, p]));
+    const usageByStudent = new Map(); // studentCode -> { feature: doc }
+    usageDocs.forEach(u => {
+      if (!usageByStudent.has(u.studentCode)) usageByStudent.set(u.studentCode, {});
+      usageByStudent.get(u.studentCode)[u.feature] = u;
+    });
+    const englishByCode = new Map(englishDocs.map(e => [e.studentCode, e]));
+    const germanByCode = new Map(germanDocs.map(g => [g.studentCode, g]));
+
+    const toPlainModels = (m) => {
+      if (!m) return {};
+      if (m instanceof Map) return Object.fromEntries(m);
+      return m; // .lean()/aggregate بيرجعوا Map كـ plain object غالبًا أصلًا
+    };
+
+    const rows = students.map(s => {
+      const presence = presenceByUsername.get(s.username) || null;
+      const usage = usageByStudent.get(s.studentCode) || {};
+      const eng = englishByCode.get(s.studentCode) || null;
+      const ger = germanByCode.get(s.studentCode) || null;
+      const mainChat = usage['main_chat'] || null;
+
+      const featuresDetail = {};
+      (s.premiumFeatures || []).forEach(key => {
+        const u = usage[key];
+        featuresDetail[key] = {
+          usedCount: u ? u.totalCount : 0,
+          lastUsedAt: u ? u.lastUsedAt : null
+        };
+      });
+
+      return {
+        studentCode: s.studentCode,
+        username: s.username,
+        fullName: s.fullName,
+        lastLogin: s.lastLogin || null,
+        premiumFeatures: s.premiumFeatures || [],
+        featuresDetail,
+        mainChat: {
+          totalMessages: presence ? (presence.totalMessages || 0) : 0,
+          totalQuestions: presence ? (presence.totalQuestions || 0) : 0,
+          lastSeen: presence ? presence.lastSeen : null,
+          models: mainChat ? toPlainModels(mainChat.models) : {}
+        },
+        englishPro: eng ? { level: eng.level, wordCount: eng.wordCount || 0, totalMessages: eng.totalMessages || 0, lastActivity: eng.updatedAt } : null,
+        germanPro: ger ? { level: ger.level, wordCount: ger.wordCount || 0, totalMessages: ger.totalMessages || 0, lastActivity: ger.updatedAt } : null
+      };
+    });
+
+    res.json({ success: true, count: rows.length, students: rows });
+  } catch (error) {
+    console.error('❌ dashboard/overview error:', error.message);
+    res.status(500).json({ error: 'خطأ في تحميل لوحة المتابعة' });
+  }
+});
+
 const ONLINE_WINDOW_MS = 90 * 1000; // "متصل" = بعت نبضة خلال آخر 90 ثانية
 
 // الأسبوع يبدأ السبت
