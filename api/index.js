@@ -8476,7 +8476,24 @@ app.post('/api/scenarios', verifyToken, async (req, res) => {
 const groupChatMessageSchema = new mongoose.Schema({
     chatId: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupChat', required: true, index: true },
     senderUsername: { type: String, required: true },
-    text: { type: String, required: true, maxlength: 2000 },
+    // مش required دلوقتي — الرسالة ممكن تكون صورة أو تسجيل صوتي بس من غير نص خالص
+    // (زي ما بيحصل في واتساب بالظبط)، الفاليديشن الحقيقية (لازم حاجة واحدة على الأقل)
+    // بتحصل في الـ endpoint مش هنا.
+    text: { type: String, default: '', maxlength: 2000 },
+    // حد أقصى ~8 مليون حرف base64 (تقريبًا 6 ميجا صورة فعلية بعد فك التشفير) — كافي
+    // جدًا لصورة مضغوطة (compressImageFile بتضغط لأقل من ميجا غالبًا) وحماية من إساءة الاستخدام.
+    image: {
+        base64: { type: String, maxlength: 8_000_000 },
+        mimeType: { type: String, maxlength: 60 },
+        name: { type: String, maxlength: 200 }
+    },
+    // برضه سقف ~8 مليون حرف — كافي لتسجيل صوتي webm/opus لحد 3 دقايق (الحد الأقصى
+    // اللي بنفرضه من الفرونت إند) بهامش أمان كبير.
+    audio: {
+        base64: { type: String, maxlength: 8_000_000 },
+        mimeType: { type: String, maxlength: 60 },
+        durationSeconds: { type: Number, min: 0, max: 600 }
+    },
     // ردود الإيموجي على الرسالة — Map من اليوزرنيم لاسم الإيموجي، عشان كل عضو
     // يقدر يحط رد واحد بس على كل رسالة (لو حط تاني بيستبدل الأول تلقائي).
     reactions: { type: Map, of: String, default: {} }
@@ -8542,6 +8559,8 @@ app.get('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
                 id: String(m._id),
                 senderUsername: m.senderUsername,
                 text: m.text,
+                image: m.image && m.image.base64 ? { base64: m.image.base64, mimeType: m.image.mimeType, name: m.image.name } : null,
+                audio: m.audio && m.audio.base64 ? { base64: m.audio.base64, mimeType: m.audio.mimeType, durationSeconds: m.audio.durationSeconds } : null,
                 createdAt: new Date(m.createdAt).getTime(),
                 reactions: m.reactions ? Object.fromEntries(m.reactions instanceof Map ? m.reactions : Object.entries(m.reactions)) : {}
             })),
@@ -8583,16 +8602,34 @@ app.post('/api/group-chats/:id/typing', verifyToken, async (req, res) => {
 app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
-        const { text } = req.body;
-        if (!text || !text.trim()) return res.status(400).json({ error: 'الرسالة فاضية' });
+        const { text, image, audio } = req.body;
+        const trimmed = (text || '').trim().slice(0, 2000);
+
+        // فاليديشن الصورة/الصوت: لازم base64 فعلي موجود (مش بس المفتاح موجود بقيمة فاضية)،
+        // وسقف دفاعي يمنع أي جسم طلب ضخم بشكل غير طبيعي (حتى لو الفرونت إند بيضغط الصورة
+        // ويحدد مدة التسجيل، السيرفر لازم يتحقق بنفسه مش يثق في الفرونت إند بس).
+        const hasImage = image && typeof image.base64 === 'string' && image.base64.length > 0;
+        const hasAudio = audio && typeof audio.base64 === 'string' && audio.base64.length > 0;
+        if (hasImage && image.base64.length > 8_000_000) return res.status(413).json({ error: 'الصورة كبيرة جدًا' });
+        if (hasAudio && audio.base64.length > 8_000_000) return res.status(413).json({ error: 'التسجيل الصوتي كبير جدًا' });
+
+        if (!trimmed && !hasImage && !hasAudio) return res.status(400).json({ error: 'الرسالة فاضية' });
+
         const me = await Student.findById(req.user.id).select('username fullName');
         const chat = await GroupChat.findById(req.params.id);
         if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
             return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
         }
-        const trimmed = text.trim().slice(0, 2000);
-        const msg = await new GroupChatMessage({ chatId: chat._id, senderUsername: me.username, text: trimmed }).save();
-        chat.lastMessage = trimmed;
+
+        const msgDoc = { chatId: chat._id, senderUsername: me.username, text: trimmed };
+        if (hasImage) msgDoc.image = { base64: image.base64, mimeType: String(image.mimeType || 'image/jpeg').slice(0, 60), name: String(image.name || '').slice(0, 200) };
+        if (hasAudio) msgDoc.audio = { base64: audio.base64, mimeType: String(audio.mimeType || 'audio/webm').slice(0, 60), durationSeconds: Math.min(600, Math.max(0, Number(audio.durationSeconds) || 0)) };
+        const msg = await new GroupChatMessage(msgDoc).save();
+
+        // نص المعاينة في قايمة الغرف + الإشعار — لو مفيش نص فعلي بنستخدم وصف مناسب
+        // للنوع (صورة/رسالة صوتية) بدل ما نسيبه فاضي.
+        const previewText = trimmed || (hasImage ? '📷 صورة' : hasAudio ? '🎤 رسالة صوتية' : '');
+        chat.lastMessage = previewText;
         chat.lastMessageAt = new Date();
         await chat.save();
         // نبعت push notification لباقي أعضاء الغرفة (مش للمرسل نفسه)، من غير ما نستنى
@@ -8601,11 +8638,12 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         const otherMembers = chat.memberUsernames.filter(u => u !== me.username);
         Promise.all(otherMembers.map(u => sendPushToUser(u, {
             title: `رسالة جديدة من ${senderDisplayName}`,
-            body: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed,
+            body: previewText.length > 80 ? previewText.slice(0, 80) + '…' : previewText,
             data: { type: 'message', chatId: String(chat._id), senderUsername: me.username, senderName: senderDisplayName }
         }))).catch(() => {});
         res.json({ success: true, messageId: msg._id, createdAt: new Date(msg.createdAt).getTime() });
     } catch (error) {
+
         res.status(500).json({ error: 'خطأ في إرسال الرسالة' });
     }
 });
