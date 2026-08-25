@@ -241,6 +241,19 @@ ${memoryText}
 // -------------------- Gemini call --------------------
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+async function reportGeminiUsage(requestBytes) {
+    try {
+        const ApiUsage = mongoose.models.ApiUsage;
+        if (!ApiUsage) return;
+        const monthKey = new Date().toISOString().slice(0, 7);
+        await ApiUsage.findOneAndUpdate(
+            { provider: 'gemini-pro-teacher', monthKey },
+            { $inc: { callCount: 1, totalRequestBytes: requestBytes || 0 } },
+            { upsert: true, setDefaultsOnInsert: true }
+        );
+    } catch (e) { /* تتبّع الإحصائيات مايأثرش أبدًا على رد الدرس نفسه */ }
+}
+
 async function callGemini(systemPrompt, historyMsgs, userMessage) {
     const apiKey = process.env.GERMAN_API_KEY;
     if (!apiKey) throw new Error('GERMAN_API_KEY مش متظبط في environment variables');
@@ -276,6 +289,7 @@ async function callGemini(systemPrompt, historyMsgs, userMessage) {
             const data = await resp.json();
             const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
             if (!text) throw new Error('رد فاضي من Gemini — راجع الـ API key أو اسم الموديل');
+            await reportGeminiUsage(body.length);
             return text;
         }
 
