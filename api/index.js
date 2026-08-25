@@ -8022,6 +8022,119 @@ app.get('/api/admin/dashboard/overview', verifyToken, isAdmin, async (req, res) 
   }
 });
 
+// ====================== مراقبة استهلاك/تكلفة الـ AI APIs (تقريبية شهريًا) ======================
+// الهدف: الأدمن يعرف عدد الاستدعاءات الفعلية لكل مزود AI شهريًا + تقدير تقريبي
+// للتكلفة بالدولار، عشان ميتفاجئش بفاتورة آخر الشهر (خصوصًا Gemini اللي بيتنادى
+// من أكتر من مكان: الشات الرئيسي + English Pro + German Pro).
+//
+// بيتغذى من مصدرين:
+// 1) api/_usageTrack.js في مشروع chatx (Vercel منفصل) — بينادي عبر HTTP على
+//    /api/usage/api-cost/track بعد كل استدعاء فعلي لموديل (gemini, groq,
+//    cerebras, claude-opus, mistral, sambanova, qwen, onehop, openrouter, zimage).
+// 2) english-pro-routes.js و german-pro-routes.js — بيكتبوا على نفس الموديل
+//    مباشرة (in-process، مفيش HTTP) لأنهم شغالين جوه نفس عملية Node دي.
+//
+// أرقام مهمة: بنسجّل عدد الاستدعاءات (دقيق 100%) + حجم الطلبات بالبايت (تقريب
+// لعدد التوكنات: ~4 حروف للتوكن الواحد — تقريب معروف ومستخدم بكثرة، مش دقيق
+// 100% لكنه كافي كإنذار مبكر). التكلفة النهائية بتتحسب وقت العرض في لوحة الأدمن
+// من جدول أسعار API_PRICING تحت — مش وقت الكتابة، عشان لو الأسعار اتغيّرت تتحدّث
+// كل الشهور القديمة تلقائيًا من غير أي migration.
+const apiUsageSchema = new mongoose.Schema({
+  provider: { type: String, required: true, index: true }, // gemini / cerebras / claude-opus / ...
+  monthKey: { type: String, required: true, index: true }, // 'YYYY-MM'
+  callCount: { type: Number, default: 0 },
+  totalRequestBytes: { type: Number, default: 0 }
+}, { timestamps: true });
+apiUsageSchema.index({ provider: 1, monthKey: 1 }, { unique: true });
+const ApiUsage = mongoose.models.ApiUsage || mongoose.model('ApiUsage', apiUsageSchema);
+
+// ⚠️ جدول أسعار تقريبي — بالدولار لكل مليون توكن (input/output منفصلين، زي ما
+// بينشرها كل مزود). الأسعار دي اتراجعت وقت كتابة الكود ده (أغسطس 2026) للمزودين
+// اللي أسعارهم واضحة ومؤكدة بس. للمزودين اللي price: null — السعر مش مؤكد 100%
+// (إما موديل مجاني فعليًا زي onehop/openrouter، أو محتاج مراجعة من موقع المزود
+// الرسمي لأن التسعير بيتغيّر بسرعة) — اللوحة بتعرض "—" بدل ما تختلق رقم غلط.
+// avgOutputTokens تقدير تقريبي جدًا لمتوسط طول الرد (بما إننا مش بنعدّ التوكنات
+// الفعلية من الـ stream) — عدّله لو حسّيت إنه بعيد عن الواقع عندك.
+const API_PRICING = {
+  'gemini':              { label: 'Gemini 3.1 Flash-Lite (الشات الرئيسي)', inputPerM: 0.25, outputPerM: 1.50, avgOutputTokens: 500 },
+  'gemini-pro-teacher':  { label: 'Gemini 3.6 Flash (English/German Pro)', inputPerM: 1.50, outputPerM: 7.50, avgOutputTokens: 700 },
+  'cerebras':            { label: 'GPT-OSS-120B عبر Cerebras (premium_ai)', inputPerM: 0.35, outputPerM: 0.75, avgOutputTokens: 500 },
+  'claude-opus':         { label: 'gpt-5.6-sol عبر OneHop (premium_ai)', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
+  'groq':                { label: 'gpt-oss-20b عبر Groq', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
+  'mistral':             { label: 'mistral-small-latest', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
+  'sambanova':           { label: 'Llama-3.3-70B عبر SambaNova', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
+  'qwen':                { label: 'qwen-plus', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
+  'onehop':              { label: 'موديل مجاني عبر OneHop (:free)', inputPerM: 0, outputPerM: 0, avgOutputTokens: 500 },
+  'openrouter':          { label: 'موديلات OpenRouter المجانية', inputPerM: 0, outputPerM: 0, avgOutputTokens: 500 },
+  'zimage':              { label: 'تحليل صور (Qwen-VL تقريبًا)', inputPerM: null, outputPerM: null, avgOutputTokens: 300 }
+};
+
+// حماية بسيطة: مفتاح داخلي مشترك بين مشروع chatx (Vercel) وSchool X — مش توكن
+// طالب/أدمن (أغلب ملفات api/*.js مفيش عندها توكن أصلاً)، بس بيمنع أي حد عشوائي
+// من ضخ بيانات وهمية في الإحصائيات. لو الأدمن ماضبطهوش في Environment Variables،
+// الـ endpoint بيقبل من غيره (أسهل للتجربة الأولى، أقل أمانًا — يُفضّل ضبطه).
+const INTERNAL_METRICS_KEY = process.env.INTERNAL_METRICS_KEY || '';
+
+app.post('/api/usage/api-cost/track', async (req, res) => {
+  try {
+    if (INTERNAL_METRICS_KEY && req.headers['x-internal-key'] !== INTERNAL_METRICS_KEY) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    await connectToDatabase();
+    const provider = String(req.body?.provider || '').trim().slice(0, 40);
+    if (!provider) return res.status(400).json({ error: 'provider مطلوب' });
+    // سقف دفاعي (2 ميجا حرف) يمنع أي جسم طلب غير طبيعي من تضخيم رقم البايتات فجأة.
+    const bytes = Math.max(0, Math.min(Number(req.body?.requestBytes) || 0, 2_000_000));
+    const monthKey = new Date().toISOString().slice(0, 7);
+
+    await ApiUsage.findOneAndUpdate(
+      { provider, monthKey },
+      { $inc: { callCount: 1, totalRequestBytes: bytes } },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ usage/api-cost/track error:', error.message);
+    res.status(500).json({ error: 'خطأ في تسجيل الاستهلاك' });
+  }
+});
+
+// لوحة تكلفة الـ API — بترجع كل شهر مطلوب (افتراضيًا الشهر الحالي) مع تفصيل
+// كل مزود على حدة + الإجمالي التقريبي (بس للمزودين اللي سعرهم مؤكد).
+app.get('/api/admin/dashboard/api-costs', verifyToken, isAdmin, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const monthKey = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : new Date().toISOString().slice(0, 7);
+    const docs = await ApiUsage.find({ monthKey }).lean();
+    const docsByProvider = new Map(docs.map(d => [d.provider, d]));
+
+    // بنعرض كل المزودين المعروفين حتى لو صفر نداءات الشهر ده — عشان الأدمن يشوف
+    // الصورة كاملة مش بس اللي اتستخدم بالفعل.
+    const rows = Object.keys(API_PRICING).map(provider => {
+      const d = docsByProvider.get(provider);
+      const pricing = API_PRICING[provider];
+      const callCount = d ? d.callCount : 0;
+      const estInputTokens = Math.round((d ? d.totalRequestBytes : 0) / 4); // ~4 حروف/توكن
+      let estCostUsd = null;
+      if (pricing.inputPerM != null && pricing.outputPerM != null) {
+        const inputCost = (estInputTokens / 1_000_000) * pricing.inputPerM;
+        const outputCost = ((callCount * pricing.avgOutputTokens) / 1_000_000) * pricing.outputPerM;
+        estCostUsd = Number((inputCost + outputCost).toFixed(3));
+      }
+      return { provider, label: pricing.label, callCount, estInputTokens, estCostUsd, priceKnown: pricing.inputPerM != null };
+    }).sort((a, b) => b.callCount - a.callCount);
+
+    const totalCalls = rows.reduce((s, r) => s + r.callCount, 0);
+    const totalKnownCostUsd = Number(rows.reduce((s, r) => s + (r.estCostUsd || 0), 0).toFixed(2));
+    const hasUnknownPricing = rows.some(r => r.callCount > 0 && !r.priceKnown);
+
+    res.json({ success: true, monthKey, rows, totalCalls, totalKnownCostUsd, hasUnknownPricing });
+  } catch (error) {
+    console.error('❌ dashboard/api-costs error:', error.message);
+    res.status(500).json({ error: 'خطأ في تحميل بيانات التكلفة' });
+  }
+});
+
 const ONLINE_WINDOW_MS = 90 * 1000; // "متصل" = بعت نبضة خلال آخر 90 ثانية
 
 // الأسبوع يبدأ السبت
