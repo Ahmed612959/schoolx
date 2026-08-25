@@ -8610,6 +8610,14 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         // ويحدد مدة التسجيل، السيرفر لازم يتحقق بنفسه مش يثق في الفرونت إند بس).
         const hasImage = image && typeof image.base64 === 'string' && image.base64.length > 0;
         const hasAudio = audio && typeof audio.base64 === 'string' && audio.base64.length > 0;
+        // 🔍 لوج تشخيصي مؤقت — بيوضح هل الميديا وصلت للسيرفر كاملة قبل أي حفظ.
+        // شيله بعد ما تتأكد من السبب وتحل المشكلة.
+        console.log('📩 group-chat media check:', {
+            hasImage, hasAudio,
+            imgLen: image?.base64?.length || 0,
+            audioLen: audio?.base64?.length || 0,
+            contentLengthHeader: req.headers['content-length']
+        });
         if (hasImage && image.base64.length > 8_000_000) return res.status(413).json({ error: 'الصورة كبيرة جدًا' });
         if (hasAudio && audio.base64.length > 8_000_000) return res.status(413).json({ error: 'التسجيل الصوتي كبير جدًا' });
 
@@ -8625,6 +8633,8 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         if (hasImage) msgDoc.image = { base64: image.base64, mimeType: String(image.mimeType || 'image/jpeg').slice(0, 60), name: String(image.name || '').slice(0, 200) };
         if (hasAudio) msgDoc.audio = { base64: audio.base64, mimeType: String(audio.mimeType || 'audio/webm').slice(0, 60), durationSeconds: Math.min(600, Math.max(0, Number(audio.durationSeconds) || 0)) };
         const msg = await new GroupChatMessage(msgDoc).save();
+        // 🔍 تأكيد إن اللي اتحفظ فعلاً فيه الميديا (مش بس اللي وصل في req.body)
+        console.log('✅ saved message:', { id: String(msg._id), savedImgLen: msg.image?.base64?.length || 0, savedAudioLen: msg.audio?.base64?.length || 0 });
 
         // نص المعاينة في قايمة الغرف + الإشعار — لو مفيش نص فعلي بنستخدم وصف مناسب
         // للنوع (صورة/رسالة صوتية) بدل ما نسيبه فاضي.
@@ -8643,7 +8653,7 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         }))).catch(() => {});
         res.json({ success: true, messageId: msg._id, createdAt: new Date(msg.createdAt).getTime() });
     } catch (error) {
-
+        console.error('❌ فشل إرسال رسالة الغرفة:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في إرسال الرسالة' });
     }
 });
