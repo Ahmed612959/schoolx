@@ -93,6 +93,7 @@ if (!process.env.JWT_SECRET) {
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -4959,14 +4960,43 @@ async function extractTextViaPython(url) {
     return data.text;
 }
 
+// بتنادي Gemini (لو فيه مفتاح) وإلا DeepSeek (لو فيه مفتاح) عشان تولّد رد JSON.
+// بتفضّل Gemini أولًا — استخدمنا alias اسمه "gemini-flash-latest" (بيديره
+// Google نفسها) بدل ما نثبّت اسم نسخة معينة زي "gemini-2.5-flash"، عشان
+// النسخة القديمة بتتقاعد بمرور الوقت والـ alias ده بيتحدّث تلقائي لأحدث
+// نسخة فلاش من غير ما نحتاج نعدّل الكود تاني.
+async function callGeminiJSON(systemPrompt, userPrompt, maxTokens = 1500) {
+    const response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+        {
+            method: 'POST',
+            headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                generationConfig: { responseMimeType: 'application/json', maxOutputTokens: maxTokens, temperature: 0.4 }
+            })
+        }
+    );
+    if (!response.ok) {
+        const err = new Error('فشل استدعاء Gemini');
+        err.code = 'ai_call_failed';
+        throw err;
+    }
+    const data = await response.json();
+    const raw = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    try {
+        return JSON.parse(raw);
+    } catch (e) {
+        const err = new Error('رد Gemini مكانش JSON صالح');
+        err.code = 'ai_bad_json';
+        throw err;
+    }
+}
+
 // بتنادي DeepSeek وبتحاول تضمن إن الرد JSON صالح — بتشيل أي ```json fences لو
 // الموديل حطها رغم التعليمات، وبترمي خطأ واضح لو فشل الـ parsing.
 async function callDeepSeekJSON(systemPrompt, userPrompt, maxTokens = 1500) {
-    if (!DEEPSEEK_API_KEY) {
-        const err = new Error('خدمة الذكاء الاصطناعي مش مفعّلة حاليًا (DEEPSEEK_API_KEY مش مضبوط)');
-        err.code = 'ai_unavailable';
-        throw err;
-    }
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
@@ -4994,6 +5024,17 @@ async function callDeepSeekJSON(systemPrompt, userPrompt, maxTokens = 1500) {
     }
 }
 
+// نقطة الدخول الموحّدة اللي بتستخدمها فيتشرز الأسئلة/التلخيص — بتفضّل Gemini،
+// ولو مش متاح بتستخدم DeepSeek، ولو ولا واحد فيهم متاح بترجع خطأ واضح.
+// كده لو ضفت أي مفتاح تاني (أو الاتنين مع بعض) الموقع يشتغل من غير أي تعديل تاني.
+async function callAIJSON(systemPrompt, userPrompt, maxTokens = 1500) {
+    if (GEMINI_API_KEY) return callGeminiJSON(systemPrompt, userPrompt, maxTokens);
+    if (DEEPSEEK_API_KEY) return callDeepSeekJSON(systemPrompt, userPrompt, maxTokens);
+    const err = new Error('خدمة الذكاء الاصطناعي مش مفعّلة حاليًا (GEMINI_API_KEY أو DEEPSEEK_API_KEY مش مضبوطين)');
+    err.code = 'ai_unavailable';
+    throw err;
+}
+
 app.post('/api/gemini', async (req, res) => {
     try {
         const { prompt, userId = req.user?.id || req.ip || 'anonymous' } = req.body;
@@ -5001,7 +5042,30 @@ app.post('/api/gemini', async (req, res) => {
         const conversationContext = getConversationContext(userId);
         const systemPrompt = `أنت مساعد تعليمي ذكي لمعهد رعاية الضبعية للتمريض.\n\n📌 تعليمات مهمة:\n- رد باللغة العربية (مصري أو فصحى)\n- تخصصك: التمريض، الرعاية التلطيفية، Palliative care, Brain death, Hospice care\n- كن ودوداً ومفيداً ومحترفاً\n- قدم إجابات دقيقة ومبسطة مع أمثلة عملية\n- إذا سأل عن النتيجة: "روح على صفحة النتائج وادخل الكود بتاعك"\n- استخدم السياق المقدم من المحادثات السابقة\n\n${conversationContext ? `\n📚 **سياق المحادثة السابقة مع هذا الطالب:**\n${conversationContext}\n` : ''}\n\n💬 **سؤال الطالب الحالي:** ${prompt}\n\nقدم رداً مفيداً وطبيعياً وودوداً باللغة العربية:`;
         let reply = null;
-        if (DEEPSEEK_API_KEY && DEEPSEEK_API_KEY !== '') {
+
+        // نفس أولوية باقي الخدمة: Gemini الأول (لو فيه مفتاح)، بعدين DeepSeek
+        // كـ fallback (مفيش أي وظيفة اتشالت — بس ضفنا Gemini قبلها).
+        if (GEMINI_API_KEY) {
+            try {
+                const response = await fetch(
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+                    {
+                        method: 'POST',
+                        headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            system_instruction: { parts: [{ text: systemPrompt }] },
+                            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                            generationConfig: { maxOutputTokens: 1000, temperature: 0.7 }
+                        })
+                    }
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    reply = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+                }
+            } catch (error) { console.log('⚠️ Gemini API error:', error.message); }
+        }
+        if (!reply && DEEPSEEK_API_KEY && DEEPSEEK_API_KEY !== '') {
             try {
                 const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
@@ -6086,7 +6150,7 @@ app.post('/api/gemini/questions', verifyToken, async (req, res) => {
 
         let parsed;
         try {
-            parsed = await callDeepSeekJSON(systemPrompt, userPrompt, 2200);
+            parsed = await callAIJSON(systemPrompt, userPrompt, 2200);
         } catch (e) {
             return res.status(e.code === 'ai_unavailable' ? 503 : 502).json({ error: e.message });
         }
@@ -6141,7 +6205,7 @@ app.post('/api/gemini/file', verifyToken, async (req, res) => {
 
         let parsed;
         try {
-            parsed = await callDeepSeekJSON(systemPrompt, userPrompt, 900);
+            parsed = await callAIJSON(systemPrompt, userPrompt, 900);
         } catch (e) {
             return res.status(e.code === 'ai_unavailable' ? 503 : 502).json({ error: e.message });
         }
