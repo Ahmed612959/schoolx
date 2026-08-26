@@ -93,6 +93,11 @@ if (!process.env.JWT_SECRET) {
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+// رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
+// شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
+// بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
+// واضحة "الخدمة مش متاحة" بدل ما تفشل بصمت أو توقف باقي السيرفر.
+const PY_SERVICE_URL = (process.env.PY_SERVICE_URL || '').replace(/\/$/, '');
 
 // ====================== Firebase Admin (للبوش نوتيفيكيشن) ======================
 // على Vercel: حط JSON الخاص بـ Service Account (اللي نزلته من Firebase Console →
@@ -4921,6 +4926,74 @@ function getFallbackResponse(prompt) {
     return `📚 **أنا هنا لمساعدتك!**\n\n🎯 **يمكنك سؤالي عن:**\n• الرعاية التلطيفية (Palliative Care)\n• الموت الدماغي (Brain Death)\n• التمريض الجراحي والباطني\n• النتائج والدرجات\n\nكيف أقدر أساعدك أكثر اليوم؟`;
 }
 
+// ====================== أدوات مساعدة: خدمة بايثون + DeepSeek (JSON) ======================
+// بتنادي خدمة بايثون المنفصلة (python-service/) عشان تستخرج نص خام من ملف
+// (PDF/DOCX/TXT) عن طريق رابطه العام على R2. لو الخدمة مش متاحة أو الملف نوعه
+// مش مدعوم، بترجع خطأ واضح بدل ما تعلّق الطلب أو تفشل بصمت.
+async function extractTextViaPython(url) {
+    if (!PY_SERVICE_URL) {
+        const err = new Error('خدمة استخراج النصوص مش متاحة حاليًا (PY_SERVICE_URL مش مضبوط)');
+        err.code = 'service_unavailable';
+        throw err;
+    }
+    let response;
+    try {
+        response = await fetch(`${PY_SERVICE_URL}/extract-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+    } catch (e) {
+        const err = new Error('تعذر الوصول لخدمة استخراج النصوص');
+        err.code = 'service_unreachable';
+        throw err;
+    }
+    if (!response.ok) {
+        let detail = 'تعذر استخراج نص الملف';
+        try { const data = await response.json(); if (data?.detail) detail = data.detail; } catch (_) {}
+        const err = new Error(detail);
+        err.code = 'extract_failed';
+        throw err;
+    }
+    const data = await response.json();
+    return data.text;
+}
+
+// بتنادي DeepSeek وبتحاول تضمن إن الرد JSON صالح — بتشيل أي ```json fences لو
+// الموديل حطها رغم التعليمات، وبترمي خطأ واضح لو فشل الـ parsing.
+async function callDeepSeekJSON(systemPrompt, userPrompt, maxTokens = 1500) {
+    if (!DEEPSEEK_API_KEY) {
+        const err = new Error('خدمة الذكاء الاصطناعي مش مفعّلة حاليًا (DEEPSEEK_API_KEY مش مضبوط)');
+        err.code = 'ai_unavailable';
+        throw err;
+    }
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+            temperature: 0.4,
+            max_tokens: maxTokens
+        })
+    });
+    if (!response.ok) {
+        const err = new Error('فشل استدعاء نموذج الذكاء الاصطناعي');
+        err.code = 'ai_call_failed';
+        throw err;
+    }
+    const data = await response.json();
+    const raw = (data.choices?.[0]?.message?.content || '').trim();
+    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+    try {
+        return JSON.parse(cleaned);
+    } catch (e) {
+        const err = new Error('رد الذكاء الاصطناعي مكانش JSON صالح');
+        err.code = 'ai_bad_json';
+        throw err;
+    }
+}
+
 app.post('/api/gemini', async (req, res) => {
     try {
         const { prompt, userId = req.user?.id || req.ip || 'anonymous' } = req.body;
@@ -4970,15 +5043,10 @@ app.post('/api/gemini/vision', async (req, res) => {
     res.json({ reply: '🖼️ **خدمة تحليل الصور**\n\nهذه الخدمة قيد التطوير. قريباً سأتمكن من تحليل صورك وشرح محتواها!\n\n📌 في الوقت الحالي، يمكنك وصف الصورة وسأحاول مساعدتك.' });
 });
 
-app.post('/api/gemini/file', async (req, res) => {
-    const { filename } = req.body;
-    res.json({ reply: `📄 **تم استلام ملف: ${filename || 'الملف'}**\n\nخدمة تحليل الملفات قيد التطوير.\n\n📌 قريباً سأتمكن من:\n• قراءة ملفات PDF\n• تلخيص المستندات\n• استخراج المعلومات المهمة\n• إنشاء أسئلة من المحتوى` });
-});
-
-app.post('/api/gemini/questions', async (req, res) => {
-    const { questionCount = 5, filename } = req.body;
-    res.json({ reply: `📝 **طلب إنشاء ${questionCount} سؤال**\n\nمن ملف: ${filename || 'الملف'}\n\nهذه الخدمة قيد التطوير.\n\n📌 قريباً سأتمكن من إنشاء:\n• أسئلة اختيار من متعدد\n• أسئلة صح/خطأ\n• أسئلة مقالية\n\nعلى حسب المحتوى الذي ترفعه!` });
-});
+// ملحوظة: /api/gemini/file و /api/gemini/questions اتنقلوا لتحت (بعد تعريف
+// SharedSummary) واتفعّلوا فعليًا — بيولّدوا ملخص/أسئلة حقيقية من ملفات
+// المكتبة المشتركة (مش ردود placeholder زي قبل كده). دوّر عليهم بالاسم لو
+// عايز تعدّل فيهم.
 
 
 
@@ -5721,9 +5789,31 @@ const sharedSummarySchema = new mongoose.Schema({
     reviewedBy: { type: String, default: '' },
     reviewedAt: { type: Date },
     downloads: { type: Number, default: 0 },
-    views: { type: Number, default: 0 }
+    views: { type: Number, default: 0 },
+    // ملخص مُولّد بالذكاء الاصطناعي — بيتخزن هنا كـ cache عشان منولّدش نفس
+    // الملخص تاني في كل مرة (تكلفة AI + وقت انتظار). بيتحدّث بس لو الطالب/الأدمن
+    // طلب "تحديث" صراحة.
+    aiSummary: {
+        bulletPoints: { type: [String], default: undefined },
+        keyTerms: { type: [String], default: undefined },
+        generatedAt: { type: Date }
+    }
 }, { timestamps: true });
 const SharedSummary = mongoose.models.SharedSummary || mongoose.model('SharedSummary', sharedSummarySchema);
+
+// أسئلة اختيار من متعدد اتولّدت تلقائيًا من محتوى ملف في المكتبة المشتركة —
+// بيتخزنوا مرة واحدة لكل ملف (cache) عشان الطلاب اللي بعد كده يفتحوا نفس
+// الملخص ياخدوا نفس الأسئلة على طول من غير استدعاء AI جديد كل مرة.
+const generatedQuizSchema = new mongoose.Schema({
+    summaryId: { type: mongoose.Schema.Types.ObjectId, ref: 'SharedSummary', required: true, unique: true, index: true },
+    questions: [{
+        q: { type: String, required: true },
+        options: { type: [String], required: true }, // 4 اختيارات دايمًا
+        correctIndex: { type: Number, required: true, min: 0, max: 3 },
+        explanation: { type: String, default: '' }
+    }]
+}, { timestamps: true });
+const GeneratedQuiz = mongoose.models.GeneratedQuiz || mongoose.model('GeneratedQuiz', generatedQuizSchema);
 
 // رابط رفع موقّع للطالب (نفس فكرة /api/files/upload-url بتاعة الأدمن، بس متاحة
 // لأي طالب مسجل دخول بدل ما تكون مقصورة على الأدمن)
@@ -5889,6 +5979,184 @@ app.post('/api/shared-summaries/:id/reject', verifyToken, isAdmin, async (req, r
         res.json({ success: true, summary: doc });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في رفض الملف' });
+    }
+});
+
+// ====================== فحص التشابه (فيتشر 6) — للأدمن وقت المراجعة ======================
+// بيقارن الملف اللي بيراجعه الأدمن بباقي ملفات نفس الصف والمادة (سواء معتمدة
+// أو لسه تحت المراجعة) عشان يكتشف نسخ/تكرار قبل ما يوافق عليه.
+app.post('/api/shared-summaries/:id/check-similarity', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const target = await SharedSummary.findById(req.params.id);
+        if (!target) return res.status(404).json({ error: 'الملف غير موجود' });
+
+        const candidates = await SharedSummary.find({
+            _id: { $ne: target._id },
+            grade: target.grade,
+            subject: target.subject,
+            status: { $in: ['pending', 'approved'] }
+        }).select('_id url topic uploadedByName status').limit(30);
+
+        if (!candidates.length) return res.json({ matches: [], skipped: [], note: 'مفيش ملفات تانية في نفس الصف والمادة عشان نقارن بيها' });
+
+        let pyResult;
+        try {
+            const response = await fetch(`${PY_SERVICE_URL}/check-similarity`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    target: { id: String(target._id), url: target.url, label: target.topic },
+                    candidates: candidates.map(c => ({ id: String(c._id), url: c.url, label: c.topic }))
+                })
+            });
+            if (!response.ok) {
+                let detail = 'تعذر فحص التشابه';
+                try { const d = await response.json(); if (d?.detail) detail = d.detail; } catch (_) {}
+                return res.status(502).json({ error: detail });
+            }
+            pyResult = await response.json();
+        } catch (e) {
+            return res.status(503).json({ error: 'خدمة فحص التشابه مش متاحة حاليًا — تأكد إن PY_SERVICE_URL مضبوط' });
+        }
+
+        // نربط كل نتيجة بمعلومات الملف الكاملة (الأدمن يحتاج يشوف اسم الطالب وحالة الملف مش بس الـ id)
+        const byId = new Map(candidates.map(c => [String(c._id), c]));
+        const matches = (pyResult.matches || []).map(m => {
+            const c = byId.get(m.id);
+            return {
+                id: m.id,
+                score: m.score,
+                topic: c?.topic || m.label || '',
+                uploadedByName: c?.uploadedByName || '',
+                status: c?.status || ''
+            };
+        });
+
+        res.json({ matches, skipped: pyResult.skipped || [] });
+    } catch (error) {
+        console.error('❌ خطأ في فحص التشابه:', error.message);
+        res.status(500).json({ error: 'خطأ في فحص التشابه' });
+    }
+});
+
+// بيتأكد إن المستخدم مسموحله يشوف محتوى الملف ده (لتوليد أسئلة/تلخيص):
+// إما الملف معتمد (متاح للكل)، أو هو صاحب الملف، أو هو أدمن.
+function canAccessSummaryContent(doc, user) {
+    if (doc.status === 'approved') return true;
+    if (user?.type === 'admin') return true;
+    if (doc.uploadedBy === user?.username) return true;
+    return false;
+}
+
+// ====================== توليد أسئلة تلقائي من ملف (فيتشر 1) ======================
+app.post('/api/gemini/questions', verifyToken, async (req, res) => {
+    try {
+        const { summaryId, count } = req.body || {};
+        if (!summaryId) return res.status(400).json({ error: 'summaryId مطلوب' });
+        const requestedCount = Math.min(10, Math.max(3, parseInt(count) || 5));
+
+        await connectToDatabase();
+        const doc = await SharedSummary.findById(summaryId);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+        if (!canAccessSummaryContent(doc, req.user)) return res.status(403).json({ error: 'غير مصرح لك بالوصول لمحتوى الملف ده' });
+
+        // لو عندنا cache كفاية أسئلة، منولّدش تاني — نوفر وقت وتكلفة AI
+        let cache = await GeneratedQuiz.findOne({ summaryId: doc._id });
+        if (cache && cache.questions.length >= requestedCount) {
+            return res.json({ questions: cache.questions.slice(0, requestedCount), cached: true });
+        }
+
+        let text;
+        try {
+            text = await extractTextViaPython(doc.url);
+        } catch (e) {
+            return res.status(e.code === 'service_unavailable' || e.code === 'service_unreachable' ? 503 : 422).json({ error: e.message });
+        }
+
+        const genCount = Math.max(requestedCount, 8); // نولّد شوية زيادة عشان الـ cache يفيد طلبات تانية بعدد أكبر
+        const systemPrompt = `أنت مدرّس متخصص في التمريض بتحوّل ملخصات دراسية لأسئلة اختيار من متعدد.
+رد بـ JSON فقط، من غير أي نص زيادة أو علامات markdown، بالشكل ده بالظبط:
+{"questions":[{"q":"نص السؤال","options":["اختيار 1","اختيار 2","اختيار 3","اختيار 4"],"correctIndex":0,"explanation":"شرح مختصر للإجابة الصح"}]}
+- الأسئلة لازم تكون من محتوى النص المُعطى بس، مش من معلومات عامة برة النص.
+- كل سؤال له 4 اختيارات بالظبط، واختيار واحد صح.
+- correctIndex هو انديكس الاختيار الصح (0 لحد 3).
+- الأسئلة والاختيارات بالعربي.`;
+        const userPrompt = `النص:\n"""\n${text}\n"""\n\nولّد ${genCount} سؤال اختيار من متعدد من النص ده.`;
+
+        let parsed;
+        try {
+            parsed = await callDeepSeekJSON(systemPrompt, userPrompt, 2200);
+        } catch (e) {
+            return res.status(e.code === 'ai_unavailable' ? 503 : 502).json({ error: e.message });
+        }
+
+        const questions = (parsed.questions || [])
+            .filter(q => q && q.q && Array.isArray(q.options) && q.options.length === 4 && Number.isInteger(q.correctIndex) && q.correctIndex >= 0 && q.correctIndex <= 3)
+            .map(q => ({ q: String(q.q).slice(0, 500), options: q.options.map(o => String(o).slice(0, 200)), correctIndex: q.correctIndex, explanation: String(q.explanation || '').slice(0, 500) }));
+
+        if (!questions.length) return res.status(502).json({ error: 'تعذر توليد أسئلة صالحة من محتوى الملف ده' });
+
+        cache = await GeneratedQuiz.findOneAndUpdate(
+            { summaryId: doc._id },
+            { summaryId: doc._id, questions },
+            { upsert: true, new: true }
+        );
+
+        res.json({ questions: cache.questions.slice(0, requestedCount), cached: false });
+    } catch (error) {
+        console.error('❌ خطأ في توليد الأسئلة:', error.message);
+        res.status(500).json({ error: 'خطأ في توليد الأسئلة' });
+    }
+});
+
+// ====================== تلخيص ملف تلقائيًا (فيتشر 5) ======================
+app.post('/api/gemini/file', verifyToken, async (req, res) => {
+    try {
+        const { summaryId, refresh } = req.body || {};
+        if (!summaryId) return res.status(400).json({ error: 'summaryId مطلوب' });
+
+        await connectToDatabase();
+        const doc = await SharedSummary.findById(summaryId);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+        if (!canAccessSummaryContent(doc, req.user)) return res.status(403).json({ error: 'غير مصرح لك بالوصول لمحتوى الملف ده' });
+
+        if (doc.aiSummary?.generatedAt && !refresh) {
+            return res.json({ bulletPoints: doc.aiSummary.bulletPoints, keyTerms: doc.aiSummary.keyTerms, cached: true });
+        }
+
+        let text;
+        try {
+            text = await extractTextViaPython(doc.url);
+        } catch (e) {
+            return res.status(e.code === 'service_unavailable' || e.code === 'service_unreachable' ? 503 : 422).json({ error: e.message });
+        }
+
+        const systemPrompt = `أنت مساعد بيلخّص ملخصات دراسية لطلاب تمريض. رد بـ JSON فقط بالشكل ده بالظبط:
+{"bulletPoints":["نقطة 1","نقطة 2","..."],"keyTerms":["مصطلح 1","مصطلح 2","..."]}
+- bulletPoints: 5 لـ 10 نقط تلخّص أهم أفكار النص، كل نقطة جملة واحدة واضحة.
+- keyTerms: 4 لـ 8 مصطلحات طبية/فنية مهمة ذُكرت في النص.
+- العربي بس، من غير أي نص خارج الـ JSON.`;
+        const userPrompt = `النص:\n"""\n${text}\n"""`;
+
+        let parsed;
+        try {
+            parsed = await callDeepSeekJSON(systemPrompt, userPrompt, 900);
+        } catch (e) {
+            return res.status(e.code === 'ai_unavailable' ? 503 : 502).json({ error: e.message });
+        }
+
+        const bulletPoints = Array.isArray(parsed.bulletPoints) ? parsed.bulletPoints.map(s => String(s).slice(0, 300)).slice(0, 10) : [];
+        const keyTerms = Array.isArray(parsed.keyTerms) ? parsed.keyTerms.map(s => String(s).slice(0, 100)).slice(0, 8) : [];
+        if (!bulletPoints.length) return res.status(502).json({ error: 'تعذر تلخيص محتوى الملف ده' });
+
+        doc.aiSummary = { bulletPoints, keyTerms, generatedAt: new Date() };
+        await doc.save();
+
+        res.json({ bulletPoints, keyTerms, cached: false });
+    } catch (error) {
+        console.error('❌ خطأ في تلخيص الملف:', error.message);
+        res.status(500).json({ error: 'خطأ في تلخيص الملف' });
     }
 });
 
