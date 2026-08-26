@@ -5035,6 +5035,21 @@ async function callAIJSON(systemPrompt, userPrompt, maxTokens = 1500) {
     throw err;
 }
 
+// 🔍 تشخيصي — بيتأكد إن الـ Environment Variables فعلاً وصلت لنفس الـ instance
+// اللي بيرد على الطلبات دلوقتي (مش بس محفوظة في Vercel Dashboard). بيرجع
+// true/false بس (مش قيمة المفتاح نفسه) عشان الأمان. لو true وبرضو الفيتشرز
+// بترجع "مش مفعّلة"، يبقى المشكلة مكان تاني (مش المفاتيح) — كلّمني وقولي
+// النتيجة. شيل الـ endpoint ده بعد ما تتأكد.
+app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
+    res.json({
+        GEMINI_API_KEY: Boolean(GEMINI_API_KEY),
+        DEEPSEEK_API_KEY: Boolean(DEEPSEEK_API_KEY),
+        PY_SERVICE_URL: Boolean(PY_SERVICE_URL),
+        vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
+        deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
+    });
+});
+
 app.post('/api/gemini', async (req, res) => {
     try {
         const { prompt, userId = req.user?.id || req.ip || 'anonymous' } = req.body;
@@ -6225,6 +6240,43 @@ app.post('/api/gemini/file', verifyToken, async (req, res) => {
 });
 
 // تحميل ملف من المكتبة المشتركة — لازم يكون موافَق عليه، أو تكون أنت صاحبه، أو تكون أدمن
+// بروكسي معاينة (مش تحميل) — بيجيب بايتس الملف من R2 على السيرفر (server-to-server،
+// مفيش CORS خالص هنا لأن المتصفح مش بيكلم R2 مباشرة) ويرجّعهم للمتصفح من نفس
+// دومين الـ API بتاعنا. ده اللي بيخلي معاينة PDF جوه التطبيق تشتغل مهما كانت
+// إعدادات CORS على باكت R2 نفسه — لأننا أصلاً مش محتاجين المتصفح يوصل لـ R2
+// مباشرة تاني. مفيش زيادة في عداد التحميلات هنا (ده مش تحميل فعلي).
+app.get('/api/shared-summaries/preview/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await SharedSummary.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الملف غير موجود' });
+
+        const isOwner = req.user?.type === 'student' && req.user?.username === doc.uploadedBy;
+        if (doc.status !== 'approved' && req.user?.type !== 'admin' && !isOwner) {
+            return res.status(403).json({ error: 'الملف ده لسه تحت المراجعة' });
+        }
+
+        const getCommand = new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.publicId });
+        const r2Object = await r2.send(getCommand);
+
+        res.setHeader('Content-Type', r2Object.ContentType || 'application/octet-stream');
+        if (r2Object.ContentLength) res.setHeader('Content-Length', r2Object.ContentLength);
+        // Content-Disposition: inline (مش attachment) — الغرض عرض جوه التطبيق مش تنزيل.
+        res.setHeader('Content-Disposition', 'inline');
+
+        r2Object.Body.on('error', (streamErr) => {
+            console.error('❌ خطأ في تدفق الملف من R2 (معاينة):', streamErr);
+            if (!res.headersSent) res.status(500).json({ error: 'خطأ أثناء تحميل الملف للمعاينة' });
+            else res.destroy();
+        });
+
+        r2Object.Body.pipe(res);
+    } catch (error) {
+        console.error('❌ خطأ في بروكسي معاينة الملف:', error);
+        res.status(500).json({ error: 'تعذرت معاينة الملف' });
+    }
+});
+
 app.get('/api/shared-summaries/download/:id', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
