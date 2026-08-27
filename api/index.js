@@ -3419,6 +3419,28 @@ function isAdmin(req, res, next) {
     next();
 }
 
+// ميدلوير عام لأي فيتشر Premium — الأدمن عنده كل حاجة تلقائي (زي باقي الموقع)،
+// والطالب لازم يكون مفعّل عنده المفتاح ده بالظبط في premiumFeatures. لازم يجي
+// بعد verifyToken في السلسلة عشان يعتمد على req.user. مختلف عن باقي الفحوصات
+// في الموقع (اللي كلها client-side بس) لأن الفيتشرز دي بتستهلك API خارجي
+// بتكلفة حقيقية (Gemini)، فمستاهلة حماية على السيرفر مش بس في الفرونت إند.
+function requirePremium(featureKey) {
+    return async (req, res, next) => {
+        try {
+            if (req.user?.type === 'admin') return next();
+            if (req.user?.type !== 'student') return res.status(403).json({ error: 'غير مصرح' });
+            await connectToDatabase();
+            const student = await Student.findOne({ username: req.user.username }).select('premiumFeatures');
+            if (!student || !(student.premiumFeatures || []).includes(featureKey)) {
+                return res.status(403).json({ error: 'الميزة دي محتاجة تفعيل Premium من الأدمن' });
+            }
+            next();
+        } catch (error) {
+            res.status(500).json({ error: 'خطأ في التحقق من الاشتراك' });
+        }
+    };
+}
+
 // مدير المعهد فقط: أي أدمن قديم بدون role (أو role = 'admin') يُعامل كمدير معهد للتوافق مع الحسابات الحالية
 function isManager(req, res, next) {
     if (!req.user || req.user.type !== 'admin') return res.status(403).json({ error: 'غير مصرح. هذه الصفحة للأدمن فقط' });
@@ -5048,6 +5070,83 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
         vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
         deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
     });
+});
+
+// ====================== استوديو الصور الذكي (Premium) ======================
+// تحليل صورة برؤية AI حقيقية (multimodal) — مش OCR نصي بس زي الـ Tesseract في
+// الشات العادي. بيبعت بايتس الصورة فعليًا لـ Gemini، فبيقدر يوصف رسومات
+// ومخططات وصور مش نصية خالص (زي صورة جهاز أو رسم تشريحي)، وده اللي بيدّي
+// الدقة العالية المطلوبة. مفيش fallback لـ DeepSeek هنا لأنه مش بيدعم رؤية.
+app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        const { image, question } = req.body || {};
+        if (!image || !image.base64 || !image.mimeType) return res.status(400).json({ error: 'الصورة مطلوبة' });
+        if (!GEMINI_API_KEY) return res.status(503).json({ error: 'خدمة تحليل الصور مش مفعّلة حاليًا (GEMINI_API_KEY مش مضبوط)' });
+        if (image.base64.length > 8_000_000) return res.status(413).json({ error: 'الصورة كبيرة قوي' });
+
+        const trimmedQuestion = String(question || '').trim().slice(0, 500);
+        const systemPrompt = `أنت مساعد تعليمي متخصص في التمريض بتحلل صور بدقة عالية للطلاب.
+- افحص الصورة بعناية شديدة قبل ما ترد.
+- لو فيها نص، اقرأه بالكامل بدقة.
+- لو فيها رسم تشريحي/تخطيط/جهاز طبي، اشرح كل جزء فيه ووظيفته.
+- لو الطالب سأل سؤال محدد عن الصورة، ركّز إجابتك عليه أولًا.
+- رد بالعربي، بشكل منظم وواضح، من غير مبالغة أو تخمين لحاجة مش واضحة في الصورة — لو حاجة مش واضحة قول كده صراحة بدل ما تخمّن.`;
+        const userText = trimmedQuestion || 'حلّل الصورة دي بالتفصيل واشرح كل حاجة مهمة فيها.';
+
+        const response = await fetch(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+            {
+                method: 'POST',
+                headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_instruction: { parts: [{ text: systemPrompt }] },
+                    contents: [{
+                        role: 'user',
+                        parts: [
+                            { text: userText },
+                            { inline_data: { mime_type: image.mimeType, data: image.base64 } }
+                        ]
+                    }],
+                    generationConfig: { maxOutputTokens: 1500, temperature: 0.2 } // temperature منخفضة عمدًا هنا — دقة أهم من إبداع في تحليل صورة
+                })
+            }
+        );
+        if (!response.ok) {
+            let detail = 'فشل تحليل الصورة';
+            try { const d = await response.json(); if (d?.error?.message) detail = d.error.message; } catch (_) {}
+            return res.status(502).json({ error: detail });
+        }
+        const data = await response.json();
+        const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!analysis) return res.status(502).json({ error: 'تعذر الحصول على تحليل للصورة دي' });
+        res.json({ analysis });
+    } catch (error) {
+        console.error('❌ خطأ في تحليل الصورة:', error.message);
+        res.status(500).json({ error: 'خطأ في تحليل الصورة' });
+    }
+});
+
+// إنشاء صورة من وصف نصي عن طريق Pollinations (خدمة مجانية بالكامل، من غير أي
+// مفتاح API — https://pollinations.ai). بنرجّع رابط الصورة مباشرة (مش بايتس)،
+// المتصفح بيحمّلها كـ <img> عادي، وCSP الموقع أصلاً بيسمح بأي مصدر https للصور.
+app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        const { prompt } = req.body || {};
+        const trimmed = String(prompt || '').trim().slice(0, 500);
+        if (!trimmed) return res.status(400).json({ error: 'وصف الصورة مطلوب' });
+
+        const seed = Math.floor(Math.random() * 1_000_000); // بدون seed التوليد بيتكرر لنفس الوصف — seed عشوائي يضمن تنويع
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
+
+        // مبنعملش تحقق مسبق (fetch) من الرابط هنا عمدًا — أول توليد لنفس الـ prompt
+        // عند Pollinations ممكن ياخد وقت، ولو استنيناه هنا ممكن نضرب حد وقت تنفيذ
+        // Vercel Functions (10 ثانية على الخطة المجانية). بنرجّع الرابط على طول
+        // ونسيب الفرونت إند يتعامل مع فشل التحميل لو حصل (عن طريق onerror بتاعة الـ img).
+        res.json({ imageUrl });
+    } catch (error) {
+        console.error('❌ خطأ في إنشاء الصورة:', error.message);
+        res.status(500).json({ error: 'خطأ في إنشاء الصورة' });
+    }
 });
 
 app.post('/api/gemini', async (req, res) => {
