@@ -102,6 +102,9 @@ const CLOUDFLARE_AI_TOKEN = process.env.CLOUDFLARE_AI_TOKEN || '';
 // مفتاح Qwen (عن طريق DashScope — Alibaba Cloud) لتوليد الصور — الطبقة الأولى
 // دلوقتي في سلسلة إنشاء الصور.
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || '';
+// Together AI — عندهم موديل FLUX.1-schnell-Free مجاني فعليًا بدون استهلاك
+// كريدت وبدون بطاقة (مختلف عن FLUX.1-schnell العادي اللي بياخد من رصيد مدفوع).
+const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || '';
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -5078,6 +5081,7 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
         CLOUDFLARE_ACCOUNT_ID: Boolean(CLOUDFLARE_ACCOUNT_ID),
         CLOUDFLARE_AI_TOKEN: Boolean(CLOUDFLARE_AI_TOKEN),
         DASHSCOPE_API_KEY: Boolean(DASHSCOPE_API_KEY),
+        TOGETHER_API_KEY: Boolean(TOGETHER_API_KEY),
         vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
         deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
     });
@@ -5149,9 +5153,10 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
     }
 });
 
-// إنشاء صورة — سلسلة احتياطية بأربع طبقات: Qwen (Alibaba DashScope، الأساسي
-// حسب طلبك) → Gemini (Nano Banana) → Cloudflare Workers AI/FLUX → Pollinations
-// (آخر حل، من غير أي مفتاح). كل طبقة بتتفعّل بس لو اللي قبلها فشلت أو مش متاحة.
+// إنشاء صورة — سلسلة احتياطية بخمس طبقات: Qwen (Alibaba DashScope، الأساسي
+// حسب طلبك) → Gemini (Nano Banana) → Together AI (FLUX.1-schnell-Free، مجاني
+// فعليًا وسخي) → Cloudflare Workers AI/FLUX → Pollinations (آخر حل، من غير أي
+// مفتاح). كل طبقة بتتفعّل بس لو اللي قبلها فشلت أو مش متاحة.
 app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     const attempts = []; // 🔍 تشخيصي — بيسجل كل طبقة اتجرّبت وليه فشلت، يترجع للأدمن بس
     try {
@@ -5236,7 +5241,45 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
             attempts.push({ provider: 'gemini', ok: false, reason: 'no_api_key' });
         }
 
-        // الطبقة التانية: Cloudflare Workers AI (موديل FLUX.1-schnell) — مجاني
+        // الطبقة التالتة: Together AI (موديل FLUX.1-schnell-Free تحديدًا — بالـ
+        // "-Free" في الاسم، ده مهم لأنه مختلف عن FLUX.1-schnell العادي اللي
+        // بياخد من رصيد مدفوع). ده أكتر مصدر مستقر وسخي في السلسلة كلها —
+        // مجاني فعليًا بلا استهلاك كريدت، مش تجربة مؤقتة زي Qwen.
+        if (TOGETHER_API_KEY) {
+            try {
+                const togetherResponse = await fetch('https://api.together.xyz/v1/images/generations', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${TOGETHER_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'black-forest-labs/FLUX.1-schnell-Free',
+                        prompt: trimmed,
+                        width: 1024, height: 1024, steps: 4, n: 1,
+                        response_format: 'url'
+                    })
+                });
+                if (togetherResponse.ok) {
+                    const togetherData = await togetherResponse.json();
+                    const togetherUrl = togetherData?.data?.[0]?.url;
+                    if (togetherUrl) {
+                        return res.json({ imageUrl: togetherUrl, fallback: true, fallbackProvider: 'together' });
+                    }
+                    console.error('⚠️ Together AI: رد 200 لكن من غير صورة:', JSON.stringify(togetherData).slice(0, 800));
+                    attempts.push({ provider: 'together', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(togetherData).slice(0, 300) });
+                } else {
+                    let errBody = '';
+                    try { errBody = await togetherResponse.text(); } catch (_) {}
+                    console.error(`❌ Together AI فشل — status ${togetherResponse.status}:`, errBody.slice(0, 800));
+                    attempts.push({ provider: 'together', ok: false, status: togetherResponse.status, detail: errBody.slice(0, 300) });
+                }
+            } catch (error) {
+                console.error('❌ Together AI exception:', error.message);
+                attempts.push({ provider: 'together', ok: false, reason: 'exception', detail: error.message });
+            }
+        } else {
+            attempts.push({ provider: 'together', ok: false, reason: 'no_api_key' });
+        }
+
+        // الطبقة الرابعة: Cloudflare Workers AI (موديل FLUX.1-schnell) — مجاني
         // وسريع، ومناسب بما إنك أصلاً عندك حساب Cloudflare شغال (بتستخدمه لـ R2).
         if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_AI_TOKEN) {
             try {
@@ -5245,7 +5288,11 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
                     {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: trimmed, seed: Math.floor(Math.random() * 1_000_000) })
+                        // ملحوظة: شلنا "seed" من هنا — حسابك بيرفضه فعليًا (400:
+                        // "Additional properties '/seed' not allowed") رغم إنه
+                        // موجود في بعض أمثلة توثيق Cloudflare. هو اختياري أصلًا
+                        // (بس بيتحكم في التنويع)، فحذفه آمن 100% ومايأثرش على النتيجة.
+                        body: JSON.stringify({ prompt: trimmed })
                     }
                 );
                 if (cfResponse.ok) {
