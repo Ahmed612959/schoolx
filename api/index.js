@@ -94,6 +94,11 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+// حساب Workers AI منفصل عن حساب R2 (مفاتيح R2 من نوع S3-compatible access keys،
+// ده Cloudflare API Token عادي بصلاحية "Workers AI" بس) — يتعمل من My Profile →
+// API Tokens في نفس حساب Cloudflare اللي عندك بالفعل (نفس اللي فيه R2).
+const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+const CLOUDFLARE_AI_TOKEN = process.env.CLOUDFLARE_AI_TOKEN || '';
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -5067,6 +5072,8 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
         GEMINI_API_KEY: Boolean(GEMINI_API_KEY),
         DEEPSEEK_API_KEY: Boolean(DEEPSEEK_API_KEY),
         PY_SERVICE_URL: Boolean(PY_SERVICE_URL),
+        CLOUDFLARE_ACCOUNT_ID: Boolean(CLOUDFLARE_ACCOUNT_ID),
+        CLOUDFLARE_AI_TOKEN: Boolean(CLOUDFLARE_AI_TOKEN),
         vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
         deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
     });
@@ -5142,8 +5149,9 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
 // بـ "Nano Banana") بدل خدمة خارجية زي Pollinations. الفرق الجوهري: Gemini
 // بيلتزم بالوصف اللي الطالب كاتبه فعليًا (نفس الموديل اللي بيحلل الصور)، بينما
 // الخدمات المجانية التانية أحيانًا بترجع صور مالهاش علاقة بالبرومبت خالص.
-// لو Gemini فشل (ازدحام/مشكلة مؤقتة)، بنرجع تلقائيًا لـ Pollinations كـ fallback
-// أخير عشان الفيتشر يفضل شغال حتى لو Gemini واقع مؤقتًا — أحسن من رسالة خطأ.
+// سلسلة احتياطية بثلاث طبقات: Gemini (الأدق) → Cloudflare Workers AI/FLUX
+// (لو عندك حساب أصلًا زي حساب R2، ومجاني برضو) → Pollinations (آخر حل، من غير
+// أي مفتاح خالص). كل طبقة بتتفعّل بس لو اللي قبلها فشلت أو مش متاحة.
 app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { prompt } = req.body || {};
@@ -5171,16 +5179,41 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
                         return res.json({ imageBase64: inline.data, mimeType: inline.mimeType || inline.mime_type || 'image/png' });
                     }
                 }
-                console.log('⚠️ Gemini image generation لم يرجّع صورة، هنجرّب Pollinations كـ fallback');
+                console.log('⚠️ Gemini image generation لم يرجّع صورة، هنجرّب Cloudflare Workers AI');
             } catch (error) {
                 console.log('⚠️ Gemini image generation error:', error.message);
             }
         }
 
-        // Fallback: Pollinations (مجاني، من غير مفتاح) — بس لو Gemini مش متاح أو فشل.
+        // الطبقة التانية: Cloudflare Workers AI (موديل FLUX.1-schnell) — مجاني
+        // وسريع، ومناسب بما إنك أصلاً عندك حساب Cloudflare شغال (بتستخدمه لـ R2).
+        if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_AI_TOKEN) {
+            try {
+                const cfResponse = await fetch(
+                    `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`,
+                    {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt: trimmed, seed: Math.floor(Math.random() * 1_000_000) })
+                    }
+                );
+                if (cfResponse.ok) {
+                    const cfData = await cfResponse.json();
+                    if (cfData?.success && cfData?.result?.image) {
+                        return res.json({ imageBase64: cfData.result.image, mimeType: 'image/jpeg', fallback: true, fallbackProvider: 'cloudflare' });
+                    }
+                }
+                console.log('⚠️ Cloudflare Workers AI لم يرجّع صورة، هنجرّب Pollinations');
+            } catch (error) {
+                console.log('⚠️ Cloudflare Workers AI error:', error.message);
+            }
+        }
+
+        // الطبقة الأخيرة: Pollinations (مجاني، من غير أي مفتاح خالص) — بس لو
+        // الاتنين اللي قبلها مش متاحين أو فشلوا.
         const seed = Math.floor(Math.random() * 1_000_000);
         const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
-        res.json({ imageUrl, fallback: true });
+        res.json({ imageUrl, fallback: true, fallbackProvider: 'pollinations' });
     } catch (error) {
         console.error('❌ خطأ في إنشاء الصورة:', error.message);
         res.status(500).json({ error: 'خطأ في إنشاء الصورة' });
