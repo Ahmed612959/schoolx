@@ -99,6 +99,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 // API Tokens في نفس حساب Cloudflare اللي عندك بالفعل (نفس اللي فيه R2).
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const CLOUDFLARE_AI_TOKEN = process.env.CLOUDFLARE_AI_TOKEN || '';
+// مفتاح Qwen (عن طريق DashScope — Alibaba Cloud) لتوليد الصور — الطبقة الأولى
+// دلوقتي في سلسلة إنشاء الصور.
+const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || '';
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -5074,6 +5077,7 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
         PY_SERVICE_URL: Boolean(PY_SERVICE_URL),
         CLOUDFLARE_ACCOUNT_ID: Boolean(CLOUDFLARE_ACCOUNT_ID),
         CLOUDFLARE_AI_TOKEN: Boolean(CLOUDFLARE_AI_TOKEN),
+        DASHSCOPE_API_KEY: Boolean(DASHSCOPE_API_KEY),
         vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
         deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
     });
@@ -5145,18 +5149,54 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
     }
 });
 
-// إنشاء صورة — دلوقتي من Gemini نفسه (موديل gemini-3.1-flash-image، المعروف
-// بـ "Nano Banana") بدل خدمة خارجية زي Pollinations. الفرق الجوهري: Gemini
-// بيلتزم بالوصف اللي الطالب كاتبه فعليًا (نفس الموديل اللي بيحلل الصور)، بينما
-// الخدمات المجانية التانية أحيانًا بترجع صور مالهاش علاقة بالبرومبت خالص.
-// سلسلة احتياطية بثلاث طبقات: Gemini (الأدق) → Cloudflare Workers AI/FLUX
-// (لو عندك حساب أصلًا زي حساب R2، ومجاني برضو) → Pollinations (آخر حل، من غير
-// أي مفتاح خالص). كل طبقة بتتفعّل بس لو اللي قبلها فشلت أو مش متاحة.
+// إنشاء صورة — سلسلة احتياطية بأربع طبقات: Qwen (Alibaba DashScope، الأساسي
+// حسب طلبك) → Gemini (Nano Banana) → Cloudflare Workers AI/FLUX → Pollinations
+// (آخر حل، من غير أي مفتاح). كل طبقة بتتفعّل بس لو اللي قبلها فشلت أو مش متاحة.
 app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    const attempts = []; // 🔍 تشخيصي — بيسجل كل طبقة اتجرّبت وليه فشلت، يترجع للأدمن بس
     try {
         const { prompt } = req.body || {};
         const trimmed = String(prompt || '').trim().slice(0, 500);
         if (!trimmed) return res.status(400).json({ error: 'وصف الصورة مطلوب' });
+
+        // الطبقة الأولى: Qwen (qwen-image-3.0-pro عن طريق DashScope). ملحوظة:
+        // بيرجّع رابط صورة مؤقت (مستضاف على Alibaba OSS، بينتهي بعد فترة) مش
+        // base64 — عشان كده بنرجعه كـ imageUrl زي Pollinations بالظبط، مش imageBase64.
+        if (DASHSCOPE_API_KEY) {
+            try {
+                const qwenResponse = await fetch(
+                    'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+                    {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${DASHSCOPE_API_KEY}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: 'qwen-image-3.0-pro',
+                            input: { messages: [{ role: 'user', content: [{ text: trimmed }] }] },
+                            parameters: { prompt_extend: true }
+                        })
+                    }
+                );
+                if (qwenResponse.ok) {
+                    const qwenData = await qwenResponse.json();
+                    const qwenImageUrl = qwenData.output?.choices?.[0]?.message?.content?.find(c => c.image)?.image;
+                    if (qwenImageUrl) {
+                        return res.json({ imageUrl: qwenImageUrl });
+                    }
+                    console.error('⚠️ Qwen: رد 200 لكن من غير صورة:', JSON.stringify(qwenData).slice(0, 800));
+                    attempts.push({ provider: 'qwen', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(qwenData).slice(0, 300) });
+                } else {
+                    let errBody = '';
+                    try { errBody = await qwenResponse.text(); } catch (_) {}
+                    console.error(`❌ Qwen فشل — status ${qwenResponse.status}:`, errBody.slice(0, 800));
+                    attempts.push({ provider: 'qwen', ok: false, status: qwenResponse.status, detail: errBody.slice(0, 300) });
+                }
+            } catch (error) {
+                console.error('❌ Qwen exception:', error.message);
+                attempts.push({ provider: 'qwen', ok: false, reason: 'exception', detail: error.message });
+            }
+        } else {
+            attempts.push({ provider: 'qwen', ok: false, reason: 'no_api_key' });
+        }
 
         if (GEMINI_API_KEY) {
             try {
@@ -5176,13 +5216,24 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
                     const imagePart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData || p.inline_data);
                     const inline = imagePart?.inlineData || imagePart?.inline_data;
                     if (inline?.data) {
-                        return res.json({ imageBase64: inline.data, mimeType: inline.mimeType || inline.mime_type || 'image/png' });
+                        return res.json({ imageBase64: inline.data, mimeType: inline.mimeType || inline.mime_type || 'image/png', fallback: true, fallbackProvider: 'gemini' });
                     }
+                    // الطلب نجح (200) بس مفيش صورة في الرد — ده بيحصل لو الموديل رفض
+                    // البرومبت (safety filters) أو رجّع نص بس. نسجل الرد كامل للتشخيص.
+                    console.error('⚠️ Gemini image gen: 200 OK لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+                    attempts.push({ provider: 'gemini', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) });
+                } else {
+                    let errBody = '';
+                    try { errBody = await response.text(); } catch (_) {}
+                    console.error(`❌ Gemini image gen فشل — status ${response.status}:`, errBody.slice(0, 800));
+                    attempts.push({ provider: 'gemini', ok: false, status: response.status, detail: errBody.slice(0, 300) });
                 }
-                console.log('⚠️ Gemini image generation لم يرجّع صورة، هنجرّب Cloudflare Workers AI');
             } catch (error) {
-                console.log('⚠️ Gemini image generation error:', error.message);
+                console.error('❌ Gemini image gen exception:', error.message);
+                attempts.push({ provider: 'gemini', ok: false, reason: 'exception', detail: error.message });
             }
+        } else {
+            attempts.push({ provider: 'gemini', ok: false, reason: 'no_api_key' });
         }
 
         // الطبقة التانية: Cloudflare Workers AI (موديل FLUX.1-schnell) — مجاني
@@ -5202,18 +5253,32 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
                     if (cfData?.success && cfData?.result?.image) {
                         return res.json({ imageBase64: cfData.result.image, mimeType: 'image/jpeg', fallback: true, fallbackProvider: 'cloudflare' });
                     }
+                    console.error('⚠️ Cloudflare Workers AI: رد 200 لكن من غير صورة:', JSON.stringify(cfData).slice(0, 800));
+                    attempts.push({ provider: 'cloudflare', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(cfData).slice(0, 300) });
+                } else {
+                    let errBody = '';
+                    try { errBody = await cfResponse.text(); } catch (_) {}
+                    console.error(`❌ Cloudflare Workers AI فشل — status ${cfResponse.status}:`, errBody.slice(0, 800));
+                    attempts.push({ provider: 'cloudflare', ok: false, status: cfResponse.status, detail: errBody.slice(0, 300) });
                 }
-                console.log('⚠️ Cloudflare Workers AI لم يرجّع صورة، هنجرّب Pollinations');
             } catch (error) {
-                console.log('⚠️ Cloudflare Workers AI error:', error.message);
+                console.error('❌ Cloudflare Workers AI exception:', error.message);
+                attempts.push({ provider: 'cloudflare', ok: false, reason: 'exception', detail: error.message });
             }
+        } else {
+            attempts.push({ provider: 'cloudflare', ok: false, reason: 'not_configured' });
         }
 
         // الطبقة الأخيرة: Pollinations (مجاني، من غير أي مفتاح خالص) — بس لو
         // الاتنين اللي قبلها مش متاحين أو فشلوا.
         const seed = Math.floor(Math.random() * 1_000_000);
         const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
-        res.json({ imageUrl, fallback: true, fallbackProvider: 'pollinations' });
+        console.error('⚠️ الطبقتين الأساسيتين فشلوا، رجعنا لـ Pollinations. تفاصيل المحاولات:', JSON.stringify(attempts));
+        res.json({
+            imageUrl, fallback: true, fallbackProvider: 'pollinations',
+            // الحقل ده للأدمن بس — بيوضح ليه Gemini/Cloudflare فشلوا فعليًا بدل التخمين
+            ...(req.user?.type === 'admin' ? { debugAttempts: attempts } : {})
+        });
     } catch (error) {
         console.error('❌ خطأ في إنشاء الصورة:', error.message);
         res.status(500).json({ error: 'خطأ في إنشاء الصورة' });
