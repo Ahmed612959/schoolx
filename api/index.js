@@ -5153,177 +5153,203 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
     }
 });
 
-// إنشاء صورة — سلسلة احتياطية بخمس طبقات: Qwen (Alibaba DashScope، الأساسي
-// حسب طلبك) → Gemini (Nano Banana) → Together AI (FLUX.1-schnell-Free، مجاني
-// فعليًا وسخي) → Cloudflare Workers AI/FLUX → Pollinations (آخر حل، من غير أي
-// مفتاح). كل طبقة بتتفعّل بس لو اللي قبلها فشلت أو مش متاحة.
-app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
-    const attempts = []; // 🔍 تشخيصي — بيسجل كل طبقة اتجرّبت وليه فشلت، يترجع للأدمن بس
+// ====================== مزوّدين توليد الصور — دالة واحدة لكل مزوّد ======================
+// كل دالة بترجع نفس الشكل دايمًا: { ok: true, imageUrl? , imageBase64?, mimeType? }
+// أو { ok: false, reason?, status?, detail? } — كده الكود اللي بينادي عليهم (سواء
+// تلقائي أو اختيار يدوي من الطالب) موحّد ومفيش تكرار منطق.
+
+async function genImage_qwen(trimmed) {
+    if (!DASHSCOPE_API_KEY) return { ok: false, reason: 'no_api_key' };
     try {
-        const { prompt } = req.body || {};
+        // ملحوظة: بيرجّع رابط صورة مؤقت (مستضاف على Alibaba OSS، بينتهي بعد فترة)
+        // مش base64 — عشان كده بنرجعه كـ imageUrl زي Pollinations بالظبط.
+        const response = await fetch(
+            'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+            {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${DASHSCOPE_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'qwen-image-3.0-pro',
+                    input: { messages: [{ role: 'user', content: [{ text: trimmed }] }] },
+                    parameters: { prompt_extend: true }
+                })
+            }
+        );
+        if (response.ok) {
+            const data = await response.json();
+            const imageUrl = data.output?.choices?.[0]?.message?.content?.find(c => c.image)?.image;
+            if (imageUrl) return { ok: true, imageUrl };
+            console.error('⚠️ Qwen: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+        }
+        const errBody = await response.text().catch(() => '');
+        console.error(`❌ Qwen فشل — status ${response.status}:`, errBody.slice(0, 800));
+        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+    } catch (error) {
+        console.error('❌ Qwen exception:', error.message);
+        return { ok: false, reason: 'exception', detail: error.message };
+    }
+}
+
+async function genImage_gemini(trimmed) {
+    if (!GEMINI_API_KEY) return { ok: false, reason: 'no_api_key' };
+    try {
+        const response = await fetchGeminiWithRetry(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent',
+            {
+                method: 'POST',
+                headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: trimmed }] }],
+                    generationConfig: { responseModalities: ['IMAGE'] }
+                })
+            }
+        );
+        if (response.ok) {
+            const data = await response.json();
+            const imagePart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData || p.inline_data);
+            const inline = imagePart?.inlineData || imagePart?.inline_data;
+            if (inline?.data) return { ok: true, imageBase64: inline.data, mimeType: inline.mimeType || inline.mime_type || 'image/png' };
+            // الطلب نجح (200) بس مفيش صورة في الرد — بيحصل لو الموديل رفض البرومبت
+            // (safety filters) أو رجّع نص بس.
+            console.error('⚠️ Gemini image gen: 200 OK لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+        }
+        const errBody = await response.text().catch(() => '');
+        console.error(`❌ Gemini image gen فشل — status ${response.status}:`, errBody.slice(0, 800));
+        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+    } catch (error) {
+        console.error('❌ Gemini image gen exception:', error.message);
+        return { ok: false, reason: 'exception', detail: error.message };
+    }
+}
+
+async function genImage_together(trimmed) {
+    if (!TOGETHER_API_KEY) return { ok: false, reason: 'no_api_key' };
+    try {
+        // مهم: اسم الموديل بالظبط "FLUX.1-schnell-Free" (بالـ "-Free") — ده
+        // مختلف عن "FLUX.1-schnell" العادي اللي بياخد من رصيد مدفوع.
+        const response = await fetch('https://api.together.xyz/v1/images/generations', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOGETHER_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'black-forest-labs/FLUX.1-schnell-Free',
+                prompt: trimmed,
+                width: 1024, height: 1024, steps: 4, n: 1,
+                response_format: 'url'
+            })
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const imageUrl = data?.data?.[0]?.url;
+            if (imageUrl) return { ok: true, imageUrl };
+            console.error('⚠️ Together AI: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+        }
+        const errBody = await response.text().catch(() => '');
+        console.error(`❌ Together AI فشل — status ${response.status}:`, errBody.slice(0, 800));
+        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+    } catch (error) {
+        console.error('❌ Together AI exception:', error.message);
+        return { ok: false, reason: 'exception', detail: error.message };
+    }
+}
+
+async function genImage_cloudflare(trimmed) {
+    if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_AI_TOKEN) return { ok: false, reason: 'not_configured' };
+    try {
+        const response = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`,
+            {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN}`, 'Content-Type': 'application/json' },
+                // ملحوظة: من غير "seed" — بعض الحسابات بترفضه (400: "Additional
+                // properties '/seed' not allowed") رغم وجوده في توثيق Cloudflare.
+                // هو اختياري أصلًا (بيتحكم في التنويع بس)، فحذفه آمن 100%.
+                body: JSON.stringify({ prompt: trimmed })
+            }
+        );
+        if (response.ok) {
+            const data = await response.json();
+            if (data?.success && data?.result?.image) return { ok: true, imageBase64: data.result.image, mimeType: 'image/jpeg' };
+            console.error('⚠️ Cloudflare Workers AI: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+        }
+        const errBody = await response.text().catch(() => '');
+        console.error(`❌ Cloudflare Workers AI فشل — status ${response.status}:`, errBody.slice(0, 800));
+        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+    } catch (error) {
+        console.error('❌ Cloudflare Workers AI exception:', error.message);
+        return { ok: false, reason: 'exception', detail: error.message };
+    }
+}
+
+async function genImage_pollinations(trimmed) {
+    // مجاني من غير أي مفتاح خالص — عمليًا "متاح دايمًا" (مفيش فحص config)، بس
+    // أقل دقة في الالتزام بالبرومبت من باقي المزوّدين.
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
+    return { ok: true, imageUrl };
+}
+
+// خريطة موحّدة: المفتاح ده هو نفسه اللي الفرونت إند بيبعته لو الطالب اختار مزوّد
+// معيّن بدل "تلقائي". بيسهّل الإضافة لاحقًا (مزوّد جديد = سطر واحد هنا).
+const IMAGE_PROVIDERS = {
+    qwen: { fn: genImage_qwen, label: 'Qwen' },
+    gemini: { fn: genImage_gemini, label: 'Gemini' },
+    together: { fn: genImage_together, label: 'Together AI' },
+    cloudflare: { fn: genImage_cloudflare, label: 'Cloudflare' },
+    pollinations: { fn: genImage_pollinations, label: 'Pollinations' }
+};
+// الترتيب التلقائي (وضع "تلقائي" — بيجرب واحد ورا التاني لحد ما واحد ينجح)
+const AUTO_ORDER = ['qwen', 'gemini', 'together', 'cloudflare', 'pollinations'];
+
+// إنشاء صورة — إما "تلقائي" (بيجرب المزوّدين بالترتيب لحد ما واحد ينجح)، أو
+// مزوّد محدد يختاره الطالب بنفسه من قائمة استوديو الصور (وقتها منجربش غيره
+// خالص حتى لو فشل — الشفافية أهم من إنه "يظبط الموضوع لوحده" لما الطالب
+// بيحدد بالاسم إيه اللي عايزه).
+app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        const { prompt, provider } = req.body || {};
         const trimmed = String(prompt || '').trim().slice(0, 500);
         if (!trimmed) return res.status(400).json({ error: 'وصف الصورة مطلوب' });
 
-        // الطبقة الأولى: Qwen (qwen-image-3.0-pro عن طريق DashScope). ملحوظة:
-        // بيرجّع رابط صورة مؤقت (مستضاف على Alibaba OSS، بينتهي بعد فترة) مش
-        // base64 — عشان كده بنرجعه كـ imageUrl زي Pollinations بالظبط، مش imageBase64.
-        if (DASHSCOPE_API_KEY) {
-            try {
-                const qwenResponse = await fetch(
-                    'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
-                    {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${DASHSCOPE_API_KEY}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            model: 'qwen-image-3.0-pro',
-                            input: { messages: [{ role: 'user', content: [{ text: trimmed }] }] },
-                            parameters: { prompt_extend: true }
-                        })
-                    }
-                );
-                if (qwenResponse.ok) {
-                    const qwenData = await qwenResponse.json();
-                    const qwenImageUrl = qwenData.output?.choices?.[0]?.message?.content?.find(c => c.image)?.image;
-                    if (qwenImageUrl) {
-                        return res.json({ imageUrl: qwenImageUrl });
-                    }
-                    console.error('⚠️ Qwen: رد 200 لكن من غير صورة:', JSON.stringify(qwenData).slice(0, 800));
-                    attempts.push({ provider: 'qwen', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(qwenData).slice(0, 300) });
-                } else {
-                    let errBody = '';
-                    try { errBody = await qwenResponse.text(); } catch (_) {}
-                    console.error(`❌ Qwen فشل — status ${qwenResponse.status}:`, errBody.slice(0, 800));
-                    attempts.push({ provider: 'qwen', ok: false, status: qwenResponse.status, detail: errBody.slice(0, 300) });
-                }
-            } catch (error) {
-                console.error('❌ Qwen exception:', error.message);
-                attempts.push({ provider: 'qwen', ok: false, reason: 'exception', detail: error.message });
-            }
-        } else {
-            attempts.push({ provider: 'qwen', ok: false, reason: 'no_api_key' });
+        // ==== وضع: مزوّد محدد بالاسم ====
+        if (provider && provider !== 'auto') {
+            const entry = IMAGE_PROVIDERS[provider];
+            if (!entry) return res.status(400).json({ error: 'مزوّد غير معروف' });
+            const result = await entry.fn(trimmed);
+            if (result.ok) return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, usedProvider: provider });
+            // فشل المزوّد المحدد — نرجع الخطأ صراحة (من غير أي fallback تلقائي
+            // لمزوّد تاني)، عشان الطالب يعرف بالظبط اللي حصل مع اختياره.
+            const reasonText = result.reason === 'no_api_key' ? 'المفتاح غير مضبوط لهذا المزوّد'
+                : result.reason === 'not_configured' ? 'المزوّد غير مفعّل حاليًا'
+                : result.status === 429 || result.status === 403 ? 'انتهى الرصيد المجاني لهذا المزوّد'
+                : 'تعذر إنشاء الصورة عن طريق هذا المزوّد';
+            return res.status(502).json({
+                error: reasonText,
+                ...(req.user?.type === 'admin' ? { debugAttempts: [{ provider, ...result }] } : {})
+            });
         }
 
-        if (GEMINI_API_KEY) {
-            try {
-                const response = await fetchGeminiWithRetry(
-                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent',
-                    {
-                        method: 'POST',
-                        headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ role: 'user', parts: [{ text: trimmed }] }],
-                            generationConfig: { responseModalities: ['IMAGE'] }
-                        })
-                    }
-                );
-                if (response.ok) {
-                    const data = await response.json();
-                    const imagePart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData || p.inline_data);
-                    const inline = imagePart?.inlineData || imagePart?.inline_data;
-                    if (inline?.data) {
-                        return res.json({ imageBase64: inline.data, mimeType: inline.mimeType || inline.mime_type || 'image/png', fallback: true, fallbackProvider: 'gemini' });
-                    }
-                    // الطلب نجح (200) بس مفيش صورة في الرد — ده بيحصل لو الموديل رفض
-                    // البرومبت (safety filters) أو رجّع نص بس. نسجل الرد كامل للتشخيص.
-                    console.error('⚠️ Gemini image gen: 200 OK لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
-                    attempts.push({ provider: 'gemini', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) });
-                } else {
-                    let errBody = '';
-                    try { errBody = await response.text(); } catch (_) {}
-                    console.error(`❌ Gemini image gen فشل — status ${response.status}:`, errBody.slice(0, 800));
-                    attempts.push({ provider: 'gemini', ok: false, status: response.status, detail: errBody.slice(0, 300) });
-                }
-            } catch (error) {
-                console.error('❌ Gemini image gen exception:', error.message);
-                attempts.push({ provider: 'gemini', ok: false, reason: 'exception', detail: error.message });
-            }
-        } else {
-            attempts.push({ provider: 'gemini', ok: false, reason: 'no_api_key' });
-        }
-
-        // الطبقة التالتة: Together AI (موديل FLUX.1-schnell-Free تحديدًا — بالـ
-        // "-Free" في الاسم، ده مهم لأنه مختلف عن FLUX.1-schnell العادي اللي
-        // بياخد من رصيد مدفوع). ده أكتر مصدر مستقر وسخي في السلسلة كلها —
-        // مجاني فعليًا بلا استهلاك كريدت، مش تجربة مؤقتة زي Qwen.
-        if (TOGETHER_API_KEY) {
-            try {
-                const togetherResponse = await fetch('https://api.together.xyz/v1/images/generations', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${TOGETHER_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: 'black-forest-labs/FLUX.1-schnell-Free',
-                        prompt: trimmed,
-                        width: 1024, height: 1024, steps: 4, n: 1,
-                        response_format: 'url'
-                    })
+        // ==== وضع: تلقائي (الوضع الافتراضي) ====
+        const attempts = [];
+        for (const key of AUTO_ORDER) {
+            const result = await IMAGE_PROVIDERS[key].fn(trimmed);
+            if (result.ok) {
+                return res.json({
+                    imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType,
+                    usedProvider: key,
+                    ...(key !== AUTO_ORDER[0] ? { fallback: true, fallbackProvider: key } : {})
                 });
-                if (togetherResponse.ok) {
-                    const togetherData = await togetherResponse.json();
-                    const togetherUrl = togetherData?.data?.[0]?.url;
-                    if (togetherUrl) {
-                        return res.json({ imageUrl: togetherUrl, fallback: true, fallbackProvider: 'together' });
-                    }
-                    console.error('⚠️ Together AI: رد 200 لكن من غير صورة:', JSON.stringify(togetherData).slice(0, 800));
-                    attempts.push({ provider: 'together', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(togetherData).slice(0, 300) });
-                } else {
-                    let errBody = '';
-                    try { errBody = await togetherResponse.text(); } catch (_) {}
-                    console.error(`❌ Together AI فشل — status ${togetherResponse.status}:`, errBody.slice(0, 800));
-                    attempts.push({ provider: 'together', ok: false, status: togetherResponse.status, detail: errBody.slice(0, 300) });
-                }
-            } catch (error) {
-                console.error('❌ Together AI exception:', error.message);
-                attempts.push({ provider: 'together', ok: false, reason: 'exception', detail: error.message });
             }
-        } else {
-            attempts.push({ provider: 'together', ok: false, reason: 'no_api_key' });
+            attempts.push({ provider: key, ...result });
         }
-
-        // الطبقة الرابعة: Cloudflare Workers AI (موديل FLUX.1-schnell) — مجاني
-        // وسريع، ومناسب بما إنك أصلاً عندك حساب Cloudflare شغال (بتستخدمه لـ R2).
-        if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_AI_TOKEN) {
-            try {
-                const cfResponse = await fetch(
-                    `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`,
-                    {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN}`, 'Content-Type': 'application/json' },
-                        // ملحوظة: شلنا "seed" من هنا — حسابك بيرفضه فعليًا (400:
-                        // "Additional properties '/seed' not allowed") رغم إنه
-                        // موجود في بعض أمثلة توثيق Cloudflare. هو اختياري أصلًا
-                        // (بس بيتحكم في التنويع)، فحذفه آمن 100% ومايأثرش على النتيجة.
-                        body: JSON.stringify({ prompt: trimmed })
-                    }
-                );
-                if (cfResponse.ok) {
-                    const cfData = await cfResponse.json();
-                    if (cfData?.success && cfData?.result?.image) {
-                        return res.json({ imageBase64: cfData.result.image, mimeType: 'image/jpeg', fallback: true, fallbackProvider: 'cloudflare' });
-                    }
-                    console.error('⚠️ Cloudflare Workers AI: رد 200 لكن من غير صورة:', JSON.stringify(cfData).slice(0, 800));
-                    attempts.push({ provider: 'cloudflare', ok: false, reason: 'no_image_in_response', detail: JSON.stringify(cfData).slice(0, 300) });
-                } else {
-                    let errBody = '';
-                    try { errBody = await cfResponse.text(); } catch (_) {}
-                    console.error(`❌ Cloudflare Workers AI فشل — status ${cfResponse.status}:`, errBody.slice(0, 800));
-                    attempts.push({ provider: 'cloudflare', ok: false, status: cfResponse.status, detail: errBody.slice(0, 300) });
-                }
-            } catch (error) {
-                console.error('❌ Cloudflare Workers AI exception:', error.message);
-                attempts.push({ provider: 'cloudflare', ok: false, reason: 'exception', detail: error.message });
-            }
-        } else {
-            attempts.push({ provider: 'cloudflare', ok: false, reason: 'not_configured' });
-        }
-
-        // الطبقة الأخيرة: Pollinations (مجاني، من غير أي مفتاح خالص) — بس لو
-        // الاتنين اللي قبلها مش متاحين أو فشلوا.
-        const seed = Math.floor(Math.random() * 1_000_000);
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
-        console.error('⚠️ الطبقتين الأساسيتين فشلوا، رجعنا لـ Pollinations. تفاصيل المحاولات:', JSON.stringify(attempts));
-        res.json({
-            imageUrl, fallback: true, fallbackProvider: 'pollinations',
-            // الحقل ده للأدمن بس — بيوضح ليه Gemini/Cloudflare فشلوا فعليًا بدل التخمين
+        // كل المزوّدين فشلوا (نادر جدًا لأن Pollinations آخر واحد وبيرجع صورة
+        // دايمًا تقريبًا) — بنرجّع خطأ صريح بدل ما نتظاهر بالنجاح.
+        console.error('⚠️ كل مزوّدي إنشاء الصور فشلوا:', JSON.stringify(attempts));
+        res.status(502).json({
+            error: 'تعذر إنشاء الصورة من أي مزوّد متاح حاليًا',
             ...(req.user?.type === 'admin' ? { debugAttempts: attempts } : {})
         });
     } catch (error) {
