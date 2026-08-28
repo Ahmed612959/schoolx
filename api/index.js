@@ -5073,6 +5073,17 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
 });
 
 // ====================== استوديو الصور الذكي (Premium) ======================
+// Gemini أحيانًا بيرجّع خطأ 503 "high demand" وقت الضغط — ده مؤقت غالبًا وبينحل
+// لوحده خلال ثواني. بدل ما نرجّع الخطأ للطالب على طول، بنحاول تاني مرة واحدة
+// بعد تأخير بسيط قبل ما نستسلم فعلًا.
+async function fetchGeminiWithRetry(url, options, retries = 1, delayMs = 1500) {
+    for (let attempt = 0; ; attempt++) {
+        const response = await fetch(url, options);
+        if (response.ok || attempt >= retries || response.status !== 503) return response;
+        await new Promise(r => setTimeout(r, delayMs));
+    }
+}
+
 // تحليل صورة برؤية AI حقيقية (multimodal) — مش OCR نصي بس زي الـ Tesseract في
 // الشات العادي. بيبعت بايتس الصورة فعليًا لـ Gemini، فبيقدر يوصف رسومات
 // ومخططات وصور مش نصية خالص (زي صورة جهاز أو رسم تشريحي)، وده اللي بيدّي
@@ -5093,7 +5104,7 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
 - رد بالعربي، بشكل منظم وواضح، من غير مبالغة أو تخمين لحاجة مش واضحة في الصورة — لو حاجة مش واضحة قول كده صراحة بدل ما تخمّن.`;
         const userText = trimmedQuestion || 'حلّل الصورة دي بالتفصيل واشرح كل حاجة مهمة فيها.';
 
-        const response = await fetch(
+        const response = await fetchGeminiWithRetry(
             'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
             {
                 method: 'POST',
@@ -5114,7 +5125,8 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
         if (!response.ok) {
             let detail = 'فشل تحليل الصورة';
             try { const d = await response.json(); if (d?.error?.message) detail = d.error.message; } catch (_) {}
-            return res.status(502).json({ error: detail });
+            const isOverload = response.status === 503;
+            return res.status(502).json({ error: isOverload ? 'الخدمة مزدحمة حاليًا، جرب تاني بعد شوية' : detail });
         }
         const data = await response.json();
         const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -5126,23 +5138,49 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
     }
 });
 
-// إنشاء صورة من وصف نصي عن طريق Pollinations (خدمة مجانية بالكامل، من غير أي
-// مفتاح API — https://pollinations.ai). بنرجّع رابط الصورة مباشرة (مش بايتس)،
-// المتصفح بيحمّلها كـ <img> عادي، وCSP الموقع أصلاً بيسمح بأي مصدر https للصور.
+// إنشاء صورة — دلوقتي من Gemini نفسه (موديل gemini-3.1-flash-image، المعروف
+// بـ "Nano Banana") بدل خدمة خارجية زي Pollinations. الفرق الجوهري: Gemini
+// بيلتزم بالوصف اللي الطالب كاتبه فعليًا (نفس الموديل اللي بيحلل الصور)، بينما
+// الخدمات المجانية التانية أحيانًا بترجع صور مالهاش علاقة بالبرومبت خالص.
+// لو Gemini فشل (ازدحام/مشكلة مؤقتة)، بنرجع تلقائيًا لـ Pollinations كـ fallback
+// أخير عشان الفيتشر يفضل شغال حتى لو Gemini واقع مؤقتًا — أحسن من رسالة خطأ.
 app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { prompt } = req.body || {};
         const trimmed = String(prompt || '').trim().slice(0, 500);
         if (!trimmed) return res.status(400).json({ error: 'وصف الصورة مطلوب' });
 
-        const seed = Math.floor(Math.random() * 1_000_000); // بدون seed التوليد بيتكرر لنفس الوصف — seed عشوائي يضمن تنويع
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
+        if (GEMINI_API_KEY) {
+            try {
+                const response = await fetchGeminiWithRetry(
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent',
+                    {
+                        method: 'POST',
+                        headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ role: 'user', parts: [{ text: trimmed }] }],
+                            generationConfig: { responseModalities: ['IMAGE'] }
+                        })
+                    }
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    const imagePart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData || p.inline_data);
+                    const inline = imagePart?.inlineData || imagePart?.inline_data;
+                    if (inline?.data) {
+                        return res.json({ imageBase64: inline.data, mimeType: inline.mimeType || inline.mime_type || 'image/png' });
+                    }
+                }
+                console.log('⚠️ Gemini image generation لم يرجّع صورة، هنجرّب Pollinations كـ fallback');
+            } catch (error) {
+                console.log('⚠️ Gemini image generation error:', error.message);
+            }
+        }
 
-        // مبنعملش تحقق مسبق (fetch) من الرابط هنا عمدًا — أول توليد لنفس الـ prompt
-        // عند Pollinations ممكن ياخد وقت، ولو استنيناه هنا ممكن نضرب حد وقت تنفيذ
-        // Vercel Functions (10 ثانية على الخطة المجانية). بنرجّع الرابط على طول
-        // ونسيب الفرونت إند يتعامل مع فشل التحميل لو حصل (عن طريق onerror بتاعة الـ img).
-        res.json({ imageUrl });
+        // Fallback: Pollinations (مجاني، من غير مفتاح) — بس لو Gemini مش متاح أو فشل.
+        const seed = Math.floor(Math.random() * 1_000_000);
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
+        res.json({ imageUrl, fallback: true });
     } catch (error) {
         console.error('❌ خطأ في إنشاء الصورة:', error.message);
         res.status(500).json({ error: 'خطأ في إنشاء الصورة' });
