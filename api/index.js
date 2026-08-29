@@ -105,6 +105,10 @@ const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || '';
 // Together AI — عندهم موديل FLUX.1-schnell-Free مجاني فعليًا بدون استهلاك
 // كريدت وبدون بطاقة (مختلف عن FLUX.1-schnell العادي اللي بياخد من رصيد مدفوع).
 const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || '';
+// Hugging Face — بيستضيفوا أوزان Qwen-Image الحقيقية عن طريق مزوّدين تشغيل
+// خارجيين. محتاج توكن "Fine-grained" فيه صلاحية "Make calls to Inference
+// Providers" مفعّلة تحديدًا، وإلا هيترفض. حصة مجانية شهرية صغيرة نسبيًا.
+const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY || '';
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -5169,9 +5173,15 @@ async function genImage_qwen(trimmed) {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${DASHSCOPE_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'qwen-image-3.0-pro',
+                    model: 'qwen-image-2.0',
                     input: { messages: [{ role: 'user', content: [{ text: trimmed }] }] },
-                    parameters: { prompt_extend: true }
+                    parameters: {
+                        prompt_extend: true,
+                        result_format: 'message',
+                        n: 1,
+                        watermark: true,
+                        negative_prompt: ''
+                    }
                 })
             }
         );
