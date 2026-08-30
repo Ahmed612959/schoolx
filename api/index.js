@@ -109,6 +109,11 @@ const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || '';
 // خارجيين. محتاج توكن "Fine-grained" فيه صلاحية "Make calls to Inference
 // Providers" مفعّلة تحديدًا، وإلا هيترفض. حصة مجانية شهرية صغيرة نسبيًا.
 const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY || '';
+// OpenRouter — بيوفّر qwen/qwen-image-3 كموديل حقيقي من Qwen (مش بديل)، مُستضاف
+// مباشرة عندهم كمزوّد واحد. ملحوظة: السعر الفعلي لموديل الصور ده على OpenRouter
+// مش موضّح كـ "مجاني" بوضوح زي بعض موديلات النص (:free) — تأكد من صفحة التسعير
+// بتاعته على openrouter.ai/qwen/qwen-image-3 قبل ما تعتمد عليه كمصدر مجاني دايم.
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -5086,6 +5091,8 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
         CLOUDFLARE_AI_TOKEN: Boolean(CLOUDFLARE_AI_TOKEN),
         DASHSCOPE_API_KEY: Boolean(DASHSCOPE_API_KEY),
         TOGETHER_API_KEY: Boolean(TOGETHER_API_KEY),
+        HUGGINGFACE_API_KEY: Boolean(HUGGINGFACE_API_KEY),
+        OPENROUTER_API_KEY: Boolean(OPENROUTER_API_KEY),
         vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
         deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
     });
@@ -5302,17 +5309,81 @@ async function genImage_pollinations(trimmed) {
     return { ok: true, imageUrl };
 }
 
+async function genImage_huggingface(trimmed) {
+    if (!HUGGINGFACE_API_KEY) return { ok: false, reason: 'no_api_key' };
+    try {
+        // ملحوظة: الـ endpoint ده بيرجّع بايتس الصورة مباشرة (مش JSON) لو نجح —
+        // شكل مختلف عن باقي المزوّدين، فبنتعامل معاه على حسب Content-Type.
+        const response = await fetch('https://api-inference.huggingface.co/models/Qwen/Qwen-Image', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inputs: trimmed })
+        });
+        if (response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.startsWith('image/')) {
+                const buffer = await response.arrayBuffer();
+                return { ok: true, imageBase64: Buffer.from(buffer).toString('base64'), mimeType: contentType };
+            }
+            // لو مش صورة، غالبًا JSON فيه خطأ أو حالة "الموديل بيسخن" (cold start)
+            const data = await response.json().catch(() => null);
+            console.error('⚠️ Hugging Face: رد 200 لكن مش صورة:', JSON.stringify(data).slice(0, 800));
+            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+        }
+        const errBody = await response.text().catch(() => '');
+        console.error(`❌ Hugging Face فشل — status ${response.status}:`, errBody.slice(0, 800));
+        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+    } catch (error) {
+        console.error('❌ Hugging Face exception:', error.message);
+        return { ok: false, reason: 'exception', detail: error.message };
+    }
+}
+
+async function genImage_openrouterQwen(trimmed) {
+    if (!OPENROUTER_API_KEY) return { ok: false, reason: 'no_api_key' };
+    try {
+        const response = await fetch('https://openrouter.ai/api/v1/images', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'qwen/qwen-image-3', prompt: trimmed })
+        });
+        if (response.ok) {
+            const data = await response.json();
+            // التوثيق بيقول "بترجع base64" بس من غير تحديد اسم الحقل بدقة، فبنجرب
+            // كذا شكل محتمل. لو محتاجة تعديل، الرد الخام بيتسجل في الـ log فورًا.
+            const b64 = data?.data?.[0]?.b64_json
+                || data?.images?.[0]?.b64_json
+                || (typeof data?.images?.[0] === 'string' ? data.images[0] : null)
+                || data?.choices?.[0]?.message?.images?.[0]?.image_url?.url?.replace(/^data:image\/\w+;base64,/, '')
+                || null;
+            if (b64) return { ok: true, imageBase64: b64, mimeType: 'image/png' };
+            console.error('⚠️ OpenRouter Qwen: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+        }
+        const errBody = await response.text().catch(() => '');
+        console.error(`❌ OpenRouter Qwen فشل — status ${response.status}:`, errBody.slice(0, 800));
+        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+    } catch (error) {
+        console.error('❌ OpenRouter Qwen exception:', error.message);
+        return { ok: false, reason: 'exception', detail: error.message };
+    }
+}
+
 // خريطة موحّدة: المفتاح ده هو نفسه اللي الفرونت إند بيبعته لو الطالب اختار مزوّد
 // معيّن بدل "تلقائي". بيسهّل الإضافة لاحقًا (مزوّد جديد = سطر واحد هنا).
 const IMAGE_PROVIDERS = {
     qwen: { fn: genImage_qwen, label: 'Qwen' },
     gemini: { fn: genImage_gemini, label: 'Gemini' },
     together: { fn: genImage_together, label: 'Together AI' },
+    huggingface: { fn: genImage_huggingface, label: 'Hugging Face (Qwen)' },
+    openrouter_qwen: { fn: genImage_openrouterQwen, label: 'OpenRouter (Qwen)' },
     cloudflare: { fn: genImage_cloudflare, label: 'Cloudflare' },
     pollinations: { fn: genImage_pollinations, label: 'Pollinations' }
 };
-// الترتيب التلقائي (وضع "تلقائي" — بيجرب واحد ورا التاني لحد ما واحد ينجح)
-const AUTO_ORDER = ['qwen', 'gemini', 'together', 'cloudflare', 'pollinations'];
+// الترتيب التلقائي (وضع "تلقائي" — بيجرب واحد ورا التاني لحد ما واحد ينجح).
+// حطينا Hugging Face وOpenRouter بعد المصادر التالتة التانية عمدًا لأن حصتهم
+// المجانية أضيق/مش مضمونة، فنوفّرها لما باقي المصادر السخية تفشل.
+const AUTO_ORDER = ['qwen', 'gemini', 'together', 'huggingface', 'openrouter_qwen', 'cloudflare', 'pollinations'];
 
 // إنشاء صورة — إما "تلقائي" (بيجرب المزوّدين بالترتيب لحد ما واحد ينجح)، أو
 // مزوّد محدد يختاره الطالب بنفسه من قائمة استوديو الصور (وقتها منجربش غيره
