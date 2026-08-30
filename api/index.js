@@ -5081,9 +5081,12 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
 });
 
 // ====================== إدارة مفاتيح API من لوحة الأدمن ======================
-// بيسمح للأدمن يضيف/يعدّل/يمسح مفتاح API لأي مزوّد (Qwen، Grok، أو أي مزوّد
-// تاني يتضاف بالكود لاحقًا) من الواجهة مباشرة، من غير ما يحتاج يدخل Vercel
-// Environment Variables ويعمل Redeploy في كل مرة.
+// بيسمح للأدمن يضيف/يمسح/يشوف مفتاح (أو أكتر) لأي مزوّد (Qwen، Grok، Kling، أو
+// أي مزوّد تاني يتضاف بالكود لاحقًا) من الواجهة مباشرة، من غير ما يحتاج يدخل
+// Vercel Environment Variables ويعمل Redeploy في كل مرة.
+// كل مزوّد ممكن يكون ليه أكتر من مفتاح (مثلًا أكتر من حساب/اشتراك) — لو مفتاح
+// فشل (رصيد خلص أو خطأ) بنتحول تلقائيًا للمفتاح اللي بعده لنفس المزوّد على
+// طول (شوف withKeyRotation تحت)، من غير ما الطالب يحس بأي حاجة.
 function maskApiKey(key) {
     if (!key || key.length < 8) return '••••••••';
     return `${key.slice(0, 4)}${'•'.repeat(Math.max(4, key.length - 8))}${key.slice(-4)}`;
@@ -5092,37 +5095,97 @@ function maskApiKey(key) {
 app.get('/api/admin/api-keys', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
-        const docs = await ApiKeySetting.find().select('provider apiKey updatedBy updatedAt').sort({ provider: 1 });
-        res.json(docs.map(d => ({
-            provider: d.provider,
-            maskedKey: maskApiKey(d.apiKey),
-            updatedBy: d.updatedBy,
-            updatedAt: d.updatedAt
-        })));
+        const docs = await ApiKeySetting.find().sort({ provider: 1 });
+        res.json(docs.map(d => {
+            // توافق مع الشكل القديم (مفتاح واحد بس محفوظ في apiKey) — لو موجود
+            // ولسه معملوش تعديل، بنعرضه كأول مفتاح في القايمة.
+            const keys = [...(d.keys || [])];
+            if (d.apiKey && !keys.some(k => k.key === d.apiKey)) {
+                keys.unshift({ _id: 'legacy', key: d.apiKey, label: 'قديم', failCount: 0, disabled: false });
+            }
+            return {
+                provider: d.provider,
+                updatedBy: d.updatedBy,
+                updatedAt: d.updatedAt,
+                keys: keys.map(k => ({
+                    id: k._id ? String(k._id) : 'legacy',
+                    maskedKey: maskApiKey(k.key),
+                    label: k.label || '',
+                    failCount: k.failCount || 0,
+                    disabled: !!k.disabled,
+                    lastError: k.lastError || null,
+                    lastUsedAt: k.lastUsedAt || null
+                }))
+            };
+        }));
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب المفاتيح' });
     }
 });
 
+// إظهار المفتاح كامل (من غير إخفاء) — للأدمن بس، ولازم يحدد مفتاح بعينه بالـ id.
+app.get('/api/admin/api-keys/:provider/:keyId/reveal', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const cleanProvider = String(req.params.provider || '').trim().toLowerCase();
+        const doc = await ApiKeySetting.findOne({ provider: cleanProvider });
+        if (!doc) return res.status(404).json({ error: 'المزوّد غير موجود' });
+        if (req.params.keyId === 'legacy') {
+            if (!doc.apiKey) return res.status(404).json({ error: 'المفتاح غير موجود' });
+            return res.json({ apiKey: doc.apiKey });
+        }
+        const keyDoc = (doc.keys || []).find(k => String(k._id) === req.params.keyId);
+        if (!keyDoc) return res.status(404).json({ error: 'المفتاح غير موجود' });
+        res.json({ apiKey: keyDoc.key });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إظهار المفتاح' });
+    }
+});
+
+// إضافة مفتاح جديد لمزوّد (من غير ما يمسح المفاتيح الموجودة قبل كده — بيتضاف
+// جنبهم في القايمة عشان يشتغل نظام التبديل التلقائي بينهم).
 app.post('/api/admin/api-keys', verifyToken, isAdmin, async (req, res) => {
     try {
-        const { provider, apiKey } = req.body || {};
+        const { provider, apiKey, label } = req.body || {};
         const cleanProvider = String(provider || '').trim().toLowerCase();
         const cleanKey = String(apiKey || '').trim();
+        const cleanLabel = String(label || '').trim().slice(0, 60);
         if (!cleanProvider) return res.status(400).json({ error: 'اسم المزوّد مطلوب' });
         if (!cleanKey) return res.status(400).json({ error: 'المفتاح مطلوب' });
         await connectToDatabase();
         const doc = await ApiKeySetting.findOneAndUpdate(
             { provider: cleanProvider },
-            { provider: cleanProvider, apiKey: cleanKey, updatedBy: req.user.username },
+            {
+                $setOnInsert: { provider: cleanProvider },
+                $set: { updatedBy: req.user.username },
+                $push: { keys: { key: cleanKey, label: cleanLabel, failCount: 0, disabled: false } }
+            },
             { upsert: true, new: true }
         );
-        res.json({ success: true, provider: doc.provider, maskedKey: maskApiKey(doc.apiKey) });
+        const added = doc.keys[doc.keys.length - 1];
+        res.json({ success: true, provider: doc.provider, key: { id: String(added._id), maskedKey: maskApiKey(added.key), label: added.label } });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في حفظ المفتاح' });
     }
 });
 
+// حذف مفتاح واحد بعينه من مزوّد (من غير ما يمسح باقي مفاتيحه).
+app.delete('/api/admin/api-keys/:provider/:keyId', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const cleanProvider = String(req.params.provider || '').trim().toLowerCase();
+        if (req.params.keyId === 'legacy') {
+            await ApiKeySetting.updateOne({ provider: cleanProvider }, { $unset: { apiKey: '' } });
+        } else {
+            await ApiKeySetting.updateOne({ provider: cleanProvider }, { $pull: { keys: { _id: req.params.keyId } } });
+        }
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف المفتاح' });
+    }
+});
+
+// حذف كل مفاتيح المزوّد مرة واحدة (زرار "امسح الكل").
 app.delete('/api/admin/api-keys/:provider', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
@@ -5207,51 +5270,50 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
 // كـ fallback) — يعني الأدمن يقدر يغيّر أي مفتاح من لوحة التحكم من غير Redeploy.
 
 async function genImage_qwen(trimmed) {
-    const apiKey = await getProviderApiKey('qwen', DASHSCOPE_API_KEY);
-    if (!apiKey) return { ok: false, reason: 'no_api_key' };
-    try {
-        const response = await fetch(
-            'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
-            {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'qwen-image-2.0',
-                    input: { messages: [{ role: 'user', content: [{ text: trimmed }] }] },
-                    parameters: {
-                        prompt_extend: true,
-                        result_format: 'message',
-                        n: 1,
-                        watermark: true,
-                        negative_prompt: ''
-                    }
-                })
+    return withKeyRotation('qwen', DASHSCOPE_API_KEY, async (apiKey) => {
+        try {
+            const response = await fetch(
+                'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+                {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'qwen-image-2.0',
+                        input: { messages: [{ role: 'user', content: [{ text: trimmed }] }] },
+                        parameters: {
+                            prompt_extend: true,
+                            result_format: 'message',
+                            n: 1,
+                            watermark: true,
+                            negative_prompt: ''
+                        }
+                    })
+                }
+            );
+            if (response.ok) {
+                const data = await response.json();
+                // ملحوظة: بيرجّع رابط صورة مؤقت (مستضاف على Alibaba OSS، بينتهي بعد
+                // فترة) مش base64 — عشان كده بنرجعه كـ imageUrl.
+                const imageUrl = data.output?.choices?.[0]?.message?.content?.find(c => c.image)?.image;
+                if (imageUrl) return { ok: true, imageUrl };
+                console.error('⚠️ Qwen: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
             }
-        );
-        if (response.ok) {
-            const data = await response.json();
-            // ملحوظة: بيرجّع رابط صورة مؤقت (مستضاف على Alibaba OSS، بينتهي بعد
-            // فترة) مش base64 — عشان كده بنرجعه كـ imageUrl.
-            const imageUrl = data.output?.choices?.[0]?.message?.content?.find(c => c.image)?.image;
-            if (imageUrl) return { ok: true, imageUrl };
-            console.error('⚠️ Qwen: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
-            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            const errBody = await response.text().catch(() => '');
+            console.error(`❌ Qwen فشل — status ${response.status}:`, errBody.slice(0, 800));
+            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+        } catch (error) {
+            console.error('❌ Qwen exception:', error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
         }
-        const errBody = await response.text().catch(() => '');
-        console.error(`❌ Qwen فشل — status ${response.status}:`, errBody.slice(0, 800));
-        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-    } catch (error) {
-        console.error('❌ Qwen exception:', error.message);
-        return { ok: false, reason: 'exception', detail: error.message };
-    }
+    });
 }
 
-// Grok (عن طريق CometAPI) — بيرجّع صورة من وصف نصي، وبيدعم كمان تعديل صورة
-// موجودة بوصف نصي (/v1/images/edits) — الميزة دي خاصة بـ Grok بس، مش متاحة
-// لـ Qwen، فمعمولة كدالة منفصلة (genEdit_grok) بتتنادى بس لما المزوّد
-// المستخدم في التوليد كان Grok.
+// Grok وKling (الاتنين عن طريق CometAPI) — بيرجّعوا صورة من وصف نصي، وبيدعموا
+// كمان تعديل صورة موجودة بوصف نصي. مش متاحة لـ Qwen لأنه مش بيدعم تعديل صور.
 const COMETAPI_BASE_URL = 'https://api.cometapi.com';
 const GROK_IMAGE_MODEL = 'grok-imagine-image-2.0';
+const KLING_IMAGE_MODEL = 'kling_image';
 
 function extractCometImage(data) {
     // التوثيق ما وضّحش اسم الحقل بدقة، فبنجرب كذا شكل محتمل زي باقي المزوّدين.
@@ -5263,77 +5325,177 @@ function extractCometImage(data) {
 }
 
 async function genImage_grok(trimmed) {
-    const apiKey = await getProviderApiKey('grok', process.env.COMETAPI_KEY || '');
-    if (!apiKey) return { ok: false, reason: 'no_api_key' };
-    try {
-        const response = await fetch(`${COMETAPI_BASE_URL}/v1/images/generations`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: GROK_IMAGE_MODEL, prompt: trimmed })
-        });
-        if (response.ok) {
-            const data = await response.json();
-            const img = extractCometImage(data);
-            if (img) {
-                // لو الحقل شكله data URI أو base64 خام نرجعه كـ imageBase64، وإلا نعتبره رابط.
-                if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
-                return { ok: true, imageBase64: img.replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+    return withKeyRotation('grok', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/images/generations`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: GROK_IMAGE_MODEL, prompt: trimmed })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const img = extractCometImage(data);
+                if (img) {
+                    // لو الحقل شكله data URI أو base64 خام نرجعه كـ imageBase64، وإلا نعتبره رابط.
+                    if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+                    return { ok: true, imageBase64: img.replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+                }
+                console.error('⚠️ Grok (CometAPI): رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
             }
-            console.error('⚠️ Grok (CometAPI): رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
-            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            const errBody = await response.text().catch(() => '');
+            console.error(`❌ Grok (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
+            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+        } catch (error) {
+            console.error('❌ Grok (CometAPI) exception:', error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
         }
-        const errBody = await response.text().catch(() => '');
-        console.error(`❌ Grok (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
-        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-    } catch (error) {
-        console.error('❌ Grok (CometAPI) exception:', error.message);
-        return { ok: false, reason: 'exception', detail: error.message };
-    }
+    });
 }
 
-// تعديل صورة موجودة بوصف نصي — Grok بس. imageUrl لازم يكون رابط عام يقدر
+// تعديل صورة موجودة بوصف نصي — Grok. imageUrl لازم يكون رابط عام يقدر
 // CometAPI يوصله (مش data: URI محلي).
 async function genEdit_grok(imageUrl, editPrompt) {
-    const apiKey = await getProviderApiKey('grok', process.env.COMETAPI_KEY || '');
-    if (!apiKey) return { ok: false, reason: 'no_api_key' };
-    try {
-        const response = await fetch(`${COMETAPI_BASE_URL}/v1/images/edits`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: GROK_IMAGE_MODEL,
-                prompt: editPrompt,
-                image: { type: 'image_url', url: imageUrl }
-            })
-        });
-        if (response.ok) {
-            const data = await response.json();
-            const img = extractCometImage(data);
-            if (img) {
-                if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
-                return { ok: true, imageBase64: img.replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+    return withKeyRotation('grok', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/images/edits`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: GROK_IMAGE_MODEL,
+                    prompt: editPrompt,
+                    image: { type: 'image_url', url: imageUrl }
+                })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const img = extractCometImage(data);
+                if (img) {
+                    if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+                    return { ok: true, imageBase64: img.replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+                }
+                console.error('⚠️ Grok edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
             }
-            console.error('⚠️ Grok edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
-            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            const errBody = await response.text().catch(() => '');
+            console.error(`❌ Grok edit فشل — status ${response.status}:`, errBody.slice(0, 800));
+            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+        } catch (error) {
+            console.error('❌ Grok edit exception:', error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
         }
-        const errBody = await response.text().catch(() => '');
-        console.error(`❌ Grok edit فشل — status ${response.status}:`, errBody.slice(0, 800));
-        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-    } catch (error) {
-        console.error('❌ Grok edit exception:', error.message);
-        return { ok: false, reason: 'exception', detail: error.message };
+    });
+}
+
+// Kling (عن طريق CometAPI /v1/responses) — نفس فكرة Grok، بس شكل الـ endpoint
+// مختلف (Responses API بدل images/generations). التوثيق الرسمي مش واضح بالظبط
+// شكل حقل الصورة في الرد، فبنجرب كذا شكل محتمل (زي extractCometImage) وبنسجّل
+// الرد الخام في اللوج لو فشلنا نلاقي صورة، عشان يسهل ضبط الشكل الصح لاحقًا.
+function extractCometResponsesImage(data) {
+    // أشكال محتملة لرد /v1/responses لما بيرجّع صورة (Responses API-style):
+    const output = data?.output;
+    if (Array.isArray(output)) {
+        for (const item of output) {
+            // شكل "image_generation_call" (زي الـ Responses API بتاعة OpenAI للصور)
+            if (item?.type === 'image_generation_call' && item.result) return item.result;
+            // شكل رسالة فيها content array (نص/صورة مختلطين)
+            if (Array.isArray(item?.content)) {
+                for (const c of item.content) {
+                    if (c?.type === 'output_image' && (c.image_url || c.url || c.b64_json)) {
+                        return c.image_url || c.url || c.b64_json;
+                    }
+                }
+            }
+        }
     }
+    return data?.output_image
+        || data?.image_url
+        || extractCometImage(data);
+}
+
+async function genImage_kling(trimmed) {
+    return withKeyRotation('kling', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: KLING_IMAGE_MODEL, input: trimmed })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const img = extractCometResponsesImage(data);
+                if (img) {
+                    if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+                    return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+                }
+                console.error('⚠️ Kling (CometAPI): رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            const errBody = await response.text().catch(() => '');
+            console.error(`❌ Kling (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
+            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+        } catch (error) {
+            console.error('❌ Kling (CometAPI) exception:', error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
+        }
+    });
+}
+
+// تعديل صورة موجودة بوصف نصي — Kling، زي ميزة Grok بالظبط بس عن طريق
+// /v1/responses بشكل مدخل متعدد الوسائط (نص + رابط صورة).
+async function genEdit_kling(imageUrl, editPrompt) {
+    return withKeyRotation('kling', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: KLING_IMAGE_MODEL,
+                    input: [{
+                        role: 'user',
+                        content: [
+                            { type: 'input_text', text: editPrompt },
+                            { type: 'input_image', image_url: imageUrl }
+                        ]
+                    }]
+                })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const img = extractCometResponsesImage(data);
+                if (img) {
+                    if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+                    return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+                }
+                console.error('⚠️ Kling edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            const errBody = await response.text().catch(() => '');
+            console.error(`❌ Kling edit فشل — status ${response.status}:`, errBody.slice(0, 800));
+            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+        } catch (error) {
+            console.error('❌ Kling edit exception:', error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
+        }
+    });
 }
 
 // خريطة موحّدة: المفتاح ده هو نفسه اللي الفرونت إند بيبعته لو الطالب اختار مزوّد
 // معيّن بدل "تلقائي". بيسهّل الإضافة لاحقًا (مزوّد جديد = سطر واحد هنا).
 const IMAGE_PROVIDERS = {
     qwen: { fn: genImage_qwen, label: 'Qwen' },
-    grok: { fn: genImage_grok, label: 'Grok' }
+    grok: { fn: genImage_grok, label: 'Grok' },
+    kling: { fn: genImage_kling, label: 'Kling' }
 };
-// الترتيب التلقائي — Qwen (الرسمي) الأول، ولو فشل أو خلص رصيده يروح على Grok
-// تلقائيًا عشان العملية تفضل مستمرة من غير ما الطالب يحس بأي انقطاع.
-const AUTO_ORDER = ['qwen', 'grok'];
+// مزوّدين بيدعموا تعديل صورة موجودة بوصف نصي (مش كل المزوّدين بيدعموا ده — Qwen مثلًا لأ).
+const EDIT_PROVIDERS = {
+    grok: { fn: genEdit_grok, label: 'Grok' },
+    kling: { fn: genEdit_kling, label: 'Kling' }
+};
+// الترتيب التلقائي — Qwen (الرسمي) الأول، ولو فشل أو خلص رصيده نروح على Grok،
+// ولو ده كمان فشل نروح على Kling، تلقائيًا عشان العملية تفضل مستمرة من غير ما
+// الطالب يحس بأي انقطاع.
+const AUTO_ORDER = ['qwen', 'grok', 'kling'];
 
 // إنشاء صورة — إما "تلقائي" (بيجرب المزوّدين بالترتيب لحد ما واحد ينجح)، أو
 // مزوّد محدد يختاره الطالب بنفسه من قائمة استوديو الصور (وقتها منجربش غيره
@@ -5388,28 +5550,32 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
     }
 });
 
-// ====================== تعديل صورة (Grok بس) ======================
-// ميزة خاصة بـ Grok — بتاخد صورة موجودة (لازم تكون رابط عام، مش base64 محلي)
-// ووصف تعديل نصي، وترجع نسخة معدّلة. مش متاحة لـ Qwen لأنه مش بيدعم تعديل صور.
+// ====================== تعديل صورة موجودة (Grok أو Kling) ======================
+// بتاخد صورة موجودة (لازم تكون رابط عام، مش base64 محلي) ووصف تعديل نصي، وترجع
+// نسخة معدّلة. متاحة بس للمزوّدين الموجودين في EDIT_PROVIDERS (Qwen مش بيدعم
+// تعديل صور، فمش موجود هنا). لازم تحدد نفس المزوّد اللي أنشأ الصورة الأصلية.
 app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
-        const { imageUrl, prompt } = req.body || {};
+        const { imageUrl, prompt, provider } = req.body || {};
         const trimmedPrompt = String(prompt || '').trim().slice(0, 500);
+        const cleanProvider = String(provider || 'grok').trim().toLowerCase();
         if (!imageUrl) return res.status(400).json({ error: 'رابط الصورة مطلوب' });
         if (!trimmedPrompt) return res.status(400).json({ error: 'وصف التعديل مطلوب' });
         if (!/^https?:\/\//.test(imageUrl)) {
             return res.status(400).json({ error: 'تعديل الصور متاح بس على الصور اللي اتولّدت برابط عام (مش صور مرفوعة محليًا)' });
         }
+        const entry = EDIT_PROVIDERS[cleanProvider];
+        if (!entry) return res.status(400).json({ error: 'تعديل الصور مش متاح للمزوّد ده' });
 
-        const result = await genEdit_grok(imageUrl, trimmedPrompt);
+        const result = await entry.fn(imageUrl, trimmedPrompt);
         if (result.ok) return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType });
 
-        const reasonText = result.reason === 'no_api_key' ? 'مفتاح Grok غير مضبوط'
-            : result.status === 429 || result.status === 403 ? 'انتهى الرصيد المتاح لـ Grok'
+        const reasonText = result.reason === 'no_api_key' ? `مفتاح ${entry.label} غير مضبوط`
+            : result.status === 429 || result.status === 403 ? `انتهى الرصيد المتاح لـ ${entry.label}`
             : 'تعذر تعديل الصورة';
         res.status(502).json({
             error: reasonText,
-            ...(req.user?.type === 'admin' ? { debugAttempts: [{ provider: 'grok_edit', ...result }] } : {})
+            ...(req.user?.type === 'admin' ? { debugAttempts: [{ provider: `${cleanProvider}_edit`, ...result }] } : {})
         });
     } catch (error) {
         console.error('❌ خطأ في تعديل الصورة:', error.message);
@@ -6265,25 +6431,99 @@ const GeneratedQuiz = mongoose.models.GeneratedQuiz || mongoose.model('Generated
 // لوحة الأدمن مباشرة (شوف /api/admin/api-keys) بدل ما يبقوا محتاجين ضبط
 // Environment Variable وRedeploy كل مرة. لو مفتاح مش موجود هنا، الكود بيرجع
 // للـ env var المقابلة كـ fallback (شوف getProviderApiKey تحت).
+// كل مفتاح فرعي (keys[]) بيتسجّل بعدد مرات فشله وآخر خطأ حصل — عشان لو مفتاح
+// فضل يفشل كذا مرة نقدر نوريه للأدمن في اللوحة (failCount) من غير ما نعطّله
+// تلقائيًا (يفضل الأدمن هو اللي يقرر يمسحه أو لأ).
+const apiKeySubSchema = new mongoose.Schema({
+    key: { type: String, required: true },
+    label: { type: String, default: '' },
+    failCount: { type: Number, default: 0 },
+    disabled: { type: Boolean, default: false },
+    lastError: { type: String, default: '' },
+    lastUsedAt: { type: Date, default: null }
+}, { timestamps: true });
+
 const apiKeySchema = new mongoose.Schema({
-    provider: { type: String, required: true, unique: true, index: true }, // 'qwen' / 'grok' / ...
-    apiKey: { type: String, required: true },
+    provider: { type: String, required: true, unique: true, index: true }, // 'qwen' / 'grok' / 'kling' / ...
+    apiKey: { type: String }, // الشكل القديم (مفتاح واحد بس) — لسه موجود للتوافق مع بيانات قديمة
+    keys: { type: [apiKeySubSchema], default: [] }, // الشكل الجديد — أكتر من مفتاح لكل مزوّد
     updatedBy: { type: String, default: '' }
 }, { timestamps: true });
 const ApiKeySetting = mongoose.models.ApiKeySetting || mongoose.model('ApiKeySetting', apiKeySchema);
 
-// بترجع المفتاح المحفوظ في الداتابيز لمزوّد معيّن، ولو مش موجود بترجع القيمة
-// الاحتياطية (من Environment Variables) اللي بتتبعتلها. كده أي مزوّد بيشتغل
-// فورًا لو الأدمن ضاف مفتاحه من الواجهة، من غير أي Redeploy.
-async function getProviderApiKey(provider, envFallback) {
+// بترجع كل المفاتيح الشغالة (غير المعطّلة) المحفوظة في الداتابيز لمزوّد معيّن،
+// بالإضافة للمفتاح القديم (apiKey) لو لسه موجود، ولو مفيش ولا مفتاح خالص بترجع
+// القيمة الاحتياطية (من Environment Variables). كده أي مزوّد بيشتغل فورًا لو
+// الأدمن ضاف مفتاحه من الواجهة، من غير أي Redeploy.
+async function getProviderApiKeys(provider, envFallback) {
     try {
         await connectToDatabase();
-        const doc = await ApiKeySetting.findOne({ provider }).select('apiKey');
-        return doc?.apiKey || envFallback || '';
+        const doc = await ApiKeySetting.findOne({ provider });
+        const list = [];
+        if (doc) {
+            for (const k of (doc.keys || [])) {
+                if (k.key && !k.disabled) list.push({ id: String(k._id), key: k.key, label: k.label || '' });
+            }
+            if (doc.apiKey && !list.some(k => k.key === doc.apiKey)) {
+                list.push({ id: 'legacy', key: doc.apiKey, label: 'قديم' });
+            }
+        }
+        if (!list.length && envFallback) list.push({ id: null, key: envFallback, label: 'env' });
+        return list;
     } catch (error) {
-        console.error(`⚠️ تعذر جلب مفتاح ${provider} من الداتابيز، هنستخدم الـ env فقط:`, error.message);
-        return envFallback || '';
+        console.error(`⚠️ تعذر جلب مفاتيح ${provider} من الداتابيز، هنستخدم الـ env فقط:`, error.message);
+        return envFallback ? [{ id: null, key: envFallback, label: 'env' }] : [];
     }
+}
+
+// نسخة قديمة (مفتاح واحد بس) لسه مستخدمة في أماكن تانية بره نظام الصور —
+// بترجع أول مفتاح شغال بس، أبسط من getProviderApiKeys.
+async function getProviderApiKey(provider, envFallback) {
+    const list = await getProviderApiKeys(provider, envFallback);
+    return list[0]?.key || '';
+}
+
+// بتسجّل نجاح/فشل استخدام مفتاح معيّن (للمفاتيح الجديدة اللي ليها id بس — مفيش
+// تسجيل لمفاتيح الـ env أو المفتاح القديم legacy).
+async function markKeyResult(provider, keyId, ok, errorDetail) {
+    if (!keyId || keyId === 'legacy') return;
+    try {
+        await connectToDatabase();
+        if (ok) {
+            await ApiKeySetting.updateOne(
+                { provider, 'keys._id': keyId },
+                { $set: { 'keys.$.lastUsedAt': new Date(), 'keys.$.lastError': '' } }
+            );
+        } else {
+            await ApiKeySetting.updateOne(
+                { provider, 'keys._id': keyId },
+                { $inc: { 'keys.$.failCount': 1 }, $set: { 'keys.$.lastError': String(errorDetail || '').slice(0, 300) } }
+            );
+        }
+    } catch (error) {
+        console.error(`⚠️ تعذر تسجيل نتيجة استخدام مفتاح ${provider}:`, error.message);
+    }
+}
+
+// بتجرب مفاتيح مزوّد معيّن واحد ورا التاني — أول ما مفتاح ينجح بترجع نتيجته
+// على طول، ولو فشل بتسجّل الفشل وتتحول للمفتاح اللي بعده أوتوماتيك (من غير ما
+// الطالب يحس بأي حاجة). requestFn(apiKey) لازم ترجّع نفس شكل النتيجة المعتاد
+// { ok: true, ... } أو { ok: false, ... }.
+async function withKeyRotation(provider, envFallback, requestFn) {
+    const keys = await getProviderApiKeys(provider, envFallback);
+    if (!keys.length) return { ok: false, reason: 'no_api_key' };
+    const attempts = [];
+    for (const entry of keys) {
+        const result = await requestFn(entry.key);
+        if (result.ok) {
+            markKeyResult(provider, entry.id, true).catch(() => {});
+            return result;
+        }
+        markKeyResult(provider, entry.id, false, result.detail || result.reason).catch(() => {});
+        attempts.push({ keyLabel: entry.label || maskApiKey(entry.key), ...result });
+    }
+    // كل مفاتيح المزوّد ده فشلت
+    return { ok: false, reason: 'all_keys_failed', status: attempts[attempts.length - 1]?.status, keyAttempts: attempts };
 }
 
 // رابط رفع موقّع للطالب (نفس فكرة /api/files/upload-url بتاعة الأدمن، بس متاحة
