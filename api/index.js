@@ -94,26 +94,9 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('he
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-// حساب Workers AI منفصل عن حساب R2 (مفاتيح R2 من نوع S3-compatible access keys،
-// ده Cloudflare API Token عادي بصلاحية "Workers AI" بس) — يتعمل من My Profile →
-// API Tokens في نفس حساب Cloudflare اللي عندك بالفعل (نفس اللي فيه R2).
-const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
-const CLOUDFLARE_AI_TOKEN = process.env.CLOUDFLARE_AI_TOKEN || '';
-// مفتاح Qwen (عن طريق DashScope — Alibaba Cloud) لتوليد الصور — الطبقة الأولى
-// دلوقتي في سلسلة إنشاء الصور.
+// مفتاح Qwen (عن طريق DashScope — Alibaba Cloud) لتوليد الصور — نفس القيمة دي
+// بتستخدم كـ fallback لو مفيش مفتاح محفوظ لـ "qwen" في لوحة الأدمن (ApiKeySetting).
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || '';
-// Together AI — عندهم موديل FLUX.1-schnell-Free مجاني فعليًا بدون استهلاك
-// كريدت وبدون بطاقة (مختلف عن FLUX.1-schnell العادي اللي بياخد من رصيد مدفوع).
-const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || '';
-// Hugging Face — بيستضيفوا أوزان Qwen-Image الحقيقية عن طريق مزوّدين تشغيل
-// خارجيين. محتاج توكن "Fine-grained" فيه صلاحية "Make calls to Inference
-// Providers" مفعّلة تحديدًا، وإلا هيترفض. حصة مجانية شهرية صغيرة نسبيًا.
-const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY || '';
-// OpenRouter — بيوفّر qwen/qwen-image-3 كموديل حقيقي من Qwen (مش بديل)، مُستضاف
-// مباشرة عندهم كمزوّد واحد. ملحوظة: السعر الفعلي لموديل الصور ده على OpenRouter
-// مش موضّح كـ "مجاني" بوضوح زي بعض موديلات النص (:free) — تأكد من صفحة التسعير
-// بتاعته على openrouter.ai/qwen/qwen-image-3 قبل ما تعتمد عليه كمصدر مجاني دايم.
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -5087,15 +5070,67 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
         GEMINI_API_KEY: Boolean(GEMINI_API_KEY),
         DEEPSEEK_API_KEY: Boolean(DEEPSEEK_API_KEY),
         PY_SERVICE_URL: Boolean(PY_SERVICE_URL),
-        CLOUDFLARE_ACCOUNT_ID: Boolean(CLOUDFLARE_ACCOUNT_ID),
-        CLOUDFLARE_AI_TOKEN: Boolean(CLOUDFLARE_AI_TOKEN),
-        DASHSCOPE_API_KEY: Boolean(DASHSCOPE_API_KEY),
-        TOGETHER_API_KEY: Boolean(TOGETHER_API_KEY),
-        HUGGINGFACE_API_KEY: Boolean(HUGGINGFACE_API_KEY),
-        OPENROUTER_API_KEY: Boolean(OPENROUTER_API_KEY),
+        // ملحوظة: مفاتيح Qwen وGrok بقت تتدار من /api/admin/api-keys (محفوظة في
+        // الداتابيز) مش من هنا — القيم دي (DASHSCOPE_API_KEY وCOMETAPI_KEY) بقت
+        // بس fallback احتياطي لو محدش ضاف مفتاح من لوحة الأدمن.
+        DASHSCOPE_API_KEY_env_fallback: Boolean(DASHSCOPE_API_KEY),
+        COMETAPI_KEY_env_fallback: Boolean(process.env.COMETAPI_KEY),
         vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
         deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
     });
+});
+
+// ====================== إدارة مفاتيح API من لوحة الأدمن ======================
+// بيسمح للأدمن يضيف/يعدّل/يمسح مفتاح API لأي مزوّد (Qwen، Grok، أو أي مزوّد
+// تاني يتضاف بالكود لاحقًا) من الواجهة مباشرة، من غير ما يحتاج يدخل Vercel
+// Environment Variables ويعمل Redeploy في كل مرة.
+function maskApiKey(key) {
+    if (!key || key.length < 8) return '••••••••';
+    return `${key.slice(0, 4)}${'•'.repeat(Math.max(4, key.length - 8))}${key.slice(-4)}`;
+}
+
+app.get('/api/admin/api-keys', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const docs = await ApiKeySetting.find().select('provider apiKey updatedBy updatedAt').sort({ provider: 1 });
+        res.json(docs.map(d => ({
+            provider: d.provider,
+            maskedKey: maskApiKey(d.apiKey),
+            updatedBy: d.updatedBy,
+            updatedAt: d.updatedAt
+        })));
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب المفاتيح' });
+    }
+});
+
+app.post('/api/admin/api-keys', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const { provider, apiKey } = req.body || {};
+        const cleanProvider = String(provider || '').trim().toLowerCase();
+        const cleanKey = String(apiKey || '').trim();
+        if (!cleanProvider) return res.status(400).json({ error: 'اسم المزوّد مطلوب' });
+        if (!cleanKey) return res.status(400).json({ error: 'المفتاح مطلوب' });
+        await connectToDatabase();
+        const doc = await ApiKeySetting.findOneAndUpdate(
+            { provider: cleanProvider },
+            { provider: cleanProvider, apiKey: cleanKey, updatedBy: req.user.username },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true, provider: doc.provider, maskedKey: maskApiKey(doc.apiKey) });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حفظ المفتاح' });
+    }
+});
+
+app.delete('/api/admin/api-keys/:provider', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        await ApiKeySetting.deleteOne({ provider: String(req.params.provider).toLowerCase() });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف المفتاح' });
+    }
 });
 
 // ====================== استوديو الصور الذكي (Premium) ======================
@@ -5168,17 +5203,18 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
 // كل دالة بترجع نفس الشكل دايمًا: { ok: true, imageUrl? , imageBase64?, mimeType? }
 // أو { ok: false, reason?, status?, detail? } — كده الكود اللي بينادي عليهم (سواء
 // تلقائي أو اختيار يدوي من الطالب) موحّد ومفيش تكرار منطق.
+// كل دالة بتجيب مفتاحها عن طريق getProviderApiKey (الداتابيز الأول، الـ env
+// كـ fallback) — يعني الأدمن يقدر يغيّر أي مفتاح من لوحة التحكم من غير Redeploy.
 
 async function genImage_qwen(trimmed) {
-    if (!DASHSCOPE_API_KEY) return { ok: false, reason: 'no_api_key' };
+    const apiKey = await getProviderApiKey('qwen', DASHSCOPE_API_KEY);
+    if (!apiKey) return { ok: false, reason: 'no_api_key' };
     try {
-        // ملحوظة: بيرجّع رابط صورة مؤقت (مستضاف على Alibaba OSS، بينتهي بعد فترة)
-        // مش base64 — عشان كده بنرجعه كـ imageUrl زي Pollinations بالظبط.
         const response = await fetch(
             'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
             {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${DASHSCOPE_API_KEY}`, 'Content-Type': 'application/json' },
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: 'qwen-image-2.0',
                     input: { messages: [{ role: 'user', content: [{ text: trimmed }] }] },
@@ -5194,6 +5230,8 @@ async function genImage_qwen(trimmed) {
         );
         if (response.ok) {
             const data = await response.json();
+            // ملحوظة: بيرجّع رابط صورة مؤقت (مستضاف على Alibaba OSS، بينتهي بعد
+            // فترة) مش base64 — عشان كده بنرجعه كـ imageUrl.
             const imageUrl = data.output?.choices?.[0]?.message?.content?.find(c => c.image)?.image;
             if (imageUrl) return { ok: true, imageUrl };
             console.error('⚠️ Qwen: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
@@ -5208,163 +5246,81 @@ async function genImage_qwen(trimmed) {
     }
 }
 
-async function genImage_gemini(trimmed) {
-    if (!GEMINI_API_KEY) return { ok: false, reason: 'no_api_key' };
+// Grok (عن طريق CometAPI) — بيرجّع صورة من وصف نصي، وبيدعم كمان تعديل صورة
+// موجودة بوصف نصي (/v1/images/edits) — الميزة دي خاصة بـ Grok بس، مش متاحة
+// لـ Qwen، فمعمولة كدالة منفصلة (genEdit_grok) بتتنادى بس لما المزوّد
+// المستخدم في التوليد كان Grok.
+const COMETAPI_BASE_URL = 'https://api.cometapi.com';
+const GROK_IMAGE_MODEL = 'grok-imagine-image-2.0';
+
+function extractCometImage(data) {
+    // التوثيق ما وضّحش اسم الحقل بدقة، فبنجرب كذا شكل محتمل زي باقي المزوّدين.
+    return data?.data?.[0]?.url
+        || data?.data?.[0]?.b64_json
+        || data?.images?.[0]?.url
+        || (typeof data?.images?.[0] === 'string' ? data.images[0] : null)
+        || null;
+}
+
+async function genImage_grok(trimmed) {
+    const apiKey = await getProviderApiKey('grok', process.env.COMETAPI_KEY || '');
+    if (!apiKey) return { ok: false, reason: 'no_api_key' };
     try {
-        const response = await fetchGeminiWithRetry(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent',
-            {
-                method: 'POST',
-                headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: trimmed }] }],
-                    generationConfig: { responseModalities: ['IMAGE'] }
-                })
-            }
-        );
+        const response = await fetch(`${COMETAPI_BASE_URL}/v1/images/generations`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: GROK_IMAGE_MODEL, prompt: trimmed })
+        });
         if (response.ok) {
             const data = await response.json();
-            const imagePart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData || p.inline_data);
-            const inline = imagePart?.inlineData || imagePart?.inline_data;
-            if (inline?.data) return { ok: true, imageBase64: inline.data, mimeType: inline.mimeType || inline.mime_type || 'image/png' };
-            // الطلب نجح (200) بس مفيش صورة في الرد — بيحصل لو الموديل رفض البرومبت
-            // (safety filters) أو رجّع نص بس.
-            console.error('⚠️ Gemini image gen: 200 OK لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+            const img = extractCometImage(data);
+            if (img) {
+                // لو الحقل شكله data URI أو base64 خام نرجعه كـ imageBase64، وإلا نعتبره رابط.
+                if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+                return { ok: true, imageBase64: img.replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+            }
+            console.error('⚠️ Grok (CometAPI): رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
             return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
         }
         const errBody = await response.text().catch(() => '');
-        console.error(`❌ Gemini image gen فشل — status ${response.status}:`, errBody.slice(0, 800));
+        console.error(`❌ Grok (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
         return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
     } catch (error) {
-        console.error('❌ Gemini image gen exception:', error.message);
+        console.error('❌ Grok (CometAPI) exception:', error.message);
         return { ok: false, reason: 'exception', detail: error.message };
     }
 }
 
-async function genImage_together(trimmed) {
-    if (!TOGETHER_API_KEY) return { ok: false, reason: 'no_api_key' };
+// تعديل صورة موجودة بوصف نصي — Grok بس. imageUrl لازم يكون رابط عام يقدر
+// CometAPI يوصله (مش data: URI محلي).
+async function genEdit_grok(imageUrl, editPrompt) {
+    const apiKey = await getProviderApiKey('grok', process.env.COMETAPI_KEY || '');
+    if (!apiKey) return { ok: false, reason: 'no_api_key' };
     try {
-        // مهم: اسم الموديل بالظبط "FLUX.1-schnell-Free" (بالـ "-Free") — ده
-        // مختلف عن "FLUX.1-schnell" العادي اللي بياخد من رصيد مدفوع.
-        const response = await fetch('https://api.together.xyz/v1/images/generations', {
+        const response = await fetch(`${COMETAPI_BASE_URL}/v1/images/edits`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${TOGETHER_API_KEY}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'black-forest-labs/FLUX.1-schnell-Free',
-                prompt: trimmed,
-                width: 1024, height: 1024, steps: 4, n: 1,
-                response_format: 'url'
+                model: GROK_IMAGE_MODEL,
+                prompt: editPrompt,
+                image: { type: 'image_url', url: imageUrl }
             })
         });
         if (response.ok) {
             const data = await response.json();
-            const imageUrl = data?.data?.[0]?.url;
-            if (imageUrl) return { ok: true, imageUrl };
-            console.error('⚠️ Together AI: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
-            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
-        }
-        const errBody = await response.text().catch(() => '');
-        console.error(`❌ Together AI فشل — status ${response.status}:`, errBody.slice(0, 800));
-        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-    } catch (error) {
-        console.error('❌ Together AI exception:', error.message);
-        return { ok: false, reason: 'exception', detail: error.message };
-    }
-}
-
-async function genImage_cloudflare(trimmed) {
-    if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_AI_TOKEN) return { ok: false, reason: 'not_configured' };
-    try {
-        const response = await fetch(
-            `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`,
-            {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN}`, 'Content-Type': 'application/json' },
-                // ملحوظة: من غير "seed" — بعض الحسابات بترفضه (400: "Additional
-                // properties '/seed' not allowed") رغم وجوده في توثيق Cloudflare.
-                // هو اختياري أصلًا (بيتحكم في التنويع بس)، فحذفه آمن 100%.
-                body: JSON.stringify({ prompt: trimmed })
+            const img = extractCometImage(data);
+            if (img) {
+                if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+                return { ok: true, imageBase64: img.replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
             }
-        );
-        if (response.ok) {
-            const data = await response.json();
-            if (data?.success && data?.result?.image) return { ok: true, imageBase64: data.result.image, mimeType: 'image/jpeg' };
-            console.error('⚠️ Cloudflare Workers AI: رد 200 لكن من غير صورة:', JSON.stringify(data).slice(0, 800));
+            console.error('⚠️ Grok edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
             return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
         }
         const errBody = await response.text().catch(() => '');
-        console.error(`❌ Cloudflare Workers AI فشل — status ${response.status}:`, errBody.slice(0, 800));
+        console.error(`❌ Grok edit فشل — status ${response.status}:`, errBody.slice(0, 800));
         return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
     } catch (error) {
-        console.error('❌ Cloudflare Workers AI exception:', error.message);
-        return { ok: false, reason: 'exception', detail: error.message };
-    }
-}
-
-async function genImage_pollinations(trimmed) {
-    // مجاني من غير أي مفتاح خالص — عمليًا "متاح دايمًا" (مفيش فحص config)، بس
-    // أقل دقة في الالتزام بالبرومبت من باقي المزوّدين.
-    const seed = Math.floor(Math.random() * 1_000_000);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(trimmed)}?width=768&height=768&nologo=true&model=flux&seed=${seed}`;
-    return { ok: true, imageUrl };
-}
-
-async function genImage_huggingface(trimmed) {
-    if (!HUGGINGFACE_API_KEY) return { ok: false, reason: 'no_api_key' };
-    try {
-        // ملحوظة: الـ endpoint ده بيرجّع بايتس الصورة مباشرة (مش JSON) لو نجح —
-        // شكل مختلف عن باقي المزوّدين، فبنتعامل معاه على حسب Content-Type.
-        const response = await fetch('https://api-inference.huggingface.co/models/Qwen/Qwen-Image', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inputs: trimmed })
-        });
-        if (response.ok) {
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.startsWith('image/')) {
-                const buffer = await response.arrayBuffer();
-                return { ok: true, imageBase64: Buffer.from(buffer).toString('base64'), mimeType: contentType };
-            }
-            // لو مش صورة، غالبًا JSON فيه خطأ أو حالة "الموديل بيسخن" (cold start)
-            const data = await response.json().catch(() => null);
-            console.error('⚠️ Hugging Face: رد 200 لكن مش صورة:', JSON.stringify(data).slice(0, 800));
-            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
-        }
-        const errBody = await response.text().catch(() => '');
-        console.error(`❌ Hugging Face فشل — status ${response.status}:`, errBody.slice(0, 800));
-        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-    } catch (error) {
-        console.error('❌ Hugging Face exception:', error.message);
-        return { ok: false, reason: 'exception', detail: error.message };
-    }
-}
-
-async function genImage_openrouterQwen(trimmed) {
-    if (!OPENROUTER_API_KEY) return { ok: false, reason: 'no_api_key' };
-    try {
-        const response = await fetch('https://openrouter.ai/api/v1/images', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'qwen/qwen-image-3', prompt: trimmed })
-        });
-        if (response.ok) {
-            const data = await response.json();
-            // التوثيق بيقول "بترجع base64" بس من غير تحديد اسم الحقل بدقة، فبنجرب
-            // كذا شكل محتمل. لو محتاجة تعديل، الرد الخام بيتسجل في الـ log فورًا.
-            const b64 = data?.data?.[0]?.b64_json
-                || data?.images?.[0]?.b64_json
-                || (typeof data?.images?.[0] === 'string' ? data.images[0] : null)
-                || data?.choices?.[0]?.message?.images?.[0]?.image_url?.url?.replace(/^data:image\/\w+;base64,/, '')
-                || null;
-            if (b64) return { ok: true, imageBase64: b64, mimeType: 'image/png' };
-            console.error('⚠️ OpenRouter Qwen: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
-            return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
-        }
-        const errBody = await response.text().catch(() => '');
-        console.error(`❌ OpenRouter Qwen فشل — status ${response.status}:`, errBody.slice(0, 800));
-        return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-    } catch (error) {
-        console.error('❌ OpenRouter Qwen exception:', error.message);
+        console.error('❌ Grok edit exception:', error.message);
         return { ok: false, reason: 'exception', detail: error.message };
     }
 }
@@ -5373,17 +5329,11 @@ async function genImage_openrouterQwen(trimmed) {
 // معيّن بدل "تلقائي". بيسهّل الإضافة لاحقًا (مزوّد جديد = سطر واحد هنا).
 const IMAGE_PROVIDERS = {
     qwen: { fn: genImage_qwen, label: 'Qwen' },
-    gemini: { fn: genImage_gemini, label: 'Gemini' },
-    together: { fn: genImage_together, label: 'Together AI' },
-    huggingface: { fn: genImage_huggingface, label: 'Hugging Face (Qwen)' },
-    openrouter_qwen: { fn: genImage_openrouterQwen, label: 'OpenRouter (Qwen)' },
-    cloudflare: { fn: genImage_cloudflare, label: 'Cloudflare' },
-    pollinations: { fn: genImage_pollinations, label: 'Pollinations' }
+    grok: { fn: genImage_grok, label: 'Grok' }
 };
-// الترتيب التلقائي (وضع "تلقائي" — بيجرب واحد ورا التاني لحد ما واحد ينجح).
-// حطينا Hugging Face وOpenRouter بعد المصادر التالتة التانية عمدًا لأن حصتهم
-// المجانية أضيق/مش مضمونة، فنوفّرها لما باقي المصادر السخية تفشل.
-const AUTO_ORDER = ['qwen', 'gemini', 'together', 'huggingface', 'openrouter_qwen', 'cloudflare', 'pollinations'];
+// الترتيب التلقائي — Qwen (الرسمي) الأول، ولو فشل أو خلص رصيده يروح على Grok
+// تلقائيًا عشان العملية تفضل مستمرة من غير ما الطالب يحس بأي انقطاع.
+const AUTO_ORDER = ['qwen', 'grok'];
 
 // إنشاء صورة — إما "تلقائي" (بيجرب المزوّدين بالترتيب لحد ما واحد ينجح)، أو
 // مزوّد محدد يختاره الطالب بنفسه من قائمة استوديو الصور (وقتها منجربش غيره
@@ -5426,8 +5376,7 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
             }
             attempts.push({ provider: key, ...result });
         }
-        // كل المزوّدين فشلوا (نادر جدًا لأن Pollinations آخر واحد وبيرجع صورة
-        // دايمًا تقريبًا) — بنرجّع خطأ صريح بدل ما نتظاهر بالنجاح.
+        // كل المزوّدين فشلوا — بنرجّع خطأ صريح بدل ما نتظاهر بالنجاح.
         console.error('⚠️ كل مزوّدي إنشاء الصور فشلوا:', JSON.stringify(attempts));
         res.status(502).json({
             error: 'تعذر إنشاء الصورة من أي مزوّد متاح حاليًا',
@@ -5436,6 +5385,35 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
     } catch (error) {
         console.error('❌ خطأ في إنشاء الصورة:', error.message);
         res.status(500).json({ error: 'خطأ في إنشاء الصورة' });
+    }
+});
+
+// ====================== تعديل صورة (Grok بس) ======================
+// ميزة خاصة بـ Grok — بتاخد صورة موجودة (لازم تكون رابط عام، مش base64 محلي)
+// ووصف تعديل نصي، وترجع نسخة معدّلة. مش متاحة لـ Qwen لأنه مش بيدعم تعديل صور.
+app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        const { imageUrl, prompt } = req.body || {};
+        const trimmedPrompt = String(prompt || '').trim().slice(0, 500);
+        if (!imageUrl) return res.status(400).json({ error: 'رابط الصورة مطلوب' });
+        if (!trimmedPrompt) return res.status(400).json({ error: 'وصف التعديل مطلوب' });
+        if (!/^https?:\/\//.test(imageUrl)) {
+            return res.status(400).json({ error: 'تعديل الصور متاح بس على الصور اللي اتولّدت برابط عام (مش صور مرفوعة محليًا)' });
+        }
+
+        const result = await genEdit_grok(imageUrl, trimmedPrompt);
+        if (result.ok) return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType });
+
+        const reasonText = result.reason === 'no_api_key' ? 'مفتاح Grok غير مضبوط'
+            : result.status === 429 || result.status === 403 ? 'انتهى الرصيد المتاح لـ Grok'
+            : 'تعذر تعديل الصورة';
+        res.status(502).json({
+            error: reasonText,
+            ...(req.user?.type === 'admin' ? { debugAttempts: [{ provider: 'grok_edit', ...result }] } : {})
+        });
+    } catch (error) {
+        console.error('❌ خطأ في تعديل الصورة:', error.message);
+        res.status(500).json({ error: 'خطأ في تعديل الصورة' });
     }
 });
 
@@ -6282,6 +6260,31 @@ const generatedQuizSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 const GeneratedQuiz = mongoose.models.GeneratedQuiz || mongoose.model('GeneratedQuiz', generatedQuizSchema);
+
+// مفاتيح API لمزوّدين إنشاء الصور (وأي فيتشر AI تاني مستقبلًا) — بيتضافوا من
+// لوحة الأدمن مباشرة (شوف /api/admin/api-keys) بدل ما يبقوا محتاجين ضبط
+// Environment Variable وRedeploy كل مرة. لو مفتاح مش موجود هنا، الكود بيرجع
+// للـ env var المقابلة كـ fallback (شوف getProviderApiKey تحت).
+const apiKeySchema = new mongoose.Schema({
+    provider: { type: String, required: true, unique: true, index: true }, // 'qwen' / 'grok' / ...
+    apiKey: { type: String, required: true },
+    updatedBy: { type: String, default: '' }
+}, { timestamps: true });
+const ApiKeySetting = mongoose.models.ApiKeySetting || mongoose.model('ApiKeySetting', apiKeySchema);
+
+// بترجع المفتاح المحفوظ في الداتابيز لمزوّد معيّن، ولو مش موجود بترجع القيمة
+// الاحتياطية (من Environment Variables) اللي بتتبعتلها. كده أي مزوّد بيشتغل
+// فورًا لو الأدمن ضاف مفتاحه من الواجهة، من غير أي Redeploy.
+async function getProviderApiKey(provider, envFallback) {
+    try {
+        await connectToDatabase();
+        const doc = await ApiKeySetting.findOne({ provider }).select('apiKey');
+        return doc?.apiKey || envFallback || '';
+    } catch (error) {
+        console.error(`⚠️ تعذر جلب مفتاح ${provider} من الداتابيز، هنستخدم الـ env فقط:`, error.message);
+        return envFallback || '';
+    }
+}
 
 // رابط رفع موقّع للطالب (نفس فكرة /api/files/upload-url بتاعة الأدمن، بس متاحة
 // لأي طالب مسجل دخول بدل ما تكون مقصورة على الأدمن)
