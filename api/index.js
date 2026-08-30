@@ -5081,7 +5081,7 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
 });
 
 // ====================== إدارة مفاتيح API من لوحة الأدمن ======================
-// بيسمح للأدمن يضيف/يمسح/يشوف مفتاح (أو أكتر) لأي مزوّد (Qwen، Grok، Kling، أو
+// بيسمح للأدمن يضيف/يمسح/يشوف مفتاح (أو أكتر) لأي مزوّد (Qwen، Grok، Flux، أو
 // أي مزوّد تاني يتضاف بالكود لاحقًا) من الواجهة مباشرة، من غير ما يحتاج يدخل
 // Vercel Environment Variables ويعمل Redeploy في كل مرة.
 // كل مزوّد ممكن يكون ليه أكتر من مفتاح (مثلًا أكتر من حساب/اشتراك) — لو مفتاح
@@ -5309,11 +5309,10 @@ async function genImage_qwen(trimmed) {
     });
 }
 
-// Grok وKling (الاتنين عن طريق CometAPI) — بيرجّعوا صورة من وصف نصي، وبيدعموا
+// Grok وFlux (الاتنين عن طريق CometAPI) — بيرجّعوا صورة من وصف نصي، وبيدعموا
 // كمان تعديل صورة موجودة بوصف نصي. مش متاحة لـ Qwen لأنه مش بيدعم تعديل صور.
 const COMETAPI_BASE_URL = 'https://api.cometapi.com';
 const GROK_IMAGE_MODEL = 'grok-imagine-image-2.0';
-const KLING_IMAGE_MODEL = 'kling_image';
 
 function extractCometImage(data) {
     // التوثيق ما وضّحش اسم الحقل بدقة، فبنجرب كذا شكل محتمل زي باقي المزوّدين.
@@ -5387,94 +5386,165 @@ async function genEdit_grok(imageUrl, editPrompt) {
     });
 }
 
-// Kling (عن طريق CometAPI /v1/responses) — نفس فكرة Grok، بس شكل الـ endpoint
-// مختلف (Responses API بدل images/generations). التوثيق الرسمي مش واضح بالظبط
-// شكل حقل الصورة في الرد، فبنجرب كذا شكل محتمل (زي extractCometImage) وبنسجّل
-// الرد الخام في اللوج لو فشلنا نلاقي صورة، عشان يسهل ضبط الشكل الصح لاحقًا.
-function extractCometResponsesImage(data) {
-    // أشكال محتملة لرد /v1/responses لما بيرجّع صورة (Responses API-style):
-    const output = data?.output;
-    if (Array.isArray(output)) {
-        for (const item of output) {
-            // شكل "image_generation_call" (زي الـ Responses API بتاعة OpenAI للصور)
-            if (item?.type === 'image_generation_call' && item.result) return item.result;
-            // شكل رسالة فيها content array (نص/صورة مختلطين)
-            if (Array.isArray(item?.content)) {
-                for (const c of item.content) {
-                    if (c?.type === 'output_image' && (c.image_url || c.url || c.b64_json)) {
-                        return c.image_url || c.url || c.b64_json;
-                    }
-                }
-            }
-        }
-    }
-    return data?.output_image
-        || data?.image_url
-        || extractCometImage(data);
+// Flux 2 Max (عن طريق CometAPI /flux/v1/flux-2-max) — نفس فكرة Grok، بس الـ
+// endpoint ده غير متزامن (async): أول طلب POST بيرجّع id (وأحيانًا polling_url
+// جاهز)، وبعدين لازم نستعلم على /flux/v1/get_result لحد ما تجهز الصورة أو
+// تفشل. بيدعم كمان تحديد أبعاد الصورة بدقة (width/height) عن طريق
+// aspect_ratio: 'custom'، وده اللي بنستخدمه عشان نسمح للطالب يختار أبعاد
+// الصورة وقت الإنشاء.
+const FLUX_GENERATE_URL = `${COMETAPI_BASE_URL}/flux/v1/flux-2-max`;
+const FLUX_RESULT_URL = `${COMETAPI_BASE_URL}/flux/v1/get_result`;
+const FLUX_DEFAULT_WIDTH = 1024;
+const FLUX_DEFAULT_HEIGHT = 1024;
+
+// الأبعاد لازم تكون من مضاعفات 16 (متطلب الموديل)، وبنحصرها في مدى معقول
+// (256 - 1440) عشان منبعتش قيمة يرفضها السيرفر لو الفرونت إند بعت رقم غريب.
+function clampFluxDimension(value, fallback) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n <= 0) return fallback;
+    const clamped = Math.min(1440, Math.max(256, n));
+    return Math.round(clamped / 16) * 16;
 }
 
-async function genImage_kling(trimmed) {
-    return withKeyRotation('kling', process.env.COMETAPI_KEY || '', async (apiKey) => {
+// شكل رد /flux/v1/get_result (ولو حصل ونفس الرد الأول رجّع الصورة على طول)
+// مش موثّق بالكامل، فبنجرب كذا حقل محتمل زي باقي المزوّدين.
+function extractFluxImage(data) {
+    return data?.result?.sample
+        || data?.sample
+        || data?.result?.url
+        || data?.output_url
+        || extractCometImage(data)
+        || null;
+}
+
+// بتستعلم على نتيجة مهمة Flux لحد ما تخلص (Ready) أو تفشل أو تخلص المهلة.
+// المهلة إجمالًا حوالي 54 ثانية (بتحاول كل 3 ثواني، 18 مرة) عشان تفضل جوه حد
+// تنفيذ فانكشنز Vercel وميحسّش الطالب إن السيرفر واقف.
+async function pollFluxResult(apiKey, taskId, pollingUrl) {
+    const target = pollingUrl || `${FLUX_RESULT_URL}?id=${encodeURIComponent(taskId)}`;
+    for (let attempt = 0; attempt < 18; attempt++) {
+        await new Promise(r => setTimeout(r, 3000));
         try {
-            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: KLING_IMAGE_MODEL, input: trimmed })
+            const response = await fetch(target, {
+                method: 'GET',
+                headers: { 'Authorization': apiKey, 'Accept': '*/*' }
             });
-            if (response.ok) {
-                const data = await response.json();
-                const img = extractCometResponsesImage(data);
-                if (img) {
-                    if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
-                    return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
-                }
-                console.error('⚠️ Kling (CometAPI): رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+            if (!response.ok) continue;
+            const data = await response.json();
+            const status = String(data?.status || '').toLowerCase();
+            if (['ready', 'succeeded', 'completed', 'success'].includes(status)) {
+                const img = extractFluxImage(data);
+                if (img) return { ok: true, img };
                 return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
             }
-            const errBody = await response.text().catch(() => '');
-            console.error(`❌ Kling (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
-            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+            if (['error', 'failed', 'content_moderated', 'request_moderated'].includes(status)) {
+                return { ok: false, reason: 'generation_failed', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            // لسه Pending/Processing/Task not found (أول لحظة) — نكمل الاستعلام
         } catch (error) {
-            console.error('❌ Kling (CometAPI) exception:', error.message);
+            // خطأ مؤقت في الاستعلام — نكمل نحاول لحد ما تخلص المحاولات
+        }
+    }
+    return { ok: false, reason: 'timeout', detail: 'انتهت مهلة انتظار توليد الصورة' };
+}
+
+function fluxImageResult(img) {
+    if (/^https?:\/\//.test(String(img))) return { ok: true, imageUrl: img };
+    return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/jpeg' };
+}
+
+// إنشاء صورة من وصف نصي — Flux 2 Max. opts.width/opts.height (اختياريين)
+// بيسمحوا للطالب يحدد أبعاد الصورة؛ لو مش موجودين بنستخدم مربع 1024×1024.
+async function genImage_flux(trimmed, opts = {}) {
+    return withKeyRotation('flux', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const width = clampFluxDimension(opts.width, FLUX_DEFAULT_WIDTH);
+            const height = clampFluxDimension(opts.height, FLUX_DEFAULT_HEIGHT);
+            const response = await fetch(FLUX_GENERATE_URL, {
+                method: 'POST',
+                headers: { 'Authorization': apiKey, 'Content-Type': 'application/json', 'Accept': '*/*' },
+                body: JSON.stringify({
+                    prompt: trimmed,
+                    image_prompt: '',
+                    aspect_ratio: 'custom',
+                    width, height,
+                    prompt_upsampling: false,
+                    seed: Math.floor(Math.random() * 1000000),
+                    safety_tolerance: 2,
+                    output_format: 'jpeg',
+                    webhook_url: '',
+                    webhook_secret: ''
+                })
+            });
+            if (!response.ok) {
+                const errBody = await response.text().catch(() => '');
+                console.error(`❌ Flux (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
+                return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+            }
+            const data = await response.json();
+            const immediateImg = extractFluxImage(data);
+            if (immediateImg) return fluxImageResult(immediateImg);
+
+            const taskId = data?.id || data?.task_id || data?.request_id;
+            const pollingUrl = data?.polling_url;
+            if (!taskId && !pollingUrl) {
+                console.error('⚠️ Flux (CometAPI): رد بدون صورة ولا id للاستعلام:', JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            const polled = await pollFluxResult(apiKey, taskId, pollingUrl);
+            if (!polled.ok) return polled;
+            return fluxImageResult(polled.img);
+        } catch (error) {
+            console.error('❌ Flux (CometAPI) exception:', error.message);
             return { ok: false, reason: 'exception', detail: error.message };
         }
     });
 }
 
-// تعديل صورة موجودة بوصف نصي — Kling، زي ميزة Grok بالظبط بس عن طريق
-// /v1/responses بشكل مدخل متعدد الوسائط (نص + رابط صورة).
-async function genEdit_kling(imageUrl, editPrompt) {
-    return withKeyRotation('kling', process.env.COMETAPI_KEY || '', async (apiKey) => {
+// تعديل صورة موجودة بوصف نصي — Flux، عن طريق تمرير رابط الصورة الأصلية في
+// image_prompt مع وصف التعديل في prompt. imageUrl لازم يكون رابط عام يقدر
+// CometAPI يوصله (مش data: URI محلي).
+async function genEdit_flux(imageUrl, editPrompt, opts = {}) {
+    return withKeyRotation('flux', process.env.COMETAPI_KEY || '', async (apiKey) => {
         try {
-            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
+            const width = clampFluxDimension(opts.width, FLUX_DEFAULT_WIDTH);
+            const height = clampFluxDimension(opts.height, FLUX_DEFAULT_HEIGHT);
+            const response = await fetch(FLUX_GENERATE_URL, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                headers: { 'Authorization': apiKey, 'Content-Type': 'application/json', 'Accept': '*/*' },
                 body: JSON.stringify({
-                    model: KLING_IMAGE_MODEL,
-                    input: [{
-                        role: 'user',
-                        content: [
-                            { type: 'input_text', text: editPrompt },
-                            { type: 'input_image', image_url: imageUrl }
-                        ]
-                    }]
+                    prompt: editPrompt,
+                    image_prompt: imageUrl,
+                    aspect_ratio: 'custom',
+                    width, height,
+                    prompt_upsampling: false,
+                    seed: Math.floor(Math.random() * 1000000),
+                    safety_tolerance: 2,
+                    output_format: 'jpeg',
+                    webhook_url: '',
+                    webhook_secret: ''
                 })
             });
-            if (response.ok) {
-                const data = await response.json();
-                const img = extractCometResponsesImage(data);
-                if (img) {
-                    if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
-                    return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
-                }
-                console.error('⚠️ Kling edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+            if (!response.ok) {
+                const errBody = await response.text().catch(() => '');
+                console.error(`❌ Flux edit فشل — status ${response.status}:`, errBody.slice(0, 800));
+                return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+            }
+            const data = await response.json();
+            const immediateImg = extractFluxImage(data);
+            if (immediateImg) return fluxImageResult(immediateImg);
+
+            const taskId = data?.id || data?.task_id || data?.request_id;
+            const pollingUrl = data?.polling_url;
+            if (!taskId && !pollingUrl) {
+                console.error('⚠️ Flux edit: رد بدون صورة ولا id للاستعلام:', JSON.stringify(data).slice(0, 1000));
                 return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
             }
-            const errBody = await response.text().catch(() => '');
-            console.error(`❌ Kling edit فشل — status ${response.status}:`, errBody.slice(0, 800));
-            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+            const polled = await pollFluxResult(apiKey, taskId, pollingUrl);
+            if (!polled.ok) return polled;
+            return fluxImageResult(polled.img);
         } catch (error) {
-            console.error('❌ Kling edit exception:', error.message);
+            console.error('❌ Flux edit exception:', error.message);
             return { ok: false, reason: 'exception', detail: error.message };
         }
     });
@@ -5485,17 +5555,17 @@ async function genEdit_kling(imageUrl, editPrompt) {
 const IMAGE_PROVIDERS = {
     qwen: { fn: genImage_qwen, label: 'Qwen' },
     grok: { fn: genImage_grok, label: 'Grok' },
-    kling: { fn: genImage_kling, label: 'Kling' }
+    flux: { fn: genImage_flux, label: 'Flux' }
 };
 // مزوّدين بيدعموا تعديل صورة موجودة بوصف نصي (مش كل المزوّدين بيدعموا ده — Qwen مثلًا لأ).
 const EDIT_PROVIDERS = {
     grok: { fn: genEdit_grok, label: 'Grok' },
-    kling: { fn: genEdit_kling, label: 'Kling' }
+    flux: { fn: genEdit_flux, label: 'Flux' }
 };
 // الترتيب التلقائي — Qwen (الرسمي) الأول، ولو فشل أو خلص رصيده نروح على Grok،
-// ولو ده كمان فشل نروح على Kling، تلقائيًا عشان العملية تفضل مستمرة من غير ما
+// ولو ده كمان فشل نروح على Flux، تلقائيًا عشان العملية تفضل مستمرة من غير ما
 // الطالب يحس بأي انقطاع.
-const AUTO_ORDER = ['qwen', 'grok', 'kling'];
+const AUTO_ORDER = ['qwen', 'grok', 'flux'];
 
 // إنشاء صورة — إما "تلقائي" (بيجرب المزوّدين بالترتيب لحد ما واحد ينجح)، أو
 // مزوّد محدد يختاره الطالب بنفسه من قائمة استوديو الصور (وقتها منجربش غيره
@@ -5503,15 +5573,18 @@ const AUTO_ORDER = ['qwen', 'grok', 'kling'];
 // بيحدد بالاسم إيه اللي عايزه).
 app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
-        const { prompt, provider } = req.body || {};
+        const { prompt, provider, width, height } = req.body || {};
         const trimmed = String(prompt || '').trim().slice(0, 500);
         if (!trimmed) return res.status(400).json({ error: 'وصف الصورة مطلوب' });
+        // أبعاد الصورة (اختياري) — بيستخدمها Flux فعليًا حاليًا، وأي مزوّد
+        // تاني بيدعم تحديد الأبعاد ممكن ياخدها من نفس الـ opts لاحقًا.
+        const sizeOpts = { width, height };
 
         // ==== وضع: مزوّد محدد بالاسم ====
         if (provider && provider !== 'auto') {
             const entry = IMAGE_PROVIDERS[provider];
             if (!entry) return res.status(400).json({ error: 'مزوّد غير معروف' });
-            const result = await entry.fn(trimmed);
+            const result = await entry.fn(trimmed, sizeOpts);
             if (result.ok) return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, usedProvider: provider });
             // فشل المزوّد المحدد — نرجع الخطأ صراحة (من غير أي fallback تلقائي
             // لمزوّد تاني)، عشان الطالب يعرف بالظبط اللي حصل مع اختياره.
@@ -5528,7 +5601,7 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
         // ==== وضع: تلقائي (الوضع الافتراضي) ====
         const attempts = [];
         for (const key of AUTO_ORDER) {
-            const result = await IMAGE_PROVIDERS[key].fn(trimmed);
+            const result = await IMAGE_PROVIDERS[key].fn(trimmed, sizeOpts);
             if (result.ok) {
                 return res.json({
                     imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType,
@@ -5550,13 +5623,13 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
     }
 });
 
-// ====================== تعديل صورة موجودة (Grok أو Kling) ======================
+// ====================== تعديل صورة موجودة (Grok أو Flux) ======================
 // بتاخد صورة موجودة (لازم تكون رابط عام، مش base64 محلي) ووصف تعديل نصي، وترجع
 // نسخة معدّلة. متاحة بس للمزوّدين الموجودين في EDIT_PROVIDERS (Qwen مش بيدعم
 // تعديل صور، فمش موجود هنا). لازم تحدد نفس المزوّد اللي أنشأ الصورة الأصلية.
 app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
-        const { imageUrl, prompt, provider } = req.body || {};
+        const { imageUrl, prompt, provider, width, height } = req.body || {};
         const trimmedPrompt = String(prompt || '').trim().slice(0, 500);
         const cleanProvider = String(provider || 'grok').trim().toLowerCase();
         if (!imageUrl) return res.status(400).json({ error: 'رابط الصورة مطلوب' });
@@ -5567,7 +5640,7 @@ app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_s
         const entry = EDIT_PROVIDERS[cleanProvider];
         if (!entry) return res.status(400).json({ error: 'تعديل الصور مش متاح للمزوّد ده' });
 
-        const result = await entry.fn(imageUrl, trimmedPrompt);
+        const result = await entry.fn(imageUrl, trimmedPrompt, { width, height });
         if (result.ok) return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType });
 
         const reasonText = result.reason === 'no_api_key' ? `مفتاح ${entry.label} غير مضبوط`
@@ -6444,7 +6517,7 @@ const apiKeySubSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const apiKeySchema = new mongoose.Schema({
-    provider: { type: String, required: true, unique: true, index: true }, // 'qwen' / 'grok' / 'kling' / ...
+    provider: { type: String, required: true, unique: true, index: true }, // 'qwen' / 'grok' / 'flux' / ...
     apiKey: { type: String }, // الشكل القديم (مفتاح واحد بس) — لسه موجود للتوافق مع بيانات قديمة
     keys: { type: [apiKeySubSchema], default: [] }, // الشكل الجديد — أكتر من مفتاح لكل مزوّد
     updatedBy: { type: String, default: '' }
