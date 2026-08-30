@@ -5585,7 +5585,16 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
             const entry = IMAGE_PROVIDERS[provider];
             if (!entry) return res.status(400).json({ error: 'مزوّد غير معروف' });
             const result = await entry.fn(trimmed, sizeOpts);
-            if (result.ok) return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, usedProvider: provider });
+            if (result.ok) {
+                const saved = await saveGeneratedImageToLibrary({
+                    username: req.user?.username, prompt: trimmed, provider, source: 'generate',
+                    imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType
+                });
+                return res.json({
+                    imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, usedProvider: provider,
+                    savedToLibrary: !!saved
+                });
+            }
             // فشل المزوّد المحدد — نرجع الخطأ صراحة (من غير أي fallback تلقائي
             // لمزوّد تاني)، عشان الطالب يعرف بالظبط اللي حصل مع اختياره.
             const reasonText = result.reason === 'no_api_key' ? 'المفتاح غير مضبوط لهذا المزوّد'
@@ -5603,9 +5612,13 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
         for (const key of AUTO_ORDER) {
             const result = await IMAGE_PROVIDERS[key].fn(trimmed, sizeOpts);
             if (result.ok) {
+                const saved = await saveGeneratedImageToLibrary({
+                    username: req.user?.username, prompt: trimmed, provider: key, source: 'generate',
+                    imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType
+                });
                 return res.json({
                     imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType,
-                    usedProvider: key,
+                    usedProvider: key, savedToLibrary: !!saved,
                     ...(key !== AUTO_ORDER[0] ? { fallback: true, fallbackProvider: key } : {})
                 });
             }
@@ -5641,7 +5654,13 @@ app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_s
         if (!entry) return res.status(400).json({ error: 'تعديل الصور مش متاح للمزوّد ده' });
 
         const result = await entry.fn(imageUrl, trimmedPrompt, { width, height });
-        if (result.ok) return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType });
+        if (result.ok) {
+            const saved = await saveGeneratedImageToLibrary({
+                username: req.user?.username, prompt: trimmedPrompt, provider: cleanProvider, source: 'edit',
+                imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType
+            });
+            return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, savedToLibrary: !!saved });
+        }
 
         const reasonText = result.reason === 'no_api_key' ? `مفتاح ${entry.label} غير مضبوط`
             : result.status === 429 || result.status === 403 ? `انتهى الرصيد المتاح لـ ${entry.label}`
@@ -5653,6 +5672,42 @@ app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_s
     } catch (error) {
         console.error('❌ خطأ في تعديل الصورة:', error.message);
         res.status(500).json({ error: 'خطأ في تعديل الصورة' });
+    }
+});
+
+// ====================== مكتبة صور استوديو الصور (Premium) ======================
+// بترجع كل الصور اللي الطالب (أو الأدمن) حفظها من استوديو الصور، الأحدث الأول.
+// كل طالب بيشوف صوره هو بس (فلترة بـ username من التوكن، مش بارامتر من الطلب).
+app.get('/api/premium/image-library', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const images = await GeneratedImage.find({ username: req.user.username })
+            .sort({ createdAt: -1 })
+            .limit(120)
+            .select('prompt provider source imageUrl mimeType createdAt');
+        res.json({ images });
+    } catch (error) {
+        console.error('❌ خطأ في جلب مكتبة الصور:', error.message);
+        res.status(500).json({ error: 'خطأ في جلب مكتبة الصور' });
+    }
+});
+
+// حذف صورة من مكتبة الطالب — صاحب الصورة بس (أو الأدمن) يقدر يمسحها. بيمسح
+// النسخة من R2 كمان مش بس سطر الداتابيز، عشان منسيبش ملفات يتيمة في التخزين.
+app.delete('/api/premium/image-library/:id', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await GeneratedImage.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الصورة مش موجودة' });
+        if (doc.username !== req.user.username && req.user.type !== 'admin') {
+            return res.status(403).json({ error: 'غير مصرح لك بحذف الصورة دي' });
+        }
+        await deleteFromSupabase(doc.storageKey).catch(() => {});
+        await doc.deleteOne();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حذف صورة من المكتبة:', error.message);
+        res.status(500).json({ error: 'خطأ في حذف الصورة' });
     }
 });
 
@@ -6523,6 +6578,57 @@ const apiKeySchema = new mongoose.Schema({
     updatedBy: { type: String, default: '' }
 }, { timestamps: true });
 const ApiKeySetting = mongoose.models.ApiKeySetting || mongoose.model('ApiKeySetting', apiKeySchema);
+
+// ====================== مكتبة صور استوديو الصور (Premium) ======================
+// كل صورة بيتولّدها/يعدّلها الطالب في استوديو الصور بتتخزن نسخة دائمة منها في
+// R2 (مش هنعتمد على الرابط اللي بيرجّعه المزوّد نفسه — روابط زي Flux بتنتهي
+// صلاحيتها بعد دقايق قليلة) + سطر في الكولكشن دي عشان تفضل موجودة في "مكتبتي"
+// حتى بعد ما رابط المزوّد الأصلي يموت.
+const generatedImageSchema = new mongoose.Schema({
+    username: { type: String, required: true, index: true },
+    prompt: { type: String, default: '' },
+    provider: { type: String, default: '' }, // 'qwen' / 'grok' / 'flux'
+    source: { type: String, enum: ['generate', 'edit'], default: 'generate' },
+    imageUrl: { type: String, required: true }, // الرابط الدائم على R2
+    storageKey: { type: String, required: true }, // مفتاح R2 (لازم للحذف)
+    mimeType: { type: String, default: 'image/jpeg' }
+}, { timestamps: true });
+const GeneratedImage = mongoose.models.GeneratedImage || mongoose.model('GeneratedImage', generatedImageSchema);
+
+// بتاخد نتيجة إنشاء/تعديل صورة ناجحة (imageUrl مؤقت من المزوّد أو imageBase64)
+// وبتخزّن نسخة دائمة منها في R2 + سطر في GeneratedImage. عملية "best effort" —
+// لو فشلت (المزوّد رجّع رابط مات بسرعة، مشكلة شبكة، إلخ) منرجعش خطأ للطالب
+// أصلًا، الصورة نفسها لسه ظاهرة قدامه، بس مش هتتحفظ في المكتبة وقتها.
+async function saveGeneratedImageToLibrary({ username, prompt, provider, source, imageUrl, imageBase64, mimeType }) {
+    if (!username) return null;
+    try {
+        let buffer;
+        if (imageBase64) {
+            buffer = Buffer.from(imageBase64, 'base64');
+        } else if (imageUrl) {
+            const resp = await fetch(imageUrl);
+            if (!resp.ok) throw new Error(`تعذر تحميل الصورة من رابط المزوّد — status ${resp.status}`);
+            buffer = Buffer.from(await resp.arrayBuffer());
+        } else {
+            return null;
+        }
+        const ext = String(mimeType || 'image/jpeg').includes('png') ? 'png' : 'jpg';
+        const uploaded = await uploadToCloudinary(buffer, `image-library/${username}`, `image.${ext}`);
+        await connectToDatabase();
+        return await new GeneratedImage({
+            username,
+            prompt: String(prompt || '').slice(0, 500),
+            provider: provider || '',
+            source: source || 'generate',
+            imageUrl: uploaded.secure_url,
+            storageKey: uploaded.public_id,
+            mimeType: mimeType || 'image/jpeg'
+        }).save();
+    } catch (error) {
+        console.error('⚠️ فشل حفظ الصورة في مكتبة الطالب:', error.message);
+        return null;
+    }
+}
 
 // بترجع كل المفاتيح الشغالة (غير المعطّلة) المحفوظة في الداتابيز لمزوّد معيّن،
 // بالإضافة للمفتاح القديم (apiKey) لو لسه موجود، ولو مفيش ولا مفتاح خالص بترجع
