@@ -5060,6 +5060,36 @@ async function callAIJSON(systemPrompt, userPrompt, maxTokens = 1500) {
     throw err;
 }
 
+// زي callAIJSON بالظبط، بس بـ failover حقيقي: لو Gemini اتنادى عليه وفشل فعليًا
+// (مش بس مش مضبوط)، بتلف تلقائيًا على DeepSeek قبل ما ترمي خطأ نهائي. مفيدة
+// للفيتشرز اللي محتاجة أعلى نسبة نجاح ممكنة (زي تحسين وصف الصورة) بدل ما تقف
+// عند أول مزوّد يفشل.
+async function callAIJSONWithFailover(systemPrompt, userPrompt, maxTokens = 1500) {
+    const errors = [];
+    if (GEMINI_API_KEY) {
+        try {
+            const result = await callGeminiJSON(systemPrompt, userPrompt, maxTokens);
+            return { result, usedModel: 'gemini' };
+        } catch (error) {
+            console.error('⚠️ Gemini فشل، هنحاول DeepSeek:', error.message);
+            errors.push({ model: 'gemini', detail: error.message });
+        }
+    }
+    if (DEEPSEEK_API_KEY) {
+        try {
+            const result = await callDeepSeekJSON(systemPrompt, userPrompt, maxTokens);
+            return { result, usedModel: 'deepseek' };
+        } catch (error) {
+            console.error('⚠️ DeepSeek فشل كمان:', error.message);
+            errors.push({ model: 'deepseek', detail: error.message });
+        }
+    }
+    const err = new Error(errors.length ? 'كل موديلات الذكاء الاصطناعي المتاحة فشلت' : 'خدمة الذكاء الاصطناعي مش مفعّلة حاليًا (GEMINI_API_KEY أو DEEPSEEK_API_KEY مش مضبوطين)');
+    err.code = errors.length ? 'ai_all_failed' : 'ai_unavailable';
+    err.attempts = errors;
+    throw err;
+}
+
 // 🔍 تشخيصي — بيتأكد إن الـ Environment Variables فعلاً وصلت لنفس الـ instance
 // اللي بيرد على الطلبات دلوقتي (مش بس محفوظة في Vercel Dashboard). بيرجع
 // true/false بس (مش قيمة المفتاح نفسه) عشان الأمان. لو true وبرضو الفيتشرز
@@ -5773,14 +5803,19 @@ app.post('/api/premium/improve-image-prompt', verifyToken, requirePremium('premi
             + 'هتاخد وصف مختصر أو غامض من طالب، وترجّعه أوضح وأدق وغني بتفاصيل بصرية مفيدة (الألوان، التكوين، '
             + 'الإضاءة، مستوى التفاصيل) من غير ما تغيّر الفكرة الأساسية للطلب، وبنفس لغة الوصف الأصلي. '
             + 'رجّع رد JSON بس بالشكل: {"improved": "الوصف المحسّن هنا"} — من غير أي شرح أو نص زيادة.';
-        const result = await callAIJSON(systemPrompt, trimmed, 300);
+        const { result, usedModel } = await callAIJSONWithFailover(systemPrompt, trimmed, 300);
         const improved = String(result?.improved || '').trim().slice(0, 500);
         if (!improved) return res.status(502).json({ error: 'تعذر تحسين الوصف، حاول تاني' });
-        res.json({ improved });
+        res.json({ improved, usedModel });
     } catch (error) {
         console.error('❌ خطأ في تحسين وصف الصورة:', error.message);
-        const msg = error.code === 'ai_unavailable' ? 'ميزة تحسين الوصف مش مفعّلة حاليًا' : 'تعذر تحسين الوصف، حاول تاني';
-        res.status(502).json({ error: msg });
+        const msg = error.code === 'ai_unavailable' ? 'ميزة تحسين الوصف مش مفعّلة حاليًا'
+            : error.code === 'ai_all_failed' ? 'تعذر تحسين الوصف حاليًا (كل الموديلات المتاحة فشلت)، حاول تاني بعد شوية'
+            : 'تعذر تحسين الوصف، حاول تاني';
+        res.status(502).json({
+            error: msg,
+            ...(req.user?.type === 'admin' && error.attempts ? { debugAttempts: error.attempts } : {})
+        });
     }
 });
 
