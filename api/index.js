@@ -5580,10 +5580,24 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
         // تاني بيدعم تحديد الأبعاد ممكن ياخدها من نفس الـ opts لاحقًا.
         const sizeOpts = { width, height };
 
+        // الحد اليومي — الأدمن مستثنى تمامًا (زي باقي فحوصات الـ Premium).
+        const isAdminReq = req.user?.type === 'admin';
+        let quota = { used: 0, remaining: DAILY_IMAGE_LIMIT, limit: DAILY_IMAGE_LIMIT };
+        if (!isAdminReq) {
+            quota = await reserveImageQuota(req.user.username);
+            if (!quota.allowed) {
+                return res.status(429).json({
+                    error: `وصلت للحد الأقصى من إنشاء الصور اليوم (${DAILY_IMAGE_LIMIT} صور) — هيتجدد بكرة`,
+                    quotaRemaining: 0, quotaLimit: DAILY_IMAGE_LIMIT
+                });
+            }
+        }
+        const releaseQuotaIfNeeded = () => { if (!isAdminReq) return releaseImageQuota(req.user.username); };
+
         // ==== وضع: مزوّد محدد بالاسم ====
         if (provider && provider !== 'auto') {
             const entry = IMAGE_PROVIDERS[provider];
-            if (!entry) return res.status(400).json({ error: 'مزوّد غير معروف' });
+            if (!entry) { await releaseQuotaIfNeeded(); return res.status(400).json({ error: 'مزوّد غير معروف' }); }
             const result = await entry.fn(trimmed, sizeOpts);
             if (result.ok) {
                 const saved = await saveGeneratedImageToLibrary({
@@ -5592,11 +5606,12 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
                 });
                 return res.json({
                     imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, usedProvider: provider,
-                    savedToLibrary: !!saved
+                    savedToLibrary: !!saved, quotaRemaining: quota.remaining, quotaLimit: quota.limit
                 });
             }
             // فشل المزوّد المحدد — نرجع الخطأ صراحة (من غير أي fallback تلقائي
             // لمزوّد تاني)، عشان الطالب يعرف بالظبط اللي حصل مع اختياره.
+            await releaseQuotaIfNeeded();
             const reasonText = result.reason === 'no_api_key' ? 'المفتاح غير مضبوط لهذا المزوّد'
                 : result.reason === 'not_configured' ? 'المزوّد غير مفعّل حاليًا'
                 : result.status === 429 || result.status === 403 ? 'انتهى الرصيد المجاني لهذا المزوّد'
@@ -5618,13 +5633,15 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
                 });
                 return res.json({
                     imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType,
-                    usedProvider: key, savedToLibrary: !!saved,
+                    usedProvider: key, savedToLibrary: !!saved, quotaRemaining: quota.remaining, quotaLimit: quota.limit,
                     ...(key !== AUTO_ORDER[0] ? { fallback: true, fallbackProvider: key } : {})
                 });
             }
             attempts.push({ provider: key, ...result });
         }
-        // كل المزوّدين فشلوا — بنرجّع خطأ صريح بدل ما نتظاهر بالنجاح.
+        // كل المزوّدين فشلوا — بنرجّع خطأ صريح بدل ما نتظاهر بالنجاح، ونرجّع
+        // الطلقة المحجوزة من الحد اليومي لأن الطالب فعليًا مستفادش حاجة.
+        await releaseQuotaIfNeeded();
         console.error('⚠️ كل مزوّدي إنشاء الصور فشلوا:', JSON.stringify(attempts));
         res.status(502).json({
             error: 'تعذر إنشاء الصورة من أي مزوّد متاح حاليًا',
@@ -5653,15 +5670,33 @@ app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_s
         const entry = EDIT_PROVIDERS[cleanProvider];
         if (!entry) return res.status(400).json({ error: 'تعديل الصور مش متاح للمزوّد ده' });
 
+        // التعديل بيستهلك رصيد المزوّد زي الإنشاء بالظبط، فبيخصم من نفس الحد
+        // اليومي. الأدمن مستثنى تمامًا.
+        const isAdminReq = req.user?.type === 'admin';
+        let quota = { used: 0, remaining: DAILY_IMAGE_LIMIT, limit: DAILY_IMAGE_LIMIT };
+        if (!isAdminReq) {
+            quota = await reserveImageQuota(req.user.username);
+            if (!quota.allowed) {
+                return res.status(429).json({
+                    error: `وصلت للحد الأقصى من إنشاء/تعديل الصور اليوم (${DAILY_IMAGE_LIMIT} صور) — هيتجدد بكرة`,
+                    quotaRemaining: 0, quotaLimit: DAILY_IMAGE_LIMIT
+                });
+            }
+        }
+
         const result = await entry.fn(imageUrl, trimmedPrompt, { width, height });
         if (result.ok) {
             const saved = await saveGeneratedImageToLibrary({
                 username: req.user?.username, prompt: trimmedPrompt, provider: cleanProvider, source: 'edit',
                 imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType
             });
-            return res.json({ imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, savedToLibrary: !!saved });
+            return res.json({
+                imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType,
+                savedToLibrary: !!saved, quotaRemaining: quota.remaining, quotaLimit: quota.limit
+            });
         }
 
+        if (!isAdminReq) await releaseImageQuota(req.user.username);
         const reasonText = result.reason === 'no_api_key' ? `مفتاح ${entry.label} غير مضبوط`
             : result.status === 429 || result.status === 403 ? `انتهى الرصيد المتاح لـ ${entry.label}`
             : 'تعذر تعديل الصورة';
@@ -5708,6 +5743,44 @@ app.delete('/api/premium/image-library/:id', verifyToken, requirePremium('premiu
     } catch (error) {
         console.error('❌ خطأ في حذف صورة من المكتبة:', error.message);
         res.status(500).json({ error: 'خطأ في حذف الصورة' });
+    }
+});
+
+// بترجع حالة الحد اليومي (مستخدَم/متبقّي) من غير ما تستهلك حاجة — بينادى
+// عليها الفرونت إند وقت فتح تبويب "أنشئ صورة" عشان يعرض "متبقي كام" فورًا.
+app.get('/api/premium/image-quota', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        if (req.user?.type === 'admin') {
+            return res.json({ used: 0, remaining: DAILY_IMAGE_LIMIT, limit: DAILY_IMAGE_LIMIT, unlimited: true });
+        }
+        const quota = await getImageQuotaStatus(req.user.username);
+        res.json(quota);
+    } catch (error) {
+        console.error('❌ خطأ في جلب حد الصور اليومي:', error.message);
+        res.status(500).json({ error: 'خطأ في جلب حد الصور اليومي' });
+    }
+});
+
+// بتاخد وصف صورة (ممكن يكون مختصر أو غامض) وترجّعه أوضح وأغنى بالتفاصيل
+// البصرية عن طريق موديل نصي (Gemini أو DeepSeek — نفس اللي بيشغّل باقي فيتشرز
+// الذكاء الاصطناعي في الموقع). عملية نصية رخيصة، فمش بتستهلك من الحد اليومي
+// بتاع الصور.
+app.post('/api/premium/improve-image-prompt', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        const trimmed = String(req.body?.prompt || '').trim().slice(0, 500);
+        if (!trimmed) return res.status(400).json({ error: 'اكتب وصف الصورة الأول' });
+        const systemPrompt = 'انت مساعد متخصص في تحسين أوصاف الصور (prompts) لموديلات توليد صور بالذكاء الاصطناعي. '
+            + 'هتاخد وصف مختصر أو غامض من طالب، وترجّعه أوضح وأدق وغني بتفاصيل بصرية مفيدة (الألوان، التكوين، '
+            + 'الإضاءة، مستوى التفاصيل) من غير ما تغيّر الفكرة الأساسية للطلب، وبنفس لغة الوصف الأصلي. '
+            + 'رجّع رد JSON بس بالشكل: {"improved": "الوصف المحسّن هنا"} — من غير أي شرح أو نص زيادة.';
+        const result = await callAIJSON(systemPrompt, trimmed, 300);
+        const improved = String(result?.improved || '').trim().slice(0, 500);
+        if (!improved) return res.status(502).json({ error: 'تعذر تحسين الوصف، حاول تاني' });
+        res.json({ improved });
+    } catch (error) {
+        console.error('❌ خطأ في تحسين وصف الصورة:', error.message);
+        const msg = error.code === 'ai_unavailable' ? 'ميزة تحسين الوصف مش مفعّلة حاليًا' : 'تعذر تحسين الوصف، حاول تاني';
+        res.status(502).json({ error: msg });
     }
 });
 
@@ -6627,6 +6700,62 @@ async function saveGeneratedImageToLibrary({ username, prompt, provider, source,
     } catch (error) {
         console.error('⚠️ فشل حفظ الصورة في مكتبة الطالب:', error.message);
         return null;
+    }
+}
+
+// ====================== حد أقصى يومي لإنشاء/تعديل الصور (Premium) ======================
+// عشان منستهلكش رصيد المزوّدين (Qwen/Grok/Flux) بسرعة، كل طالب ليه حد أقصى
+// معيّن من الصور (إنشاء + تعديل مع بعض) في اليوم — بيتصفّر تلقائيًا كل يوم
+// (getTodayKey بيرجع تاريخ اليوم كنص، فأي يوم جديد = مفتاح جديد = عداد صفر).
+// الأدمن مستثنى تمامًا (زي باقي فحوصات الـ Premium في الموقع).
+const DAILY_IMAGE_LIMIT = 8;
+const imageStudioUsageSchema = new mongoose.Schema({
+    username: { type: String, required: true },
+    dayKey: { type: String, required: true }, // من getTodayKey()
+    count: { type: Number, default: 0 }
+}, { timestamps: true });
+imageStudioUsageSchema.index({ username: 1, dayKey: 1 }, { unique: true });
+const ImageStudioUsage = mongoose.models.ImageStudioUsage || mongoose.model('ImageStudioUsage', imageStudioUsageSchema);
+
+// بترجع حالة الحد اليومي من غير ما تزوّد العداد — مستخدمة لعرض "متبقّي كام"
+// في الواجهة (زي وقت فتح الاستوديو) قبل ما الطالب يحاول يولّد أصلًا.
+async function getImageQuotaStatus(username) {
+    await connectToDatabase();
+    const doc = await ImageStudioUsage.findOne({ username, dayKey: getTodayKey() }).select('count');
+    const used = doc?.count || 0;
+    return { used, remaining: Math.max(0, DAILY_IMAGE_LIMIT - used), limit: DAILY_IMAGE_LIMIT };
+}
+
+// بتحاول تحجز "طلقة" واحدة من الحد اليومي فورًا (زيادة العداد أتومي عن طريق
+// $inc عشان لو طلبين جم في نفس اللحظة العداد يفضل صح). لو الطالب وصل للحد،
+// بترجّع الزيادة اللي عملناها بالغلط وترفض الطلب من غير ما تستهلك حاجة فعليًا.
+async function reserveImageQuota(username) {
+    await connectToDatabase();
+    const dayKey = getTodayKey();
+    const updated = await ImageStudioUsage.findOneAndUpdate(
+        { username, dayKey },
+        { $inc: { count: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    if (updated.count > DAILY_IMAGE_LIMIT) {
+        await ImageStudioUsage.updateOne({ _id: updated._id }, { $inc: { count: -1 } });
+        return { allowed: false, used: DAILY_IMAGE_LIMIT, remaining: 0, limit: DAILY_IMAGE_LIMIT };
+    }
+    return { allowed: true, used: updated.count, remaining: Math.max(0, DAILY_IMAGE_LIMIT - updated.count), limit: DAILY_IMAGE_LIMIT };
+}
+
+// لو حجزنا طلقة وبعدين فشلت عملية الإنشاء/التعديل فعليًا (كل المزوّدين فشلوا
+// مثلًا)، الطالب مستفادش حاجة فعلًا — نرجّع العداد تاني عشان مايتحاسبش على
+// محاولة فشلت مش غلطته.
+async function releaseImageQuota(username) {
+    try {
+        await connectToDatabase();
+        await ImageStudioUsage.updateOne(
+            { username, dayKey: getTodayKey(), count: { $gt: 0 } },
+            { $inc: { count: -1 } }
+        );
+    } catch (error) {
+        console.error('⚠️ فشل استرجاع حد الصور اليومي:', error.message);
     }
 }
 
