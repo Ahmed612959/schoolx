@@ -222,6 +222,23 @@
         .gender-badge.female { background: var(--girl-bg); color: var(--girl); }
         .gender-badge.unknown { background: #f1f5f9; color: var(--muted); }
 
+        .bulk-gender-bar {
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+            background: #fff7e6; border: 1px solid #f1d38a; border-radius: 12px;
+            padding: 12px 16px; margin: 0 0 14px 0;
+        }
+        .bulk-gender-count { font-size: 0.85rem; font-weight: 700; color: var(--navy); display: flex; align-items: center; gap: 8px; }
+        .bulk-gender-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .bulk-gender-btn {
+            border: none; border-radius: 8px; padding: 8px 14px; font-size: 0.8rem; font-weight: 700;
+            cursor: pointer; display: flex; align-items: center; gap: 6px; color: #fff;
+        }
+        .bulk-gender-btn.male { background: var(--boy); }
+        .bulk-gender-btn.female { background: var(--girl); }
+        .bulk-gender-btn.clear { background: #94a3b8; }
+        .bulk-gender-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .row-checkbox, #selectAllCheckbox { width: 17px; height: 17px; cursor: pointer; }
+
         input, select { padding: 9px 12px; border-radius: var(--r-sm); border: 1.5px solid var(--line); font-family: 'Tajawal', sans-serif; font-size: 0.83rem; transition: 0.2s; width: 100%; background: var(--card); color: var(--ink); }
         input:focus, select:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 3px rgba(201,166,86,0.15); }
         .password-wrapper { display: flex; align-items: center; gap: 6px; }
@@ -391,10 +408,20 @@
         </div>
     </div>
 
+    <div class="bulk-gender-bar" id="bulkGenderBar" style="display:none;">
+        <span class="bulk-gender-count"><i class="fas fa-check-square"></i> تم تحديد <b id="bulkSelectedCount">0</b> طالب</span>
+        <div class="bulk-gender-actions">
+            <button type="button" class="bulk-gender-btn male" onclick="applyBulkGender('male')"><i class="fas fa-child-reaching"></i> تحديد كـ ولد</button>
+            <button type="button" class="bulk-gender-btn female" onclick="applyBulkGender('female')"><i class="fas fa-child-dress"></i> تحديد كـ بنت</button>
+            <button type="button" class="bulk-gender-btn clear" onclick="clearSelection()"><i class="fas fa-times"></i> إلغاء التحديد</button>
+        </div>
+    </div>
+
     <div class="table-wrapper">
         <table class="data-table" id="studentsTable">
             <thead>
                 <tr>
+                    <th><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
                     <th>#</th>
                     <th>الاسم الكامل</th>
                     <th>النوع</th>
@@ -410,7 +437,7 @@
                 </tr>
             </thead>
             <tbody id="studentsTableBody">
-                <tr><td colspan="12" class="no-data"><i class="fas fa-spinner fa-pulse"></i>جاري تحميل البيانات...</td></tr>
+                <tr><td colspan="13" class="no-data"><i class="fas fa-spinner fa-pulse"></i>جاري تحميل البيانات...</td></tr>
             </tbody>
         </table>
     </div>
@@ -500,6 +527,7 @@
     let allStudents = [];
     let editingStudentCode = null;
     let currentGenderFilter = 'all';
+    let selectedCodes = new Set();
 
     window.setGenderFilter = function(val, btnEl) {
         currentGenderFilter = val;
@@ -554,6 +582,66 @@
         if (icon) { icon.classList.toggle('fa-eye'); icon.classList.toggle('fa-eye-slash'); }
     }
 
+    // ✅ تحديد الطلاب لتعديل النوع (gender) لعدة طلاب دفعة واحدة
+    window.toggleSelectOne = function(studentCode, checkboxEl) {
+        if (checkboxEl.checked) selectedCodes.add(studentCode);
+        else selectedCodes.delete(studentCode);
+        updateBulkBar();
+    };
+
+    window.toggleSelectAll = function(checkboxEl) {
+        const rowBoxes = document.querySelectorAll('#studentsTableBody .row-checkbox');
+        rowBoxes.forEach(box => {
+            box.checked = checkboxEl.checked;
+            const code = box.getAttribute('data-code');
+            if (checkboxEl.checked) selectedCodes.add(code);
+            else selectedCodes.delete(code);
+        });
+        updateBulkBar();
+    };
+
+    window.clearSelection = function() {
+        selectedCodes.clear();
+        const selectAll = document.getElementById('selectAllCheckbox');
+        if (selectAll) selectAll.checked = false;
+        applyFilters();
+    };
+
+    function updateBulkBar() {
+        const bar = document.getElementById('bulkGenderBar');
+        const countEl = document.getElementById('bulkSelectedCount');
+        if (!bar || !countEl) return;
+        countEl.innerText = selectedCodes.size;
+        bar.style.display = selectedCodes.size > 0 ? 'flex' : 'none';
+    }
+
+    window.applyBulkGender = async function(gender) {
+        if (selectedCodes.size === 0) return;
+        const label = gender === 'male' ? 'ولد' : 'بنت';
+        if (!confirm(`هل تريد تحديد النوع "${label}" لعدد ${selectedCodes.size} طالب المحددين؟`)) return;
+
+        showToast('جاري تحديث النوع...', 'info');
+        try {
+            const response = await apiRequest('/api/admin/students/bulk-gender', {
+                method: 'PATCH',
+                body: JSON.stringify({ studentCodes: Array.from(selectedCodes), gender })
+            });
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || 'فشل التحديث');
+            }
+            const result = await response.json();
+            selectedCodes.clear();
+            const selectAll = document.getElementById('selectAllCheckbox');
+            if (selectAll) selectAll.checked = false;
+            await loadStudents();
+            showToast(result.message || 'تم تحديث النوع بنجاح', 'success');
+        } catch (error) {
+            console.error('❌ خطأ في تحديث النوع الجماعي:', error);
+            showToast('فشل التحديث: ' + error.message, 'error');
+        }
+    };
+
     function genderBadge(gender) {
         if (gender === 'male') return `<span class="gender-badge male"><i class="fas fa-child-reaching"></i> ولد</span>`;
         if (gender === 'female') return `<span class="gender-badge female"><i class="fas fa-child-dress"></i> بنت</span>`;
@@ -580,6 +668,7 @@
             filtered = filtered.filter(s => s.gender === currentGenderFilter);
         }
         renderStudents(filtered);
+        updateBulkBar();
     }
 
     function renderStudents(students) {
@@ -587,7 +676,8 @@
         if (!tbody) return;
 
         if (students.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="12" class="no-data"><i class="fas fa-inbox"></i>لا يوجد طلاب مطابقين للبحث</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13" class="no-data"><i class="fas fa-inbox"></i>لا يوجد طلاب مطابقين للبحث</td></tr>';
+            updateBulkBar();
             return;
         }
 
@@ -598,8 +688,10 @@
 
             if (!isEditing) {
                 // وضع العرض
+                const isChecked = selectedCodes.has(studentCode);
                 return `
                     <tr>
+                        <td data-label=""><input type="checkbox" class="row-checkbox" data-code="${escapeHtml(studentCode)}" ${isChecked ? 'checked' : ''} onchange="toggleSelectOne('${studentCode}', this)"></td>
                         <td data-label="#">${index + 1}</td>
                         <td data-label="الاسم"><b>${escapeHtml(student.fullName)}</b></td>
                         <td data-label="النوع">${genderBadge(student.gender)}</td>
@@ -620,6 +712,7 @@
                 // وضع التعديل
                 return `
                     <tr style="background:#fdf9f0;">
+                        <td data-label=""></td>
                         <td data-label="#">${index + 1}</td>
                         <td data-label="الاسم"><input type="text" id="full-${studentCode}" value="${escapeHtml(student.fullName)}" required></td>
                         <td data-label="النوع">
