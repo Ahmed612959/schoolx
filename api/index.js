@@ -5300,15 +5300,140 @@ async function fetchGeminiWithRetry(url, options, retries = 1, delayMs = 1500) {
     }
 }
 
-// تحليل صورة برؤية AI حقيقية (multimodal) — مش OCR نصي بس زي الـ Tesseract في
-// الشات العادي. بيبعت بايتس الصورة فعليًا لـ Gemini، فبيقدر يوصف رسومات
-// ومخططات وصور مش نصية خالص (زي صورة جهاز أو رسم تشريحي)، وده اللي بيدّي
-// الدقة العالية المطلوبة. مفيش fallback لـ DeepSeek هنا لأنه مش بيدعم رؤية.
+// ====================== تحليل الصور برؤية AI حقيقية (Vision) — بـ failover ======================
+// مش OCR نصي بس زي الـ Tesseract في الشات العادي — بتبعت بايتس الصورة فعليًا
+// لموديل عنده رؤية حقيقية (multimodal)، فبيقدر يوصف رسومات ومخططات وصور مش
+// نصية خالص (زي صورة جهاز أو رسم تشريحي). زي نظام تحسين الوصف بالظبط: بتلف
+// على كل الموديلات المتاحة اللي بتدعم رؤية بالترتيب (Gemini، بعدين DeepSeek
+// عن طريق موديل deepseek-v4-flash-vision-exp التجريبي، بعدين Qwen عن طريق
+// qwen3-vl-plus) — أول واحد يرد بنجاح بناخد رده، ولو فشل بنعدّي للي بعده.
+
+async function analyzeImageWithGemini(systemPrompt, userText, imageBase64, mimeType) {
+    const response = await fetchGeminiWithRetry(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+        {
+            method: 'POST',
+            headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{
+                    role: 'user',
+                    parts: [
+                        { text: userText },
+                        { inline_data: { mime_type: mimeType, data: imageBase64 } }
+                    ]
+                }],
+                generationConfig: { maxOutputTokens: 1500, temperature: 0.2 } // temperature منخفضة عمدًا هنا — دقة أهم من إبداع في تحليل صورة
+            })
+        }
+    );
+    if (!response.ok) {
+        let detail = 'فشل استدعاء Gemini';
+        try { const d = await response.json(); if (d?.error?.message) detail = d.error.message; } catch (_) {}
+        const err = new Error(detail);
+        err.code = 'ai_call_failed';
+        throw err;
+    }
+    const data = await response.json();
+    const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!analysis) { const err = new Error('رد Gemini مكانش فيه نص تحليل'); err.code = 'ai_bad_response'; throw err; }
+    return analysis;
+}
+
+// deepseek-v4-flash-vision-exp — موديل DeepSeek التجريبي للرؤية، بنفس صيغة
+// OpenAI Chat Completions (image_url بـ data URL base64).
+async function analyzeImageWithDeepSeek(systemPrompt, userText, imageBase64, mimeType) {
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'deepseek-v4-flash-vision-exp',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: [
+                    { type: 'text', text: userText },
+                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
+                ] }
+            ],
+            temperature: 0.2,
+            max_tokens: 1500
+        })
+    });
+    if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        const err = new Error(`فشل استدعاء DeepSeek Vision (status ${response.status})`);
+        err.code = 'ai_call_failed';
+        err.detail = errBody.slice(0, 300);
+        throw err;
+    }
+    const data = await response.json();
+    const analysis = (data.choices?.[0]?.message?.content || '').trim();
+    if (!analysis) { const err = new Error('رد DeepSeek مكانش فيه نص تحليل'); err.code = 'ai_bad_response'; throw err; }
+    return analysis;
+}
+
+// qwen3-vl-plus عن طريق DashScope compatible-mode — نفس مفتاح الشات النصي
+// (QWEN_CHAT_API_KEY)، بنفس صيغة OpenAI Chat Completions.
+async function analyzeImageWithQwen(systemPrompt, userText, imageBase64, mimeType) {
+    const response = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${QWEN_CHAT_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'qwen3-vl-plus',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: [
+                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+                    { type: 'text', text: userText }
+                ] }
+            ],
+            temperature: 0.2,
+            max_tokens: 1500
+        })
+    });
+    if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        const err = new Error(`فشل استدعاء Qwen Vision (status ${response.status})`);
+        err.code = 'ai_call_failed';
+        err.detail = errBody.slice(0, 300);
+        throw err;
+    }
+    const data = await response.json();
+    const analysis = (data.choices?.[0]?.message?.content || '').trim();
+    if (!analysis) { const err = new Error('رد Qwen مكانش فيه نص تحليل'); err.code = 'ai_bad_response'; throw err; }
+    return analysis;
+}
+
+const VISION_AI_FAILOVER_CHAIN = [
+    { key: 'gemini', label: 'Gemini', enabled: () => !!GEMINI_API_KEY, run: analyzeImageWithGemini },
+    { key: 'deepseek', label: 'DeepSeek', enabled: () => !!DEEPSEEK_API_KEY, run: analyzeImageWithDeepSeek },
+    { key: 'qwen', label: 'Qwen', enabled: () => !!QWEN_CHAT_API_KEY, run: analyzeImageWithQwen }
+];
+
+// بتلف على VISION_AI_FAILOVER_CHAIN بالترتيب وترجع أول تحليل ناجح — بالظبط زي
+// callAIJSONWithFailover بتاعة تحسين الوصف، بس هنا للتحليل النصي الحر (مش JSON).
+async function analyzeImageWithFailover(systemPrompt, userText, imageBase64, mimeType) {
+    const errors = [];
+    for (const provider of VISION_AI_FAILOVER_CHAIN) {
+        if (!provider.enabled()) continue;
+        try {
+            const analysis = await provider.run(systemPrompt, userText, imageBase64, mimeType);
+            return { analysis, usedModel: provider.key };
+        } catch (error) {
+            console.error(`⚠️ ${provider.label} فشل في تحليل الصورة${error.detail ? ' — ' + error.detail : ''}:`, error.message);
+            errors.push({ model: provider.key, detail: error.message });
+        }
+    }
+    const err = new Error(errors.length ? 'كل موديلات تحليل الصور فشلت' : 'خدمة تحليل الصور مش مفعّلة حاليًا');
+    err.code = errors.length ? 'ai_all_failed' : 'ai_unavailable';
+    err.attempts = errors;
+    throw err;
+}
+
 app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { image, question } = req.body || {};
         if (!image || !image.base64 || !image.mimeType) return res.status(400).json({ error: 'الصورة مطلوبة' });
-        if (!GEMINI_API_KEY) return res.status(503).json({ error: 'خدمة تحليل الصور مش مفعّلة حاليًا (GEMINI_API_KEY مش مضبوط)' });
         if (image.base64.length > 8_000_000) return res.status(413).json({ error: 'الصورة كبيرة قوي' });
 
         const trimmedQuestion = String(question || '').trim().slice(0, 500);
@@ -5320,37 +5445,17 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
 - رد بالعربي، بشكل منظم وواضح، من غير مبالغة أو تخمين لحاجة مش واضحة في الصورة — لو حاجة مش واضحة قول كده صراحة بدل ما تخمّن.`;
         const userText = trimmedQuestion || 'حلّل الصورة دي بالتفصيل واشرح كل حاجة مهمة فيها.';
 
-        const response = await fetchGeminiWithRetry(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
-            {
-                method: 'POST',
-                headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    system_instruction: { parts: [{ text: systemPrompt }] },
-                    contents: [{
-                        role: 'user',
-                        parts: [
-                            { text: userText },
-                            { inline_data: { mime_type: image.mimeType, data: image.base64 } }
-                        ]
-                    }],
-                    generationConfig: { maxOutputTokens: 1500, temperature: 0.2 } // temperature منخفضة عمدًا هنا — دقة أهم من إبداع في تحليل صورة
-                })
-            }
-        );
-        if (!response.ok) {
-            let detail = 'فشل تحليل الصورة';
-            try { const d = await response.json(); if (d?.error?.message) detail = d.error.message; } catch (_) {}
-            const isOverload = response.status === 503;
-            return res.status(502).json({ error: isOverload ? 'الخدمة مزدحمة حاليًا، جرب تاني بعد شوية' : detail });
-        }
-        const data = await response.json();
-        const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!analysis) return res.status(502).json({ error: 'تعذر الحصول على تحليل للصورة دي' });
-        res.json({ analysis });
+        const { analysis, usedModel } = await analyzeImageWithFailover(systemPrompt, userText, image.base64, image.mimeType);
+        res.json({ analysis, usedModel });
     } catch (error) {
         console.error('❌ خطأ في تحليل الصورة:', error.message);
-        res.status(500).json({ error: 'خطأ في تحليل الصورة' });
+        const msg = error.code === 'ai_unavailable' ? 'خدمة تحليل الصور مش مفعّلة حاليًا'
+            : error.code === 'ai_all_failed' ? 'تعذر تحليل الصورة حاليًا (كل الموديلات المتاحة فشلت)، حاول تاني بعد شوية'
+            : 'خطأ في تحليل الصورة';
+        res.status(502).json({
+            error: msg,
+            ...(req.user?.type === 'admin' && error.attempts ? { debugAttempts: error.attempts } : {})
+        });
     }
 });
 
