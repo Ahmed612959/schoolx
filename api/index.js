@@ -5583,36 +5583,25 @@ async function genEdit_grok(imageUrl, editPrompt) {
     });
 }
 
-// gpt-4o-image (عن طريق CometAPI /v1/responses) — الموديل ده أصلًا موديل شات
-// (مش موديل صور مخصص)، وبيولّد الصورة "تقنيًا" عن طريق ورك أراوند من CometAPI:
-// بيرجّع نص فيه مراحل تقدّم (Queuing/Generating/Progress) وفي الآخر رابط
-// الصورة متحطوط جوه الرد كـ Markdown image link (زي "![gen_x](https://...png)")
-// مش في حقل صورة منفصل زي باقي المزوّدين. الطلب متزامن (بيفضل مفتوح لحد ما
-// يخلص، من غير polling منفصل) لكن ممكن ياخد وقت زي Flux بالظبط.
+// gpt-4o-image (عن طريق CometAPI /v1/chat/completions) — الموديل ده أصلًا
+// موديل شات (مش موديل صور مخصص)، وبيولّد الصورة "تقنيًا" عن طريق ورك أراوند
+// من CometAPI: بيرجّع نص فيه مراحل تقدّم (Queuing/Generating/Progress) وفي
+// الآخر رابط الصورة متحطوط جوه محتوى الرسالة كـ Markdown image link (زي
+// "![gen_x](https://...png)") مش في حقل صورة منفصل زي باقي المزوّدين.
+// ⚠️ جربنا الأول endpoint /v1/responses (زي ما جه في طلب الإضافة الأصلي) لكنه
+// رجّع 404 Not Found من CometAPI — يبدو إن الموديل ده مش متاح عليه فعليًا،
+// والـ endpoint الموثّق رسميًا من CometAPI لـ gpt-4o-image هو /v1/chat/completions
+// (بصيغة OpenAI شات عادية). الطلب متزامن (بيفضل مفتوح لحد ما يخلص، من غير
+// polling منفصل) لكن ممكن ياخد وقت زي Flux بالظبط.
 const GPT4O_IMAGE_MODEL = 'gpt-4o-image';
 
-// بتجمع كل النص من رد /v1/responses (سواء الحقل المختصر output_text أو
-// output[].content[].text) وتدوّر جواه على رابط صورة Markdown، أو رابط عادي
-// بامتداد صورة كـ fallback لو الشكل اختلف شوية.
-function extractGpt4oImage(data) {
-    const direct = data?.output_image || data?.image_url;
-    if (direct) return direct;
-
-    let combinedText = '';
-    if (typeof data?.output_text === 'string') combinedText += data.output_text;
-    if (Array.isArray(data?.output)) {
-        for (const item of data.output) {
-            if (Array.isArray(item?.content)) {
-                for (const c of item.content) {
-                    if (c?.type === 'output_image' && (c.image_url || c.url || c.b64_json)) return c.image_url || c.url || c.b64_json;
-                    if (typeof c?.text === 'string') combinedText += '\n' + c.text;
-                }
-            }
-        }
-    }
-    const markdownMatch = combinedText.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+// بتدوّر جوه نص رد الشات (choices[0].message.content) على رابط صورة Markdown،
+// أو رابط عادي بامتداد صورة كـ fallback لو الشكل اختلف شوية.
+function extractGpt4oImage(content) {
+    if (!content) return null;
+    const markdownMatch = content.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
     if (markdownMatch) return markdownMatch[1];
-    const urlMatch = combinedText.match(/https?:\/\/\S+?\.(?:png|jpe?g|webp)(?:\?\S*)?/i);
+    const urlMatch = content.match(/https?:\/\/\S+?\.(?:png|jpe?g|webp)(?:\?\S*)?/i);
     if (urlMatch) return urlMatch[0];
     return null;
 }
@@ -5620,12 +5609,12 @@ function extractGpt4oImage(data) {
 async function genImage_gpt4o(trimmed) {
     return withKeyRotation('gpt4o-image', process.env.COMETAPI_KEY || '', async (apiKey) => {
         try {
-            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: GPT4O_IMAGE_MODEL,
-                    input: [{ role: 'user', content: [{ type: 'input_text', text: trimmed }] }]
+                    messages: [{ role: 'user', content: trimmed }]
                 })
             });
             if (!response.ok) {
@@ -5634,13 +5623,13 @@ async function genImage_gpt4o(trimmed) {
                 return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
             }
             const data = await response.json();
-            const img = extractGpt4oImage(data);
+            const content = data?.choices?.[0]?.message?.content || '';
+            const img = extractGpt4oImage(content);
             if (!img) {
                 console.error('⚠️ gpt-4o-image: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
-                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+                return { ok: false, reason: 'no_image_in_response', detail: (content || JSON.stringify(data)).slice(0, 300) };
             }
-            if (/^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
-            return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+            return { ok: true, imageUrl: img };
         } catch (error) {
             console.error('❌ gpt-4o-image (CometAPI) exception:', error.message);
             return { ok: false, reason: 'exception', detail: error.message };
@@ -5648,21 +5637,22 @@ async function genImage_gpt4o(trimmed) {
     });
 }
 
-// تعديل صورة موجودة بوصف نصي — gpt-4o-image، عن طريق تمرير رابط الصورة
-// الأصلية كـ input_image مع وصف التعديل كـ input_text في نفس الرسالة.
+// تعديل صورة موجودة بوصف نصي — gpt-4o-image، عن طريق رسالة شات فيها محتوى
+// متعدد (نص + image_url) بصيغة OpenAI Vision العادية (نفس اللي بيستخدمها
+// analyzeImageWithDeepSeek/Qwen في تحليل الصور).
 async function genEdit_gpt4o(imageUrl, editPrompt) {
     return withKeyRotation('gpt4o-image', process.env.COMETAPI_KEY || '', async (apiKey) => {
         try {
-            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: GPT4O_IMAGE_MODEL,
-                    input: [{
+                    messages: [{
                         role: 'user',
                         content: [
-                            { type: 'input_text', text: editPrompt },
-                            { type: 'input_image', image_url: imageUrl }
+                            { type: 'text', text: editPrompt },
+                            { type: 'image_url', image_url: { url: imageUrl } }
                         ]
                     }]
                 })
@@ -5673,13 +5663,13 @@ async function genEdit_gpt4o(imageUrl, editPrompt) {
                 return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
             }
             const data = await response.json();
-            const img = extractGpt4oImage(data);
+            const content = data?.choices?.[0]?.message?.content || '';
+            const img = extractGpt4oImage(content);
             if (!img) {
                 console.error('⚠️ gpt-4o-image edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
-                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+                return { ok: false, reason: 'no_image_in_response', detail: (content || JSON.stringify(data)).slice(0, 300) };
             }
-            if (/^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
-            return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+            return { ok: true, imageUrl: img };
         } catch (error) {
             console.error('❌ gpt-4o-image edit exception:', error.message);
             return { ok: false, reason: 'exception', detail: error.message };
