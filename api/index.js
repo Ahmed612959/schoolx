@@ -5583,6 +5583,110 @@ async function genEdit_grok(imageUrl, editPrompt) {
     });
 }
 
+// gpt-4o-image (عن طريق CometAPI /v1/responses) — الموديل ده أصلًا موديل شات
+// (مش موديل صور مخصص)، وبيولّد الصورة "تقنيًا" عن طريق ورك أراوند من CometAPI:
+// بيرجّع نص فيه مراحل تقدّم (Queuing/Generating/Progress) وفي الآخر رابط
+// الصورة متحطوط جوه الرد كـ Markdown image link (زي "![gen_x](https://...png)")
+// مش في حقل صورة منفصل زي باقي المزوّدين. الطلب متزامن (بيفضل مفتوح لحد ما
+// يخلص، من غير polling منفصل) لكن ممكن ياخد وقت زي Flux بالظبط.
+const GPT4O_IMAGE_MODEL = 'gpt-4o-image';
+
+// بتجمع كل النص من رد /v1/responses (سواء الحقل المختصر output_text أو
+// output[].content[].text) وتدوّر جواه على رابط صورة Markdown، أو رابط عادي
+// بامتداد صورة كـ fallback لو الشكل اختلف شوية.
+function extractGpt4oImage(data) {
+    const direct = data?.output_image || data?.image_url;
+    if (direct) return direct;
+
+    let combinedText = '';
+    if (typeof data?.output_text === 'string') combinedText += data.output_text;
+    if (Array.isArray(data?.output)) {
+        for (const item of data.output) {
+            if (Array.isArray(item?.content)) {
+                for (const c of item.content) {
+                    if (c?.type === 'output_image' && (c.image_url || c.url || c.b64_json)) return c.image_url || c.url || c.b64_json;
+                    if (typeof c?.text === 'string') combinedText += '\n' + c.text;
+                }
+            }
+        }
+    }
+    const markdownMatch = combinedText.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+    if (markdownMatch) return markdownMatch[1];
+    const urlMatch = combinedText.match(/https?:\/\/\S+?\.(?:png|jpe?g|webp)(?:\?\S*)?/i);
+    if (urlMatch) return urlMatch[0];
+    return null;
+}
+
+async function genImage_gpt4o(trimmed) {
+    return withKeyRotation('gpt4o-image', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: GPT4O_IMAGE_MODEL,
+                    input: [{ role: 'user', content: [{ type: 'input_text', text: trimmed }] }]
+                })
+            });
+            if (!response.ok) {
+                const errBody = await response.text().catch(() => '');
+                console.error(`❌ gpt-4o-image (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
+                return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+            }
+            const data = await response.json();
+            const img = extractGpt4oImage(data);
+            if (!img) {
+                console.error('⚠️ gpt-4o-image: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            if (/^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+            return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+        } catch (error) {
+            console.error('❌ gpt-4o-image (CometAPI) exception:', error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
+        }
+    });
+}
+
+// تعديل صورة موجودة بوصف نصي — gpt-4o-image، عن طريق تمرير رابط الصورة
+// الأصلية كـ input_image مع وصف التعديل كـ input_text في نفس الرسالة.
+async function genEdit_gpt4o(imageUrl, editPrompt) {
+    return withKeyRotation('gpt4o-image', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const response = await fetch(`${COMETAPI_BASE_URL}/v1/responses`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: GPT4O_IMAGE_MODEL,
+                    input: [{
+                        role: 'user',
+                        content: [
+                            { type: 'input_text', text: editPrompt },
+                            { type: 'input_image', image_url: imageUrl }
+                        ]
+                    }]
+                })
+            });
+            if (!response.ok) {
+                const errBody = await response.text().catch(() => '');
+                console.error(`❌ gpt-4o-image edit فشل — status ${response.status}:`, errBody.slice(0, 800));
+                return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+            }
+            const data = await response.json();
+            const img = extractGpt4oImage(data);
+            if (!img) {
+                console.error('⚠️ gpt-4o-image edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            if (/^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+            return { ok: true, imageBase64: String(img).replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+        } catch (error) {
+            console.error('❌ gpt-4o-image edit exception:', error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
+        }
+    });
+}
+
 // Flux 2 Max (عن طريق CometAPI /flux/v1/flux-2-max) — نفس فكرة Grok، بس الـ
 // endpoint ده غير متزامن (async): أول طلب POST بيرجّع id (وأحيانًا polling_url
 // جاهز)، وبعدين لازم نستعلم على /flux/v1/get_result لحد ما تجهز الصورة أو
@@ -5761,17 +5865,19 @@ async function genEdit_flux(imageUrl, editPrompt, opts = {}) {
 const IMAGE_PROVIDERS = {
     qwen: { fn: genImage_qwen, label: 'Qwen' },
     grok: { fn: genImage_grok, label: 'Grok' },
-    flux: { fn: genImage_flux, label: 'Flux' }
+    flux: { fn: genImage_flux, label: 'Flux' },
+    'gpt4o-image': { fn: genImage_gpt4o, label: 'GPT-4o Image' }
 };
 // مزوّدين بيدعموا تعديل صورة موجودة بوصف نصي (مش كل المزوّدين بيدعموا ده — Qwen مثلًا لأ).
 const EDIT_PROVIDERS = {
     grok: { fn: genEdit_grok, label: 'Grok' },
-    flux: { fn: genEdit_flux, label: 'Flux' }
+    flux: { fn: genEdit_flux, label: 'Flux' },
+    'gpt4o-image': { fn: genEdit_gpt4o, label: 'GPT-4o Image' }
 };
-// الترتيب التلقائي — Qwen (الرسمي) الأول، ولو فشل أو خلص رصيده نروح على Grok،
-// ولو ده كمان فشل نروح على Flux، تلقائيًا عشان العملية تفضل مستمرة من غير ما
-// الطالب يحس بأي انقطاع.
-const AUTO_ORDER = ['qwen', 'grok', 'flux'];
+// الترتيب التلقائي — Qwen (الرسمي) الأول، وبعدين Grok، وبعدين Flux، وأخيرًا
+// gpt-4o-image (آخر واحد لأنه أبطأ نسبيًا — بيمر بمراحل توليد جوّاه). أي واحد
+// فشل أو خلص رصيده بنعدّي للي بعده تلقائيًا من غير ما الطالب يحس بأي انقطاع.
+const AUTO_ORDER = ['qwen', 'grok', 'flux', 'gpt4o-image'];
 
 // إنشاء صورة — إما "تلقائي" (بيجرب المزوّدين بالترتيب لحد ما واحد ينجح)، أو
 // مزوّد محدد يختاره الطالب بنفسه من قائمة استوديو الصور (وقتها منجربش غيره
