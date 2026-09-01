@@ -97,6 +97,23 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 // مفتاح Qwen (عن طريق DashScope — Alibaba Cloud) لتوليد الصور — نفس القيمة دي
 // بتستخدم كـ fallback لو مفيش مفتاح محفوظ لـ "qwen" في لوحة الأدمن (ApiKeySetting).
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || '';
+// مفاتيح الموديلات "العادية" (المجانية) اللي بيستخدمها الشات الرئيسي في مشروع
+// chatx المنفصل — نفس أسماء الـ Environment Variables بالظبط عشان لو كانت
+// متضبطة على نفس الحساب تشتغل هنا من غير أي إعداد إضافي. بنستخدمهم بس كـ
+// احتياطي (fallback) لفيتشرز نصية زي "تحسين وصف الصورة" — Cerebras وOneHop
+// (النسخة القديمة، claude-opus) مستبعدين عمدًا لأنهم مخصصين لميزة premium_ai.
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || '';
+const SAMBANOVA_API_KEY = process.env.SAMBANOVA_API_KEY || '';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+// ONEHOP_API_KEY في مشروع chatx بقى فعليًا مفتاح OpenRouter (بنفس الاسم القديم
+// بطلب صاحب المشروع) بيتنادى بموديل مجاني ثابت — عاملينه هنا كخطوة احتياطية
+// منفصلة لأنه مفتاح/quota مختلف عن OPENROUTER_API_KEY العادي.
+const ONEHOP_API_KEY = process.env.ONEHOP_API_KEY || '';
+// موديل Qwen النصي (chat) عن طريق DashScope — ممكن يكون نفس مفتاح الصور
+// (DASHSCOPE_API_KEY) شغال، فبنجرب QWEN_API_KEY الأول وإلا نرجع لنفس مفتاح
+// الصور كـ fallback.
+const QWEN_CHAT_API_KEY = process.env.QWEN_API_KEY || DASHSCOPE_API_KEY;
 // رابط خدمة بايثون المنفصلة (استخراج نص من ملفات + فحص تشابه TF-IDF).
 // شوف python-service/README.md لتفاصيل النشر والربط. لو فاضي، الفيتشرز اللي
 // بتعتمد عليها (توليد أسئلة/تلخيص من ملفات المكتبة، فحص التشابه) بترجع رسالة
@@ -5064,27 +5081,72 @@ async function callAIJSON(systemPrompt, userPrompt, maxTokens = 1500) {
 // (مش بس مش مضبوط)، بتلف تلقائيًا على DeepSeek قبل ما ترمي خطأ نهائي. مفيدة
 // للفيتشرز اللي محتاجة أعلى نسبة نجاح ممكنة (زي تحسين وصف الصورة) بدل ما تقف
 // عند أول مزوّد يفشل.
+// نداء عام لأي مزوّد متوافق مع OpenAI Chat Completions API (Groq وMistral
+// وSambaNova وQwen (النصي) وOpenRouter كلهم بنفس الشكل بالظبط) — بيرجّع رد
+// JSON بعد تنضيف أي ```json fences لو الموديل حطها رغم التعليمات.
+async function callOpenAICompatJSON(url, apiKey, model, systemPrompt, userPrompt, maxTokens, extraHeaders = {}) {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...extraHeaders },
+        body: JSON.stringify({
+            model,
+            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+            temperature: 0.4,
+            max_tokens: maxTokens,
+            stream: false
+        })
+    });
+    if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        const err = new Error(`فشل استدعاء الموديل (status ${response.status})`);
+        err.code = 'ai_call_failed';
+        err.detail = errBody.slice(0, 300);
+        throw err;
+    }
+    const data = await response.json();
+    const raw = (data.choices?.[0]?.message?.content || '').trim();
+    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+    try {
+        return JSON.parse(cleaned);
+    } catch (e) {
+        const err = new Error('رد الموديل مكانش JSON صالح');
+        err.code = 'ai_bad_json';
+        throw err;
+    }
+}
+
+// سلسلة الـ failover الكاملة على كل الموديلات "العادية" (المجانية/الأساسية)
+// المتاحة — Gemini وDeepSeek الأول (الأعلى جودة عادةً)، وبعدين كل الموديلات
+// المجانية المستخدمة في شات chatx بنفس الترتيب. Cerebras وclaude-opus/OneHop
+// (النسخة القديمة) مستبعدين عمدًا لأنهم موديلات premium_ai. أي مفتاح مش مضبوط
+// بيتخطّى تلقائيًا (enabled: false) من غير ما يوقف السلسلة.
+const TEXT_AI_FAILOVER_CHAIN = [
+    { key: 'gemini', label: 'Gemini', enabled: () => !!GEMINI_API_KEY, run: (sys, user, max) => callGeminiJSON(sys, user, max) },
+    { key: 'deepseek', label: 'DeepSeek', enabled: () => !!DEEPSEEK_API_KEY, run: (sys, user, max) => callDeepSeekJSON(sys, user, max) },
+    { key: 'groq', label: 'Groq', enabled: () => !!GROQ_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://api.groq.com/openai/v1/chat/completions', GROQ_API_KEY, 'openai/gpt-oss-20b', sys, user, max) },
+    { key: 'mistral', label: 'Mistral', enabled: () => !!MISTRAL_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://api.mistral.ai/v1/chat/completions', MISTRAL_API_KEY, 'mistral-small-latest', sys, user, max) },
+    { key: 'sambanova', label: 'SambaNova', enabled: () => !!SAMBANOVA_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://api.sambanova.ai/v1/chat/completions', SAMBANOVA_API_KEY, 'Meta-Llama-3.3-70B-Instruct', sys, user, max) },
+    { key: 'qwen-chat', label: 'Qwen', enabled: () => !!QWEN_CHAT_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', QWEN_CHAT_API_KEY, 'qwen-plus', sys, user, max) },
+    { key: 'openrouter', label: 'OpenRouter', enabled: () => !!OPENROUTER_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://openrouter.ai/api/v1/chat/completions', OPENROUTER_API_KEY, 'openrouter/free', sys, user, max, { 'HTTP-Referer': 'https://school-x.vercel.app', 'X-Title': 'School X' }) },
+    { key: 'onehop', label: 'OneHop', enabled: () => !!ONEHOP_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://openrouter.ai/api/v1/chat/completions', ONEHOP_API_KEY, 'dots-studio/dots-3-note-preview:free', sys, user, max) }
+];
+
+// بتلف على TEXT_AI_FAILOVER_CHAIN بالترتيب وترجع أول رد ناجح — مستخدمة
+// للفيتشرز اللي محتاجة أعلى نسبة نجاح ممكنة (زي تحسين وصف الصورة) بدل ما تقف
+// عند أول موديل يفشل أو ميكونش مضبوط.
 async function callAIJSONWithFailover(systemPrompt, userPrompt, maxTokens = 1500) {
     const errors = [];
-    if (GEMINI_API_KEY) {
+    for (const provider of TEXT_AI_FAILOVER_CHAIN) {
+        if (!provider.enabled()) continue;
         try {
-            const result = await callGeminiJSON(systemPrompt, userPrompt, maxTokens);
-            return { result, usedModel: 'gemini' };
+            const result = await provider.run(systemPrompt, userPrompt, maxTokens);
+            return { result, usedModel: provider.key };
         } catch (error) {
-            console.error('⚠️ Gemini فشل، هنحاول DeepSeek:', error.message);
-            errors.push({ model: 'gemini', detail: error.message });
+            console.error(`⚠️ ${provider.label} فشل${error.detail ? ' — ' + error.detail : ''}:`, error.message);
+            errors.push({ model: provider.key, detail: error.message });
         }
     }
-    if (DEEPSEEK_API_KEY) {
-        try {
-            const result = await callDeepSeekJSON(systemPrompt, userPrompt, maxTokens);
-            return { result, usedModel: 'deepseek' };
-        } catch (error) {
-            console.error('⚠️ DeepSeek فشل كمان:', error.message);
-            errors.push({ model: 'deepseek', detail: error.message });
-        }
-    }
-    const err = new Error(errors.length ? 'كل موديلات الذكاء الاصطناعي المتاحة فشلت' : 'خدمة الذكاء الاصطناعي مش مفعّلة حاليًا (GEMINI_API_KEY أو DEEPSEEK_API_KEY مش مضبوطين)');
+    const err = new Error(errors.length ? 'كل موديلات الذكاء الاصطناعي المتاحة فشلت' : 'مفيش أي موديل ذكاء اصطناعي مضبوط حاليًا');
     err.code = errors.length ? 'ai_all_failed' : 'ai_unavailable';
     err.attempts = errors;
     throw err;
@@ -5448,12 +5510,21 @@ function extractFluxImage(data) {
 }
 
 // بتستعلم على نتيجة مهمة Flux لحد ما تخلص (Ready) أو تفشل أو تخلص المهلة.
-// المهلة إجمالًا حوالي 54 ثانية (بتحاول كل 3 ثواني، 18 مرة) عشان تفضل جوه حد
-// تنفيذ فانكشنز Vercel وميحسّش الطالب إن السيرفر واقف.
+// المهلة الإجمالية دلوقتي حوالي 170 ثانية (~2.8 دقيقة) — Flux أحيانًا بياخد
+// وقت أطول من المتوقع وقت الضغط، فبنستنى فترة أطول قبل ما نعتبرها فشلت.
+// ⚠️ مهم: لازم maxDuration بتاع الفانكشن ده في vercel.json (أو إعدادات
+// Function Duration في Vercel Dashboard) يكون ≥ 180 ثانية (محتاج Pro plan على
+// الأقل)، وإلا Vercel نفسه هيقفل الفانكشن قبل ما المهلة دي تخلص بغض النظر عن
+// الكود هنا. أول 10 محاولات كل 2 ثانية (تغطي الحالة الشائعة اللي بتخلص بسرعة)،
+// وبعد كده كل 4 ثواني عشان نقلل عدد الطلبات من غير ما نضيّع وقت.
 async function pollFluxResult(apiKey, taskId, pollingUrl) {
     const target = pollingUrl || `${FLUX_RESULT_URL}?id=${encodeURIComponent(taskId)}`;
-    for (let attempt = 0; attempt < 18; attempt++) {
-        await new Promise(r => setTimeout(r, 3000));
+    const FAST_ATTEMPTS = 10, FAST_INTERVAL_MS = 2000;
+    const SLOW_ATTEMPTS = 38, SLOW_INTERVAL_MS = 4000;
+    const totalAttempts = FAST_ATTEMPTS + SLOW_ATTEMPTS;
+    for (let attempt = 0; attempt < totalAttempts; attempt++) {
+        const intervalMs = attempt < FAST_ATTEMPTS ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
+        await new Promise(r => setTimeout(r, intervalMs));
         try {
             const response = await fetch(target, {
                 method: 'GET',
