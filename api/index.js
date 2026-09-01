@@ -462,6 +462,8 @@ const studentSchema = new mongoose.Schema({
     password: String,
     grade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
     semester: String,
+    // النوع (ذكر/أنثى) — null يعني لسه متحددش من الأدمن، فبيظهر "غير محدد" في الواجهة
+    gender: { type: String, enum: ['male', 'female', null], default: null },
     subjects: Array, // legacy field - لم يعد يُستخدم، تم استبداله بـ subjectsFirst/subjectsSecond
     subjectsFirst: { type: Array, default: [] },  // درجات الترم الأول (النظام الحالي)
     subjectsSecond: { type: Array, default: [] }, // درجات نهاية العام / الترم الثاني (النظام الجديد - مجموع 510)
@@ -4464,7 +4466,7 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
     try {
         await connectToDatabase();
         const { studentCode } = req.params;
-        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, term, profile, premiumFeatures } = req.body;
+        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, term, profile, premiumFeatures, gender } = req.body;
         
         console.log('📝 تحديث الطالب:', studentCode, req.body);
         
@@ -4481,12 +4483,17 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         if (newStudentCode !== undefined && newStudentCode !== studentCode && !/^\d{7}$/.test(String(newStudentCode))) {
             return res.status(400).json({ error: 'رقم الجلوس لازم يكون 7 أرقام' });
         }
+        // ✅ النوع: لازم يكون male أو female بس، أو فاضي/null يعني "غير محدد"
+        if (gender !== undefined && gender !== null && gender !== '' && !['male', 'female'].includes(gender)) {
+            return res.status(400).json({ error: 'قيمة النوع غير صالحة' });
+        }
 
         // تحديث كل الحقول لو موجودة
         if (fullName !== undefined) updateData.fullName = fullName;
         if (username !== undefined) updateData.username = username;
         if (grade !== undefined) updateData.grade = grade;
         if (semester !== undefined) updateData.semester = semester;
+        if (gender !== undefined) updateData.gender = (gender === '' ? null : gender);
         // ✅ نظامين للدرجات: الترم الأول (subjectsFirst) و نهاية العام/الترم الثاني (subjectsSecond)
         // يُحدَّث حقل واحد فقط بحسب "term" المُرسَل، مع الحفاظ على درجات الترم الآخر كما هي
         if (subjects !== undefined) {
@@ -4566,6 +4573,35 @@ app.patch('/api/admin/students/:studentCode/premium', verifyToken, isAdmin, asyn
         res.json({ success: true, student: updated });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في تحديث مميزات Premium: ' });
+    }
+});
+
+// ====================== تحديث النوع (gender) لعدة طلاب دفعة واحدة (أدمن فقط) ======================
+// بيستخدمها زر "تحديد الكل" في صفحة الطلاب عشان الأدمن يحدد نوع كذا طالب في الصف مرة واحدة
+// بدل ما يفتح تعديل كل طالب لوحده. lastMultipleGuard: gender لازم تكون male أو female بس (مفيش فاضي هنا).
+app.patch('/api/admin/students/bulk-gender', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { studentCodes, gender } = req.body;
+        if (!Array.isArray(studentCodes) || studentCodes.length === 0) {
+            return res.status(400).json({ error: 'يجب تحديد طالب واحد على الأقل' });
+        }
+        if (!['male', 'female'].includes(gender)) {
+            return res.status(400).json({ error: 'قيمة النوع غير صالحة' });
+        }
+        const codes = studentCodes.filter(c => typeof c === 'string').slice(0, 500);
+        const result = await Student.updateMany(
+            { studentCode: { $in: codes } },
+            { $set: { gender } }
+        );
+        res.json({
+            success: true,
+            message: `تم تحديث النوع لـ ${result.modifiedCount} طالب`,
+            modifiedCount: result.modifiedCount
+        });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث النوع الجماعي:', error);
+        res.status(500).json({ error: 'خطأ في تحديث النوع الجماعي' });
     }
 });
 
