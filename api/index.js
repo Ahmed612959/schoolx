@@ -4886,6 +4886,209 @@ app.get('/api/students/by-grade/:grade', verifyToken, isAdmin, async (req, res) 
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
 });
 
+// ====================== كشف الحسابات المكررة/المتشابهة (أدمن فقط) ======================
+// الهدف: يلاقي لو الطالب نفسه عامل أكتر من حساب — حتى لو مرة سجل اسمه بالعربي ومرة
+// بالإنجليزي (زي "احمد محمد" و"Ahmed Mohamed")، عن طريق تحويل أي اسم لمفتاح صوتي موحّد
+// بالحروف اللاتينية ومقارنته. وكمان بيقارن باقي البيانات مع بعضها (اسم ولي الأمر، رقم
+// الهاتف، رقم بطاقة ولي الأمر، آخر IP دخول) عشان يطلع نتيجة أدق مش بس معتمد على الاسم.
+// النتيجة عبارة عن مجموعات (groups)، كل مجموعة فيها الحسابات اللي شكلها نفس الطالب،
+// مع سبب/أسباب التشابه ونسبة الثقة، عشان الأدمن يراجعها ويقرر بنفسه.
+
+// خريطة تقريبية لتحويل الحروف العربية لمكافئها الصوتي بالإنجليزي
+const ARABIC_TRANSLIT_MAP = {
+    'ا': 'a', 'أ': 'a', 'إ': 'a', 'آ': 'a', 'ء': 'a', 'ئ': 'y', 'ؤ': 'w', 'ى': 'a',
+    'ب': 'b', 'ت': 't', 'ث': 's', 'ج': 'g', 'ح': 'h', 'خ': 'kh',
+    'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh',
+    'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh',
+    'ف': 'f', 'ق': 'k', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+    'ه': 'h', 'ة': 'h', 'و': 'w', 'ي': 'y'
+};
+
+function isArabicText(text) {
+    return /[\u0600-\u06FF]/.test(text);
+}
+
+function transliterateArabicWord(word) {
+    return word.split('').map(ch => {
+        if (ARABIC_TRANSLIT_MAP[ch] !== undefined) return ARABIC_TRANSLIT_MAP[ch];
+        return /[\u0600-\u06FF\u064B-\u065F]/.test(ch) ? '' : ch; // شيل التشكيل/أي حرف عربي مش متعرَّف
+    }).join('');
+}
+
+// مفتاح صوتي "خشن" لكلمة واحدة — بيوحّد عربي/إنجليزي في نفس الشكل، عشان
+// "Ahmed"/"Ahmad"/"احمد" كلهم يطلعوا بمفتاح متطابق أو قريب جدًا من بعض
+function phoneticKey(rawWord) {
+    if (!rawWord) return '';
+    let w = isArabicText(rawWord) ? transliterateArabicWord(rawWord) : String(rawWord).toLowerCase();
+    w = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (!w) return '';
+    w = w.replace(/kh/g, 'h').replace(/gh/g, 'g').replace(/sh/g, 's').replace(/th/g, 's');
+    w = w.replace(/(.)\1+/g, '$1'); // شيل تكرار نفس الحرف (mohammed -> mohamed)
+    if (w.length > 1) w = w[0] + w.slice(1).replace(/[aeiouy]/g, ''); // شيل حروف العلة عدا أول حرف
+    return w;
+}
+
+function nameToTokens(fullName) {
+    return String(fullName || '').trim().split(/\s+/).map(phoneticKey).filter(Boolean);
+}
+
+function levenshteinDistance(a, b) {
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            dp[i][j] = Math.min(
+                dp[i - 1][j] + 1,
+                dp[i][j - 1] + 1,
+                dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+            );
+        }
+    }
+    return dp[m][n];
+}
+
+function phoneticKeysClose(k1, k2) {
+    if (!k1 || !k2) return false;
+    if (k1 === k2) return true;
+    const maxLen = Math.max(k1.length, k2.length);
+    const dist = levenshteinDistance(k1, k2);
+    return dist <= 1 || (dist / maxLen) <= 0.25;
+}
+
+// نسبة تشابه بين مجموعتين من التوكنز الصوتية (كل توكن من الأقصر بيدور على أقرب توكن في التاني)
+function tokensSimilarity(tokensA, tokensB) {
+    if (!tokensA.length || !tokensB.length) return 0;
+    const shorter = tokensA.length <= tokensB.length ? tokensA : tokensB;
+    const longer = tokensA.length <= tokensB.length ? tokensB : tokensA;
+    let matched = 0;
+    const usedIdx = new Set();
+    for (const tok of shorter) {
+        for (let i = 0; i < longer.length; i++) {
+            if (usedIdx.has(i)) continue;
+            if (phoneticKeysClose(tok, longer[i])) { matched++; usedIdx.add(i); break; }
+        }
+    }
+    return matched / shorter.length;
+}
+
+function normalizePhoneForMatch(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    return digits.length >= 8 ? digits.slice(-10) : '';
+}
+
+function normalizeIdForMatch(id) {
+    const digits = String(id || '').replace(/\D/g, '');
+    return digits.length >= 8 ? digits : '';
+}
+
+// مقارنة شاملة بين طالبين على كل المعلومات المتاحة (مش بس الاسم)، وإرجاع نسبة تشابه + أسباب
+function compareStudentsForDuplicates(a, b) {
+    const nameSim = tokensSimilarity(a.nameTokens, b.nameTokens);
+    const parentNameSim = tokensSimilarity(a.parentTokens, b.parentTokens);
+    const phoneMatch = !!(a.phoneKey && a.phoneKey === b.phoneKey);
+    const parentIdMatch = !!(a.parentIdKey && a.parentIdKey === b.parentIdKey);
+    const ipMatch = !!(a.lastIP && b.lastIP && a.lastIP === b.lastIP);
+
+    let score = nameSim * 0.40 + parentNameSim * 0.15 + (phoneMatch ? 0.20 : 0) + (parentIdMatch ? 0.15 : 0) + (ipMatch ? 0.10 : 0);
+    score = Math.min(1, score);
+
+    const reasons = [];
+    if (nameSim >= 0.9) reasons.push('اسم الطالب متطابق تقريبًا (عربي/إنجليزي)');
+    else if (nameSim >= 0.6) reasons.push('اسم الطالب متشابه جدًا (عربي/إنجليزي)');
+    if (parentNameSim >= 0.6) reasons.push('اسم ولي الأمر متشابه');
+    if (phoneMatch) reasons.push('نفس رقم الهاتف بالظبط');
+    if (parentIdMatch) reasons.push('نفس رقم بطاقة ولي الأمر بالظبط');
+    if (ipMatch) reasons.push('اتسجلوا من نفس الجهاز/الشبكة (آخر IP)');
+
+    // اعتبرهم "مكررين محتملين" لو النقطة الإجمالية عالية، أو لو فيه تطابق حاسم لوحده (هاتف/بطاقة)
+    const isDuplicate = score >= 0.45 || phoneMatch || parentIdMatch;
+    return { score, reasons, isDuplicate };
+}
+
+app.get('/api/admin/students/duplicate-accounts', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const students = await Student.find().select('fullName studentCode username grade semester gender profile lastIP createdAt');
+
+        const items = students.map(s => ({
+            studentCode: s.studentCode,
+            fullName: s.fullName,
+            username: s.username,
+            grade: s.grade,
+            semester: s.semester,
+            gender: s.gender,
+            phone: (s.profile && s.profile.phone) || '',
+            parentName: (s.profile && s.profile.parentName) || '',
+            parentId: (s.profile && s.profile.parentId) || '',
+            lastIP: s.lastIP || '',
+            createdAt: s.createdAt,
+            nameTokens: nameToTokens(s.fullName),
+            parentTokens: nameToTokens(s.profile && s.profile.parentName),
+            phoneKey: normalizePhoneForMatch(s.profile && s.profile.phone),
+            parentIdKey: normalizeIdForMatch(s.profile && s.profile.parentId)
+        })).filter(it => it.nameTokens.length > 0);
+
+        // تجميع بالجراف (connected components): لو أ شابه ب، وب شابه ج، الثلاثة بيظهروا
+        // في نفس المجموعة حتى لو أ وج مش متشابهين مباشرة على كل المحاور
+        const n = items.length;
+        const adjacency = Array.from({ length: n }, () => []);
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                const result = compareStudentsForDuplicates(items[i], items[j]);
+                if (result.isDuplicate) {
+                    adjacency[i].push({ to: j, score: result.score, reasons: result.reasons });
+                    adjacency[j].push({ to: i, score: result.score, reasons: result.reasons });
+                }
+            }
+        }
+
+        const visited = new Array(n).fill(false);
+        const groups = [];
+        for (let i = 0; i < n; i++) {
+            if (visited[i] || adjacency[i].length === 0) continue;
+            const stack = [i];
+            const memberIdx = new Set();
+            const allReasons = new Set();
+            let maxScore = 0;
+            while (stack.length) {
+                const cur = stack.pop();
+                if (visited[cur]) continue;
+                visited[cur] = true;
+                memberIdx.add(cur);
+                for (const edge of adjacency[cur]) {
+                    maxScore = Math.max(maxScore, edge.score);
+                    edge.reasons.forEach(r => allReasons.add(r));
+                    if (!visited[edge.to]) stack.push(edge.to);
+                }
+            }
+            if (memberIdx.size > 1) {
+                const members = Array.from(memberIdx).map(idx => {
+                    const { nameTokens, parentTokens, phoneKey, parentIdKey, ...rest } = items[idx];
+                    return rest;
+                });
+                groups.push({
+                    accountsCount: members.length,
+                    confidence: Math.round(maxScore * 100),
+                    reasons: Array.from(allReasons),
+                    members
+                });
+            }
+        }
+
+        groups.sort((a, b) => b.confidence - a.confidence || b.accountsCount - a.accountsCount);
+
+        res.json({ success: true, totalGroups: groups.length, groups });
+    } catch (error) {
+        console.error('❌ خطأ في اكتشاف الحسابات المكررة:', error);
+        res.status(500).json({ error: 'خطأ في اكتشاف الحسابات المكررة' });
+    }
+});
+
+
 // ====================== إنشاء مدير أول ======================
 app.post('/api/create-initial-admin', async (req, res) => {
     try {
