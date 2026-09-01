@@ -5780,7 +5780,10 @@ const AUTO_ORDER = ['qwen', 'grok', 'flux'];
 app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { prompt, provider, width, height } = req.body || {};
-        const trimmed = String(prompt || '').trim().slice(0, 500);
+        // الحد رُفع لـ 1000 حرف عشان يستوعب بادئة الأسلوب (Style preset)
+        // اللي بتتحط في أول الوصف من الفرونت إند من غير ما تتقطع تفاصيل موضوع
+        // الطالب أو الأسلوب نفسه.
+        const trimmed = String(prompt || '').trim().slice(0, 1000);
         if (!trimmed) return res.status(400).json({ error: 'وصف الصورة مطلوب' });
         // أبعاد الصورة (اختياري) — بيستخدمها Flux فعليًا حاليًا، وأي مزوّد
         // تاني بيدعم تحديد الأبعاد ممكن ياخدها من نفس الـ opts لاحقًا.
@@ -5866,7 +5869,7 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
 app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { imageUrl, prompt, provider, width, height } = req.body || {};
-        const trimmedPrompt = String(prompt || '').trim().slice(0, 500);
+        const trimmedPrompt = String(prompt || '').trim().slice(0, 1000);
         const cleanProvider = String(provider || 'grok').trim().toLowerCase();
         if (!imageUrl) return res.status(400).json({ error: 'رابط الصورة مطلوب' });
         if (!trimmedPrompt) return res.status(400).json({ error: 'وصف التعديل مطلوب' });
@@ -5973,14 +5976,14 @@ app.get('/api/premium/image-quota', verifyToken, requirePremium('premium_image_s
 // بتاع الصور.
 app.post('/api/premium/improve-image-prompt', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
-        const trimmed = String(req.body?.prompt || '').trim().slice(0, 500);
+        const trimmed = String(req.body?.prompt || '').trim().slice(0, 1000);
         if (!trimmed) return res.status(400).json({ error: 'اكتب وصف الصورة الأول' });
         const systemPrompt = 'انت مساعد متخصص في تحسين أوصاف الصور (prompts) لموديلات توليد صور بالذكاء الاصطناعي. '
             + 'هتاخد وصف مختصر أو غامض من طالب، وترجّعه أوضح وأدق وغني بتفاصيل بصرية مفيدة (الألوان، التكوين، '
             + 'الإضاءة، مستوى التفاصيل) من غير ما تغيّر الفكرة الأساسية للطلب، وبنفس لغة الوصف الأصلي. '
             + 'رجّع رد JSON بس بالشكل: {"improved": "الوصف المحسّن هنا"} — من غير أي شرح أو نص زيادة.';
-        const { result, usedModel } = await callAIJSONWithFailover(systemPrompt, trimmed, 300);
-        const improved = String(result?.improved || '').trim().slice(0, 500);
+        const { result, usedModel } = await callAIJSONWithFailover(systemPrompt, trimmed, 600);
+        const improved = String(result?.improved || '').trim().slice(0, 1000);
         if (!improved) return res.status(502).json({ error: 'تعذر تحسين الوصف، حاول تاني' });
         res.json({ improved, usedModel });
     } catch (error) {
@@ -6901,7 +6904,7 @@ async function saveGeneratedImageToLibrary({ username, prompt, provider, source,
         await connectToDatabase();
         return await new GeneratedImage({
             username,
-            prompt: String(prompt || '').slice(0, 500),
+            prompt: String(prompt || '').slice(0, 1000),
             provider: provider || '',
             source: source || 'generate',
             imageUrl: uploaded.secure_url,
