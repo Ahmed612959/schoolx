@@ -239,6 +239,39 @@
         .bulk-gender-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .row-checkbox, #selectAllCheckbox { width: 17px; height: 17px; cursor: pointer; }
 
+        .duplicate-scan-btn {
+            border: none; border-radius: var(--r-sm, 10px); padding: 10px 16px; font-size: 0.8rem; font-weight: 800;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; color: #fff;
+            background: linear-gradient(135deg, var(--navy-light), var(--navy)); white-space: nowrap;
+        }
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(11, 34, 51, 0.55); z-index: 1000;
+            display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow-y: auto;
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal-box {
+            background: #fff; border-radius: 16px; width: 100%; max-width: 620px; padding: 18px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+        }
+        .modal-box-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .modal-box-head h3 { font-size: 1rem; color: var(--navy); font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .modal-close-btn { background: #f1f5f9; border: none; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+        .dup-group {
+            border: 1px solid #eee; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: #fafbfc;
+        }
+        .dup-group-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+        .dup-confidence { font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; color: #fff; }
+        .dup-confidence.high { background: var(--danger); }
+        .dup-confidence.mid { background: #d68910; }
+        .dup-confidence.low { background: var(--muted); }
+        .dup-reasons { font-size: 0.7rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+        .dup-reasons span { background: #eef2f7; padding: 2px 8px; border-radius: 20px; }
+        .dup-member { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f0f0f0; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: 0.78rem; }
+        .dup-member:last-child { margin-bottom: 0; }
+        .dup-member b { color: var(--navy); }
+        .dup-member small { color: var(--muted); display: block; margin-top: 2px; }
+        .dup-empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 0.85rem; }
+
         input, select { padding: 9px 12px; border-radius: var(--r-sm); border: 1.5px solid var(--line); font-family: 'Tajawal', sans-serif; font-size: 0.83rem; transition: 0.2s; width: 100%; background: var(--card); color: var(--ink); }
         input:focus, select:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 3px rgba(201,166,86,0.15); }
         .password-wrapper { display: flex; align-items: center; gap: 6px; }
@@ -406,6 +439,7 @@
             <button type="button" class="segmented-btn" data-gender="male" onclick="setGenderFilter('male', this)"><i class="fas fa-child-reaching"></i> أولاد</button>
             <button type="button" class="segmented-btn" data-gender="female" onclick="setGenderFilter('female', this)"><i class="fas fa-child-dress"></i> بنات</button>
         </div>
+        <button type="button" class="duplicate-scan-btn" onclick="openDuplicateAccountsModal()"><i class="fas fa-user-magnifying-glass"></i> فحص الحسابات المكررة</button>
     </div>
 
     <div class="bulk-gender-bar" id="bulkGenderBar" style="display:none;">
@@ -641,6 +675,63 @@
             showToast('فشل التحديث: ' + error.message, 'error');
         }
     };
+
+    // ✅ فحص الحسابات المكررة/المتشابهة (اسم عربي/إنجليزي + هاتف + بطاقة ولي الأمر)
+    const GRADE_LABELS = { first: 'الصف الأول', second: 'الصف الثاني', third: 'الصف الثالث' };
+
+    window.openDuplicateAccountsModal = async function() {
+        const overlay = document.getElementById('duplicateModal');
+        const body = document.getElementById('duplicateModalBody');
+        overlay.classList.remove('hidden');
+        body.innerHTML = '<div class="dup-empty"><i class="fas fa-spinner fa-pulse"></i> جاري الفحص...</div>';
+
+        try {
+            const response = await apiRequest('/api/admin/students/duplicate-accounts');
+            if (!response.ok) throw new Error('فشل جلب النتائج');
+            const data = await response.json();
+            renderDuplicateGroups(data.groups || []);
+        } catch (error) {
+            console.error('❌ خطأ في فحص الحسابات المكررة:', error);
+            body.innerHTML = '<div class="dup-empty"><i class="fas fa-triangle-exclamation"></i> حصل خطأ أثناء الفحص، حاول تاني</div>';
+        }
+    };
+
+    window.closeDuplicateAccountsModal = function() {
+        document.getElementById('duplicateModal').classList.add('hidden');
+    };
+
+    function renderDuplicateGroups(groups) {
+        const body = document.getElementById('duplicateModalBody');
+        if (!groups.length) {
+            body.innerHTML = '<div class="dup-empty"><i class="fas fa-circle-check" style="color:var(--success);"></i><br>مفيش حسابات متشابهة/مكررة ظاهرة دلوقتي</div>';
+            return;
+        }
+
+        body.innerHTML = `<p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">
+                لقينا <b style="color:var(--navy);">${groups.length}</b> مجموعة حسابات محتمل تكون لنفس الطالب. راجعها كويس قبل أي تعديل.
+            </p>` + groups.map(group => {
+            const confClass = group.confidence >= 70 ? 'high' : (group.confidence >= 45 ? 'mid' : 'low');
+            const reasonsHtml = group.reasons.map(r => `<span>${escapeHtml(r)}</span>`).join('');
+            const membersHtml = group.members.map(m => `
+                <div class="dup-member">
+                    <div>
+                        <b>${escapeHtml(m.fullName)}</b>
+                        <small>${escapeHtml(m.username)} · كود: ${escapeHtml(m.studentCode)} · ${GRADE_LABELS[m.grade] || m.grade}</small>
+                    </div>
+                </div>
+            `).join('');
+            return `
+                <div class="dup-group">
+                    <div class="dup-group-head">
+                        <span style="font-size:0.8rem;font-weight:800;color:var(--navy);"><i class="fas fa-users"></i> ${group.accountsCount} حسابات محتملة</span>
+                        <span class="dup-confidence ${confClass}">نسبة التطابق ${group.confidence}%</span>
+                    </div>
+                    <div class="dup-reasons">${reasonsHtml}</div>
+                    ${membersHtml}
+                </div>
+            `;
+        }).join('');
+    }
 
     function genderBadge(gender) {
         if (gender === 'male') return `<span class="gender-badge male"><i class="fas fa-child-reaching"></i> ولد</span>`;
@@ -905,5 +996,16 @@
         await loadStudents();
     })();
 </script>
+    <div class="modal-overlay hidden" id="duplicateModal">
+        <div class="modal-box">
+            <div class="modal-box-head">
+                <h3><i class="fas fa-user-magnifying-glass"></i> فحص الحسابات المكررة</h3>
+                <button type="button" class="modal-close-btn" onclick="closeDuplicateAccountsModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="duplicateModalBody">
+                <div class="dup-empty"><i class="fas fa-spinner fa-pulse"></i> جاري الفحص...</div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
