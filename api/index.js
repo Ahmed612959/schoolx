@@ -327,8 +327,10 @@ function sanitizeFileName(str) {
 }
 
 // دالة رفع ملف إلى R2 من Buffer (نفس الاسم والشكل القديم عشان باقي الكود
-// اللي بينادي عليها متتغيرش)
-const uploadToCloudinary = async (buffer, folder, fileName) => {
+// اللي بينادي عليها متتغيرش). contentType اختياري — مهم بالذات للفيديو
+// (متصفحات كتير بترفض تشغيل <video> من غير Content-Type صحيح، عكس الصور
+// اللي المتصفح بيتساهل فيها أكتر).
+const uploadToCloudinary = async (buffer, folder, fileName, contentType) => {
     const safeFolder = folder ? folder.split('/').map(sanitizeForStorage).join('/') : '';
     const safeName = `${Date.now()}-${sanitizeFileName(fileName)}`;
     const path = safeFolder ? `${safeFolder}/${safeName}` : safeName;
@@ -336,7 +338,8 @@ const uploadToCloudinary = async (buffer, folder, fileName) => {
     await r2.send(new PutObjectCommand({
         Bucket: R2_BUCKET,
         Key: path,
-        Body: buffer
+        Body: buffer,
+        ...(contentType ? { ContentType: contentType } : {})
     }));
 
     return {
@@ -5822,100 +5825,6 @@ async function genEdit_grok(imageUrl, editPrompt) {
     });
 }
 
-// gpt-4o-image (عن طريق CometAPI /v1/chat/completions) — الموديل ده أصلًا
-// موديل شات (مش موديل صور مخصص)، وبيولّد الصورة "تقنيًا" عن طريق ورك أراوند
-// من CometAPI: بيرجّع نص فيه مراحل تقدّم (Queuing/Generating/Progress) وفي
-// الآخر رابط الصورة متحطوط جوه محتوى الرسالة كـ Markdown image link (زي
-// "![gen_x](https://...png)") مش في حقل صورة منفصل زي باقي المزوّدين.
-// ⚠️ جربنا الأول endpoint /v1/responses (زي ما جه في طلب الإضافة الأصلي) لكنه
-// رجّع 404 Not Found من CometAPI — يبدو إن الموديل ده مش متاح عليه فعليًا،
-// والـ endpoint الموثّق رسميًا من CometAPI لـ gpt-4o-image هو /v1/chat/completions
-// (بصيغة OpenAI شات عادية). الطلب متزامن (بيفضل مفتوح لحد ما يخلص، من غير
-// polling منفصل) لكن ممكن ياخد وقت زي Flux بالظبط.
-const GPT4O_IMAGE_MODEL = 'gpt-4o-image';
-
-// بتدوّر جوه نص رد الشات (choices[0].message.content) على رابط صورة Markdown،
-// أو رابط عادي بامتداد صورة كـ fallback لو الشكل اختلف شوية.
-function extractGpt4oImage(content) {
-    if (!content) return null;
-    const markdownMatch = content.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
-    if (markdownMatch) return markdownMatch[1];
-    const urlMatch = content.match(/https?:\/\/\S+?\.(?:png|jpe?g|webp)(?:\?\S*)?/i);
-    if (urlMatch) return urlMatch[0];
-    return null;
-}
-
-async function genImage_gpt4o(trimmed) {
-    return withKeyRotation('gpt4o-image', process.env.COMETAPI_KEY || '', async (apiKey) => {
-        try {
-            const response = await fetch(`${COMETAPI_BASE_URL}/v1/chat/completions`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: GPT4O_IMAGE_MODEL,
-                    messages: [{ role: 'user', content: trimmed }]
-                })
-            });
-            if (!response.ok) {
-                const errBody = await response.text().catch(() => '');
-                console.error(`❌ gpt-4o-image (CometAPI) فشل — status ${response.status}:`, errBody.slice(0, 800));
-                return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-            }
-            const data = await response.json();
-            const content = data?.choices?.[0]?.message?.content || '';
-            const img = extractGpt4oImage(content);
-            if (!img) {
-                console.error('⚠️ gpt-4o-image: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
-                return { ok: false, reason: 'no_image_in_response', detail: (content || JSON.stringify(data)).slice(0, 300) };
-            }
-            return { ok: true, imageUrl: img };
-        } catch (error) {
-            console.error('❌ gpt-4o-image (CometAPI) exception:', error.message);
-            return { ok: false, reason: 'exception', detail: error.message };
-        }
-    });
-}
-
-// تعديل صورة موجودة بوصف نصي — gpt-4o-image، عن طريق رسالة شات فيها محتوى
-// متعدد (نص + image_url) بصيغة OpenAI Vision العادية (نفس اللي بيستخدمها
-// analyzeImageWithDeepSeek/Qwen في تحليل الصور).
-async function genEdit_gpt4o(imageUrl, editPrompt) {
-    return withKeyRotation('gpt4o-image', process.env.COMETAPI_KEY || '', async (apiKey) => {
-        try {
-            const response = await fetch(`${COMETAPI_BASE_URL}/v1/chat/completions`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: GPT4O_IMAGE_MODEL,
-                    messages: [{
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: editPrompt },
-                            { type: 'image_url', image_url: { url: imageUrl } }
-                        ]
-                    }]
-                })
-            });
-            if (!response.ok) {
-                const errBody = await response.text().catch(() => '');
-                console.error(`❌ gpt-4o-image edit فشل — status ${response.status}:`, errBody.slice(0, 800));
-                return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
-            }
-            const data = await response.json();
-            const content = data?.choices?.[0]?.message?.content || '';
-            const img = extractGpt4oImage(content);
-            if (!img) {
-                console.error('⚠️ gpt-4o-image edit: رد 200 لكن مقدرناش نستخرج صورة منه:', JSON.stringify(data).slice(0, 1000));
-                return { ok: false, reason: 'no_image_in_response', detail: (content || JSON.stringify(data)).slice(0, 300) };
-            }
-            return { ok: true, imageUrl: img };
-        } catch (error) {
-            console.error('❌ gpt-4o-image edit exception:', error.message);
-            return { ok: false, reason: 'exception', detail: error.message };
-        }
-    });
-}
-
 // Flux 2 Max (عن طريق CometAPI /flux/v1/flux-2-max) — نفس فكرة Grok، بس الـ
 // endpoint ده غير متزامن (async): أول طلب POST بيرجّع id (وأحيانًا polling_url
 // جاهز)، وبعدين لازم نستعلم على /flux/v1/get_result لحد ما تجهز الصورة أو
@@ -6089,24 +5998,122 @@ async function genEdit_flux(imageUrl, editPrompt, opts = {}) {
     });
 }
 
+// ====================== Grok Imagine Video (عن طريق CometAPI /grok/v1) ======================
+// موديل فيديو من نص أو من صورة (image-to-video)، بصوت مدمج. بيتفعّل عن طريق
+// نفس نظام تدوير مفاتيح CometAPI (withKeyRotation) بس بمفتاح مزوّد منفصل
+// ('grok-video') عشان الأدمن يقدر يضيف مفاتيح مخصصة للفيديو لو حابب يفصل
+// الميزانية عن باقي مزوّدين الصور.
+//
+// 💰 توفير الكريدت (الفيديو مكلّف جدًا مقارنة بالصور — تسعير بالثانية):
+// - المدة ثابتة على 10 ثواني بس (مش قابلة للتغيير) — أرخص مدة معقولة للاستخدام
+//   التعليمي بدل ما تسيب الطالب يختار مدة أطول وأغلى.
+// - الدقة ثابتة على 480p (مش قابلة للتغيير) — تقريبًا نص سعر 720p للثانية.
+// - حد يومي صارم منفصل عن حد الصور (DAILY_VIDEO_LIMIT) لأن كل فيديو بيكلّف
+//   أضعاف الصورة الواحدة.
+const GROK_VIDEO_BASE_URL = `${COMETAPI_BASE_URL}/grok/v1`;
+const VIDEO_DURATION_SECONDS = 10;
+const VIDEO_RESOLUTION = '480p';
+
+async function createGrokVideoTask(apiKey, prompt, imageUrl, aspectRatio) {
+    const payload = {
+        model: 'grok-imagine-video',
+        prompt,
+        duration: VIDEO_DURATION_SECONDS,
+        aspect_ratio: aspectRatio || '16:9',
+        resolution: VIDEO_RESOLUTION
+    };
+    if (imageUrl) payload.image_url = imageUrl; // لو موجودة → صورة لفيديو (image-to-video)، لو مش موجودة → نص لفيديو
+    const response = await fetch(`${GROK_VIDEO_BASE_URL}/videos/generations`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        const err = new Error(`فشل إنشاء مهمة الفيديو — status ${response.status}`);
+        err.status = response.status;
+        err.detail = errBody.slice(0, 300);
+        throw err;
+    }
+    const data = await response.json();
+    const taskId = data?.request_id || data?.id;
+    if (!taskId) {
+        const err = new Error('رد إنشاء مهمة الفيديو من غير task ID');
+        err.detail = JSON.stringify(data).slice(0, 300);
+        throw err;
+    }
+    return taskId;
+}
+
+// بتستعلم على حالة مهمة الفيديو لحد ما تخلص (SUCCESS) أو تفشل (FAILURE) أو
+// تخلص المهلة. الفيديو بياخد وقت أطول من الصور بكتير (دقيقة لحد كذا دقيقة مش
+// حاجة غريبة)، فبنستعلم كل 10 ثواني (نفس الفترة الموصى بيها في مثال CometAPI
+// الرسمي) لمدة أقصاها ~28 محاولة (حوالي 280 ثانية / 4.7 دقيقة).
+// ⚠️ مهم جدًا (زي Flux بالظبط، بس أهم هنا لطول المدة): maxDuration بتاع
+// الفانكشن ده في vercel.json (أو إعدادات Function Duration في Vercel
+// Dashboard) لازم يكون ≥290 ثانية، وده محتاج أعلى خطة متاحة عندك على Vercel
+// (Pro على الأقل، وممكن تحتاج Fluid Compute لو الخطة العادية بتوقف عند 60
+// ثانية) — وإلا Vercel هيقفل الفانكشن قبل ما الفيديو يخلص بغض النظر عن الكود.
+async function pollGrokVideoTask(apiKey, taskId) {
+    const ATTEMPTS = 28, INTERVAL_MS = 10000;
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+        await new Promise(r => setTimeout(r, INTERVAL_MS));
+        try {
+            const response = await fetch(`${GROK_VIDEO_BASE_URL}/videos/${taskId}`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            if (!response.ok) continue; // خطأ مؤقت في الاستعلام — نكمل نحاول
+            const queryResult = await response.json();
+            const data = queryResult?.data || {};
+            const status = String(data?.status || '').toUpperCase();
+            if (status === 'SUCCESS' || status === 'DONE') {
+                const videoUrl = data?.data?.video?.url || data?.video?.url;
+                if (videoUrl) return { ok: true, videoUrl };
+                return { ok: false, reason: 'no_video_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            if (status === 'FAILURE' || status === 'FAILED') {
+                return { ok: false, reason: 'generation_failed', detail: data?.fail_reason || 'فشل توليد الفيديو' };
+            }
+            // لسه PENDING/RUNNING — نكمل الاستعلام
+        } catch (error) {
+            // خطأ مؤقت في الاستعلام — نكمل نحاول لحد ما تخلص المحاولات
+        }
+    }
+    return { ok: false, reason: 'timeout', detail: 'انتهت مهلة انتظار توليد الفيديو' };
+}
+
+// إنشاء فيديو (من نص، أو من صورة لو imageUrl موجودة) — Grok Imagine Video.
+async function generateGrokVideo(prompt, imageUrl, aspectRatio) {
+    return withKeyRotation('grok-video', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const taskId = await createGrokVideoTask(apiKey, prompt, imageUrl, aspectRatio);
+            const polled = await pollGrokVideoTask(apiKey, taskId);
+            if (!polled.ok) return polled;
+            return { ok: true, videoUrl: polled.videoUrl };
+        } catch (error) {
+            console.error('❌ Grok Video (CometAPI) exception:', error.message);
+            return { ok: false, status: error.status, reason: error.status ? undefined : 'exception', detail: error.detail || error.message };
+        }
+    });
+}
+
 // خريطة موحّدة: المفتاح ده هو نفسه اللي الفرونت إند بيبعته لو الطالب اختار مزوّد
 // معيّن بدل "تلقائي". بيسهّل الإضافة لاحقًا (مزوّد جديد = سطر واحد هنا).
 const IMAGE_PROVIDERS = {
     qwen: { fn: genImage_qwen, label: 'Qwen' },
     grok: { fn: genImage_grok, label: 'Grok' },
-    flux: { fn: genImage_flux, label: 'Flux' },
-    'gpt4o-image': { fn: genImage_gpt4o, label: 'GPT-4o Image' }
+    flux: { fn: genImage_flux, label: 'Flux' }
 };
 // مزوّدين بيدعموا تعديل صورة موجودة بوصف نصي (مش كل المزوّدين بيدعموا ده — Qwen مثلًا لأ).
 const EDIT_PROVIDERS = {
     grok: { fn: genEdit_grok, label: 'Grok' },
-    flux: { fn: genEdit_flux, label: 'Flux' },
-    'gpt4o-image': { fn: genEdit_gpt4o, label: 'GPT-4o Image' }
+    flux: { fn: genEdit_flux, label: 'Flux' }
 };
-// الترتيب التلقائي — Qwen (الرسمي) الأول، وبعدين Grok، وبعدين Flux، وأخيرًا
-// gpt-4o-image (آخر واحد لأنه أبطأ نسبيًا — بيمر بمراحل توليد جوّاه). أي واحد
-// فشل أو خلص رصيده بنعدّي للي بعده تلقائيًا من غير ما الطالب يحس بأي انقطاع.
-const AUTO_ORDER = ['qwen', 'grok', 'flux', 'gpt4o-image'];
+// الترتيب التلقائي — Qwen (الرسمي) الأول، ولو فشل أو خلص رصيده نروح على Grok،
+// ولو ده كمان فشل نروح على Flux، تلقائيًا عشان العملية تفضل مستمرة من غير ما
+// الطالب يحس بأي انقطاع.
+const AUTO_ORDER = ['qwen', 'grok', 'flux'];
 
 // إنشاء صورة — إما "تلقائي" (بيجرب المزوّدين بالترتيب لحد ما واحد ينجح)، أو
 // مزوّد محدد يختاره الطالب بنفسه من قائمة استوديو الصور (وقتها منجربش غيره
@@ -6330,6 +6337,109 @@ app.post('/api/premium/improve-image-prompt', verifyToken, requirePremium('premi
             error: msg,
             ...(req.user?.type === 'admin' && error.attempts ? { debugAttempts: error.attempts } : {})
         });
+    }
+});
+
+// ====================== إنشاء فيديو (من نص أو من صورة) — Grok Imagine Video ======================
+// نفس منطق endpoint إنشاء الصورة تقريبًا (حد يومي منفصل + حفظ تلقائي في
+// المكتبة)، لكن كل عملية هنا بتاخد وقت أطول بكتير (دقايق مش ثواني) وبتكلّف
+// أضعاف الصورة، فالحد اليومي (DAILY_VIDEO_LIMIT) أقل بكتير من حد الصور.
+app.post('/api/premium/generate-video', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        const { prompt, imageUrl, aspectRatio } = req.body || {};
+        const trimmed = String(prompt || '').trim().slice(0, 1000);
+        if (!trimmed) return res.status(400).json({ error: 'وصف الفيديو مطلوب' });
+        // لو فيه رابط صورة، لازم يكون رابط عام (مش data: URI محلي) عشان
+        // CometAPI يقدر يوصله.
+        if (imageUrl && !/^https?:\/\//.test(imageUrl)) {
+            return res.status(400).json({ error: 'رابط الصورة لازم يكون رابط عام (جرّب ترفع الصورة أو تولّدها من الاستوديو الأول)' });
+        }
+        const cleanAspectRatio = ['16:9', '9:16', '1:1', '4:3', '3:4'].includes(aspectRatio) ? aspectRatio : '16:9';
+
+        // الحد اليومي — الأدمن مستثنى تمامًا (زي باقي فحوصات الـ Premium).
+        const isAdminReq = req.user?.type === 'admin';
+        let quota = { used: 0, remaining: DAILY_VIDEO_LIMIT, limit: DAILY_VIDEO_LIMIT };
+        if (!isAdminReq) {
+            quota = await reserveVideoQuota(req.user.username);
+            if (!quota.allowed) {
+                return res.status(429).json({
+                    error: `وصلت للحد الأقصى من إنشاء الفيديو اليوم (${DAILY_VIDEO_LIMIT} فيديوهات) — هيتجدد بكرة`,
+                    quotaRemaining: 0, quotaLimit: DAILY_VIDEO_LIMIT
+                });
+            }
+        }
+
+        const result = await generateGrokVideo(trimmed, imageUrl || null, cleanAspectRatio);
+        if (!result.ok) {
+            if (!isAdminReq) await releaseVideoQuota(req.user.username);
+            const reasonText = result.reason === 'timeout' ? 'استغرق توليد الفيديو وقتًا أطول من المتوقع، حاول تاني'
+                : result.reason === 'generation_failed' ? (result.detail || 'فشل توليد الفيديو')
+                : result.status === 429 || result.status === 403 ? 'انتهى الرصيد المتاح لتوليد الفيديو حاليًا'
+                : 'تعذر إنشاء الفيديو، حاول تاني';
+            return res.status(502).json({
+                error: reasonText,
+                ...(req.user?.type === 'admin' ? { debugAttempts: [result] } : {})
+            });
+        }
+
+        const saved = await saveGeneratedVideoToLibrary({
+            username: req.user?.username, prompt: trimmed, source: imageUrl ? 'image' : 'text',
+            aspectRatio: cleanAspectRatio, videoUrl: result.videoUrl
+        });
+        // لو الحفظ في R2 نجح، نرجّع رابطنا الدائم (بدل رابط المزوّد المؤقت)
+        // عشان زرار التحميل يفضل شغال حتى بعد ما رابط المزوّد يموت.
+        res.json({
+            videoUrl: saved?.videoUrl || result.videoUrl,
+            savedToLibrary: !!saved,
+            quotaRemaining: quota.remaining, quotaLimit: quota.limit
+        });
+    } catch (error) {
+        console.error('❌ خطأ في إنشاء الفيديو:', error.message);
+        res.status(500).json({ error: 'خطأ في إنشاء الفيديو' });
+    }
+});
+
+app.get('/api/premium/video-quota', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        if (req.user?.type === 'admin') {
+            return res.json({ used: 0, remaining: DAILY_VIDEO_LIMIT, limit: DAILY_VIDEO_LIMIT, unlimited: true });
+        }
+        const quota = await getVideoQuotaStatus(req.user.username);
+        res.json(quota);
+    } catch (error) {
+        console.error('❌ خطأ في جلب حد الفيديو اليومي:', error.message);
+        res.status(500).json({ error: 'خطأ في جلب حد الفيديو اليومي' });
+    }
+});
+
+app.get('/api/premium/video-library', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const videos = await GeneratedVideo.find({ username: req.user.username })
+            .sort({ createdAt: -1 })
+            .limit(60)
+            .select('prompt source aspectRatio videoUrl mimeType createdAt');
+        res.json({ videos });
+    } catch (error) {
+        console.error('❌ خطأ في جلب مكتبة الفيديو:', error.message);
+        res.status(500).json({ error: 'خطأ في جلب مكتبة الفيديو' });
+    }
+});
+
+app.delete('/api/premium/video-library/:id', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await GeneratedVideo.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الفيديو مش موجود' });
+        if (doc.username !== req.user.username && req.user.type !== 'admin') {
+            return res.status(403).json({ error: 'غير مصرح لك بحذف الفيديو ده' });
+        }
+        await deleteFromSupabase(doc.storageKey).catch(() => {});
+        await doc.deleteOne();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حذف فيديو من المكتبة:', error.message);
+        res.status(500).json({ error: 'خطأ في حذف الفيديو' });
     }
 });
 
@@ -7305,6 +7415,94 @@ async function releaseImageQuota(username) {
         );
     } catch (error) {
         console.error('⚠️ فشل استرجاع حد الصور اليومي:', error.message);
+    }
+}
+
+// ====================== مكتبة فيديوهات استوديو الصور (Premium) ======================
+// نفس فكرة GeneratedImage بالظبط — بنخزّن نسخة دائمة من الفيديو على R2 (روابط
+// المزوّد الأصلية مؤقتة زي روابط الصور) + سطر في الكولكشن دي عشان يفضل موجود
+// في "مكتبتي" حتى بعد ما رابط المزوّد يموت.
+const generatedVideoSchema = new mongoose.Schema({
+    username: { type: String, required: true, index: true },
+    prompt: { type: String, default: '' },
+    source: { type: String, enum: ['text', 'image'], default: 'text' }, // نص لفيديو، ولا صورة لفيديو
+    aspectRatio: { type: String, default: '16:9' },
+    duration: { type: Number, default: 10 },
+    resolution: { type: String, default: '480p' },
+    videoUrl: { type: String, required: true }, // الرابط الدائم على R2
+    storageKey: { type: String, required: true },
+    mimeType: { type: String, default: 'video/mp4' }
+}, { timestamps: true });
+const GeneratedVideo = mongoose.models.GeneratedVideo || mongoose.model('GeneratedVideo', generatedVideoSchema);
+
+// بتاخد رابط فيديو مؤقت من المزوّد وتخزّن نسخة دائمة منه في R2 + سطر في
+// GeneratedVideo. عملية "best effort" — لو فشلت، الفيديو نفسه لسه ظاهر
+// للطالب في الرد المباشر، بس مش هيتحفظ في المكتبة وقتها.
+async function saveGeneratedVideoToLibrary({ username, prompt, source, aspectRatio, videoUrl }) {
+    if (!username || !videoUrl) return null;
+    try {
+        const resp = await fetch(videoUrl);
+        if (!resp.ok) throw new Error(`تعذر تحميل الفيديو من رابط المزوّد — status ${resp.status}`);
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const uploaded = await uploadToCloudinary(buffer, `video-library/${username}`, 'video.mp4', 'video/mp4');
+        await connectToDatabase();
+        return await new GeneratedVideo({
+            username,
+            prompt: String(prompt || '').slice(0, 1000),
+            source: source || 'text',
+            aspectRatio: aspectRatio || '16:9',
+            videoUrl: uploaded.secure_url,
+            storageKey: uploaded.public_id
+        }).save();
+    } catch (error) {
+        console.error('⚠️ فشل حفظ الفيديو في مكتبة الطالب:', error.message);
+        return null;
+    }
+}
+
+// ====================== حد أقصى يومي لإنشاء الفيديو (Premium) ======================
+// منفصل تمامًا عن حد الصور (DAILY_IMAGE_LIMIT) — الفيديو أغلى بكتير (تسعير
+// بالثانية)، فحده اليومي لازم يكون أقل بكتير. القيمة دي قابلة للتعديل بسهولة.
+const DAILY_VIDEO_LIMIT = 2;
+const videoStudioUsageSchema = new mongoose.Schema({
+    username: { type: String, required: true },
+    dayKey: { type: String, required: true }, // من getTodayKey()
+    count: { type: Number, default: 0 }
+}, { timestamps: true });
+videoStudioUsageSchema.index({ username: 1, dayKey: 1 }, { unique: true });
+const VideoStudioUsage = mongoose.models.VideoStudioUsage || mongoose.model('VideoStudioUsage', videoStudioUsageSchema);
+
+async function getVideoQuotaStatus(username) {
+    await connectToDatabase();
+    const doc = await VideoStudioUsage.findOne({ username, dayKey: getTodayKey() }).select('count');
+    const used = doc?.count || 0;
+    return { used, remaining: Math.max(0, DAILY_VIDEO_LIMIT - used), limit: DAILY_VIDEO_LIMIT };
+}
+
+async function reserveVideoQuota(username) {
+    await connectToDatabase();
+    const dayKey = getTodayKey();
+    const updated = await VideoStudioUsage.findOneAndUpdate(
+        { username, dayKey },
+        { $inc: { count: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    if (updated.count > DAILY_VIDEO_LIMIT) {
+        await VideoStudioUsage.updateOne({ _id: updated._id }, { $inc: { count: -1 } });
+        return { allowed: false, used: DAILY_VIDEO_LIMIT, remaining: 0, limit: DAILY_VIDEO_LIMIT };
+    }
+    return { allowed: true, used: updated.count, remaining: Math.max(0, DAILY_VIDEO_LIMIT - updated.count), limit: DAILY_VIDEO_LIMIT };
+}
+
+async function releaseVideoQuota(username) {
+    try {
+        await connectToDatabase();
+        await VideoStudioUsage.updateOne(
+            { username, dayKey: getTodayKey(), count: { $gt: 0 } },
+            { $inc: { count: -1 } }
+        );
+    } catch (error) {
+        console.error('⚠️ فشل استرجاع حد الفيديو اليومي:', error.message);
     }
 }
 
