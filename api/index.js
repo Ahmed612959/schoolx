@@ -5828,9 +5828,10 @@ async function genEdit_grok(imageUrl, editPrompt) {
 // Flux 2 Max (عن طريق CometAPI /flux/v1/flux-2-max) — نفس فكرة Grok، بس الـ
 // endpoint ده غير متزامن (async): أول طلب POST بيرجّع id (وأحيانًا polling_url
 // جاهز)، وبعدين لازم نستعلم على /flux/v1/get_result لحد ما تجهز الصورة أو
-// تفشل. بيدعم كمان تحديد أبعاد الصورة بدقة (width/height) عن طريق
-// aspect_ratio: 'custom'، وده اللي بنستخدمه عشان نسمح للطالب يختار أبعاد
-// الصورة وقت الإنشاء.
+// تفشل. بيدعم كمان تحديد أبعاد الصورة بدقة (width/height). ⚠️ لاحظنا إن
+// CometAPI بترفض القيمة النصية "custom" لحقل aspect_ratio (بترجع خطأ
+// "aspect_ratio must be between 21:9 and 9:21")، فبنحسب نسبة حقيقية من
+// width/height فعليًا (computeFluxAspectRatio) ونبعتها مع نفس width/height.
 const FLUX_GENERATE_URL = `${COMETAPI_BASE_URL}/flux/v1/flux-2-max`;
 const FLUX_RESULT_URL = `${COMETAPI_BASE_URL}/flux/v1/get_result`;
 const FLUX_DEFAULT_WIDTH = 1024;
@@ -5843,6 +5844,22 @@ function clampFluxDimension(value, fallback) {
     if (!Number.isFinite(n) || n <= 0) return fallback;
     const clamped = Math.min(1440, Math.max(256, n));
     return Math.round(clamped / 16) * 16;
+}
+
+// بترجع نسبة الأبعاد كنص مبسّط (زي "16:9") من width/height فعليين — CometAPI
+// بقى بيرفض القيمة النصية "custom" لحقل aspect_ratio (بيحاول يفسّرها كنسبة
+// فعلية ويطلع بخطأ "aspect_ratio must be between 21:9 and 9:21")، فلازم نبعت
+// نسبة رقمية حقيقية دايمًا حتى لو الطالب مستخدم أبعاد مخصّصة. القيمة محصورة
+// أوتوماتيك بين 1:3 و3:1 عشان تفضل جوه المدى المسموح (21:9 ≈ 2.33، 9:21 ≈ 0.43).
+function computeFluxAspectRatio(width, height) {
+    const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+    let w = width, h = height;
+    const ratio = w / h;
+    const MIN_RATIO = 9 / 21, MAX_RATIO = 21 / 9;
+    if (ratio < MIN_RATIO) { h = Math.round(w / MIN_RATIO); }
+    else if (ratio > MAX_RATIO) { h = Math.round(w / MAX_RATIO); }
+    const d = gcd(w, h) || 1;
+    return `${Math.round(w / d)}:${Math.round(h / d)}`;
 }
 
 // شكل رد /flux/v1/get_result (ولو حصل ونفس الرد الأول رجّع الصورة على طول)
@@ -5914,7 +5931,7 @@ async function genImage_flux(trimmed, opts = {}) {
                 body: JSON.stringify({
                     prompt: trimmed,
                     image_prompt: '',
-                    aspect_ratio: 'custom',
+                    aspect_ratio: computeFluxAspectRatio(width, height),
                     width, height,
                     seed: Math.floor(Math.random() * 1000000),
                     safety_tolerance: 2,
@@ -5962,7 +5979,7 @@ async function genEdit_flux(imageUrl, editPrompt, opts = {}) {
                 body: JSON.stringify({
                     prompt: editPrompt,
                     image_prompt: imageUrl,
-                    aspect_ratio: 'custom',
+                    aspect_ratio: computeFluxAspectRatio(width, height),
                     width, height,
                     seed: Math.floor(Math.random() * 1000000),
                     safety_tolerance: 2,
