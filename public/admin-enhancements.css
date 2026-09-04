@@ -311,3 +311,106 @@ footer {
     .main-header h1 { font-size: 0.92rem; }
     .events-stats-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
 }
+
+/* ========================================================================
+   تحديث: تنعيم الألوان + هيدر بحواف دائرية + ضبط الأزرار العائمة والإجراءات
+   ======================================================================== */
+
+:root {
+    --primary-dark: #123f54;
+    --header-shadow: 0 10px 26px rgba(13, 42, 58, 0.2);
+}
+
+/* ---------- هيدر بحواف دائرية بدل الشريط الحاد ---------- */
+.main-header {
+    margin: 10px 10px 20px;
+    border-radius: 22px;
+    box-shadow: var(--header-shadow);
+    border-bottom: 2px solid rgba(196, 163, 90, 0.7);
+    top: max(8px, env(safe-area-inset-top));
+}
+
+.logo {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.home-btn, .logout-btn {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* ---------- زر "إدارة الطلاب" العلوي ---------- */
+.class-buttons-bar { margin: 18px auto 8px; }
+.class-btn { box-shadow: var(--shadow-sm); }
+.class-btn:hover { box-shadow: var(--shadow-md); }
+
+@media (max-width: 680px) {
+    .main-header {
+        margin: 8px 8px 16px;
+        border-radius: 20px;
+        padding: 18px 18px 16px;
+        gap: 8px;
+    }
+
+    .logo { width: 46px; height: 46px; margin-bottom: 2px; }
+
+    .main-header h1 {
+        font-size: 1rem;
+        gap: 8px;
+        padding: 0 6px;
+    }
+
+    /* إخفاء أيقونة المستشفى المكررة بجانب العنوان لأن الشعار الفعلي معروض بالفعل */
+    .main-header h1::before { display: none; }
+
+    .header-buttons { gap: 10px; margin-top: 6px; }
+
+    .home-btn, .logout-btn {
+        padding: 9px 20px;
+        font-size: 0.78rem;
+    }
+}
+
+/* ---------- أزرار التمرير: أخف وزنًا وبعيدة عن نصوص البطاقات ---------- */
+.scroll-buttons {
+    opacity: 0.85;
+    transition: opacity 0.25s ease;
+}
+
+.scroll-buttons:hover, .scroll-buttons:active { opacity: 1; }
+
+@media (max-width: 680px) {
+    .scroll-buttons {
+        right: auto;
+        left: max(10px, env(safe-area-inset-left));
+        bottom: max(90px, calc(env(safe-area-inset-bottom) + 80px));
+        gap: 8px;
+    }
+
+    .scroll-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 0.85rem;
+        background: rgba(26, 79, 110, 0.8);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+}
+
+/* ---------- تكبير مساحة اللمس لأزرار الإجراءات داخل البطاقات ---------- */
+@media (max-width: 680px) {
+    .table-wrapper td .table-action-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--gray-50);
+    }
+
+    .table-wrapper td .table-action-btn.edit-action { background: var(--success-light); }
+    .table-wrapper td .table-action-btn.delete-action { background: var(--danger-light); }
+
+    .table-wrapper td:has(.table-action-btn),
+    .violations-table-wrapper td:has(.edit-btn, .delete-btn) {
+        gap: 10px;
+    }
+}
