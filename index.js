@@ -327,8 +327,10 @@ function sanitizeFileName(str) {
 }
 
 // دالة رفع ملف إلى R2 من Buffer (نفس الاسم والشكل القديم عشان باقي الكود
-// اللي بينادي عليها متتغيرش)
-const uploadToCloudinary = async (buffer, folder, fileName) => {
+// اللي بينادي عليها متتغيرش). contentType اختياري — مهم بالذات للفيديو
+// (متصفحات كتير بترفض تشغيل <video> من غير Content-Type صحيح، عكس الصور
+// اللي المتصفح بيتساهل فيها أكتر).
+const uploadToCloudinary = async (buffer, folder, fileName, contentType) => {
     const safeFolder = folder ? folder.split('/').map(sanitizeForStorage).join('/') : '';
     const safeName = `${Date.now()}-${sanitizeFileName(fileName)}`;
     const path = safeFolder ? `${safeFolder}/${safeName}` : safeName;
@@ -336,7 +338,8 @@ const uploadToCloudinary = async (buffer, folder, fileName) => {
     await r2.send(new PutObjectCommand({
         Bucket: R2_BUCKET,
         Key: path,
-        Body: buffer
+        Body: buffer,
+        ...(contentType ? { ContentType: contentType } : {})
     }));
 
     return {
@@ -462,6 +465,8 @@ const studentSchema = new mongoose.Schema({
     password: String,
     grade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
     semester: String,
+    // النوع (ذكر/أنثى) — null يعني لسه متحددش من الأدمن، فبيظهر "غير محدد" في الواجهة
+    gender: { type: String, enum: ['male', 'female', null], default: null },
     subjects: Array, // legacy field - لم يعد يُستخدم، تم استبداله بـ subjectsFirst/subjectsSecond
     subjectsFirst: { type: Array, default: [] },  // درجات الترم الأول (النظام الحالي)
     subjectsSecond: { type: Array, default: [] }, // درجات نهاية العام / الترم الثاني (النظام الجديد - مجموع 510)
@@ -4464,7 +4469,7 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
     try {
         await connectToDatabase();
         const { studentCode } = req.params;
-        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, term, profile, premiumFeatures } = req.body;
+        const { fullName, username, password, studentCode: newStudentCode, grade, semester, subjects, term, profile, premiumFeatures, gender } = req.body;
         
         console.log('📝 تحديث الطالب:', studentCode, req.body);
         
@@ -4481,12 +4486,17 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         if (newStudentCode !== undefined && newStudentCode !== studentCode && !/^\d{7}$/.test(String(newStudentCode))) {
             return res.status(400).json({ error: 'رقم الجلوس لازم يكون 7 أرقام' });
         }
+        // ✅ النوع: لازم يكون male أو female بس، أو فاضي/null يعني "غير محدد"
+        if (gender !== undefined && gender !== null && gender !== '' && !['male', 'female'].includes(gender)) {
+            return res.status(400).json({ error: 'قيمة النوع غير صالحة' });
+        }
 
         // تحديث كل الحقول لو موجودة
         if (fullName !== undefined) updateData.fullName = fullName;
         if (username !== undefined) updateData.username = username;
         if (grade !== undefined) updateData.grade = grade;
         if (semester !== undefined) updateData.semester = semester;
+        if (gender !== undefined) updateData.gender = (gender === '' ? null : gender);
         // ✅ نظامين للدرجات: الترم الأول (subjectsFirst) و نهاية العام/الترم الثاني (subjectsSecond)
         // يُحدَّث حقل واحد فقط بحسب "term" المُرسَل، مع الحفاظ على درجات الترم الآخر كما هي
         if (subjects !== undefined) {
@@ -4566,6 +4576,35 @@ app.patch('/api/admin/students/:studentCode/premium', verifyToken, isAdmin, asyn
         res.json({ success: true, student: updated });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في تحديث مميزات Premium: ' });
+    }
+});
+
+// ====================== تحديث النوع (gender) لعدة طلاب دفعة واحدة (أدمن فقط) ======================
+// بيستخدمها زر "تحديد الكل" في صفحة الطلاب عشان الأدمن يحدد نوع كذا طالب في الصف مرة واحدة
+// بدل ما يفتح تعديل كل طالب لوحده. lastMultipleGuard: gender لازم تكون male أو female بس (مفيش فاضي هنا).
+app.patch('/api/admin/students/bulk-gender', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { studentCodes, gender } = req.body;
+        if (!Array.isArray(studentCodes) || studentCodes.length === 0) {
+            return res.status(400).json({ error: 'يجب تحديد طالب واحد على الأقل' });
+        }
+        if (!['male', 'female'].includes(gender)) {
+            return res.status(400).json({ error: 'قيمة النوع غير صالحة' });
+        }
+        const codes = studentCodes.filter(c => typeof c === 'string').slice(0, 500);
+        const result = await Student.updateMany(
+            { studentCode: { $in: codes } },
+            { $set: { gender } }
+        );
+        res.json({
+            success: true,
+            message: `تم تحديث النوع لـ ${result.modifiedCount} طالب`,
+            modifiedCount: result.modifiedCount
+        });
+    } catch (error) {
+        console.error('❌ خطأ في تحديث النوع الجماعي:', error);
+        res.status(500).json({ error: 'خطأ في تحديث النوع الجماعي' });
     }
 });
 
@@ -4849,6 +4888,209 @@ app.get('/api/students/by-grade/:grade', verifyToken, isAdmin, async (req, res) 
         res.json(students);
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الطلاب' }); }
 });
+
+// ====================== كشف الحسابات المكررة/المتشابهة (أدمن فقط) ======================
+// الهدف: يلاقي لو الطالب نفسه عامل أكتر من حساب — حتى لو مرة سجل اسمه بالعربي ومرة
+// بالإنجليزي (زي "احمد محمد" و"Ahmed Mohamed")، عن طريق تحويل أي اسم لمفتاح صوتي موحّد
+// بالحروف اللاتينية ومقارنته. وكمان بيقارن باقي البيانات مع بعضها (اسم ولي الأمر، رقم
+// الهاتف، رقم بطاقة ولي الأمر، آخر IP دخول) عشان يطلع نتيجة أدق مش بس معتمد على الاسم.
+// النتيجة عبارة عن مجموعات (groups)، كل مجموعة فيها الحسابات اللي شكلها نفس الطالب،
+// مع سبب/أسباب التشابه ونسبة الثقة، عشان الأدمن يراجعها ويقرر بنفسه.
+
+// خريطة تقريبية لتحويل الحروف العربية لمكافئها الصوتي بالإنجليزي
+const ARABIC_TRANSLIT_MAP = {
+    'ا': 'a', 'أ': 'a', 'إ': 'a', 'آ': 'a', 'ء': 'a', 'ئ': 'y', 'ؤ': 'w', 'ى': 'a',
+    'ب': 'b', 'ت': 't', 'ث': 's', 'ج': 'g', 'ح': 'h', 'خ': 'kh',
+    'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh',
+    'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh',
+    'ف': 'f', 'ق': 'k', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+    'ه': 'h', 'ة': 'h', 'و': 'w', 'ي': 'y'
+};
+
+function isArabicText(text) {
+    return /[\u0600-\u06FF]/.test(text);
+}
+
+function transliterateArabicWord(word) {
+    return word.split('').map(ch => {
+        if (ARABIC_TRANSLIT_MAP[ch] !== undefined) return ARABIC_TRANSLIT_MAP[ch];
+        return /[\u0600-\u06FF\u064B-\u065F]/.test(ch) ? '' : ch; // شيل التشكيل/أي حرف عربي مش متعرَّف
+    }).join('');
+}
+
+// مفتاح صوتي "خشن" لكلمة واحدة — بيوحّد عربي/إنجليزي في نفس الشكل، عشان
+// "Ahmed"/"Ahmad"/"احمد" كلهم يطلعوا بمفتاح متطابق أو قريب جدًا من بعض
+function phoneticKey(rawWord) {
+    if (!rawWord) return '';
+    let w = isArabicText(rawWord) ? transliterateArabicWord(rawWord) : String(rawWord).toLowerCase();
+    w = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (!w) return '';
+    w = w.replace(/kh/g, 'h').replace(/gh/g, 'g').replace(/sh/g, 's').replace(/th/g, 's');
+    w = w.replace(/(.)\1+/g, '$1'); // شيل تكرار نفس الحرف (mohammed -> mohamed)
+    if (w.length > 1) w = w[0] + w.slice(1).replace(/[aeiouy]/g, ''); // شيل حروف العلة عدا أول حرف
+    return w;
+}
+
+function nameToTokens(fullName) {
+    return String(fullName || '').trim().split(/\s+/).map(phoneticKey).filter(Boolean);
+}
+
+function levenshteinDistance(a, b) {
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            dp[i][j] = Math.min(
+                dp[i - 1][j] + 1,
+                dp[i][j - 1] + 1,
+                dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+            );
+        }
+    }
+    return dp[m][n];
+}
+
+function phoneticKeysClose(k1, k2) {
+    if (!k1 || !k2) return false;
+    if (k1 === k2) return true;
+    const maxLen = Math.max(k1.length, k2.length);
+    const dist = levenshteinDistance(k1, k2);
+    return dist <= 1 || (dist / maxLen) <= 0.25;
+}
+
+// نسبة تشابه بين مجموعتين من التوكنز الصوتية (كل توكن من الأقصر بيدور على أقرب توكن في التاني)
+function tokensSimilarity(tokensA, tokensB) {
+    if (!tokensA.length || !tokensB.length) return 0;
+    const shorter = tokensA.length <= tokensB.length ? tokensA : tokensB;
+    const longer = tokensA.length <= tokensB.length ? tokensB : tokensA;
+    let matched = 0;
+    const usedIdx = new Set();
+    for (const tok of shorter) {
+        for (let i = 0; i < longer.length; i++) {
+            if (usedIdx.has(i)) continue;
+            if (phoneticKeysClose(tok, longer[i])) { matched++; usedIdx.add(i); break; }
+        }
+    }
+    return matched / shorter.length;
+}
+
+function normalizePhoneForMatch(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    return digits.length >= 8 ? digits.slice(-10) : '';
+}
+
+function normalizeIdForMatch(id) {
+    const digits = String(id || '').replace(/\D/g, '');
+    return digits.length >= 8 ? digits : '';
+}
+
+// مقارنة شاملة بين طالبين على كل المعلومات المتاحة (مش بس الاسم)، وإرجاع نسبة تشابه + أسباب
+function compareStudentsForDuplicates(a, b) {
+    const nameSim = tokensSimilarity(a.nameTokens, b.nameTokens);
+    const parentNameSim = tokensSimilarity(a.parentTokens, b.parentTokens);
+    const phoneMatch = !!(a.phoneKey && a.phoneKey === b.phoneKey);
+    const parentIdMatch = !!(a.parentIdKey && a.parentIdKey === b.parentIdKey);
+    const ipMatch = !!(a.lastIP && b.lastIP && a.lastIP === b.lastIP);
+
+    let score = nameSim * 0.40 + parentNameSim * 0.15 + (phoneMatch ? 0.20 : 0) + (parentIdMatch ? 0.15 : 0) + (ipMatch ? 0.10 : 0);
+    score = Math.min(1, score);
+
+    const reasons = [];
+    if (nameSim >= 0.9) reasons.push('اسم الطالب متطابق تقريبًا (عربي/إنجليزي)');
+    else if (nameSim >= 0.6) reasons.push('اسم الطالب متشابه جدًا (عربي/إنجليزي)');
+    if (parentNameSim >= 0.6) reasons.push('اسم ولي الأمر متشابه');
+    if (phoneMatch) reasons.push('نفس رقم الهاتف بالظبط');
+    if (parentIdMatch) reasons.push('نفس رقم بطاقة ولي الأمر بالظبط');
+    if (ipMatch) reasons.push('اتسجلوا من نفس الجهاز/الشبكة (آخر IP)');
+
+    // اعتبرهم "مكررين محتملين" لو النقطة الإجمالية عالية، أو لو فيه تطابق حاسم لوحده (هاتف/بطاقة)
+    const isDuplicate = score >= 0.45 || phoneMatch || parentIdMatch;
+    return { score, reasons, isDuplicate };
+}
+
+app.get('/api/admin/students/duplicate-accounts', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const students = await Student.find().select('fullName studentCode username grade semester gender profile lastIP createdAt');
+
+        const items = students.map(s => ({
+            studentCode: s.studentCode,
+            fullName: s.fullName,
+            username: s.username,
+            grade: s.grade,
+            semester: s.semester,
+            gender: s.gender,
+            phone: (s.profile && s.profile.phone) || '',
+            parentName: (s.profile && s.profile.parentName) || '',
+            parentId: (s.profile && s.profile.parentId) || '',
+            lastIP: s.lastIP || '',
+            createdAt: s.createdAt,
+            nameTokens: nameToTokens(s.fullName),
+            parentTokens: nameToTokens(s.profile && s.profile.parentName),
+            phoneKey: normalizePhoneForMatch(s.profile && s.profile.phone),
+            parentIdKey: normalizeIdForMatch(s.profile && s.profile.parentId)
+        })).filter(it => it.nameTokens.length > 0);
+
+        // تجميع بالجراف (connected components): لو أ شابه ب، وب شابه ج، الثلاثة بيظهروا
+        // في نفس المجموعة حتى لو أ وج مش متشابهين مباشرة على كل المحاور
+        const n = items.length;
+        const adjacency = Array.from({ length: n }, () => []);
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                const result = compareStudentsForDuplicates(items[i], items[j]);
+                if (result.isDuplicate) {
+                    adjacency[i].push({ to: j, score: result.score, reasons: result.reasons });
+                    adjacency[j].push({ to: i, score: result.score, reasons: result.reasons });
+                }
+            }
+        }
+
+        const visited = new Array(n).fill(false);
+        const groups = [];
+        for (let i = 0; i < n; i++) {
+            if (visited[i] || adjacency[i].length === 0) continue;
+            const stack = [i];
+            const memberIdx = new Set();
+            const allReasons = new Set();
+            let maxScore = 0;
+            while (stack.length) {
+                const cur = stack.pop();
+                if (visited[cur]) continue;
+                visited[cur] = true;
+                memberIdx.add(cur);
+                for (const edge of adjacency[cur]) {
+                    maxScore = Math.max(maxScore, edge.score);
+                    edge.reasons.forEach(r => allReasons.add(r));
+                    if (!visited[edge.to]) stack.push(edge.to);
+                }
+            }
+            if (memberIdx.size > 1) {
+                const members = Array.from(memberIdx).map(idx => {
+                    const { nameTokens, parentTokens, phoneKey, parentIdKey, ...rest } = items[idx];
+                    return rest;
+                });
+                groups.push({
+                    accountsCount: members.length,
+                    confidence: Math.round(maxScore * 100),
+                    reasons: Array.from(allReasons),
+                    members
+                });
+            }
+        }
+
+        groups.sort((a, b) => b.confidence - a.confidence || b.accountsCount - a.accountsCount);
+
+        res.json({ success: true, totalGroups: groups.length, groups });
+    } catch (error) {
+        console.error('❌ خطأ في اكتشاف الحسابات المكررة:', error);
+        res.status(500).json({ error: 'خطأ في اكتشاف الحسابات المكررة' });
+    }
+});
+
 
 // ====================== إنشاء مدير أول ======================
 app.post('/api/create-initial-admin', async (req, res) => {
@@ -5300,15 +5542,140 @@ async function fetchGeminiWithRetry(url, options, retries = 1, delayMs = 1500) {
     }
 }
 
-// تحليل صورة برؤية AI حقيقية (multimodal) — مش OCR نصي بس زي الـ Tesseract في
-// الشات العادي. بيبعت بايتس الصورة فعليًا لـ Gemini، فبيقدر يوصف رسومات
-// ومخططات وصور مش نصية خالص (زي صورة جهاز أو رسم تشريحي)، وده اللي بيدّي
-// الدقة العالية المطلوبة. مفيش fallback لـ DeepSeek هنا لأنه مش بيدعم رؤية.
+// ====================== تحليل الصور برؤية AI حقيقية (Vision) — بـ failover ======================
+// مش OCR نصي بس زي الـ Tesseract في الشات العادي — بتبعت بايتس الصورة فعليًا
+// لموديل عنده رؤية حقيقية (multimodal)، فبيقدر يوصف رسومات ومخططات وصور مش
+// نصية خالص (زي صورة جهاز أو رسم تشريحي). زي نظام تحسين الوصف بالظبط: بتلف
+// على كل الموديلات المتاحة اللي بتدعم رؤية بالترتيب (Gemini، بعدين DeepSeek
+// عن طريق موديل deepseek-v4-flash-vision-exp التجريبي، بعدين Qwen عن طريق
+// qwen3-vl-plus) — أول واحد يرد بنجاح بناخد رده، ولو فشل بنعدّي للي بعده.
+
+async function analyzeImageWithGemini(systemPrompt, userText, imageBase64, mimeType) {
+    const response = await fetchGeminiWithRetry(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+        {
+            method: 'POST',
+            headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{
+                    role: 'user',
+                    parts: [
+                        { text: userText },
+                        { inline_data: { mime_type: mimeType, data: imageBase64 } }
+                    ]
+                }],
+                generationConfig: { maxOutputTokens: 1500, temperature: 0.2 } // temperature منخفضة عمدًا هنا — دقة أهم من إبداع في تحليل صورة
+            })
+        }
+    );
+    if (!response.ok) {
+        let detail = 'فشل استدعاء Gemini';
+        try { const d = await response.json(); if (d?.error?.message) detail = d.error.message; } catch (_) {}
+        const err = new Error(detail);
+        err.code = 'ai_call_failed';
+        throw err;
+    }
+    const data = await response.json();
+    const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!analysis) { const err = new Error('رد Gemini مكانش فيه نص تحليل'); err.code = 'ai_bad_response'; throw err; }
+    return analysis;
+}
+
+// deepseek-v4-flash-vision-exp — موديل DeepSeek التجريبي للرؤية، بنفس صيغة
+// OpenAI Chat Completions (image_url بـ data URL base64).
+async function analyzeImageWithDeepSeek(systemPrompt, userText, imageBase64, mimeType) {
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'deepseek-v4-flash-vision-exp',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: [
+                    { type: 'text', text: userText },
+                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
+                ] }
+            ],
+            temperature: 0.2,
+            max_tokens: 1500
+        })
+    });
+    if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        const err = new Error(`فشل استدعاء DeepSeek Vision (status ${response.status})`);
+        err.code = 'ai_call_failed';
+        err.detail = errBody.slice(0, 300);
+        throw err;
+    }
+    const data = await response.json();
+    const analysis = (data.choices?.[0]?.message?.content || '').trim();
+    if (!analysis) { const err = new Error('رد DeepSeek مكانش فيه نص تحليل'); err.code = 'ai_bad_response'; throw err; }
+    return analysis;
+}
+
+// qwen3-vl-plus عن طريق DashScope compatible-mode — نفس مفتاح الشات النصي
+// (QWEN_CHAT_API_KEY)، بنفس صيغة OpenAI Chat Completions.
+async function analyzeImageWithQwen(systemPrompt, userText, imageBase64, mimeType) {
+    const response = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${QWEN_CHAT_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'qwen3-vl-plus',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: [
+                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+                    { type: 'text', text: userText }
+                ] }
+            ],
+            temperature: 0.2,
+            max_tokens: 1500
+        })
+    });
+    if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        const err = new Error(`فشل استدعاء Qwen Vision (status ${response.status})`);
+        err.code = 'ai_call_failed';
+        err.detail = errBody.slice(0, 300);
+        throw err;
+    }
+    const data = await response.json();
+    const analysis = (data.choices?.[0]?.message?.content || '').trim();
+    if (!analysis) { const err = new Error('رد Qwen مكانش فيه نص تحليل'); err.code = 'ai_bad_response'; throw err; }
+    return analysis;
+}
+
+const VISION_AI_FAILOVER_CHAIN = [
+    { key: 'gemini', label: 'Gemini', enabled: () => !!GEMINI_API_KEY, run: analyzeImageWithGemini },
+    { key: 'deepseek', label: 'DeepSeek', enabled: () => !!DEEPSEEK_API_KEY, run: analyzeImageWithDeepSeek },
+    { key: 'qwen', label: 'Qwen', enabled: () => !!QWEN_CHAT_API_KEY, run: analyzeImageWithQwen }
+];
+
+// بتلف على VISION_AI_FAILOVER_CHAIN بالترتيب وترجع أول تحليل ناجح — بالظبط زي
+// callAIJSONWithFailover بتاعة تحسين الوصف، بس هنا للتحليل النصي الحر (مش JSON).
+async function analyzeImageWithFailover(systemPrompt, userText, imageBase64, mimeType) {
+    const errors = [];
+    for (const provider of VISION_AI_FAILOVER_CHAIN) {
+        if (!provider.enabled()) continue;
+        try {
+            const analysis = await provider.run(systemPrompt, userText, imageBase64, mimeType);
+            return { analysis, usedModel: provider.key };
+        } catch (error) {
+            console.error(`⚠️ ${provider.label} فشل في تحليل الصورة${error.detail ? ' — ' + error.detail : ''}:`, error.message);
+            errors.push({ model: provider.key, detail: error.message });
+        }
+    }
+    const err = new Error(errors.length ? 'كل موديلات تحليل الصور فشلت' : 'خدمة تحليل الصور مش مفعّلة حاليًا');
+    err.code = errors.length ? 'ai_all_failed' : 'ai_unavailable';
+    err.attempts = errors;
+    throw err;
+}
+
 app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { image, question } = req.body || {};
         if (!image || !image.base64 || !image.mimeType) return res.status(400).json({ error: 'الصورة مطلوبة' });
-        if (!GEMINI_API_KEY) return res.status(503).json({ error: 'خدمة تحليل الصور مش مفعّلة حاليًا (GEMINI_API_KEY مش مضبوط)' });
         if (image.base64.length > 8_000_000) return res.status(413).json({ error: 'الصورة كبيرة قوي' });
 
         const trimmedQuestion = String(question || '').trim().slice(0, 500);
@@ -5320,37 +5687,17 @@ app.post('/api/premium/vision-analyze', verifyToken, requirePremium('premium_ima
 - رد بالعربي، بشكل منظم وواضح، من غير مبالغة أو تخمين لحاجة مش واضحة في الصورة — لو حاجة مش واضحة قول كده صراحة بدل ما تخمّن.`;
         const userText = trimmedQuestion || 'حلّل الصورة دي بالتفصيل واشرح كل حاجة مهمة فيها.';
 
-        const response = await fetchGeminiWithRetry(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
-            {
-                method: 'POST',
-                headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    system_instruction: { parts: [{ text: systemPrompt }] },
-                    contents: [{
-                        role: 'user',
-                        parts: [
-                            { text: userText },
-                            { inline_data: { mime_type: image.mimeType, data: image.base64 } }
-                        ]
-                    }],
-                    generationConfig: { maxOutputTokens: 1500, temperature: 0.2 } // temperature منخفضة عمدًا هنا — دقة أهم من إبداع في تحليل صورة
-                })
-            }
-        );
-        if (!response.ok) {
-            let detail = 'فشل تحليل الصورة';
-            try { const d = await response.json(); if (d?.error?.message) detail = d.error.message; } catch (_) {}
-            const isOverload = response.status === 503;
-            return res.status(502).json({ error: isOverload ? 'الخدمة مزدحمة حاليًا، جرب تاني بعد شوية' : detail });
-        }
-        const data = await response.json();
-        const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!analysis) return res.status(502).json({ error: 'تعذر الحصول على تحليل للصورة دي' });
-        res.json({ analysis });
+        const { analysis, usedModel } = await analyzeImageWithFailover(systemPrompt, userText, image.base64, image.mimeType);
+        res.json({ analysis, usedModel });
     } catch (error) {
         console.error('❌ خطأ في تحليل الصورة:', error.message);
-        res.status(500).json({ error: 'خطأ في تحليل الصورة' });
+        const msg = error.code === 'ai_unavailable' ? 'خدمة تحليل الصور مش مفعّلة حاليًا'
+            : error.code === 'ai_all_failed' ? 'تعذر تحليل الصورة حاليًا (كل الموديلات المتاحة فشلت)، حاول تاني بعد شوية'
+            : 'خطأ في تحليل الصورة';
+        res.status(502).json({
+            error: msg,
+            ...(req.user?.type === 'admin' && error.attempts ? { debugAttempts: error.attempts } : {})
+        });
     }
 });
 
@@ -5481,9 +5828,10 @@ async function genEdit_grok(imageUrl, editPrompt) {
 // Flux 2 Max (عن طريق CometAPI /flux/v1/flux-2-max) — نفس فكرة Grok، بس الـ
 // endpoint ده غير متزامن (async): أول طلب POST بيرجّع id (وأحيانًا polling_url
 // جاهز)، وبعدين لازم نستعلم على /flux/v1/get_result لحد ما تجهز الصورة أو
-// تفشل. بيدعم كمان تحديد أبعاد الصورة بدقة (width/height) عن طريق
-// aspect_ratio: 'custom'، وده اللي بنستخدمه عشان نسمح للطالب يختار أبعاد
-// الصورة وقت الإنشاء.
+// تفشل. بيدعم كمان تحديد أبعاد الصورة بدقة (width/height). ⚠️ لاحظنا إن
+// CometAPI بترفض القيمة النصية "custom" لحقل aspect_ratio (بترجع خطأ
+// "aspect_ratio must be between 21:9 and 9:21")، فبنحسب نسبة حقيقية من
+// width/height فعليًا (computeFluxAspectRatio) ونبعتها مع نفس width/height.
 const FLUX_GENERATE_URL = `${COMETAPI_BASE_URL}/flux/v1/flux-2-max`;
 const FLUX_RESULT_URL = `${COMETAPI_BASE_URL}/flux/v1/get_result`;
 const FLUX_DEFAULT_WIDTH = 1024;
@@ -5496,6 +5844,22 @@ function clampFluxDimension(value, fallback) {
     if (!Number.isFinite(n) || n <= 0) return fallback;
     const clamped = Math.min(1440, Math.max(256, n));
     return Math.round(clamped / 16) * 16;
+}
+
+// بترجع نسبة الأبعاد كنص مبسّط (زي "16:9") من width/height فعليين — CometAPI
+// بقى بيرفض القيمة النصية "custom" لحقل aspect_ratio (بيحاول يفسّرها كنسبة
+// فعلية ويطلع بخطأ "aspect_ratio must be between 21:9 and 9:21")، فلازم نبعت
+// نسبة رقمية حقيقية دايمًا حتى لو الطالب مستخدم أبعاد مخصّصة. القيمة محصورة
+// أوتوماتيك بين 1:3 و3:1 عشان تفضل جوه المدى المسموح (21:9 ≈ 2.33، 9:21 ≈ 0.43).
+function computeFluxAspectRatio(width, height) {
+    const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+    let w = width, h = height;
+    const ratio = w / h;
+    const MIN_RATIO = 9 / 21, MAX_RATIO = 21 / 9;
+    if (ratio < MIN_RATIO) { h = Math.round(w / MIN_RATIO); }
+    else if (ratio > MAX_RATIO) { h = Math.round(w / MAX_RATIO); }
+    const d = gcd(w, h) || 1;
+    return `${Math.round(w / d)}:${Math.round(h / d)}`;
 }
 
 // شكل رد /flux/v1/get_result (ولو حصل ونفس الرد الأول رجّع الصورة على طول)
@@ -5567,9 +5931,8 @@ async function genImage_flux(trimmed, opts = {}) {
                 body: JSON.stringify({
                     prompt: trimmed,
                     image_prompt: '',
-                    aspect_ratio: 'custom',
+                    aspect_ratio: computeFluxAspectRatio(width, height),
                     width, height,
-                    prompt_upsampling: false,
                     seed: Math.floor(Math.random() * 1000000),
                     safety_tolerance: 2,
                     output_format: 'jpeg',
@@ -5616,9 +5979,8 @@ async function genEdit_flux(imageUrl, editPrompt, opts = {}) {
                 body: JSON.stringify({
                     prompt: editPrompt,
                     image_prompt: imageUrl,
-                    aspect_ratio: 'custom',
+                    aspect_ratio: computeFluxAspectRatio(width, height),
                     width, height,
-                    prompt_upsampling: false,
                     seed: Math.floor(Math.random() * 1000000),
                     safety_tolerance: 2,
                     output_format: 'jpeg',
@@ -5651,6 +6013,106 @@ async function genEdit_flux(imageUrl, editPrompt, opts = {}) {
     });
 }
 
+// ====================== Grok Imagine Video (عن طريق CometAPI /grok/v1) ======================
+// موديل فيديو من نص أو من صورة (image-to-video)، بصوت مدمج. بيتفعّل عن طريق
+// نفس نظام تدوير مفاتيح CometAPI (withKeyRotation) بس بمفتاح مزوّد منفصل
+// ('grok-video') عشان الأدمن يقدر يضيف مفاتيح مخصصة للفيديو لو حابب يفصل
+// الميزانية عن باقي مزوّدين الصور.
+//
+// 💰 توفير الكريدت (الفيديو مكلّف جدًا مقارنة بالصور — تسعير بالثانية):
+// - المدة ثابتة على 10 ثواني بس (مش قابلة للتغيير) — أرخص مدة معقولة للاستخدام
+//   التعليمي بدل ما تسيب الطالب يختار مدة أطول وأغلى.
+// - الدقة ثابتة على 480p (مش قابلة للتغيير) — تقريبًا نص سعر 720p للثانية.
+// - حد يومي صارم منفصل عن حد الصور (DAILY_VIDEO_LIMIT) لأن كل فيديو بيكلّف
+//   أضعاف الصورة الواحدة.
+const GROK_VIDEO_BASE_URL = `${COMETAPI_BASE_URL}/grok/v1`;
+const VIDEO_DURATION_SECONDS = 10;
+const VIDEO_RESOLUTION = '480p';
+
+async function createGrokVideoTask(apiKey, prompt, imageUrl, aspectRatio) {
+    const payload = {
+        model: 'grok-imagine-video',
+        prompt,
+        duration: VIDEO_DURATION_SECONDS,
+        aspect_ratio: aspectRatio || '16:9',
+        resolution: VIDEO_RESOLUTION
+    };
+    if (imageUrl) payload.image_url = imageUrl; // لو موجودة → صورة لفيديو (image-to-video)، لو مش موجودة → نص لفيديو
+    const response = await fetch(`${GROK_VIDEO_BASE_URL}/videos/generations`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        const err = new Error(`فشل إنشاء مهمة الفيديو — status ${response.status}`);
+        err.status = response.status;
+        err.detail = errBody.slice(0, 300);
+        throw err;
+    }
+    const data = await response.json();
+    const taskId = data?.request_id || data?.id;
+    if (!taskId) {
+        const err = new Error('رد إنشاء مهمة الفيديو من غير task ID');
+        err.detail = JSON.stringify(data).slice(0, 300);
+        throw err;
+    }
+    return taskId;
+}
+
+// بتستعلم على حالة مهمة الفيديو لحد ما تخلص (SUCCESS) أو تفشل (FAILURE) أو
+// تخلص المهلة. الفيديو بياخد وقت أطول من الصور بكتير (دقيقة لحد كذا دقيقة مش
+// حاجة غريبة)، فبنستعلم كل 10 ثواني (نفس الفترة الموصى بيها في مثال CometAPI
+// الرسمي) لمدة أقصاها ~28 محاولة (حوالي 280 ثانية / 4.7 دقيقة).
+// ⚠️ مهم جدًا (زي Flux بالظبط، بس أهم هنا لطول المدة): maxDuration بتاع
+// الفانكشن ده في vercel.json (أو إعدادات Function Duration في Vercel
+// Dashboard) لازم يكون ≥290 ثانية، وده محتاج أعلى خطة متاحة عندك على Vercel
+// (Pro على الأقل، وممكن تحتاج Fluid Compute لو الخطة العادية بتوقف عند 60
+// ثانية) — وإلا Vercel هيقفل الفانكشن قبل ما الفيديو يخلص بغض النظر عن الكود.
+async function pollGrokVideoTask(apiKey, taskId) {
+    const ATTEMPTS = 28, INTERVAL_MS = 10000;
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+        await new Promise(r => setTimeout(r, INTERVAL_MS));
+        try {
+            const response = await fetch(`${GROK_VIDEO_BASE_URL}/videos/${taskId}`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            if (!response.ok) continue; // خطأ مؤقت في الاستعلام — نكمل نحاول
+            const queryResult = await response.json();
+            const data = queryResult?.data || {};
+            const status = String(data?.status || '').toUpperCase();
+            if (status === 'SUCCESS' || status === 'DONE') {
+                const videoUrl = data?.data?.video?.url || data?.video?.url;
+                if (videoUrl) return { ok: true, videoUrl };
+                return { ok: false, reason: 'no_video_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            if (status === 'FAILURE' || status === 'FAILED') {
+                return { ok: false, reason: 'generation_failed', detail: data?.fail_reason || 'فشل توليد الفيديو' };
+            }
+            // لسه PENDING/RUNNING — نكمل الاستعلام
+        } catch (error) {
+            // خطأ مؤقت في الاستعلام — نكمل نحاول لحد ما تخلص المحاولات
+        }
+    }
+    return { ok: false, reason: 'timeout', detail: 'انتهت مهلة انتظار توليد الفيديو' };
+}
+
+// إنشاء فيديو (من نص، أو من صورة لو imageUrl موجودة) — Grok Imagine Video.
+async function generateGrokVideo(prompt, imageUrl, aspectRatio) {
+    return withKeyRotation('grok-video', process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const taskId = await createGrokVideoTask(apiKey, prompt, imageUrl, aspectRatio);
+            const polled = await pollGrokVideoTask(apiKey, taskId);
+            if (!polled.ok) return polled;
+            return { ok: true, videoUrl: polled.videoUrl };
+        } catch (error) {
+            console.error('❌ Grok Video (CometAPI) exception:', error.message);
+            return { ok: false, status: error.status, reason: error.status ? undefined : 'exception', detail: error.detail || error.message };
+        }
+    });
+}
+
 // خريطة موحّدة: المفتاح ده هو نفسه اللي الفرونت إند بيبعته لو الطالب اختار مزوّد
 // معيّن بدل "تلقائي". بيسهّل الإضافة لاحقًا (مزوّد جديد = سطر واحد هنا).
 const IMAGE_PROVIDERS = {
@@ -5675,7 +6137,10 @@ const AUTO_ORDER = ['qwen', 'grok', 'flux'];
 app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { prompt, provider, width, height } = req.body || {};
-        const trimmed = String(prompt || '').trim().slice(0, 500);
+        // الحد رُفع لـ 1000 حرف عشان يستوعب بادئة الأسلوب (Style preset)
+        // اللي بتتحط في أول الوصف من الفرونت إند من غير ما تتقطع تفاصيل موضوع
+        // الطالب أو الأسلوب نفسه.
+        const trimmed = String(prompt || '').trim().slice(0, 1000);
         if (!trimmed) return res.status(400).json({ error: 'وصف الصورة مطلوب' });
         // أبعاد الصورة (اختياري) — بيستخدمها Flux فعليًا حاليًا، وأي مزوّد
         // تاني بيدعم تحديد الأبعاد ممكن ياخدها من نفس الـ opts لاحقًا.
@@ -5761,7 +6226,7 @@ app.post('/api/premium/generate-image', verifyToken, requirePremium('premium_ima
 app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
         const { imageUrl, prompt, provider, width, height } = req.body || {};
-        const trimmedPrompt = String(prompt || '').trim().slice(0, 500);
+        const trimmedPrompt = String(prompt || '').trim().slice(0, 1000);
         const cleanProvider = String(provider || 'grok').trim().toLowerCase();
         if (!imageUrl) return res.status(400).json({ error: 'رابط الصورة مطلوب' });
         if (!trimmedPrompt) return res.status(400).json({ error: 'وصف التعديل مطلوب' });
@@ -5868,14 +6333,14 @@ app.get('/api/premium/image-quota', verifyToken, requirePremium('premium_image_s
 // بتاع الصور.
 app.post('/api/premium/improve-image-prompt', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     try {
-        const trimmed = String(req.body?.prompt || '').trim().slice(0, 500);
+        const trimmed = String(req.body?.prompt || '').trim().slice(0, 1000);
         if (!trimmed) return res.status(400).json({ error: 'اكتب وصف الصورة الأول' });
         const systemPrompt = 'انت مساعد متخصص في تحسين أوصاف الصور (prompts) لموديلات توليد صور بالذكاء الاصطناعي. '
             + 'هتاخد وصف مختصر أو غامض من طالب، وترجّعه أوضح وأدق وغني بتفاصيل بصرية مفيدة (الألوان، التكوين، '
             + 'الإضاءة، مستوى التفاصيل) من غير ما تغيّر الفكرة الأساسية للطلب، وبنفس لغة الوصف الأصلي. '
             + 'رجّع رد JSON بس بالشكل: {"improved": "الوصف المحسّن هنا"} — من غير أي شرح أو نص زيادة.';
-        const { result, usedModel } = await callAIJSONWithFailover(systemPrompt, trimmed, 300);
-        const improved = String(result?.improved || '').trim().slice(0, 500);
+        const { result, usedModel } = await callAIJSONWithFailover(systemPrompt, trimmed, 600);
+        const improved = String(result?.improved || '').trim().slice(0, 1000);
         if (!improved) return res.status(502).json({ error: 'تعذر تحسين الوصف، حاول تاني' });
         res.json({ improved, usedModel });
     } catch (error) {
@@ -5887,6 +6352,109 @@ app.post('/api/premium/improve-image-prompt', verifyToken, requirePremium('premi
             error: msg,
             ...(req.user?.type === 'admin' && error.attempts ? { debugAttempts: error.attempts } : {})
         });
+    }
+});
+
+// ====================== إنشاء فيديو (من نص أو من صورة) — Grok Imagine Video ======================
+// نفس منطق endpoint إنشاء الصورة تقريبًا (حد يومي منفصل + حفظ تلقائي في
+// المكتبة)، لكن كل عملية هنا بتاخد وقت أطول بكتير (دقايق مش ثواني) وبتكلّف
+// أضعاف الصورة، فالحد اليومي (DAILY_VIDEO_LIMIT) أقل بكتير من حد الصور.
+app.post('/api/premium/generate-video', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        const { prompt, imageUrl, aspectRatio } = req.body || {};
+        const trimmed = String(prompt || '').trim().slice(0, 1000);
+        if (!trimmed) return res.status(400).json({ error: 'وصف الفيديو مطلوب' });
+        // لو فيه رابط صورة، لازم يكون رابط عام (مش data: URI محلي) عشان
+        // CometAPI يقدر يوصله.
+        if (imageUrl && !/^https?:\/\//.test(imageUrl)) {
+            return res.status(400).json({ error: 'رابط الصورة لازم يكون رابط عام (جرّب ترفع الصورة أو تولّدها من الاستوديو الأول)' });
+        }
+        const cleanAspectRatio = ['16:9', '9:16', '1:1', '4:3', '3:4'].includes(aspectRatio) ? aspectRatio : '16:9';
+
+        // الحد اليومي — الأدمن مستثنى تمامًا (زي باقي فحوصات الـ Premium).
+        const isAdminReq = req.user?.type === 'admin';
+        let quota = { used: 0, remaining: DAILY_VIDEO_LIMIT, limit: DAILY_VIDEO_LIMIT };
+        if (!isAdminReq) {
+            quota = await reserveVideoQuota(req.user.username);
+            if (!quota.allowed) {
+                return res.status(429).json({
+                    error: `وصلت للحد الأقصى من إنشاء الفيديو اليوم (${DAILY_VIDEO_LIMIT} فيديوهات) — هيتجدد بكرة`,
+                    quotaRemaining: 0, quotaLimit: DAILY_VIDEO_LIMIT
+                });
+            }
+        }
+
+        const result = await generateGrokVideo(trimmed, imageUrl || null, cleanAspectRatio);
+        if (!result.ok) {
+            if (!isAdminReq) await releaseVideoQuota(req.user.username);
+            const reasonText = result.reason === 'timeout' ? 'استغرق توليد الفيديو وقتًا أطول من المتوقع، حاول تاني'
+                : result.reason === 'generation_failed' ? (result.detail || 'فشل توليد الفيديو')
+                : result.status === 429 || result.status === 403 ? 'انتهى الرصيد المتاح لتوليد الفيديو حاليًا'
+                : 'تعذر إنشاء الفيديو، حاول تاني';
+            return res.status(502).json({
+                error: reasonText,
+                ...(req.user?.type === 'admin' ? { debugAttempts: [result] } : {})
+            });
+        }
+
+        const saved = await saveGeneratedVideoToLibrary({
+            username: req.user?.username, prompt: trimmed, source: imageUrl ? 'image' : 'text',
+            aspectRatio: cleanAspectRatio, videoUrl: result.videoUrl
+        });
+        // لو الحفظ في R2 نجح، نرجّع رابطنا الدائم (بدل رابط المزوّد المؤقت)
+        // عشان زرار التحميل يفضل شغال حتى بعد ما رابط المزوّد يموت.
+        res.json({
+            videoUrl: saved?.videoUrl || result.videoUrl,
+            savedToLibrary: !!saved,
+            quotaRemaining: quota.remaining, quotaLimit: quota.limit
+        });
+    } catch (error) {
+        console.error('❌ خطأ في إنشاء الفيديو:', error.message);
+        res.status(500).json({ error: 'خطأ في إنشاء الفيديو' });
+    }
+});
+
+app.get('/api/premium/video-quota', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        if (req.user?.type === 'admin') {
+            return res.json({ used: 0, remaining: DAILY_VIDEO_LIMIT, limit: DAILY_VIDEO_LIMIT, unlimited: true });
+        }
+        const quota = await getVideoQuotaStatus(req.user.username);
+        res.json(quota);
+    } catch (error) {
+        console.error('❌ خطأ في جلب حد الفيديو اليومي:', error.message);
+        res.status(500).json({ error: 'خطأ في جلب حد الفيديو اليومي' });
+    }
+});
+
+app.get('/api/premium/video-library', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const videos = await GeneratedVideo.find({ username: req.user.username })
+            .sort({ createdAt: -1 })
+            .limit(60)
+            .select('prompt source aspectRatio videoUrl mimeType createdAt');
+        res.json({ videos });
+    } catch (error) {
+        console.error('❌ خطأ في جلب مكتبة الفيديو:', error.message);
+        res.status(500).json({ error: 'خطأ في جلب مكتبة الفيديو' });
+    }
+});
+
+app.delete('/api/premium/video-library/:id', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await GeneratedVideo.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الفيديو مش موجود' });
+        if (doc.username !== req.user.username && req.user.type !== 'admin') {
+            return res.status(403).json({ error: 'غير مصرح لك بحذف الفيديو ده' });
+        }
+        await deleteFromSupabase(doc.storageKey).catch(() => {});
+        await doc.deleteOne();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ خطأ في حذف فيديو من المكتبة:', error.message);
+        res.status(500).json({ error: 'خطأ في حذف الفيديو' });
     }
 });
 
@@ -6796,7 +7364,7 @@ async function saveGeneratedImageToLibrary({ username, prompt, provider, source,
         await connectToDatabase();
         return await new GeneratedImage({
             username,
-            prompt: String(prompt || '').slice(0, 500),
+            prompt: String(prompt || '').slice(0, 1000),
             provider: provider || '',
             source: source || 'generate',
             imageUrl: uploaded.secure_url,
@@ -6862,6 +7430,94 @@ async function releaseImageQuota(username) {
         );
     } catch (error) {
         console.error('⚠️ فشل استرجاع حد الصور اليومي:', error.message);
+    }
+}
+
+// ====================== مكتبة فيديوهات استوديو الصور (Premium) ======================
+// نفس فكرة GeneratedImage بالظبط — بنخزّن نسخة دائمة من الفيديو على R2 (روابط
+// المزوّد الأصلية مؤقتة زي روابط الصور) + سطر في الكولكشن دي عشان يفضل موجود
+// في "مكتبتي" حتى بعد ما رابط المزوّد يموت.
+const generatedVideoSchema = new mongoose.Schema({
+    username: { type: String, required: true, index: true },
+    prompt: { type: String, default: '' },
+    source: { type: String, enum: ['text', 'image'], default: 'text' }, // نص لفيديو، ولا صورة لفيديو
+    aspectRatio: { type: String, default: '16:9' },
+    duration: { type: Number, default: 10 },
+    resolution: { type: String, default: '480p' },
+    videoUrl: { type: String, required: true }, // الرابط الدائم على R2
+    storageKey: { type: String, required: true },
+    mimeType: { type: String, default: 'video/mp4' }
+}, { timestamps: true });
+const GeneratedVideo = mongoose.models.GeneratedVideo || mongoose.model('GeneratedVideo', generatedVideoSchema);
+
+// بتاخد رابط فيديو مؤقت من المزوّد وتخزّن نسخة دائمة منه في R2 + سطر في
+// GeneratedVideo. عملية "best effort" — لو فشلت، الفيديو نفسه لسه ظاهر
+// للطالب في الرد المباشر، بس مش هيتحفظ في المكتبة وقتها.
+async function saveGeneratedVideoToLibrary({ username, prompt, source, aspectRatio, videoUrl }) {
+    if (!username || !videoUrl) return null;
+    try {
+        const resp = await fetch(videoUrl);
+        if (!resp.ok) throw new Error(`تعذر تحميل الفيديو من رابط المزوّد — status ${resp.status}`);
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const uploaded = await uploadToCloudinary(buffer, `video-library/${username}`, 'video.mp4', 'video/mp4');
+        await connectToDatabase();
+        return await new GeneratedVideo({
+            username,
+            prompt: String(prompt || '').slice(0, 1000),
+            source: source || 'text',
+            aspectRatio: aspectRatio || '16:9',
+            videoUrl: uploaded.secure_url,
+            storageKey: uploaded.public_id
+        }).save();
+    } catch (error) {
+        console.error('⚠️ فشل حفظ الفيديو في مكتبة الطالب:', error.message);
+        return null;
+    }
+}
+
+// ====================== حد أقصى يومي لإنشاء الفيديو (Premium) ======================
+// منفصل تمامًا عن حد الصور (DAILY_IMAGE_LIMIT) — الفيديو أغلى بكتير (تسعير
+// بالثانية)، فحده اليومي لازم يكون أقل بكتير. القيمة دي قابلة للتعديل بسهولة.
+const DAILY_VIDEO_LIMIT = 2;
+const videoStudioUsageSchema = new mongoose.Schema({
+    username: { type: String, required: true },
+    dayKey: { type: String, required: true }, // من getTodayKey()
+    count: { type: Number, default: 0 }
+}, { timestamps: true });
+videoStudioUsageSchema.index({ username: 1, dayKey: 1 }, { unique: true });
+const VideoStudioUsage = mongoose.models.VideoStudioUsage || mongoose.model('VideoStudioUsage', videoStudioUsageSchema);
+
+async function getVideoQuotaStatus(username) {
+    await connectToDatabase();
+    const doc = await VideoStudioUsage.findOne({ username, dayKey: getTodayKey() }).select('count');
+    const used = doc?.count || 0;
+    return { used, remaining: Math.max(0, DAILY_VIDEO_LIMIT - used), limit: DAILY_VIDEO_LIMIT };
+}
+
+async function reserveVideoQuota(username) {
+    await connectToDatabase();
+    const dayKey = getTodayKey();
+    const updated = await VideoStudioUsage.findOneAndUpdate(
+        { username, dayKey },
+        { $inc: { count: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    if (updated.count > DAILY_VIDEO_LIMIT) {
+        await VideoStudioUsage.updateOne({ _id: updated._id }, { $inc: { count: -1 } });
+        return { allowed: false, used: DAILY_VIDEO_LIMIT, remaining: 0, limit: DAILY_VIDEO_LIMIT };
+    }
+    return { allowed: true, used: updated.count, remaining: Math.max(0, DAILY_VIDEO_LIMIT - updated.count), limit: DAILY_VIDEO_LIMIT };
+}
+
+async function releaseVideoQuota(username) {
+    try {
+        await connectToDatabase();
+        await VideoStudioUsage.updateOne(
+            { username, dayKey: getTodayKey(), count: { $gt: 0 } },
+            { $inc: { count: -1 } }
+        );
+    } catch (error) {
+        console.error('⚠️ فشل استرجاع حد الفيديو اليومي:', error.message);
     }
 }
 
