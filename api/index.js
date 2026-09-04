@@ -10497,7 +10497,14 @@ const groupChatSchema = new mongoose.Schema({
     lastReadBy: { type: Map, of: Date, default: {} },
     // آخر وقت كل عضو "بيكتب" فيه — بنعتبره لسه بيكتب لحد 5 ثواني من آخر إشارة
     // وصلت، وبعدين المؤشر بيختفي لوحده حتى لو قفل التاب فجأة من غير ما يبعت شيء.
-    typingUntil: { type: Map, of: Date, default: {} }
+    typingUntil: { type: Map, of: Date, default: {} },
+    // نظام "طلب المحادثة": أول ما حد يبدأ يكلم زميل جديد لأول مرة، الغرفة بتتعمل
+    // بحالة 'pending' ولازم الطرف التاني (المُستقبِل، مش اللي بدأ الطلب) يوافق
+    // عليها قبل ما يقدر يبعت أي رسالة. الديفولت هنا 'accepted' مقصود عشان الغرف
+    // القديمة (اللي كانت موجودة قبل الميزة دي) تفضل شغالة زي ما هي من غير ما
+    // تتقفل فجأة — حالة 'pending' بتتحدد صراحةً بس وقت إنشاء غرفة جديدة فعلاً.
+    status: { type: String, enum: ['pending', 'accepted'], default: 'accepted' },
+    requestedBy: { type: String, default: '' }
 }, { timestamps: true });
 const GroupChat = mongoose.models.GroupChat || mongoose.model('GroupChat', groupChatSchema);
 
@@ -10582,7 +10589,13 @@ const groupChatMessageSchema = new mongoose.Schema({
     },
     // ردود الإيموجي على الرسالة — Map من اليوزرنيم لاسم الإيموجي، عشان كل عضو
     // يقدر يحط رد واحد بس على كل رسالة (لو حط تاني بيستبدل الأول تلقائي).
-    reactions: { type: Map, of: String, default: {} }
+    reactions: { type: Map, of: String, default: {} },
+    // حذف رسالة مفردة (مختلف عن مسح كل الشات اللي تحت) — بنعلّم الرسالة كمحذوفة
+    // بدل ما نشيلها فعلاً من غير أثر، عشان الطرف التاني يشوف "تم حذف الرسالة
+    // بواسطة فلان" بدل ما تختفي بشكل غامض، بالظبط زي واتساب. اسم اللي حذفها
+    // بنخزّنه وقت الحذف نفسه عشان يفضل ثابت حتى لو غيّر اسمه بعدين.
+    deleted: { type: Boolean, default: false },
+    deletedByName: { type: String, default: '' }
 }, { timestamps: true });
 const GroupChatMessage = mongoose.models.GroupChatMessage || mongoose.model('GroupChatMessage', groupChatMessageSchema);
 
@@ -10598,10 +10611,68 @@ app.post('/api/group-chats', verifyToken, async (req, res) => {
         if (!other) return res.status(404).json({ error: 'الزميل ده مش موجود' });
         const pair = [me.username, other.username].sort();
         let chat = await GroupChat.findOne({ memberUsernames: { $all: pair, $size: 2 } });
-        if (!chat) chat = await new GroupChat({ memberUsernames: pair }).save();
-        res.json({ chatId: chat._id, memberUsernames: chat.memberUsernames });
+        if (!chat) {
+            // أول مرة الاتنين دول بيتكلموا سوا — بننشئ "طلب محادثة" لازم الطرف
+            // التاني (المُستقبِل) يوافق عليه قبل ما يقدر يرد. اللي بدأ الطلب
+            // (requestedBy) يقدر يبعت رسايل عادي وهو مستني الموافقة.
+            chat = await new GroupChat({ memberUsernames: pair, status: 'pending', requestedBy: me.username }).save();
+        } else if (chat.status === 'pending' && chat.requestedBy && chat.requestedBy !== me.username) {
+            // أنا مش اللي بدأ الطلب، وبعتّ نفس النداء عشان أفتح المحادثة دي —
+            // يبقى ده معناه إني موافق على الكلام مع الطرف ده، فنقبل الطلب تلقائيًا.
+            chat.status = 'accepted';
+            await chat.save();
+        }
+        res.json({ chatId: chat._id, memberUsernames: chat.memberUsernames, status: chat.status || 'accepted', requestedBy: chat.requestedBy || null });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في إنشاء غرفة المذاكرة' });
+    }
+});
+
+// قبول طلب محادثة — بس الطرف اللي *مستقبِل* الطلب (مش اللي بدأه) هو اللي
+// يقدر يقبل. بعد القبول، الاتنين يقدروا يبعتوا رسايل عادي زي أي غرفة تانية.
+app.post('/api/group-chats/:id/accept', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const me = await Student.findById(req.user.id).select('username');
+        const chat = await GroupChat.findById(req.params.id);
+        if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
+            return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
+        }
+        if ((chat.status || 'accepted') !== 'pending') {
+            return res.json({ success: true, status: chat.status || 'accepted' });
+        }
+        if (chat.requestedBy === me.username) {
+            return res.status(400).json({ error: 'انت اللي بدأت الطلب، لازم تستنى الطرف التاني يقبله' });
+        }
+        chat.status = 'accepted';
+        await chat.save();
+        res.json({ success: true, status: 'accepted' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في قبول طلب المحادثة' });
+    }
+});
+
+// رفض طلب محادثة — بيمسح الغرفة والرسايل خالص، عشان اللي رفض متضلش شايف
+// محادثة مع حد رفض يتكلم معاه. لو حابب يبعتله تاني، يقدر يبدأ طلب جديد من الأول.
+app.post('/api/group-chats/:id/decline', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const me = await Student.findById(req.user.id).select('username');
+        const chat = await GroupChat.findById(req.params.id);
+        if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
+            return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
+        }
+        if ((chat.status || 'accepted') !== 'pending') {
+            return res.status(400).json({ error: 'الطلب ده مقبول أصلاً' });
+        }
+        if (chat.requestedBy === me.username) {
+            return res.status(400).json({ error: 'انت اللي بدأت الطلب، لازم تستنى الطرف التاني يرد' });
+        }
+        await GroupChatMessage.deleteMany({ chatId: chat._id });
+        await GroupChat.deleteOne({ _id: chat._id });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في رفض طلب المحادثة' });
     }
 });
 
@@ -10612,7 +10683,7 @@ app.get('/api/group-chats', verifyToken, async (req, res) => {
         if (!me) return res.status(404).json({ error: 'المستخدم غير موجود' });
         const chats = await GroupChat.find({ memberUsernames: me.username })
             .sort({ lastMessageAt: -1 }).limit(50).lean();
-        res.json({ chats: chats.map(c => ({ id: c._id, memberUsernames: c.memberUsernames, lastMessage: c.lastMessage })) });
+        res.json({ chats: chats.map(c => ({ id: c._id, memberUsernames: c.memberUsernames, lastMessage: c.lastMessage, status: c.status || 'accepted', requestedBy: c.requestedBy || null })) });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب غرف المذاكرة' });
     }
@@ -10641,15 +10712,28 @@ app.get('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         const onlinePresences = await Presence.find({ username: { $in: otherMembers }, lastSeen: { $gte: onlineSince } }).select('username').lean();
         const onlineUsernames = onlinePresences.map(p => p.username);
         res.json({
-            messages: messages.map(m => ({
-                id: String(m._id),
-                senderUsername: m.senderUsername,
-                text: m.text,
-                image: m.image && m.image.base64 ? { base64: m.image.base64, mimeType: m.image.mimeType, name: m.image.name } : null,
-                audio: m.audio && m.audio.base64 ? { base64: m.audio.base64, mimeType: m.audio.mimeType, durationSeconds: m.audio.durationSeconds } : null,
-                createdAt: new Date(m.createdAt).getTime(),
-                reactions: m.reactions ? Object.fromEntries(m.reactions instanceof Map ? m.reactions : Object.entries(m.reactions)) : {}
-            })),
+            messages: messages.map(m => {
+                // رسالة محذوفة — منرجّعش أي محتوى فعلي، بس علامة الحذف واسم اللي حذفها
+                // عشان الفرونت إند يعرض "تم حذف الرسالة بواسطة فلان" مكان الفقاعة.
+                if (m.deleted) {
+                    return {
+                        id: String(m._id),
+                        senderUsername: m.senderUsername,
+                        deleted: true,
+                        deletedByName: m.deletedByName || m.senderUsername,
+                        createdAt: new Date(m.createdAt).getTime()
+                    };
+                }
+                return {
+                    id: String(m._id),
+                    senderUsername: m.senderUsername,
+                    text: m.text,
+                    image: m.image && m.image.base64 ? { base64: m.image.base64, mimeType: m.image.mimeType, name: m.image.name } : null,
+                    audio: m.audio && m.audio.base64 ? { base64: m.audio.base64, mimeType: m.audio.mimeType, durationSeconds: m.audio.durationSeconds } : null,
+                    createdAt: new Date(m.createdAt).getTime(),
+                    reactions: m.reactions ? Object.fromEntries(m.reactions instanceof Map ? m.reactions : Object.entries(m.reactions)) : {}
+                };
+            }),
             lastReadBy: Object.fromEntries(
                 [...chat.lastReadBy.entries()].map(([u, d]) => [u, new Date(d).getTime()])
             ),
@@ -10658,7 +10742,11 @@ app.get('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
             typingUsernames: [...chat.typingUntil.entries()]
                 .filter(([u, until]) => u !== me.username && new Date(until).getTime() > Date.now())
                 .map(([u]) => u),
-            onlineUsernames
+            onlineUsernames,
+            // حالة طلب المحادثة — الفرونت إند بيستخدمها عشان يعرض بانر "قبول/رفض"
+            // للمُستقبِل ويمنعه من الكتابة لحد ما يقبل.
+            chatStatus: chat.status || 'accepted',
+            requestedBy: chat.requestedBy || null
         });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب الرسائل' });
@@ -10713,6 +10801,11 @@ app.post('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
         const chat = await GroupChat.findById(req.params.id);
         if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
             return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
+        }
+        // لازم المُستقبِل يقبل طلب المحادثة الأول قبل ما يقدر يبعت أي رسالة —
+        // اللي بدأ الطلب (requestedBy) نفسه مسموح له يبعت وهو مستني الموافقة.
+        if ((chat.status || 'accepted') === 'pending' && chat.requestedBy && chat.requestedBy !== me.username) {
+            return res.status(403).json({ error: 'لازم تقبل طلب المحادثة الأول قبل ما تقدر تبعت رسايل', needsAccept: true });
         }
 
         const msgDoc = { chatId: chat._id, senderUsername: me.username, text: trimmed };
@@ -10785,6 +10878,35 @@ app.post('/api/group-chats/:id/messages/:messageId/react', verifyToken, async (r
         res.json({ success: true, reactions: Object.fromEntries(msg.reactions) });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في إضافة الرد' });
+    }
+});
+
+// حذف رسالة واحدة بس (مش كل الشات) — العضو يقدر يحذف رسايله هو بس اللي بعتها،
+// مش رسايل الطرف التاني خالص. الرسالة مش بتختفي بشكل غامض — بنعلّمها كمحذوفة
+// وبنمسح محتواها الفعلي من قاعدة البيانات (مش بس بنخفيه في العرض)، عشان الطرف
+// التاني يشوف "تم حذف الرسالة بواسطة فلان" مكانها، بالظبط زي واتساب.
+app.delete('/api/group-chats/:id/messages/:messageId', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const me = await Student.findById(req.user.id).select('username fullName');
+        const chat = await GroupChat.findById(req.params.id).select('memberUsernames');
+        if (!chat || !me || !chat.memberUsernames.includes(me.username)) {
+            return res.status(403).json({ error: 'غير مصرح لك بالدخول للغرفة دي' });
+        }
+        const msg = await GroupChatMessage.findOne({ _id: req.params.messageId, chatId: chat._id });
+        if (!msg) return res.status(404).json({ error: 'الرسالة مش موجودة' });
+        if (msg.senderUsername !== me.username) {
+            return res.status(403).json({ error: 'تقدر تحذف رسايلك انت بس' });
+        }
+        msg.deleted = true;
+        msg.deletedByName = me.fullName || me.username;
+        msg.text = '';
+        msg.image = undefined;
+        msg.audio = undefined;
+        await msg.save();
+        res.json({ success: true, messageId: String(msg._id), deletedByName: msg.deletedByName });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف الرسالة' });
     }
 });
 
