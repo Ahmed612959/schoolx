@@ -1,434 +1,313 @@
-/* ============================================
+/* =======================================================================
    admin-enhancements.css
-   تحسينات متقدمة للوحة تحكم الأدمن
-   ============================================ */
+   تحسينات إضافية: تجاوب كامل مع الهاتف، جداول بدون تمرير أفقي،
+   إشعارات بأسلوب الآيفون، وتنسيق للأقسام التي كانت بدون استايل.
+   ======================================================================= */
 
-/* ========== ١. تأثيرات حركية (Animations) ========== */
-/* تأثير الظهور من أسفل */
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
+/* ========== حماية عامة من أي تمرير أفقي غير مرغوب ========== */
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
-/* تأثير النبض */
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+* { -webkit-tap-highlight-color: transparent; }
+
+img, svg, video, table { max-width: 100%; }
+
+/* دعم مناطق الأمان لأجهزة الآيفون (النوتش وشريط السحب السفلي) */
+.main-header {
+    padding-top: max(0px, env(safe-area-inset-top));
 }
 
-/* تأثير شيمر للتحميل */
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+footer {
+    padding-bottom: max(28px, env(safe-area-inset-bottom));
 }
 
-/* تأثير الدخول من اليمين */
-@keyframes slideInRight {
-    from { opacity: 0; transform: translateX(50px); }
-    to { opacity: 1; transform: translateX(0); }
+.scroll-buttons {
+    bottom: max(100px, calc(env(safe-area-inset-bottom) + 90px));
 }
 
-/* تأثير الطفو */
-@keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-}
-
-/* تطبيق animations على الإحصائيات */
-.stats-grid .stat-item {
-    animation: fadeInUp 0.6s ease forwards;
-    opacity: 0;
-}
-.stats-grid .stat-item:nth-child(1) { animation-delay: 0.1s; }
-.stats-grid .stat-item:nth-child(2) { animation-delay: 0.2s; }
-.stats-grid .stat-item:nth-child(3) { animation-delay: 0.3s; }
-.stats-grid .stat-item:nth-child(4) { animation-delay: 0.4s; }
-
-/* تطبيق animations على صفوف الجدول */
-.table-wrapper tbody tr {
-    animation: slideInRight 0.4s ease forwards;
-    opacity: 0;
-}
-.table-wrapper tbody tr:nth-child(1) { animation-delay: 0.05s; }
-.table-wrapper tbody tr:nth-child(2) { animation-delay: 0.1s; }
-.table-wrapper tbody tr:nth-child(3) { animation-delay: 0.15s; }
-.table-wrapper tbody tr:nth-child(4) { animation-delay: 0.2s; }
-.table-wrapper tbody tr:nth-child(5) { animation-delay: 0.25s; }
-
-/* ========== ٢. تأثيرات زجاجية (Glassmorphism) ========== */
-.stat-item {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.notifications-section,
-.violations-section,
-.exam-form-container {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(15px);
-}
-
-/* خلفية متحركة */
-body::before {
-    content: '';
-    position: fixed;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: 
-        radial-gradient(circle at 20% 50%, rgba(196, 163, 90, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 80% 20%, rgba(26, 79, 110, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 50% 80%, rgba(45, 106, 79, 0.03) 0%, transparent 50%);
-    z-index: -1;
-    animation: float 20s ease-in-out infinite;
-    pointer-events: none;
-}
-
-/* ========== ٣. تأثير Ripple على الأزرار ========== */
-.submit-btn,
-.edit-btn,
-.delete-btn,
-.certificate-btn,
-.class-btn {
-    position: relative;
-    overflow: hidden;
-}
-
-.submit-btn::after,
-.edit-btn::after,
-.delete-btn::after,
-.certificate-btn::after,
-.class-btn::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.3);
-    transform: translate(-50%, -50%);
-    transition: width 0.6s, height 0.6s;
-    pointer-events: none;
-}
-
-.submit-btn:active::after,
-.edit-btn:active::after,
-.delete-btn:active::after,
-.certificate-btn:active::after,
-.class-btn:active::after {
-    width: 300px;
-    height: 300px;
-}
-
-/* ========== ٤. تحسينات Hover للكروت ========== */
-.stat-item {
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.stat-item:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 
-        0 20px 40px rgba(0, 0, 0, 0.1),
-        0 0 0 2px var(--secondary);
-}
-
-.stat-item:hover i {
-    animation: pulse 0.6s ease infinite;
-}
-
-/* ========== ٥. Badges ========== */
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 9999px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.badge-success { background: var(--success-light); color: var(--success); }
-.badge-danger { background: var(--danger-light); color: var(--danger); }
-.badge-warning { background: var(--warning-light); color: var(--warning); }
-.badge-info { background: var(--info-light); color: var(--info); }
-.badge-secondary { background: var(--secondary-light); color: var(--secondary-dark); }
-
-/* ========== ٦. Skeleton Loading ========== */
-.skeleton {
-    background: linear-gradient(90deg, var(--gray-200) 25%, var(--gray-300) 50%, var(--gray-200) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: var(--radius-md);
-}
-
-.skeleton-text { height: 16px; width: 80%; margin: 10px 0; }
-.skeleton-title { height: 24px; width: 60%; margin: 15px 0; }
-.skeleton-avatar { width: 50px; height: 50px; border-radius: 50%; }
-.skeleton-card { height: 120px; width: 100%; }
-
-/* ========== ٧. Progress Bar ========== */
-.progress-bar {
-    width: 100%;
-    height: 8px;
-    background: var(--gray-200);
-    border-radius: 9999px;
-    overflow: hidden;
-    margin: 15px 0;
-}
-
-.progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--secondary), var(--primary), var(--success));
-    background-size: 200% 100%;
-    animation: shimmer 2s infinite;
-    border-radius: 9999px;
-    transition: width 0.5s ease;
-}
-
-/* ========== ٨. Empty State ========== */
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--gray-400);
-}
-
-.empty-state i {
-    font-size: 5rem;
-    color: var(--secondary);
-    opacity: 0.5;
-    margin-bottom: 20px;
-    display: block;
-}
-
-.empty-state h3 {
-    font-size: 1.3rem;
-    color: var(--gray-600);
-    margin-bottom: 10px;
-}
-
-.empty-state p {
-    font-size: 0.9rem;
-    max-width: 400px;
-    margin: 0 auto;
-}
-
-/* ========== ٩. Quick Actions Bar ========== */
-.quick-actions {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin: 20px 0;
-}
-
-.quick-action-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
+/* ========== تنسيق الأقسام التي كانت بدون أي استايل ========== */
+.excel-upload-section,
+.manage-users-section,
+.add-result-section,
+.archive-section,
+.archive-browse-section,
+.events-section,
+.exams-list-section {
     background: var(--white);
+    border-radius: var(--radius-2xl);
+    padding: 28px;
+    margin: 24px 0;
     border: 1px solid var(--gray-200);
-    border-radius: 9999px;
-    font-size: 0.8rem;
-    font-weight: 600;
+    box-shadow: var(--shadow-md);
+    transition: var(--transition);
+}
+
+.excel-upload-section:hover,
+.manage-users-section:hover,
+.add-result-section:hover,
+.archive-section:hover,
+.archive-browse-section:hover,
+.events-section:hover,
+.exams-list-section:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+.excel-upload-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 18px;
+}
+
+.excel-upload-section .input-group { margin-bottom: 0; flex: 1; }
+
+.excel-upload-section input[type="file"] {
+    padding: 10px;
+    border: 2px dashed var(--gray-300);
+    border-radius: var(--radius-lg);
+    background: var(--gray-50);
+    font-size: 0.82rem;
+    flex: 1;
+    min-width: 200px;
     cursor: pointer;
-    transition: var(--transition);
-    color: var(--gray-600);
 }
 
-.quick-action-btn:hover {
-    background: var(--primary);
-    color: var(--secondary);
-    border-color: var(--primary);
-    transform: translateY(-2px);
+#upload-progress { width: 100%; }
+
+.filter-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin: 24px 0;
 }
 
-.quick-action-btn i {
-    font-size: 1rem;
+.class-buttons-bar { padding: 0 12px; }
+
+/* ========== حاويات إجبار عرض المحتوى كاملاً بدون تمرير ========== */
+.admin-container,
+.excel-upload-section,
+.violations-section,
+.exam-form-container,
+.notifications-section {
+    max-width: 100%;
 }
 
-/* ========== ١٠. Accessibility ========== */
-:focus-visible {
-    outline: 3px solid var(--secondary);
-    outline-offset: 3px;
-    border-radius: var(--radius-sm);
+/* ========================================================================
+   إشعارات بأسلوب الآيفون (iOS-style banners)
+   ======================================================================== */
+.toastify.ios-toast-wrapper {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    max-width: min(94vw, 400px);
+    width: 100%;
+    top: max(14px, calc(env(safe-area-inset-top) + 10px)) !important;
 }
 
-.skip-link {
-    position: absolute;
-    top: -100px;
-    right: 20px;
-    background: var(--secondary);
-    color: var(--primary);
-    padding: 10px 20px;
-    border-radius: 9999px;
-    z-index: 9999;
-    transition: var(--transition);
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.skip-link:focus {
-    top: 10px;
-}
-
-/* ========== ١١. Tooltips ========== */
-[data-tooltip] {
-    position: relative;
-    cursor: help;
-}
-
-[data-tooltip]::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 120%;
-    right: 50%;
-    transform: translateX(50%);
-    background: var(--gray-800);
-    color: white;
-    padding: 8px 16px;
-    border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    opacity: 0;
-    visibility: hidden;
-    transition: var(--transition);
-    z-index: 1000;
-    pointer-events: none;
+.ios-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(248, 249, 251, 0.94);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 18px;
+    padding: 13px 15px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
+    direction: rtl;
+    text-align: right;
+    animation: iosToastPop 0.45s cubic-bezier(0.2, 1.2, 0.4, 1);
     font-family: 'Tajawal', sans-serif;
 }
 
-[data-tooltip]:hover::after {
-    opacity: 1;
-    visibility: visible;
-    bottom: 130%;
+.ios-toast-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.95rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    margin-top: 1px;
 }
 
-/* ========== ١٢. Print Styles ========== */
-@media print {
-    .nav-bar,
-    .scroll-buttons,
-    .header-buttons,
-    .search-section,
-    .filter-section,
-    .excel-upload-section,
-    footer,
-    .submit-btn,
-    .delete-btn,
-    .edit-btn,
-    .table-action-btn,
-    .quick-actions,
-    .grade-buttons,
-    .class-buttons-bar {
-        display: none !important;
-    }
-    
-    body {
-        background: white !important;
-        color: black !important;
-    }
-    
-    body::before {
-        display: none !important;
-    }
-    
-    .admin-container {
-        max-width: 100%;
+.ios-toast-body { flex: 1; min-width: 0; }
+
+.ios-toast-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.ios-toast-app {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #6b7280;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ios-toast-now {
+    font-size: 0.68rem;
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+
+.ios-toast-msg {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+@keyframes iosToastPop {
+    from { transform: translateY(-18px) scale(0.95); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* ========================================================================
+   جداول تتحول لبطاقات على الهاتف - عرض كامل بدون تمرير أفقي
+   ======================================================================== */
+@media (max-width: 680px) {
+
+    .violations-table-wrapper table { min-width: 0; }
+
+    .table-wrapper table thead,
+    .violations-table-wrapper table thead {
+        border: none;
+        clip: rect(0 0 0 0);
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
         padding: 0;
-        margin: 0;
+        position: absolute;
+        width: 1px;
     }
-    
+
+    .table-wrapper table, .table-wrapper tbody, .table-wrapper tr, .table-wrapper td,
+    .violations-table-wrapper table, .violations-table-wrapper tbody, .violations-table-wrapper tr, .violations-table-wrapper td {
+        display: block;
+        width: 100%;
+    }
+
+    .table-wrapper tr,
+    .violations-table-wrapper tr {
+        background: var(--white);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        margin: 0 0 14px 0;
+        padding: 6px 14px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .table-wrapper tr:last-child,
+    .violations-table-wrapper tr:last-child { margin-bottom: 0; }
+
+    .table-wrapper td,
+    .violations-table-wrapper td {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        text-align: right !important;
+        max-width: none !important;
+        background: transparent !important;
+        border: none !important;
+        border-bottom: 1px solid var(--gray-100) !important;
+        border-radius: 0 !important;
+        padding: 10px 2px !important;
+    }
+
+    .table-wrapper tr td:last-child,
+    .violations-table-wrapper tr td:last-child { border-bottom: none !important; }
+
+    .table-wrapper td::before,
+    .violations-table-wrapper td::before {
+        content: attr(data-label) "：";
+        font-weight: 700;
+        color: var(--primary);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    /* صفوف الحالة/التحميل (colspan) تعرض كرسالة كاملة بدون تسمية */
+    .table-wrapper td[colspan],
+    .violations-table-wrapper td[colspan] {
+        display: block;
+        text-align: center !important;
+        border-bottom: none !important;
+    }
+
+    .table-wrapper td[colspan]::before,
+    .violations-table-wrapper td[colspan]::before { content: none; }
+
+    /* خلايا تحتوي أزرار إجراءات: تعرض بشكل أفقي مرتب */
+    .table-wrapper td:has(.edit-btn, .delete-btn, .table-action-btn, button),
+    .violations-table-wrapper td:has(.edit-btn, .delete-btn, .table-action-btn, button) {
+        flex-wrap: wrap;
+    }
+
+    .table-wrapper td .subject-row,
+    .table-wrapper td .extra-subject { width: 100%; }
+}
+
+/* ========== ضبط عام إضافي للهاتف ========== */
+@media (max-width: 680px) {
     .main-header {
-        position: static;
-        background: white !important;
-        border-bottom: 2px solid black;
+        text-align: center;
+        align-items: center;
     }
-    
+
     .main-header h1 {
-        color: black !important;
-    }
-    
-    table {
-        font-size: 10px;
-        border: 1px solid #ccc;
-    }
-    
-    th {
-        background: #333 !important;
-        color: white !important;
-        -webkit-print-color-adjust: exact;
-    }
-    
-    .certificate {
-        border: 5px double #000;
-        page-break-inside: avoid;
-        background: white !important;
-    }
-    
-    .stat-item,
-    .notifications-section,
-    .violations-section {
-        break-inside: avoid;
-        box-shadow: none !important;
-    }
-    
-    @page {
-        margin: 1cm;
-        size: A4;
-    }
-}
-
-/* ========== ١٣. تحسينات للموبايل ========== */
-@media (max-width: 768px) {
-    .stat-item {
-        backdrop-filter: none;
-    }
-    
-    .quick-actions {
+        font-size: 1.05rem;
         justify-content: center;
+        text-align: center;
+        line-height: 1.4;
     }
-    
-    .quick-action-btn {
-        padding: 8px 16px;
-        font-size: 0.75rem;
+
+    .header-buttons { justify-content: center; flex-wrap: wrap; }
+
+    .excel-upload-section { flex-direction: column; align-items: stretch; }
+    .excel-upload-section .input-group { flex: none; width: 100%; }
+
+    .filter-section { flex-direction: column; align-items: stretch; }
+    .filter-section select { width: 100%; }
+
+    .top-students-grid { grid-template-columns: 1fr; }
+    .events-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+    #optionsArea .opt { min-width: 100%; }
+
+    .certificate-content { width: 94%; max-height: 90vh; overflow-y: auto; }
+
+    .excel-upload-section,
+    .manage-users-section,
+    .add-result-section,
+    .archive-section,
+    .archive-browse-section,
+    .events-section,
+    .exams-list-section,
+    .violations-section,
+    .notifications-section,
+    .exam-form-container {
+        padding: 18px;
+        border-radius: var(--radius-lg);
     }
-    
-    [data-tooltip]::after {
-        display: none;
-    }
 }
 
-/* ========== ١٤. تأثير نبض للعناصر المهمة ========== */
-.pulse-animation {
-    animation: pulse 2s ease-in-out infinite;
-}
-
-/* ========== ١٥. تحسين مظهر الـ Scrollbar ========== */
-::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--gray-100);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--secondary), var(--secondary-dark));
-    border-radius: 10px;
-    border: 2px solid var(--gray-100);
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--primary), var(--primary-dark));
-}
-
-/* Firefox */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: var(--secondary) var(--gray-100);
+@media (max-width: 380px) {
+    .main-header h1 { font-size: 0.92rem; }
+    .events-stats-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
 }

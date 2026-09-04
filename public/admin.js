@@ -30,10 +30,36 @@ function applyRolePermissions() {
 }
 
 function showToast(message, type = 'success') {
-    if (typeof Toastify !== 'undefined') {
-        let bg = { success: 'linear-gradient(135deg,#27AE60,#1E8449)', error: 'linear-gradient(135deg,#E74C3C,#C0392B)', info: 'linear-gradient(135deg,#3498DB,#2C81BA)', warning: 'linear-gradient(135deg,#F39C12,#D68910)' }[type] || '#333';
-        Toastify({ text: message, duration: 3500, gravity: 'top', position: 'center', style: { background: bg, fontSize: '15px', fontFamily: '"Tajawal", sans-serif', padding: '12px 20px', borderRadius: '12px', direction: 'rtl', color: '#fff' } }).showToast();
-    } else { alert(message); }
+    if (typeof Toastify === 'undefined') { alert(message); return; }
+
+    const icons = { success: 'fa-circle-check', error: 'fa-circle-exclamation', info: 'fa-circle-info', warning: 'fa-triangle-exclamation' };
+    const colors = { success: '#2FB35C', error: '#E5473C', info: '#3A96E8', warning: '#F2A93B' };
+    const icon = icons[type] || icons.success;
+    const color = colors[type] || colors.success;
+    const time = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+    const node = document.createElement('div');
+    node.className = 'ios-toast';
+    node.innerHTML = `
+        <div class="ios-toast-icon" style="background:${color}"><i class="fas ${icon}"></i></div>
+        <div class="ios-toast-body">
+            <div class="ios-toast-top">
+                <span class="ios-toast-app">معهد رعاية الضبعية</span>
+                <span class="ios-toast-now">${time}</span>
+            </div>
+            <div class="ios-toast-msg">${escapeHtml(message)}</div>
+        </div>
+    `;
+
+    Toastify({
+        node,
+        duration: 3500,
+        gravity: 'top',
+        position: 'center',
+        close: false,
+        stopOnFocus: true,
+        className: 'ios-toast-wrapper',
+    }).showToast();
 }
 
 function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
@@ -703,6 +729,25 @@ document.getElementById('admin-event-search')?.addEventListener('input', renderE
 document.getElementById('admin-event-filter-type')?.addEventListener('change', renderEvents);
 document.getElementById('admin-event-filter-pinned')?.addEventListener('change', renderEvents);
 document.getElementById('cancelEditEventBtn')?.addEventListener('click', cancelEditEvent);
+
+// ====================== تجاوب الجداول: تحويلها لبطاقات على الهاتف بدون تمرير أفقي ======================
+function applyTableLabels(table) {
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+    if (!headers.length) return;
+    table.querySelectorAll('tbody tr').forEach(tr => {
+        const cells = Array.from(tr.children);
+        if (cells.length === 1 && cells[0].hasAttribute('colspan')) return; // صفوف التحميل/الحالة تبقى كما هي
+        cells.forEach((td, i) => { if (headers[i]) td.setAttribute('data-label', headers[i]); });
+    });
+}
+function enhanceAllTables() { document.querySelectorAll('table').forEach(applyTableLabels); }
+(function initResponsiveTables() {
+    let timer = null;
+    const observer = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(enhanceAllTables, 60); });
+    observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('DOMContentLoaded', enhanceAllTables);
+    enhanceAllTables();
+})();
 
 // ====================== بدء التشغيل ======================
 (async function init() { 
