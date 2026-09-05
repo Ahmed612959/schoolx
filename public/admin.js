@@ -269,7 +269,7 @@ function renderResults(filter = '') {
         let html = '<div class="subjects-container">';
         for (let n of t.ordered) { let gi = grades[n]; if (gi) { if (gi.isExtra) html += `<div class="extra-subject">📖 ${n}: <strong>${gi.grade}</strong> / ${gi.max} <small>(خارج المجموع)</small></div>`; else html += `<div class="subject-row"><span class="subject-name"><i class="fas fa-book"></i> ${n}</span><span class="subject-grade">${gi.grade} / ${gi.max}</span></div>`; } }
         html += '</div>'; let pClass = pct >= 85 ? 'excellent' : (pct >= 75 ? 'very-good' : (pct >= 65 ? 'good' : (pct >= 60 ? 'pass' : 'fail'))); let pText = { excellent: 'ممتاز', 'very-good': 'جيد جداً', good: 'جيد', pass: 'ناجح', fail: 'راسب' }[pClass];
-        let row = tbody.insertRow(); row.innerHTML = `<td><strong>${escapeHtml(st.fullName)}</strong><br><small>رقم الجلوس: ${st.studentCode}</small></td><td>${html}</td><td><span class="total-cell">${total} / ${t.total}</span></td><td><span class="percentage-cell ${pClass}">${pct.toFixed(1)}% (${pText})</span></td><td><button class="table-action-btn edit-action" onclick="editStudent('${st.studentCode}')"><i class="fas fa-edit"></i></button> ${isManagerRole()?`<button class="table-action-btn delete-action" onclick="deleteStudent('${st.studentCode}')"><i class="fas fa-trash"></i></button>`:''}</td>`;
+        let row = tbody.insertRow(); row.innerHTML = `<td><strong>${escapeHtml(st.fullName)}</strong><br><small>رقم الجلوس: ${st.studentCode}</small></td><td>${html}</td><td><span class="total-cell">${total} / ${t.total}</span></td><td><span class="percentage-cell ${pClass}">${pct.toFixed(1)}% (${pText})</span></td><td><button class="table-action-btn edit-action" onclick="editStudent('${st.studentCode}')"><i class="fas fa-edit"></i> <span>تعديل</span></button> ${isManagerRole()?`<button class="table-action-btn delete-action" onclick="deleteStudent('${st.studentCode}')"><i class="fas fa-trash"></i> <span>حذف</span></button>`:''}</td>`;
         updateTopStudentsAfterDataChange();
     });
 }
@@ -323,10 +323,78 @@ document.getElementById('add-result-form')?.addEventListener('submit', async (e)
 // ====================== المخالفات ======================
 async function renderViolations() { const tb=document.getElementById('violations-table-body'); if(!tb) return; if(!violations||!violations.length){ tb.innerHTML='<tr><td colspan="7">📭 لا توجد إنذارات أو مخالفات مسجلة</td></tr>'; return; } tb.innerHTML=violations.map(v=>{ let s=allStudents.find(st=>st.studentCode===v.studentId); return `<tr><td>${v.studentId||'-'}</td><td>${s?.fullName||'غير موجود'}</td><td>${v.type==='warning'?'<span style="color:#F39C12;">⚠️ إنذار</span>':'<span style="color:#E74C3C;">🚫 مخالفة</span>'}</td><td style="max-width:200px;word-break:break-word;">${escapeHtml(v.reason)}</td><td>${escapeHtml(v.penalty)}</td><td>${v.parentSummons?'✅ نعم':'❌ لا'}</td><td><button class="edit-btn" onclick="editViolation('${v._id}')"><i class="fas fa-edit"></i> تعديل</button> ${isManagerRole()?`<button class="delete-btn" onclick="deleteViolation('${v._id}')"><i class="fas fa-trash"></i> حذف</button>`:''}</td></tr>`; }).join(''); }
 let editingViolationId = null;
-window.editViolation = function(id) { let v=violations.find(vv=>vv._id===id); if(v){ editingViolationId=id; document.getElementById('violation-student-id').value=v.studentId; document.getElementById('violation-type').value=v.type; document.getElementById('violation-reason').value=v.reason; document.getElementById('violation-penalty').value=v.penalty; document.getElementById('parent-summons').checked=v.parentSummons; document.querySelector('#add-violation-form button[type="submit"]').textContent='✏️ تحديث المخالفة'; document.getElementById('cancelEditViolationBtn').style.display='inline-block'; showToast('✏️ قم بتعديل البيانات ثم اضغط تحديث','info'); } };
+window.editViolation = function(id) { let v=violations.find(vv=>vv._id===id); if(v){ editingViolationId=id; document.getElementById('violation-student-id').value=v.studentId; document.getElementById('violation-type').value=v.type; document.getElementById('violation-reason').value=v.reason; document.getElementById('violation-penalty').value=v.penalty; document.getElementById('parent-summons').checked=v.parentSummons; let st=allStudents.find(s=>s.studentCode===v.studentId); let badge=document.getElementById('violation-selected-student'); if(st&&badge){ badge.style.display='flex'; badge.innerHTML=`<i class="fas fa-user-check"></i> <span>${escapeHtml(st.fullName)}</span> <small>(رقم الجلوس: ${escapeHtml(String(st.studentCode))})</small>`; } document.querySelector('#add-violation-form button[type="submit"]').textContent='✏️ تحديث المخالفة'; document.getElementById('cancelEditViolationBtn').style.display='inline-block'; showToast('✏️ قم بتعديل البيانات ثم اضغط تحديث','info'); document.getElementById('violations-section-heading')?.scrollIntoView({behavior:'smooth', block:'start'}); } };
 window.cancelEditViolation = function() { editingViolationId=null; document.getElementById('add-violation-form').reset(); document.querySelector('#add-violation-form button[type="submit"]').textContent='➕ إضافة إنذار/مخالفة'; document.getElementById('cancelEditViolationBtn').style.display='none'; showToast('✅ تم إلغاء التعديل','info'); };
 async function sendWhatsApp(phone,sn,type,reason,penalty) { let ph=phone.replace(/[^0-9]/g,''); if(ph.startsWith('0')) ph='20'+ph.substring(1); if(!ph.startsWith('20')) ph='20'+ph; let msg=`📢 *تنبيه من معهد رعاية الضبعية*\n\n👨‍🎓 الطالب: ${sn}\n⚠️ النوع: ${type==='warning'?'إنذار':'مخالفة'}\n📝 السبب: ${reason}\n⚖️ العقوبة: ${penalty}\n📅 التاريخ: ${new Date().toLocaleString('ar-EG')}`; window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`,'_blank'); }
 document.getElementById('add-violation-form')?.addEventListener('submit', async (e) => { e.preventDefault(); let sid=document.getElementById('violation-student-id').value.trim(), typ=document.getElementById('violation-type').value, rsn=document.getElementById('violation-reason').value.trim(), pnl=document.getElementById('violation-penalty').value.trim(), ps=document.getElementById('parent-summons').checked, pPhone=document.getElementById('parent-phone')?.value.trim(); if(!sid||!rsn||!pnl) return showToast('املأ الحقول المطلوبة','error'); let st=allStudents.find(s=>s.studentCode===sid); if(!st) return showToast('رقم الجلوس غير موجود','error'); let data={studentId:sid,type:typ,reason:rsn,penalty:pnl,parentSummons:ps,date:new Date().toLocaleString('ar-EG')}; if(editingViolationId){ await saveToServer(`/api/violations/${editingViolationId}`,{},'DELETE'); await saveToServer('/api/violations',data); editingViolationId=null; cancelEditViolation(); } else { await saveToServer('/api/violations',data); } violations=await getFromServer('/api/violations'); renderViolations(); e.target.reset(); showToast('✅ تمت العملية','success'); if(pPhone&&pPhone.length>=10){ await sendWhatsApp(pPhone,st.fullName,typ,rsn,pnl); showToast('📱 تم فتح واتساب','info'); } });
+
+// ====================== البحث عن الطالب بالاسم أو رقم الجلوس (قسم الإنذارات والمخالفات) ======================
+(function initViolationStudentSearch() {
+    const searchInput = document.getElementById('violation-student-search');
+    const resultsBox = document.getElementById('violation-student-results');
+    const idInput = document.getElementById('violation-student-id');
+    const badge = document.getElementById('violation-selected-student');
+    if (!searchInput || !resultsBox || !idInput || !badge) return;
+
+    function showSelected(student) {
+        badge.style.display = 'flex';
+        badge.innerHTML = `<i class="fas fa-user-check"></i> <span>${escapeHtml(student.fullName)}</span> <small>(رقم الجلوس: ${escapeHtml(String(student.studentCode))})</small> <button type="button" class="clear-selected-student" title="إلغاء الاختيار"><i class="fas fa-times"></i></button>`;
+        badge.querySelector('.clear-selected-student').onclick = () => {
+            badge.style.display = 'none';
+            badge.innerHTML = '';
+            searchInput.value = '';
+            idInput.value = '';
+            searchInput.focus();
+        };
+    }
+
+    searchInput.addEventListener('input', () => {
+        const q = searchInput.value.trim();
+        if (!q) { resultsBox.innerHTML = ''; resultsBox.classList.remove('active'); return; }
+        const matches = (allStudents || []).filter(s =>
+            (s.fullName && s.fullName.includes(q)) || (s.studentCode && String(s.studentCode).includes(q))
+        ).slice(0, 8);
+
+        if (!matches.length) {
+            resultsBox.innerHTML = '<div class="student-search-empty">📭 لا يوجد طالب مطابق</div>';
+            resultsBox.classList.add('active');
+            return;
+        }
+
+        resultsBox.innerHTML = matches.map(s => `
+            <div class="student-search-item" data-code="${escapeHtml(String(s.studentCode))}">
+                <i class="fas fa-user-graduate"></i>
+                <span>${escapeHtml(s.fullName)}</span>
+                <small>رقم الجلوس: ${escapeHtml(String(s.studentCode))}</small>
+            </div>
+        `).join('');
+        resultsBox.classList.add('active');
+
+        resultsBox.querySelectorAll('.student-search-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const code = item.getAttribute('data-code');
+                const st = allStudents.find(s => String(s.studentCode) === code);
+                if (!st) return;
+                idInput.value = st.studentCode;
+                searchInput.value = '';
+                resultsBox.innerHTML = '';
+                resultsBox.classList.remove('active');
+                showSelected(st);
+            });
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!resultsBox.contains(e.target) && e.target !== searchInput) resultsBox.classList.remove('active');
+    });
+
+    document.getElementById('add-violation-form')?.addEventListener('reset', () => {
+        badge.style.display = 'none';
+        badge.innerHTML = '';
+        resultsBox.innerHTML = '';
+        resultsBox.classList.remove('active');
+    });
+})();
 window.deleteViolation = async (id) => { if(confirm('⚠️ حذف المخالفة؟')){ await saveToServer(`/api/violations/${id}`,{},'DELETE'); violations=await getFromServer('/api/violations'); renderViolations(); showToast('🗑️ تم الحذف','success'); if(editingViolationId===id) cancelEditViolation(); } };
 
 // ====================== الاختبارات ======================
@@ -335,7 +403,7 @@ function renderQuestionInputs() { let type=document.getElementById('question-typ
 window.addQuestion = function() { let type=document.getElementById('question-type').value, text=document.getElementById('qText')?.value.trim(); if(!text){ showToast('أدخل نص السؤال أولاً!','error'); return; } let q={type,text}; if(type==='multiple'){ let opts=[...document.querySelectorAll('.opt')].map(i=>i.value.trim()).filter(v=>v), cor=document.getElementById('correctOpt').value; if(opts.length<2){ showToast('أضف خيارين على الأقل!','error'); return; } if(!cor){ showToast('اختر الإجابة الصحيحة!','error'); return; } q.options=opts; q.correctAnswer=cor; } else if(type==='essay'){ let ans=document.getElementById('essayAnswer')?.value.trim(); if(!ans){ showToast('أدخل الإجابة النموذجية!','error'); return; } q.correctAnswer=ans; } else if(type==='truefalse'){ q.correctAnswer=document.getElementById('tfAnswer').value; } questionsList.push(q); const qc=document.getElementById('questions-list'); if(qc) qc.innerHTML=questionsList.map((qq,idx)=>`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:12px;border-right:3px solid #C7A252;"><strong>سؤال ${idx+1}:</strong> ${escapeHtml(qq.text)}<br>${qq.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${qq.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${qq.correctAnswer}</span>`:''}${qq.correctAnswer&&!qq.options?`<span style="color:#C7A252;">✅ الإجابة: ${qq.correctAnswer}</span>`:''}<button onclick="removeQuestion(${idx})" style="background:#E74C3C;color:white;border:none;padding:5px 12px;border-radius:20px;margin-top:10px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></div>`).join(''); document.getElementById('question-inputs').innerHTML=''; document.getElementById('qText').value=''; showToast('✅ تم إضافة السؤال بنجاح','success'); };
 window.removeQuestion = function(idx) { questionsList.splice(idx,1); const qc=document.getElementById('questions-list'); if(qc) qc.innerHTML=questionsList.map((qq,i)=>`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:12px;border-right:3px solid #C7A252;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(qq.text)}<br>${qq.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${qq.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${qq.correctAnswer}</span>`:''}${qq.correctAnswer&&!qq.options?`<span style="color:#C7A252;">✅ الإجابة: ${qq.correctAnswer}</span>`:''}<button onclick="removeQuestion(${i})" style="background:#E74C3C;color:white;border:none;padding:5px 12px;border-radius:20px;margin-top:10px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></div>`).join(''); showToast('✅ تم حذف السؤال','success'); };
 window.saveExam = async function() { const name=document.getElementById('exam-name')?.value.trim(), code=document.getElementById('exam-code')?.value.trim(), stage=document.getElementById('exam-stage')?.value, duration=parseInt(document.getElementById('exam-duration')?.value); if(!name){ showToast('يرجى إدخال اسم الاختبار!','error'); return; } if(!code){ showToast('يرجى إدخال كود الاختبار!','error'); return; } if(!duration||duration<1){ showToast('يرجى إدخال مدة الاختبار بالدقائق!','error'); return; } if(questionsList.length===0){ showToast('يرجى إضافة سؤال واحد على الأقل!','error'); return; } try { await saveToServer('/api/exams',{name,code,stage,duration,questions:questionsList}); showToast('✅ تم حفظ الاختبار بنجاح!','success'); questionsList=[]; document.getElementById('questions-list').innerHTML=''; document.getElementById('exam-name').value=''; document.getElementById('exam-code').value=''; document.getElementById('exam-duration').value=''; document.getElementById('exam-stage').value='first'; document.getElementById('question-inputs').innerHTML=''; await loadExamsList(); } catch(er){ showToast('❌ فشل حفظ الاختبار','error'); } };
-async function loadExamsList() { try { const exams=await getFromServer('/api/exams'); const tbody=document.getElementById('exams-list-body'); if(!tbody) return; if(!exams||exams.length===0){ tbody.innerHTML='<tr><td colspan="7">📭 لا توجد اختبارات مسجلة</td></tr>'; return; } tbody.innerHTML=exams.map(ex=>`<tr><td>${escapeHtml(ex.name)}</td><td><strong style="color:#0F2B3D;">${escapeHtml(ex.code)}</strong></td><td>${ex.stage==='first'?'الأولى ثانوي':'الثانية ثانوي'}</td><td>${ex.duration} دقيقة</td><td>${ex.questions?.length||0}</td><td>${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td><td><button class="edit-btn" onclick="viewExam('${ex.code}')" style="background:#3498DB;color:white;border:none;padding:6px 12px;border-radius:20px;margin:2px;cursor:pointer;"><i class="fas fa-eye"></i> عرض</button> ${isManagerRole()?`<button class="delete-btn" onclick="deleteExam('${ex.code}')" style="background:#E74C3C;color:white;border:none;padding:6px 12px;border-radius:20px;margin:2px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button>`:''}</td></tr>`).join(''); } catch(er){ const tbody=document.getElementById('exams-list-body'); if(tbody) tbody.innerHTML='<tr><td colspan="7">❌ فشل تحميل الاختبارات</td></tr>'; } }
+async function loadExamsList() { try { const exams=await getFromServer('/api/exams'); const tbody=document.getElementById('exams-list-body'); if(!tbody) return; if(!exams||exams.length===0){ tbody.innerHTML='<tr><td colspan="7">📭 لا توجد اختبارات مسجلة</td></tr>'; return; } tbody.innerHTML=exams.map(ex=>`<tr><td>${escapeHtml(ex.name)}</td><td><strong style="color:var(--primary);">${escapeHtml(ex.code)}</strong></td><td>${ex.stage==='first'?'الأولى ثانوي':'الثانية ثانوي'}</td><td>${ex.duration} دقيقة</td><td>${ex.questions?.length||0}</td><td>${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td><td><button class="view-btn" onclick="viewExam('${ex.code}')"><i class="fas fa-eye"></i> عرض</button> ${isManagerRole()?`<button class="delete-btn" onclick="deleteExam('${ex.code}')"><i class="fas fa-trash"></i> حذف</button>`:''}</td></tr>`).join(''); } catch(er){ const tbody=document.getElementById('exams-list-body'); if(tbody) tbody.innerHTML='<tr><td colspan="7">❌ فشل تحميل الاختبارات</td></tr>'; } }
 window.viewExam = async function(code) { try { const exam=await getFromServer(`/api/exams/${encodeURIComponent(code)}`); if(!exam) throw new Error('فشل'); let qh='<div style="max-height:400px;overflow-y:auto;text-align:right;">'; exam.questions.forEach((q,i)=>{ qh+=`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:15px;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(q.text)}<br>${q.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${q.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${q.correctAnswer==='true'?'صح':(q.correctAnswer==='false'?'خطأ':q.correctAnswer)}</span>`:''}${q.correctAnswer&&!q.options?`<span style="color:#C7A252;">✅ الإجابة: ${escapeHtml(q.correctAnswer)}</span>`:''}</div>`; }); qh+='</div>'; Swal.fire({title:exam.name,html:`<div><p><strong>🔑 كود:</strong> ${exam.code}</p><p><strong>📚 المرحلة:</strong> ${exam.stage==='first'?'الأولى':'الثانية'}</p><p><strong>⏱️ المدة:</strong> ${exam.duration} دقيقة</p><hr><h4>📝 الأسئلة:</h4>${qh}</div>`,icon:'info',confirmButtonText:'إغلاق',confirmButtonColor:'#C7A252',width:'700px'}); } catch(er){ showToast('خطأ في عرض بيانات الاختبار','error'); } };
 window.deleteExam = async function(code) { const res=await Swal.fire({title:'⚠️ تأكيد الحذف',text:`هل أنت متأكد من حذف الاختبار "${code}"؟`,icon:'warning',showCancelButton:true,confirmButtonText:'نعم',cancelButtonText:'إلغاء',confirmButtonColor:'#E74C3C'}); if(res.isConfirmed){ try { await saveToServer(`/api/exams/${encodeURIComponent(code)}`,{},'DELETE'); showToast('✅ تم حذف الاختبار','success'); await loadExamsList(); } catch(er){ showToast('❌ فشل','error'); } } };
 document.getElementById('fetch-results')?.addEventListener('click', async () => { const code=document.getElementById('results-exam-code')?.value.trim(); if(!code){ showToast('أدخل كود الاختبار أولاً!','error'); return; } try { const results=await getFromServer(`/api/exams/${encodeURIComponent(code)}/results`); const c=document.getElementById('exam-results-list'); if(!results||results.length===0){ c.innerHTML='<p>📭 لا توجد نتائج</p>'; return; } c.innerHTML=`<div class="table-wrapper"><table><thead><tr style="background:#1e3c4a;color:#d4af5a;"><th>👨‍🎓 الطالب</th><th>📊 النتيجة</th><th>📅 التاريخ</th></tr></thead><tbody>${results.map(r=>`<tr><td>${escapeHtml(r.studentId)}</td><td><strong style="color:#27AE60;">${r.score.toFixed(1)}%</strong></td><td>${new Date(r.completionTime).toLocaleString('ar-EG')}</td></tr>`).join('')}</tbody></table></div>`; } catch(er){ showToast('❌ خطأ','error'); } });
