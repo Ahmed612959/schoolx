@@ -476,7 +476,8 @@ const studentSchema = new mongoose.Schema({
     profile: {
         phone: String,
         parentName: String,
-        parentId: String
+        parentId: String,
+        parentPhone: String // ✅ رقم واتساب ولي الأمر - لاستخدامه في تنبيهات الغياب/المخالفات التلقائية
     },
     // مميزات Premium مفعّلة للطالب ده بس (مصفوفة مفاتيح، مش boolean واحد) — الأدمن يقدر
     // يفعّل ميزة معينة لطالب معين من غير الباقي. المفاتيح المتاحة حاليًا:
@@ -558,6 +559,18 @@ const attendanceSchema = new mongoose.Schema({
     note: { type: String, default: '' },
     recordedBy: { type: String, default: '' }
 }, { timestamps: true });
+
+// ✅ تتبع حالة "تنبيهات الغياب" (تم الإرسال / تم التجاهل) عشان لوحة الأدمن متفضلش
+// تعرض نفس التنبيه تاني بعد ما يتصرف فيه، لحد ما الوضع يتغيّر فعليًا (يزيد الغياب
+// المتتالي أو تتغير النسبة) — عندها بيتغير "signature" ويظهر كتنبيه جديد من تاني.
+const attendanceAlertSchema = new mongoose.Schema({
+    studentCode: { type: String, required: true, index: true },
+    signature: { type: String, required: true }, // مثال: "consecutive:4" أو "percentage:32"
+    status: { type: String, enum: ['sent', 'dismissed'], default: 'dismissed' },
+    actedBy: { type: String, default: '' },
+    actedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+attendanceAlertSchema.index({ studentCode: 1, signature: 1 }, { unique: true });
 
 const examSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -3367,6 +3380,7 @@ const Student = mongoose.models.Student || mongoose.model('Student', studentSche
 const Violation = mongoose.models.Violation || mongoose.model('Violation', violationSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
 const PushToken = mongoose.models.PushToken || mongoose.model('PushToken', pushTokenSchema);const Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
+const AttendanceAlert = mongoose.models.AttendanceAlert || mongoose.model('AttendanceAlert', attendanceAlertSchema);
 const Exam = mongoose.models.Exam || mongoose.model('Exam', examSchema);
 const ExamResult = mongoose.models.ExamResult || mongoose.model('ExamResult', examResultSchema);
 const ArchivedResult = mongoose.models.ArchivedResult || mongoose.model('ArchivedResult', archivedResultSchema);
@@ -3577,7 +3591,7 @@ app.get('/api/check-username', async (req, res) => {
 app.post('/api/students/register', async (req, res) => {
     try {
         await connectToDatabase();
-        const { fullName, username, password, grade, studentCode, phone, parentName, parentId } = req.body;
+        const { fullName, username, password, grade, studentCode, phone, parentName, parentId, parentPhone } = req.body;
         if (!fullName || !username || !password || !grade || !studentCode) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
 
         // ✅ تحقق صارم من شكل البيانات قبل التخزين — دفاع في العمق: حتى لو حصل
@@ -3596,6 +3610,9 @@ app.post('/api/students/register', async (req, res) => {
         if (phone !== undefined && phone !== '' && !/^[\d+\-\s]{6,20}$/.test(String(phone))) {
             return res.status(400).json({ error: 'رقم الهاتف غير صالح' });
         }
+        if (parentPhone !== undefined && parentPhone !== '' && !/^[\d+\-\s]{6,20}$/.test(String(parentPhone))) {
+            return res.status(400).json({ error: 'رقم واتساب ولي الأمر غير صالح' });
+        }
         if (parentName !== undefined && (String(parentName).length > 100 || /[<>`]/.test(String(parentName)))) {
             return res.status(400).json({ error: 'اسم ولي الأمر غير صالح' });
         }
@@ -3612,7 +3629,7 @@ app.post('/api/students/register', async (req, res) => {
             grade,
             studentCode,
             role: 'student',
-            profile: { phone: phone || '', parentName: parentName || '', parentId: parentId || '' }
+            profile: { phone: phone || '', parentName: parentName || '', parentId: parentId || '', parentPhone: parentPhone || '' }
         });
         await student.save();
         res.json({ success: true, message: 'تم إنشاء الحساب بنجاح' });
@@ -4398,6 +4415,162 @@ app.post('/api/attendance/bulk', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
+// ====================== تنبيهات الغياب التلقائية ======================
+// بيحسب لكل طالب: عدد أيام الغياب المتتالية (من آخر سجل للخلف) ونسبة الغياب
+// الكلية، ويرجع بس الطلاب اللي عدّوا الحدود المطلوبة (افتراضيًا 3 أيام متتالية
+// أو 25% غياب)، مع حالة كل تنبيه (لسه معلّق / اتبعت / اتجاهله) عشان الواجهة
+// متعيدش تزعج الأدمن بنفس التنبيه لو خلاص اتصرف فيه.
+function computeAttendanceFlags(records, { minConsecutive, minPercentage, minRecords }) {
+    if (!records.length) return null;
+    const sorted = [...records].sort((a, b) => (a.date < b.date ? 1 : -1)); // الأحدث أولاً
+    let consecutiveAbsent = 0;
+    for (const r of sorted) { if (r.status === 'absent') consecutiveAbsent++; else break; }
+    const total = records.length;
+    const absentCount = records.filter(r => r.status === 'absent').length;
+    const percentage = total > 0 ? (absentCount / total) * 100 : 0;
+    const flags = [];
+    if (consecutiveAbsent >= minConsecutive) {
+        flags.push({ type: 'consecutive', detail: `غاب ${consecutiveAbsent} أيام متتالية`, signature: `consecutive:${consecutiveAbsent}` });
+    }
+    if (total >= minRecords && percentage >= minPercentage) {
+        flags.push({ type: 'percentage', detail: `نسبة غياب ${percentage.toFixed(1)}% من ${total} يوم`, signature: `percentage:${Math.round(percentage)}` });
+    }
+    if (!flags.length) return null;
+    return { total, absentCount, percentage: Number(percentage.toFixed(1)), consecutiveAbsent, flags };
+}
+
+app.get('/api/admin/attendance/alerts', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const minConsecutive = Math.max(1, parseInt(req.query.minConsecutive) || 3);
+        const minPercentage = Math.max(1, parseFloat(req.query.minPercentage) || 25);
+        const minRecords = Math.max(1, parseInt(req.query.minRecords) || 5);
+        const gradeFilter = req.query.grade && req.query.grade !== 'all' ? { grade: req.query.grade } : {};
+
+        const students = await Student.find(gradeFilter).select('fullName studentCode grade profile');
+        if (!students.length) return res.json([]);
+        const studentCodes = students.map(s => s.studentCode);
+        const allRecords = await Attendance.find({ studentCode: { $in: studentCodes } }).select('studentCode date status').lean();
+        const recordsByStudent = new Map();
+        allRecords.forEach(r => { if (!recordsByStudent.has(r.studentCode)) recordsByStudent.set(r.studentCode, []); recordsByStudent.get(r.studentCode).push(r); });
+
+        const results = [];
+        for (const st of students) {
+            const records = recordsByStudent.get(st.studentCode) || [];
+            const computed = computeAttendanceFlags(records, { minConsecutive, minPercentage, minRecords });
+            if (!computed) continue;
+            const signatures = computed.flags.map(f => f.signature);
+            const alertDocs = await AttendanceAlert.find({ studentCode: st.studentCode, signature: { $in: signatures } }).lean();
+            const flagsWithStatus = computed.flags.map(f => {
+                const existing = alertDocs.find(a => a.signature === f.signature);
+                return { ...f, actionStatus: existing ? existing.status : 'pending' };
+            });
+            // لو كل التنبيهات الحالية اتصرف فيها (مفيش ولا واحد pending)، نتجاهلها إلا لو الواجهة طلبت الكل
+            const hasPending = flagsWithStatus.some(f => f.actionStatus === 'pending');
+            if (!hasPending && req.query.includeActioned !== 'true') continue;
+            results.push({
+                studentCode: st.studentCode,
+                fullName: st.fullName,
+                grade: st.grade,
+                parentPhone: st.profile?.parentPhone || '',
+                total: computed.total,
+                absentCount: computed.absentCount,
+                percentage: computed.percentage,
+                consecutiveAbsent: computed.consecutiveAbsent,
+                flags: flagsWithStatus
+            });
+        }
+        // الأكثر إلحاحًا (غياب متتالي أكبر) في الأول
+        results.sort((a, b) => b.consecutiveAbsent - a.consecutiveAbsent);
+        res.json(results);
+    } catch (error) {
+        console.error('❌ Attendance alerts error:', error);
+        res.status(500).json({ error: 'خطأ في حساب تنبيهات الغياب' });
+    }
+});
+
+app.post('/api/admin/attendance/alerts/action', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { studentCode, signature, status } = req.body;
+        if (!studentCode || !signature || !['sent', 'dismissed'].includes(status)) {
+            return res.status(400).json({ error: 'بيانات غير صحيحة' });
+        }
+        await AttendanceAlert.findOneAndUpdate(
+            { studentCode, signature },
+            { $set: { status, actedBy: req.user?.username || 'admin', actedAt: new Date() } },
+            { upsert: true }
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث حالة التنبيه' });
+    }
+});
+
+// ✅ تحديث رقم واتساب ولي الأمر بسرعة من نفس شاشة تنبيهات الغياب (من غير الحاجة
+// للدخول على شاشة تعديل الطالب الكاملة)
+app.put('/api/admin/students/:studentCode/parent-phone', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { parentPhone } = req.body;
+        if (parentPhone !== undefined && parentPhone !== '' && !/^[\d+\-\s]{6,20}$/.test(String(parentPhone))) {
+            return res.status(400).json({ error: 'رقم واتساب غير صالح' });
+        }
+        const student = await Student.findOne({ studentCode: req.params.studentCode }).select('profile');
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingProfile = student.profile ? student.profile.toObject() : {};
+        await Student.updateOne({ studentCode: req.params.studentCode }, { $set: { profile: { ...existingProfile, parentPhone: parentPhone || '' } } });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث رقم ولي الأمر' });
+    }
+});
+
+// ====================== تقرير حضور شهري قابل للطباعة ======================
+app.get('/api/admin/attendance/monthly-report', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { grade, month } = req.query; // month = 'YYYY-MM'
+        if (!grade || !/^\d{4}-\d{2}$/.test(String(month || ''))) {
+            return res.status(400).json({ error: 'الصف والشهر (YYYY-MM) مطلوبين' });
+        }
+        const [year, mm] = month.split('-').map(Number);
+        const daysInMonth = new Date(year, mm, 0).getDate();
+        const monthPrefix = month; // 'YYYY-MM'
+
+        const students = await Student.find({ grade }).select('fullName studentCode').sort({ fullName: 1 });
+        const studentCodes = students.map(s => s.studentCode);
+        const records = await Attendance.find({
+            studentCode: { $in: studentCodes },
+            date: { $gte: `${monthPrefix}-01`, $lte: `${monthPrefix}-31` }
+        }).select('studentCode date status').lean();
+
+        const byStudent = new Map();
+        records.forEach(r => { if (!byStudent.has(r.studentCode)) byStudent.set(r.studentCode, {}); byStudent.get(r.studentCode)[r.date] = r.status; });
+
+        const gradeLabel = { first: 'الأولى ثانوي', second: 'الثانية ثانوي', third: 'الثالثة ثانوي' };
+        const rows = students.map(st => {
+            const marks = byStudent.get(st.studentCode) || {};
+            let present = 0, absent = 0, late = 0;
+            const days = {};
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateKey = `${monthPrefix}-${String(d).padStart(2, '0')}`;
+                const status = marks[dateKey] || null;
+                days[d] = status;
+                if (status === 'present') present++; else if (status === 'absent') absent++; else if (status === 'late') late++;
+            }
+            const totalRecorded = present + absent + late;
+            const percentage = totalRecorded > 0 ? ((present / totalRecorded) * 100).toFixed(1) : '0.0';
+            return { fullName: st.fullName, studentCode: st.studentCode, days, present, absent, late, percentage };
+        });
+
+        res.json({ grade, gradeLabel: gradeLabel[grade] || grade, month, daysInMonth, rows });
+    } catch (error) {
+        console.error('❌ Monthly report error:', error);
+        res.status(500).json({ error: 'خطأ في إنشاء التقرير الشهري' });
+    }
+});
+
 // ====================== جلب الطلاب (للأدمن) ======================
 app.get('/api/admin/students', verifyToken, isAdmin, async (req, res) => {
     try {
@@ -4519,11 +4692,13 @@ app.put('/api/students/:studentCode', verifyToken, isAdmin, async (req, res) => 
         }
         
         // تحديث البروفايل
+        // ✅ تم إصلاح دمج البروفايل: كان بيحاول يقرأ .profile من الـ Query نفسه قبل تنفيذه (await
+        // بعد ?. مش قبله)، فكان دايمًا بيرجع undefined وبيمسح أي حقل قديم في البروفايل مش
+        // موجود في الطلب الحالي (زي لو حد بعت parentPhone بس، كانت بتتمسح parentId/parentName).
         if (profile !== undefined) {
-            updateData.profile = {
-                ...(await Student.findOne({ studentCode })?.profile || {}),
-                ...profile
-            };
+            const existingStudent = await Student.findOne({ studentCode }).select('profile');
+            const existingProfile = (existingStudent && existingStudent.profile) ? existingStudent.profile.toObject() : {};
+            updateData.profile = { ...existingProfile, ...profile };
         }
         
         // تحديث كلمة المرور لو تم إرسالها
@@ -5113,7 +5288,12 @@ app.post('/api/parent/login', async (req, res) => {
         await connectToDatabase();
         const { parentId, password } = req.body;
         if (!parentId || !password) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
-        const student = await Student.findOne({ 'profile.parentId': parentId });
+        // ✅ التطابق بيتم على آخر 7 أرقام من رقم بطاقة ولي الأمر فقط (سواء الطالب وقت
+        // التسجيل كتب الرقم القومي كامل أو آخر 7 أرقام بس) — بنطبع المدخل لأرقام فقط
+        // ونقارن بآخر 7 أرقام من القيمة المخزنة عشان يبقى دخول ولي الأمر بسيط وموحّد.
+        const normalizedInput = String(parentId).replace(/\D/g, '').slice(-7);
+        if (normalizedInput.length !== 7) return res.status(400).json({ error: 'آخر 7 أرقام من بطاقة ولي الأمر لازم تكون 7 أرقام' });
+        const student = await Student.findOne({ 'profile.parentId': { $regex: normalizedInput + '$' } });
         if (!student) return res.status(401).json({ error: 'رقم بطاقة ولي الأمر غير صحيح' });
         const expectedPassword = student.studentCode.slice(-7);
         if (password !== expectedPassword) return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
