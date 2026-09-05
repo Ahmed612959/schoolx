@@ -1,145 +1,171 @@
 /* =======================================================================
    login.css — صفحة تسجيل الدخول
    معهد رعاية الضبعية الفني للتمريض
-   تصميم هادئ واحترافي، بنفس نظام ألوان باقي لوحات النظام (admin/parent)
+   خلفية بيضاء نقية، بطاقة مرفوعة لأعلى الصفحة بظل واضح، تفاصيل هادئة واحترافية
    ======================================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-    --primary: #234E61;
-    --primary-dark: #17394A;
-    --primary-light: #EAF2F4;
-    --secondary: #B78D53;
-    --secondary-dark: #8F6C3D;
-    --secondary-light: #F7F1E5;
+    --teal-950: #062E2C;
+    --teal-900: #0B4640;
+    --teal-800: #0F5C57;
+    --teal-700: #157068;
+    --teal-500: #1E9186;
+    --mint-50:  #F1F8F6;
+    --mint-100: #E3F1EC;
+
+    --amber-600: #D97A3F;
+    --amber-500: #E8935C;
+    --amber-50:  #FDF3EA;
+
     --white: #FFFFFF;
-    --ink: #212B33;
-    --gray-50:  #F8FAFB;
-    --gray-100: #F1F4F6;
-    --gray-200: #E3E9EC;
-    --gray-300: #CDD7DC;
-    --gray-400: #9AABB3;
-    --gray-500: #6C7D86;
-    --gray-600: #4B5C65;
-    --gray-700: #35444C;
+    --ink-900: #12211F;
+    --ink-700: #33473F;
+
+    --gray-50:  #F7FAF9;
+    --gray-100: #EEF3F1;
+    --gray-200: #DFE8E5;
+    --gray-300: #C7D4D0;
+    --gray-400: #96A9A3;
+    --gray-500: #6C837C;
+    --gray-600: #4C625B;
+
     --success: #2E8C63;
-    --success-light: #E7F5EE;
-    --danger: #BE4A40;
-    --danger-light: #FBEAE8;
-    --warning: #BD8930;
-    --warning-light: #FBF1E0;
-    --info: #3B7CA6;
-    --info-light: #E8F2F8;
-    --shadow-sm: 0 2px 8px rgba(23, 41, 51, 0.06);
-    --shadow-md: 0 10px 28px rgba(23, 41, 51, 0.10);
-    --shadow-lg: 0 24px 60px rgba(15, 30, 38, 0.22);
-    --radius-md: 12px;
-    --radius-lg: 18px;
-    --radius-xl: 24px;
+    --danger: #C24A3A;
+    --warning: #D97A3F;
+    --info: #2E7BA6;
+
+    --shadow-card: 0 20px 50px rgba(15, 92, 87, 0.14), 0 6px 18px rgba(15, 92, 87, 0.08);
+    --shadow-sm: 0 2px 10px rgba(15, 92, 87, 0.06);
+
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 22px;
     --radius-full: 999px;
-    --transition: all 0.25s cubic-bezier(.4,0,.2,1);
+
+    --transition: all 0.22s cubic-bezier(.4,0,.2,1);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { overflow-x: hidden; }
 
 body {
     font-family: 'Tajawal', sans-serif;
     direction: rtl;
     min-height: 100vh;
-    color: var(--ink);
-    background: radial-gradient(circle at 20% 15%, #2c6479 0%, transparent 45%),
-                radial-gradient(circle at 85% 85%, #2c6479 0%, transparent 40%),
-                linear-gradient(160deg, var(--primary-dark) 0%, var(--primary) 55%, #1c4356 100%);
-    background-attachment: fixed;
+    color: var(--ink-900);
+    background: var(--white);
     display: flex;
     flex-direction: column;
 }
 
 /* ========================================================================
-   الهيدر — شريط علوي رفيع وهادئ (بدل الهيدر التقيل القديم)
+   الهيدر — أكبر وحوافه واضحة تمامًا
    ======================================================================== */
 .main-header {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 14px 20px;
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 14px;
+    padding: 24px 20px;
+    background: var(--gray-50);
+    border-bottom: 3px solid var(--gray-300);
+    box-shadow: 0 4px 14px rgba(15, 92, 87, 0.08);
+    position: relative;
+    z-index: 2;
 }
 
 .main-header .logo {
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     object-fit: cover;
-    background: var(--white);
+    background: var(--mint-50);
+    box-shadow: 0 0 0 2px var(--mint-100), 0 0 0 3px var(--gray-300);
 }
 
 .main-header h1 {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--white);
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--teal-900);
     letter-spacing: 0.2px;
 }
 
 /* ========================================================================
-   حاوية الصفحة + بطاقة تسجيل الدخول
+   حاوية الصفحة — البطاقة مرفوعة لأعلى الصفحة، مش في النص
    ======================================================================== */
 .main-container {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 30px 18px 50px;
+    padding: 44px 18px 60px;
+}
+
+.page-stack {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
 }
 
 .login-form-container {
     background: var(--white);
     width: 100%;
-    max-width: 420px;
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg);
-    padding: 38px 32px 30px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 0 32px 30px;
     text-align: center;
-    animation: cardEnter 0.55s cubic-bezier(.2,.85,.32,1.15);
+    animation: cardEnter 0.6s cubic-bezier(.2,.85,.32,1.1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* شريط تدرج رفيع أعلى البطاقة */
+.login-form-container::before {
+    content: "";
+    display: block;
+    height: 5px;
+    margin: 0 -32px 0;
+    background: linear-gradient(90deg, var(--teal-500), var(--amber-500));
 }
 
 @keyframes cardEnter {
-    from { opacity: 0; transform: translateY(22px) scale(0.98); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .login-icon {
-    width: 62px;
-    height: 62px;
+    width: 68px;
+    height: 68px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
+    background: linear-gradient(135deg, var(--teal-700), var(--teal-900));
     color: var(--white);
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    font-size: 1.5rem;
-    margin: 0 auto 14px;
-    box-shadow: 0 8px 20px rgba(183, 141, 83, 0.35);
+    font-size: 1.6rem;
+    margin: 30px auto 16px;
+    box-shadow: 0 10px 22px rgba(15, 92, 87, 0.3);
 }
 
+/* اسم المعهد يظهر مباشرة تحت الأيقونة كعنوان رئيسي */
 .login-form-container h2 {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: var(--primary-dark);
-    margin-bottom: 4px;
+    font-size: 1.18rem;
+    font-weight: 900;
+    color: var(--teal-950);
+    line-height: 1.5;
+    margin-bottom: 6px;
 }
 
 .login-form-container > p,
 .login-subtitle {
     color: var(--gray-500);
-    font-size: 0.82rem;
-    margin-bottom: 22px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 26px;
 }
 
 /* ========================================================================
@@ -147,7 +173,7 @@ body {
    ======================================================================== */
 #login-form { text-align: right; }
 
-.input-group { margin-bottom: 16px; }
+.input-group { margin-bottom: 16px; position: relative; }
 
 .input-group label {
     display: flex;
@@ -155,29 +181,31 @@ body {
     gap: 7px;
     font-size: 0.82rem;
     font-weight: 700;
-    color: var(--gray-700);
-    margin-bottom: 7px;
+    color: var(--ink-700);
+    margin-bottom: 8px;
 }
 
-.input-group label i { color: var(--secondary); font-size: 0.85rem; width: 16px; text-align: center; }
+.input-group label i { color: var(--amber-600); font-size: 0.85rem; width: 16px; text-align: center; }
 
 .input-group input {
     width: 100%;
     padding: 13px 16px;
-    border: 1.5px solid var(--gray-300);
-    border-radius: var(--radius-md);
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm);
     font-size: 0.95rem;
     font-family: inherit;
-    color: var(--ink);
+    color: var(--ink-900);
     background: var(--gray-50);
     transition: var(--transition);
 }
 
+.input-group input::placeholder { color: var(--gray-400); }
+
 .input-group input:focus {
     outline: none;
-    border-color: var(--secondary);
+    border-color: var(--teal-500);
     background: var(--white);
-    box-shadow: 0 0 0 4px rgba(183, 141, 83, 0.14);
+    box-shadow: 0 0 0 4px #FFFFFF, 0 0 0 7px rgba(30, 145, 134, 0.22);
 }
 
 .password-wrapper { position: relative; }
@@ -193,52 +221,90 @@ body {
     color: var(--gray-400);
     width: 34px;
     height: 34px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: var(--transition);
 }
-.toggle-password:hover { color: var(--secondary-dark); background: var(--secondary-light); }
+.toggle-password:hover { color: var(--teal-700); background: var(--mint-100); }
+.toggle-password:active { box-shadow: 0 0 0 4px #FFFFFF, 0 0 0 7px rgba(30, 145, 134, 0.22); }
+
+/* تنبيه Caps Lock */
+.capslock-hint {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-top: 7px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--amber-600);
+}
+.capslock-hint.show { display: flex; }
 
 /* ========================================================================
    زر تسجيل الدخول
    ======================================================================== */
 .submit-btn {
     width: 100%;
-    padding: 14px;
+    padding: 15px;
     border: none;
     border-radius: var(--radius-full);
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    background: linear-gradient(135deg, var(--amber-500), var(--amber-600));
     color: var(--white);
     font-family: inherit;
-    font-size: 0.98rem;
+    font-size: 1rem;
     font-weight: 800;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 9px;
-    margin-top: 6px;
+    margin-top: 8px;
     transition: var(--transition);
-    box-shadow: 0 10px 24px rgba(23, 57, 74, 0.28);
+    box-shadow: 0 14px 28px rgba(217, 122, 63, 0.3);
 }
-.submit-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(23, 57, 74, 0.36); }
+.submit-btn:hover { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(217, 122, 63, 0.38); }
 .submit-btn:active { transform: translateY(0); }
 .submit-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+.secure-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 12px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--gray-400);
+}
+.secure-note i { color: var(--teal-500); }
+
+.submit-btn:focus-visible,
+.biometric-btn:focus-visible,
+.biometric-register-btn:focus-visible,
+.toggle-password:focus-visible,
+.reg-choice-card:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px #FFFFFF, 0 0 0 7px rgba(30, 145, 134, 0.3);
+}
+
+.input-group input:focus-visible {
+    outline: none;
+}
 
 /* ========================================================================
    البصمة
    ======================================================================== */
-.biometric-section { margin: 18px 0 4px; text-align: center; }
+.biometric-section { margin: 20px 0 4px; text-align: center; }
 
 .biometric-btn, .biometric-register-btn {
     width: 100%;
     padding: 13px 18px;
     background: var(--white);
-    color: var(--primary-dark);
-    border: 1.5px solid var(--gray-300);
+    color: var(--teal-900);
+    border: 1.5px solid var(--gray-200);
     border-radius: var(--radius-full);
     font-family: inherit;
     font-size: 0.9rem;
@@ -252,9 +318,9 @@ body {
     margin-bottom: 10px;
 }
 .biometric-btn:hover, .biometric-register-btn:hover {
-    border-color: var(--secondary);
-    background: var(--secondary-light);
-    color: var(--secondary-dark);
+    border-color: var(--teal-500);
+    background: var(--mint-100);
+    color: var(--teal-800);
 }
 .biometric-btn i, .biometric-register-btn i { font-size: 1.05rem; animation: fingerprintPulse 2.4s ease infinite; }
 
@@ -275,102 +341,144 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 18px 0 14px;
+    margin: 20px 0 16px;
     color: var(--gray-400);
     font-size: 0.75rem;
 }
 .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--gray-200); }
 
-.signup-link, .parent-link { font-size: 0.85rem; color: var(--gray-600); margin-top: 6px; }
-.signup-link a, .parent-link a {
-    color: var(--primary);
-    font-weight: 700;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-.signup-link a:hover, .parent-link a:hover { color: var(--secondary-dark); text-decoration: underline; }
-
-/* ✅ رابط إنشاء الحساب يظهر بس للمستخدمين الجداد (نفس منطق regModal الأصلي) */
 .signup-link { display: none; }
+.parent-link { display: block; }
 body.show-signup .signup-link { display: block; }
+
+.links-box {
+    background: var(--gray-50);
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-top: 4px;
+    text-align: right;
+}
+
+.links-box .signup-link a,
+.links-box .parent-link a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    color: var(--ink-700);
+    font-weight: 700;
+    font-size: 0.87rem;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.links-box .signup-link a i:first-child,
+.links-box .parent-link a i:first-child {
+    color: var(--amber-600);
+    font-size: 0.95rem;
+    width: 18px;
+    text-align: center;
+}
+
+.links-box .signup-link a span,
+.links-box .parent-link a span {
+    flex: 1;
+}
+
+.links-box .link-arrow {
+    color: var(--gray-400);
+    font-size: 0.78rem;
+    transition: var(--transition);
+}
+
+.links-box .signup-link a:hover,
+.links-box .parent-link a:hover {
+    background: var(--mint-100);
+    color: var(--teal-800);
+}
+.links-box .signup-link a:hover .link-arrow,
+.links-box .parent-link a:hover .link-arrow {
+    color: var(--teal-600, var(--teal-700));
+    transform: translateX(-3px);
+}
+
+body.show-signup .parent-link {
+    border-top: 1px solid var(--gray-200);
+}
+
+/* ========================================================================
+   قسم "هل سبق لك التسجيل؟" — مربعات منسّقة تحت بطاقة الدخول (بدل نافذة منبثقة)
+   ======================================================================== */
+.reg-choice-section {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-200);
+    padding: 22px 24px;
+    text-align: center;
+    animation: cardEnter 0.6s cubic-bezier(.2,.85,.32,1.1) 0.1s backwards;
+}
+
+.reg-choice-section .reg-icon { font-size: 1.9rem; margin-bottom: 8px; }
+.reg-choice-section h3 { color: var(--teal-950); font-size: 1rem; font-weight: 800; margin-bottom: 4px; }
+.reg-choice-section > p.reg-choice-desc { color: var(--gray-500); font-size: 0.8rem; margin-bottom: 16px; }
+
+.reg-choice-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.reg-choice-card {
+    border: 1.5px solid var(--gray-200);
+    background: var(--gray-50);
+    border-radius: var(--radius-md);
+    padding: 16px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: var(--transition);
+}
+.reg-choice-card i { font-size: 1.25rem; }
+.reg-choice-card span { font-size: 0.82rem; font-weight: 700; color: var(--ink-700); }
+
+.reg-choice-card.yes i { color: var(--teal-600, var(--teal-700)); }
+.reg-choice-card.yes:hover { border-color: var(--teal-500); background: var(--mint-100); transform: translateY(-2px); }
+
+.reg-choice-card.no i { color: var(--amber-600); }
+.reg-choice-card.no:hover { border-color: var(--amber-500); background: var(--amber-50); transform: translateY(-2px); }
+
+.reg-choice-help {
+    background: var(--mint-50);
+    border-radius: var(--radius-sm);
+    padding: 13px;
+    text-align: right;
+}
+.reg-choice-help p { color: var(--gray-500); font-size: 0.78rem; margin: 0 0 6px; }
+.reg-choice-help .contact-name { color: var(--teal-950); font-size: 0.83rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 6px; }
+.reg-choice-help a { color: #25D366; font-weight: 700; text-decoration: none; font-size: 0.86rem; display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; }
+.reg-choice-help a:hover { text-decoration: underline; }
 
 /* ========================================================================
    الفوتر
    ======================================================================== */
 footer {
     text-align: center;
-    padding: 16px;
-    color: rgba(255, 255, 255, 0.55);
+    padding: 18px;
+    color: var(--gray-400);
     font-size: 0.75rem;
 }
-footer .heart { color: var(--secondary); }
+footer .heart { color: var(--amber-500); }
 
 /* ========================================================================
-   نافذة "هل سبق لك التسجيل؟"
+   إشعارات (تخصيص مكتبة Toastify) — على شكل إشعار آيفون
    ======================================================================== */
-.reg-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 25, 32, 0.6);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 99999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-
-.reg-modal-card {
-    background: var(--white);
-    border-radius: var(--radius-xl);
-    padding: 30px 26px;
-    max-width: 440px;
-    width: 100%;
-    text-align: center;
-    box-shadow: var(--shadow-lg);
-    animation: cardEnter 0.4s ease;
-}
-
-.reg-modal-card .reg-icon { font-size: 2.5rem; margin-bottom: 10px; }
-.reg-modal-card h3 { color: var(--primary-dark); font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
-.reg-modal-card p { color: var(--gray-500); font-size: 0.83rem; margin-bottom: 16px; }
-
-.reg-modal-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
-.reg-modal-actions button {
-    border: none;
-    padding: 13px 22px;
-    border-radius: var(--radius-full);
-    font-weight: 700;
-    font-family: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-    min-width: 140px;
-    color: var(--white);
-    transition: var(--transition);
-}
-.reg-modal-actions button:hover { transform: translateY(-2px); }
-#btnYes { background: var(--success); }
-#btnNo { background: var(--danger); }
-
-.reg-modal-help {
-    background: var(--gray-50);
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-md);
-    padding: 13px;
-    text-align: right;
-}
-.reg-modal-help p { color: var(--gray-500); font-size: 0.78rem; margin: 0 0 6px; }
-.reg-modal-help .contact-name { color: var(--primary-dark); font-size: 0.83rem; font-weight: 700; margin: 0; }
-.reg-modal-help a { color: #25D366; font-weight: 700; text-decoration: none; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
-.reg-modal-help a:hover { text-decoration: underline; }
-
-/* ========================================================================
-   إشعارات على شكل إشعارات الآيفون (تخصيص مكتبة Toastify)
-   ======================================================================== */
-.toastify {
+.toastify.app-toast {
     position: fixed !important;
     top: max(14px, env(safe-area-inset-top, 14px)) !important;
     left: 50% !important;
@@ -379,12 +487,12 @@ footer .heart { color: var(--secondary); }
     transform: translateX(-50%) !important;
     width: min(92vw, 380px) !important;
     max-width: 380px !important;
-    background: rgba(255, 255, 255, 0.88) !important;
+    background: rgba(255, 255, 255, 0.94) !important;
     backdrop-filter: saturate(180%) blur(20px) !important;
     -webkit-backdrop-filter: saturate(180%) blur(20px) !important;
-    color: var(--ink) !important;
+    color: var(--ink-900) !important;
     border-radius: 18px !important;
-    box-shadow: 0 10px 34px rgba(15, 25, 32, 0.22), 0 2px 8px rgba(15, 25, 32, 0.10) !important;
+    box-shadow: 0 10px 34px rgba(6, 46, 44, 0.18), 0 2px 8px rgba(6, 46, 44, 0.08) !important;
     padding: 12px 16px 13px !important;
     font-family: 'Tajawal', sans-serif !important;
     font-size: 0.88rem !important;
@@ -398,10 +506,10 @@ footer .heart { color: var(--secondary); }
     text-align: right !important;
     animation: iosNotifIn 0.5s cubic-bezier(.2,.9,.28,1.2) !important;
     transition: opacity 0.3s ease !important;
-    border: 1px solid rgba(255,255,255,0.5) !important;
+    border: 1px solid rgba(15, 92, 87, 0.12) !important;
 }
 
-.toastify::before {
+.toastify.app-toast::before {
     content: "🔔 معهد رعاية الضبعية";
     display: block;
     font-size: 0.68rem;
@@ -411,13 +519,89 @@ footer .heart { color: var(--secondary); }
     letter-spacing: 0.2px;
 }
 
+.toastify.toast-success { border-right: 4px solid var(--success) !important; }
+.toastify.toast-error   { border-right: 4px solid var(--danger) !important; }
+.toastify.toast-warning { border-right: 4px solid var(--warning) !important; }
+.toastify.toast-info    { border-right: 4px solid var(--info) !important; }
+
 @keyframes iosNotifIn {
     from { opacity: 0; transform: translate(-50%, -26px) scale(0.92); }
     to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
 
+/* ========================================================================
+   شاشة نجاح تسجيل الدخول — أنيميشن واضح قبل التحويل للصفحة التالية
+   ======================================================================== */
+.success-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    z-index: 99999999;
+    padding: 20px;
+    text-align: center;
+}
+.success-overlay.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: all;
+}
+
+.success-circle {
+    stroke-dasharray: 365;
+    stroke-dashoffset: 365;
+}
+.success-check {
+    stroke-dasharray: 80;
+    stroke-dashoffset: 80;
+}
+.success-overlay.show .success-circle {
+    animation: drawCircle 0.5s ease forwards;
+}
+.success-overlay.show .success-check {
+    animation: drawCheck 0.35s ease forwards 0.45s;
+}
+@keyframes drawCircle { to { stroke-dashoffset: 0; } }
+@keyframes drawCheck { to { stroke-dashoffset: 0; } }
+
+.success-text {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--teal-950);
+    opacity: 0;
+    transform: translateY(6px);
+}
+.success-overlay.show .success-text {
+    animation: fadeUpText 0.4s ease forwards 0.75s;
+}
+@keyframes fadeUpText { to { opacity: 1; transform: translateY(0); } }
+
+/* ========================================================================
+   تجاوب
+   ======================================================================== */
 @media (max-width: 480px) {
-    .login-form-container { padding: 30px 22px 24px; }
-    .login-form-container h2 { font-size: 1.1rem; }
+    .main-container { padding: 30px 16px 44px; }
+    .login-form-container { padding: 0 22px 24px; }
+    .login-form-container::before { margin: 0 -22px 0; }
+    .login-icon { margin-top: 24px; width: 60px; height: 60px; }
+    .login-form-container h2 { font-size: 1.05rem; }
+    .reg-choice-section { padding: 18px 16px; }
     .main-header h1 { font-size: 0.82rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+    }
 }
