@@ -438,8 +438,8 @@ function renderQuestionInputs() { let type=document.getElementById('question-typ
 window.addQuestion = function() { let type=document.getElementById('question-type').value, text=document.getElementById('qText')?.value.trim(); if(!text){ showToast('أدخل نص السؤال أولاً!','error'); return; } let q={type,text}; if(type==='multiple'){ let opts=[...document.querySelectorAll('.opt')].map(i=>i.value.trim()).filter(v=>v), cor=document.getElementById('correctOpt').value; if(opts.length<2){ showToast('أضف خيارين على الأقل!','error'); return; } if(!cor){ showToast('اختر الإجابة الصحيحة!','error'); return; } q.options=opts; q.correctAnswer=cor; } else if(type==='essay'){ let ans=document.getElementById('essayAnswer')?.value.trim(); if(!ans){ showToast('أدخل الإجابة النموذجية!','error'); return; } q.correctAnswer=ans; } else if(type==='truefalse'){ q.correctAnswer=document.getElementById('tfAnswer').value; } questionsList.push(q); const qc=document.getElementById('questions-list'); if(qc) qc.innerHTML=questionsList.map((qq,idx)=>`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:12px;border-right:3px solid #C7A252;"><strong>سؤال ${idx+1}:</strong> ${escapeHtml(qq.text)}<br>${qq.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${qq.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${qq.correctAnswer}</span>`:''}${qq.correctAnswer&&!qq.options?`<span style="color:#C7A252;">✅ الإجابة: ${qq.correctAnswer}</span>`:''}<button onclick="removeQuestion(${idx})" style="background:#E74C3C;color:white;border:none;padding:5px 12px;border-radius:20px;margin-top:10px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></div>`).join(''); document.getElementById('question-inputs').innerHTML=''; document.getElementById('qText').value=''; showToast('✅ تم إضافة السؤال بنجاح','success'); };
 window.removeQuestion = function(idx) { questionsList.splice(idx,1); const qc=document.getElementById('questions-list'); if(qc) qc.innerHTML=questionsList.map((qq,i)=>`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:12px;border-right:3px solid #C7A252;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(qq.text)}<br>${qq.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${qq.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${qq.correctAnswer}</span>`:''}${qq.correctAnswer&&!qq.options?`<span style="color:#C7A252;">✅ الإجابة: ${qq.correctAnswer}</span>`:''}<button onclick="removeQuestion(${i})" style="background:#E74C3C;color:white;border:none;padding:5px 12px;border-radius:20px;margin-top:10px;cursor:pointer;"><i class="fas fa-trash"></i> حذف</button></div>`).join(''); showToast('✅ تم حذف السؤال','success'); };
 window.saveExam = async function() { const name=document.getElementById('exam-name')?.value.trim(), code=document.getElementById('exam-code')?.value.trim(), stage=document.getElementById('exam-stage')?.value, duration=parseInt(document.getElementById('exam-duration')?.value); if(!name){ showToast('يرجى إدخال اسم الاختبار!','error'); return; } if(!code){ showToast('يرجى إدخال كود الاختبار!','error'); return; } if(!duration||duration<1){ showToast('يرجى إدخال مدة الاختبار بالدقائق!','error'); return; } if(questionsList.length===0){ showToast('يرجى إضافة سؤال واحد على الأقل!','error'); return; } try { await saveToServer('/api/exams',{name,code,stage,duration,questions:questionsList}); showToast('✅ تم حفظ الاختبار بنجاح!','success'); questionsList=[]; document.getElementById('questions-list').innerHTML=''; document.getElementById('exam-name').value=''; document.getElementById('exam-code').value=''; document.getElementById('exam-duration').value=''; document.getElementById('exam-stage').value='first'; document.getElementById('question-inputs').innerHTML=''; await loadExamsList(); } catch(er){ showToast('❌ فشل حفظ الاختبار','error'); } };
-async function loadExamsList() { try { const exams=await getFromServer('/api/exams'); const tbody=document.getElementById('exams-list-body'); if(!tbody) return; if(!exams||exams.length===0){ tbody.innerHTML='<tr><td colspan="7">📭 لا توجد اختبارات مسجلة</td></tr>'; return; } tbody.innerHTML=exams.map(ex=>`<tr><td>${escapeHtml(ex.name)}</td><td><strong style="color:var(--primary);">${escapeHtml(ex.code)}</strong></td><td>${ex.stage==='first'?'الأولى ثانوي':'الثانية ثانوي'}</td><td>${ex.duration} دقيقة</td><td>${ex.questions?.length||0}</td><td>${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td><td><button class="view-btn" onclick="viewExam('${ex.code}')"><i class="fas fa-eye"></i> عرض</button> ${isManagerRole()?`<button class="delete-btn" onclick="deleteExam('${ex.code}')"><i class="fas fa-trash"></i> حذف</button>`:''}</td></tr>`).join(''); } catch(er){ const tbody=document.getElementById('exams-list-body'); if(tbody) tbody.innerHTML='<tr><td colspan="7">❌ فشل تحميل الاختبارات</td></tr>'; } }
-window.viewExam = async function(code) { try { const exam=await getFromServer(`/api/exams/${encodeURIComponent(code)}`); if(!exam) throw new Error('فشل'); let qh='<div style="max-height:400px;overflow-y:auto;text-align:right;">'; exam.questions.forEach((q,i)=>{ qh+=`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:15px;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(q.text)}<br>${q.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${q.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${q.correctAnswer==='true'?'صح':(q.correctAnswer==='false'?'خطأ':q.correctAnswer)}</span>`:''}${q.correctAnswer&&!q.options?`<span style="color:#C7A252;">✅ الإجابة: ${escapeHtml(q.correctAnswer)}</span>`:''}</div>`; }); qh+='</div>'; Swal.fire({title:exam.name,html:`<div><p><strong>🔑 كود:</strong> ${exam.code}</p><p><strong>📚 المرحلة:</strong> ${exam.stage==='first'?'الأولى':'الثانية'}</p><p><strong>⏱️ المدة:</strong> ${exam.duration} دقيقة</p><hr><h4>📝 الأسئلة:</h4>${qh}</div>`,icon:'info',confirmButtonText:'إغلاق',confirmButtonColor:'#C7A252',width:'700px'}); } catch(er){ showToast('خطأ في عرض بيانات الاختبار','error'); } };
+async function loadExamsList() { try { const exams=await getFromServer('/api/exams'); const tbody=document.getElementById('exams-list-body'); if(!tbody) return; if(!exams||exams.length===0){ tbody.innerHTML='<tr><td colspan="7">📭 لا توجد اختبارات مسجلة</td></tr>'; return; } const stageLabel={first:'الأولى ثانوي',second:'الثانية ثانوي',third:'الثالثة ثانوي'}; tbody.innerHTML=exams.map(ex=>`<tr><td>${escapeHtml(ex.name)}</td><td><strong style="color:var(--primary);">${escapeHtml(ex.code)}</strong></td><td>${stageLabel[ex.stage]||ex.stage||'-'}</td><td>${ex.duration} دقيقة</td><td>${ex.questions?.length||0}</td><td>${new Date(ex.createdAt).toLocaleDateString('ar-EG')}</td><td><button class="view-btn" onclick="viewExam('${ex.code}')"><i class="fas fa-eye"></i> عرض</button> ${isManagerRole()?`<button class="delete-btn" onclick="deleteExam('${ex.code}')"><i class="fas fa-trash"></i> حذف</button>`:''}</td></tr>`).join(''); } catch(er){ const tbody=document.getElementById('exams-list-body'); if(tbody) tbody.innerHTML='<tr><td colspan="7">❌ فشل تحميل الاختبارات</td></tr>'; } }
+window.viewExam = async function(code) { try { const exam=await getFromServer(`/api/exams/${encodeURIComponent(code)}`); if(!exam) throw new Error('فشل'); let qh='<div style="max-height:400px;overflow-y:auto;text-align:right;">'; exam.questions.forEach((q,i)=>{ qh+=`<div style="background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:15px;"><strong>سؤال ${i+1}:</strong> ${escapeHtml(q.text)}<br>${q.options?`<span style="color:#2D9C7C;">📌 الخيارات: ${q.options.join(', ')}</span><br><span style="color:#C7A252;">✅ الصحيح: ${q.correctAnswer==='true'?'صح':(q.correctAnswer==='false'?'خطأ':q.correctAnswer)}</span>`:''}${q.correctAnswer&&!q.options?`<span style="color:#C7A252;">✅ الإجابة: ${escapeHtml(q.correctAnswer)}</span>`:''}</div>`; }); qh+='</div>'; const stageNames={first:'الأولى',second:'الثانية',third:'الثالثة'}; Swal.fire({title:exam.name,html:`<div><p><strong>🔑 كود:</strong> ${exam.code}</p><p><strong>📚 المرحلة:</strong> ${stageNames[exam.stage]||exam.stage}</p><p><strong>⏱️ المدة:</strong> ${exam.duration} دقيقة</p><hr><h4>📝 الأسئلة:</h4>${qh}</div>`,icon:'info',confirmButtonText:'إغلاق',confirmButtonColor:'#C7A252',width:'700px'}); } catch(er){ showToast('خطأ في عرض بيانات الاختبار','error'); } };
 window.deleteExam = async function(code) { const res=await Swal.fire({title:'⚠️ تأكيد الحذف',text:`هل أنت متأكد من حذف الاختبار "${code}"؟`,icon:'warning',showCancelButton:true,confirmButtonText:'نعم',cancelButtonText:'إلغاء',confirmButtonColor:'#E74C3C'}); if(res.isConfirmed){ try { await saveToServer(`/api/exams/${encodeURIComponent(code)}`,{},'DELETE'); showToast('✅ تم حذف الاختبار','success'); await loadExamsList(); } catch(er){ showToast('❌ فشل','error'); } } };
 document.getElementById('fetch-results')?.addEventListener('click', async () => { const code=document.getElementById('results-exam-code')?.value.trim(); if(!code){ showToast('أدخل كود الاختبار أولاً!','error'); return; } try { const results=await getFromServer(`/api/exams/${encodeURIComponent(code)}/results`); const c=document.getElementById('exam-results-list'); if(!results||results.length===0){ c.innerHTML='<p>📭 لا توجد نتائج</p>'; return; } c.innerHTML=`<div class="table-wrapper"><table><thead><tr style="background:#1e3c4a;color:#d4af5a;"><th>👨‍🎓 الطالب</th><th>📊 النتيجة</th><th>📅 التاريخ</th></tr></thead><tbody>${results.map(r=>`<tr><td>${escapeHtml(r.studentId)}</td><td><strong style="color:#27AE60;">${r.score.toFixed(1)}%</strong></td><td>${new Date(r.completionTime).toLocaleString('ar-EG')}</td></tr>`).join('')}</tbody></table></div>`; } catch(er){ showToast('❌ خطأ','error'); } });
 document.getElementById('question-type')?.addEventListener('change', renderQuestionInputs);
@@ -869,6 +869,110 @@ function enhanceAllTables() { document.querySelectorAll('table').forEach(applyTa
     enhanceAllTables();
 })();
 
+// ====================== ✅ تنبيهات الغياب التلقائية ======================
+function sendAbsenceWhatsApp(phone, studentName, detailText) {
+    let ph = phone.replace(/[^0-9]/g, ''); if (ph.startsWith('0')) ph = '20' + ph.substring(1); if (!ph.startsWith('20')) ph = '20' + ph;
+    const msg = `📢 *تنبيه من معهد رعاية الضبعية*\n\n👨‍🎓 الطالب: ${studentName}\n⚠️ ${detailText}\n📅 التاريخ: ${new Date().toLocaleString('ar-EG')}\n\nبرجاء التواصل مع إدارة المعهد لمتابعة الموقف.`;
+    window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+async function loadAttendanceAlerts() {
+    const tbody = document.getElementById('alerts-table-body'); if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5">⏳ جاري التحميل...</td></tr>';
+    const grade = document.getElementById('alerts-grade-filter')?.value || 'all';
+    const minConsecutive = document.getElementById('alerts-min-consecutive')?.value || 3;
+    const minPercentage = document.getElementById('alerts-min-percentage')?.value || 25;
+    const params = new URLSearchParams({ grade, minConsecutive, minPercentage });
+    const data = await getFromServer(`/api/admin/attendance/alerts?${params.toString()}`);
+    renderAttendanceAlerts(Array.isArray(data) ? data : []);
+}
+
+const gradeLabelMap = { first: 'الأولى ثانوي', second: 'الثانية ثانوي', third: 'الثالثة ثانوي' };
+
+function renderAttendanceAlerts(rows) {
+    const tbody = document.getElementById('alerts-table-body'); if (!tbody) return;
+    const badge = document.getElementById('alerts-count-badge');
+    if (badge) { if (rows.length) { badge.style.display = 'inline-flex'; badge.textContent = rows.length; } else badge.style.display = 'none'; }
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5">✅ لا توجد تنبيهات غياب حاليًا حسب الحدود المختارة</td></tr>'; return; }
+    tbody.innerHTML = rows.map(st => {
+        const reasonsHtml = st.flags.map(f => `<span class="alert-reason-badge ${f.actionStatus !== 'pending' ? 'is-actioned' : ''}">${f.actionStatus === 'sent' ? '✅ ' : (f.actionStatus === 'dismissed' ? '🚫 ' : '')}${escapeHtml(f.detail)}</span>`).join('');
+        const pendingFlag = st.flags.find(f => f.actionStatus === 'pending');
+        const phoneCell = `<input type="tel" class="alert-phone-input" dir="ltr" placeholder="01xxxxxxxxx" value="${escapeHtml(st.parentPhone)}" onchange="updateAlertParentPhone('${st.studentCode}', this)">`;
+        let actionCell = '—';
+        if (pendingFlag) {
+            actionCell = `<button class="table-action-btn edit-action" onclick='sendAndMarkAlert(${JSON.stringify(st.studentCode)}, ${JSON.stringify(pendingFlag.signature)}, ${JSON.stringify(st.fullName)}, ${JSON.stringify(pendingFlag.detail)})'><i class="fab fa-whatsapp"></i> <span>إرسال</span></button> <button class="table-action-btn delete-action" onclick="dismissAlert('${st.studentCode}','${pendingFlag.signature}')"><i class="fas fa-times"></i> <span>تجاهل</span></button>`;
+        }
+        return `<tr><td><strong>${escapeHtml(st.fullName)}</strong><br><small>رقم الجلوس: ${st.studentCode}</small></td><td>${gradeLabelMap[st.grade] || st.grade}</td><td>${reasonsHtml}</td><td>${phoneCell}</td><td>${actionCell}</td></tr>`;
+    }).join('');
+}
+
+window.updateAlertParentPhone = async function (studentCode, input) {
+    const phone = input.value.trim();
+    try { await saveToServer(`/api/admin/students/${encodeURIComponent(studentCode)}/parent-phone`, { parentPhone: phone }, 'PUT'); showToast('✅ تم حفظ رقم واتساب ولي الأمر', 'success'); }
+    catch (e) { showToast(e.message || 'فشل حفظ الرقم', 'error'); }
+};
+
+window.sendAndMarkAlert = async function (studentCode, signature, studentName, detailText) {
+    const row = [...document.querySelectorAll('#alerts-table-body tr')].find(tr => tr.querySelector('.alert-phone-input') && tr.innerHTML.includes(studentCode));
+    const phoneInput = row?.querySelector('.alert-phone-input');
+    const phone = phoneInput?.value.trim();
+    if (!phone || phone.length < 8) { showToast('من فضلك أدخل رقم واتساب ولي الأمر أولاً', 'error'); return; }
+    sendAbsenceWhatsApp(phone, studentName, detailText);
+    try { await saveToServer('/api/admin/attendance/alerts/action', { studentCode, signature, status: 'sent' }, 'POST'); showToast('📱 تم فتح واتساب وتسجيل الإرسال', 'info'); loadAttendanceAlerts(); }
+    catch (e) { showToast('تم فتح واتساب لكن فشل تسجيل الحالة', 'error'); }
+};
+
+window.dismissAlert = async function (studentCode, signature) {
+    try { await saveToServer('/api/admin/attendance/alerts/action', { studentCode, signature, status: 'dismissed' }, 'POST'); showToast('تم تجاهل التنبيه', 'success'); loadAttendanceAlerts(); }
+    catch (e) { showToast('فشل تجاهل التنبيه', 'error'); }
+};
+
+document.getElementById('alerts-refresh-btn')?.addEventListener('click', loadAttendanceAlerts);
+
+// ====================== ✅ تقرير الحضور الشهري القابل للطباعة ======================
+document.getElementById('report-print-btn')?.addEventListener('click', async () => {
+    const grade = document.getElementById('report-grade')?.value;
+    const month = document.getElementById('report-month')?.value;
+    if (!grade || !month) return showToast('من فضلك اختر الصف والشهر', 'error');
+    const btn = document.getElementById('report-print-btn'); const originalHtml = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> جاري التجهيز...';
+    try {
+        const report = await getFromServer(`/api/admin/attendance/monthly-report?grade=${encodeURIComponent(grade)}&month=${encodeURIComponent(month)}`);
+        if (!report || !report.rows) throw new Error('فشل تحميل التقرير');
+        printMonthlyAttendanceReport(report);
+    } catch (e) { showToast('فشل إنشاء التقرير', 'error'); }
+    finally { btn.disabled = false; btn.innerHTML = originalHtml; }
+});
+
+function printMonthlyAttendanceReport(report) {
+    const statusIcon = { present: '✔', absent: '✗', late: 'تأ' };
+    let dayHeaders = ''; for (let d = 1; d <= report.daysInMonth; d++) dayHeaders += `<th>${d}</th>`;
+    let bodyRows = report.rows.map((st, i) => {
+        let dayCells = ''; for (let d = 1; d <= report.daysInMonth; d++) { const s = st.days[d]; dayCells += `<td class="day-${s || 'none'}">${s ? statusIcon[s] : ''}</td>`; }
+        return `<tr><td>${i + 1}</td><td style="text-align:right;">${st.fullName}</td><td>${st.studentCode}</td>${dayCells}<td>${st.present}</td><td>${st.absent}</td><td>${st.late}</td><td>${st.percentage}%</td></tr>`;
+    }).join('');
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير حضور ${report.gradeLabel} - ${report.month}</title>
+    <style>
+        body{font-family:'Tahoma',sans-serif;padding:20px;color:#222;}
+        h1{text-align:center;font-size:1.3rem;margin-bottom:4px;}
+        h2{text-align:center;font-size:1rem;color:#555;font-weight:normal;margin-top:0;}
+        table{border-collapse:collapse;width:100%;font-size:0.65rem;margin-top:20px;}
+        th,td{border:1px solid #999;padding:4px 3px;text-align:center;}
+        th{background:#1a4f6e;color:#fff;}
+        td.day-present{color:#1E8449;font-weight:bold;}
+        td.day-absent{color:#C0392B;font-weight:bold;}
+        td.day-late{color:#B7950B;font-weight:bold;}
+        @media print{ @page{ size: landscape; margin:10mm; } }
+    </style></head><body>
+    <h1>معهد رعاية الضبعية — تقرير حضور شهري</h1>
+    <h2>${report.gradeLabel} — شهر ${report.month}</h2>
+    <table><thead><tr><th>م</th><th>الاسم</th><th>رقم الجلوس</th>${dayHeaders}<th>حضور</th><th>غياب</th><th>تأخير</th><th>النسبة</th></tr></thead>
+    <tbody>${bodyRows}</tbody></table>
+    </body></html>`);
+    win.document.close();
+    win.onload = () => win.print();
+}
+
 // ====================== بدء التشغيل ======================
 (async function init() { 
     if (await verifyAdminAccess()) { 
@@ -879,6 +983,9 @@ function enhanceAllTables() { document.querySelectorAll('table').forEach(applyTa
         await loadInitialData(); 
         await loadExamsList(); 
         await loadEvents(); // ✅ تحميل الفعاليات
+        loadAttendanceAlerts(); // ✅ تحميل تنبيهات الغياب (لعرض العدّاد فورًا)
+        const reportMonthInput = document.getElementById('report-month');
+        if (reportMonthInput && !reportMonthInput.value) { const now = new Date(); reportMonthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; }
         renderQuestionInputs(); 
         window.toggleSubjects();
         
