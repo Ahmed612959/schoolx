@@ -1,0 +1,307 @@
+/* =======================================================================
+   parent.css — بوابة أولياء الأمور
+   معهد رعاية الضبعية الفني للتمريض
+   نفس نظام الألوان والمسافات المستخدم في لوحة تحكم الأدمن، بتصميم أبسط
+   ======================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Tajawal:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --primary: #234E61;
+    --primary-dark: #17394A;
+    --primary-light: #EAF2F4;
+    --secondary: #B78D53;
+    --secondary-dark: #8F6C3D;
+    --secondary-light: #F7F1E5;
+    --white: #FFFFFF;
+    --ink: #212B33;
+    --gray-50:  #F8FAFB;
+    --gray-100: #F1F4F6;
+    --gray-200: #E3E9EC;
+    --gray-300: #CDD7DC;
+    --gray-400: #9AABB3;
+    --gray-500: #6C7D86;
+    --gray-600: #4B5C65;
+    --gray-700: #35444C;
+    --gray-800: #202B32;
+    --success: #2E8C63;
+    --success-light: #E7F5EE;
+    --danger: #BE4A40;
+    --danger-light: #FBEAE8;
+    --warning: #BD8930;
+    --warning-light: #FBF1E0;
+    --info: #3B7CA6;
+    --info-light: #E8F2F8;
+    --shadow-sm: 0 2px 8px rgba(23, 41, 51, 0.06);
+    --shadow-md: 0 8px 20px rgba(23, 41, 51, 0.08);
+    --shadow-lg: 0 16px 36px rgba(23, 41, 51, 0.12);
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-full: 999px;
+    --transition: all 0.25s ease;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body {
+    font-family: 'Tajawal', 'Inter', sans-serif;
+    background: var(--gray-100);
+    color: var(--ink);
+    direction: rtl;
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+/* -------- شاشة تسجيل الدخول -------- */
+.login-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: linear-gradient(160deg, var(--primary-dark), var(--primary) 60%, #2c6479);
+}
+
+.login-card {
+    background: var(--white);
+    width: 100%;
+    max-width: 420px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: 34px 30px;
+    text-align: center;
+}
+
+.login-card .brand-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--secondary);
+    color: var(--white);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 14px;
+}
+
+.login-card h1 { font-size: 1.3rem; font-weight: 800; color: var(--primary-dark); margin-bottom: 4px; }
+.login-card p.subtitle { color: var(--gray-500); font-size: 0.85rem; margin-bottom: 26px; }
+
+.form-group { text-align: right; margin-bottom: 16px; }
+.form-group label { display: block; font-size: 0.82rem; font-weight: 700; color: var(--gray-700); margin-bottom: 6px; }
+.form-group input {
+    width: 100%;
+    padding: 13px 14px;
+    border: 1.5px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    font-family: inherit;
+    transition: var(--transition);
+}
+.form-group input:focus { outline: none; border-color: var(--secondary); box-shadow: 0 0 0 4px rgba(183,141,83,0.14); }
+.form-group small.hint { display: block; margin-top: 5px; font-size: 0.72rem; color: var(--gray-500); }
+
+.login-btn {
+    width: 100%;
+    background: var(--primary);
+    color: var(--white);
+    border: none;
+    padding: 14px;
+    border-radius: var(--radius-full);
+    font-size: 1rem;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+.login-btn:hover { background: var(--primary-dark); }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.login-error {
+    background: var(--danger-light);
+    color: var(--danger);
+    border: 1px solid #F0C7C1;
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: none;
+}
+.login-error.show { display: block; }
+
+/* -------- لوحة ولي الأمر -------- */
+#dashboard-screen { display: none; }
+
+.parent-header {
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    color: var(--white);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    box-shadow: var(--shadow-md);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.parent-header .student-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.parent-header .student-avatar {
+    width: 44px; height: 44px; border-radius: 50%; background: var(--secondary);
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;
+}
+.parent-header .student-name { font-weight: 800; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.parent-header .student-sub { font-size: 0.75rem; opacity: 0.85; }
+
+.logout-btn {
+    background: rgba(255,255,255,0.14);
+    color: var(--white);
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 9px 16px;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    transition: var(--transition);
+}
+.logout-btn:hover { background: rgba(255,255,255,0.24); }
+
+.dashboard-body { max-width: 780px; margin: 0 auto; padding: 20px 16px 50px; }
+
+.section-card {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.section-card h2 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--gray-800);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.section-card h2 i {
+    width: 30px; height: 30px;
+    background: var(--secondary);
+    color: var(--white);
+    border-radius: 50%;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.78rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.term-toggle { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.term-toggle button {
+    flex: 1;
+    min-width: 130px;
+    padding: 9px 12px;
+    border: 1.5px solid var(--gray-300);
+    background: var(--white);
+    border-radius: var(--radius-full);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.term-toggle button.active { background: var(--primary); border-color: var(--primary); color: var(--white); }
+
+.subject-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--gray-50);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    font-size: 0.88rem;
+}
+.subject-row .subject-name { display: flex; align-items: center; gap: 8px; color: var(--gray-700); font-weight: 600; }
+.subject-row .subject-grade { font-weight: 800; color: var(--primary-dark); }
+.subject-row.is-extra { border: 1px dashed var(--secondary); background: var(--secondary-light); }
+
+.result-summary {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+.result-summary .summary-box {
+    flex: 1;
+    min-width: 130px;
+    text-align: center;
+    padding: 14px 10px;
+    border-radius: var(--radius-md);
+    background: var(--gray-50);
+}
+.result-summary .summary-box .value { font-size: 1.3rem; font-weight: 800; color: var(--primary-dark); }
+.result-summary .summary-box .label { font-size: 0.75rem; color: var(--gray-500); margin-top: 2px; }
+.result-summary .summary-box.pass .value { color: var(--success); }
+.result-summary .summary-box.fail .value { color: var(--danger); }
+
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.stat-box { text-align: center; background: var(--gray-50); border-radius: var(--radius-md); padding: 12px 6px; }
+.stat-box .num { font-size: 1.25rem; font-weight: 800; }
+.stat-box .lbl { font-size: 0.68rem; color: var(--gray-500); margin-top: 2px; }
+.stat-box.present .num { color: var(--success); }
+.stat-box.absent .num { color: var(--danger); }
+.stat-box.late .num { color: var(--warning); }
+.stat-box.total .num { color: var(--primary); }
+
+.attendance-list, .violations-list { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto; }
+.attendance-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 12px;
+    border-radius: var(--radius-md);
+    background: var(--gray-50);
+    font-size: 0.82rem;
+}
+.status-pill { padding: 3px 10px; border-radius: var(--radius-full); font-size: 0.72rem; font-weight: 700; }
+.status-pill.present { background: var(--success-light); color: var(--success); }
+.status-pill.absent { background: var(--danger-light); color: var(--danger); }
+.status-pill.late { background: var(--warning-light); color: var(--warning); }
+
+.violation-card { padding: 13px 14px; border-radius: var(--radius-md); background: var(--gray-50); border-right: 4px solid var(--gray-300); }
+.violation-card.type-warning { border-right-color: var(--warning); }
+.violation-card.type-violation { border-right-color: var(--danger); }
+.violation-card .v-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.violation-card .v-type { font-weight: 800; font-size: 0.85rem; }
+.violation-card .v-date { font-size: 0.72rem; color: var(--gray-500); }
+.violation-card .v-reason { font-size: 0.85rem; color: var(--gray-700); margin-bottom: 4px; }
+.violation-card .v-penalty { font-size: 0.78rem; color: var(--gray-600); }
+
+.empty-note { text-align: center; color: var(--gray-500); font-size: 0.85rem; padding: 20px 0; }
+.loading-note { text-align: center; color: var(--gray-500); font-size: 0.85rem; padding: 20px 0; }
+
+@media (max-width: 480px) {
+    .login-card { padding: 26px 20px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .result-summary .summary-box { min-width: 100px; }
+    .parent-header .student-sub { display: none; }
+}

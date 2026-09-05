@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>بوابة أولياء الأمور - معهد رعاية الضبعية</title>
+<link rel="stylesheet" href="parent.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+</head>
+<body>
+
+<!-- ====================== شاشة تسجيل الدخول ====================== -->
+<div class="login-wrap" id="login-screen">
+    <div class="login-card">
+        <div class="brand-icon"><i class="fas fa-user-shield"></i></div>
+        <h1>بوابة أولياء الأمور</h1>
+        <p class="subtitle">معهد رعاية الضبعية الفني للتمريض</p>
+
+        <div class="login-error" id="login-error"></div>
+
+        <form id="parent-login-form">
+            <div class="form-group">
+                <label for="parent-id-input">آخر 7 أرقام من الرقم القومي لولي الأمر</label>
+                <input type="text" id="parent-id-input" inputmode="numeric" maxlength="7" dir="ltr" placeholder="1234567" required>
+            </div>
+            <div class="form-group">
+                <label for="parent-password-input">كلمة المرور</label>
+                <input type="password" id="parent-password-input" inputmode="numeric" maxlength="7" dir="ltr" placeholder="آخر 7 أرقام من رقم جلوس الطالب" required>
+                <small class="hint">هي نفس آخر 7 أرقام من رقم الجلوس اللي عمل بيه الطالب حسابه</small>
+            </div>
+            <button type="submit" class="login-btn" id="login-submit-btn"><i class="fas fa-sign-in-alt"></i> دخول</button>
+        </form>
+    </div>
+</div>
+
+<!-- ====================== لوحة ولي الأمر ====================== -->
+<div id="dashboard-screen">
+    <div class="parent-header">
+        <div class="student-info">
+            <div class="student-avatar"><i class="fas fa-user-graduate"></i></div>
+            <div>
+                <div class="student-name" id="header-student-name">—</div>
+                <div class="student-sub" id="header-student-code">—</div>
+            </div>
+        </div>
+        <button class="logout-btn" id="logout-btn"><i class="fas fa-sign-out-alt"></i> خروج</button>
+    </div>
+
+    <div class="dashboard-body">
+
+        <!-- النتيجة -->
+        <div class="section-card">
+            <h2><i class="fas fa-chart-line"></i> النتيجة</h2>
+            <div class="term-toggle">
+                <button type="button" class="active" data-term="first" id="term-btn-first">الترم الأول</button>
+                <button type="button" data-term="second" id="term-btn-second">نهاية العام</button>
+            </div>
+            <div id="results-container"><div class="loading-note">⏳ جاري تحميل النتيجة...</div></div>
+        </div>
+
+        <!-- الحضور -->
+        <div class="section-card">
+            <h2><i class="fas fa-calendar-check"></i> الحضور والغياب</h2>
+            <div id="attendance-container"><div class="loading-note">⏳ جاري تحميل بيانات الحضور...</div></div>
+        </div>
+
+        <!-- المخالفات -->
+        <div class="section-card">
+            <h2><i class="fas fa-gavel"></i> الإنذارات والمخالفات</h2>
+            <div id="violations-container"><div class="loading-note">⏳ جاري التحميل...</div></div>
+        </div>
+
+    </div>
+</div>
+
+<script src="parent.js"></script>
+</body>
+</html>
