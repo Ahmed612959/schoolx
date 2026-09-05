@@ -176,6 +176,39 @@ window.deleteNotification = async function(id) { const res = await Swal.fire({ t
 // ====================== أرشيف النتائج ======================
 let archivedResults = [], archiveYearsList = [];
 
+// ✅ حالة الطي/العرض الكامل لجدول النتائج وجدول الأرشيف (افتراضيًا: أول نتيجة فقط)
+let resultsExpanded = false, archiveExpanded = false;
+
+function updateShowMoreState(kind, tbody, count) {
+    const expanded = kind === 'results' ? resultsExpanded : archiveExpanded;
+    tbody.classList.toggle('is-collapsed', !expanded);
+    const wrapper = document.getElementById(`${kind}-show-more-wrapper`);
+    const btn = document.getElementById(`${kind}-show-more-btn`);
+    if (!wrapper || !btn) return;
+    if (count > 1) {
+        wrapper.style.display = 'flex';
+        btn.classList.toggle('expanded', expanded);
+        const label = btn.querySelector('span');
+        if (label) {
+            const moreText = kind === 'results' ? 'عرض كل النتائج' : 'عرض كل الأرشيف';
+            const lessText = kind === 'results' ? 'عرض أول نتيجة فقط' : 'عرض أول سجل فقط';
+            label.textContent = expanded ? lessText : moreText;
+        }
+    } else {
+        wrapper.style.display = 'none';
+    }
+}
+
+document.getElementById('results-show-more-btn')?.addEventListener('click', () => {
+    resultsExpanded = !resultsExpanded;
+    renderResults(document.getElementById('search-input')?.value || '');
+});
+
+document.getElementById('archive-show-more-btn')?.addEventListener('click', () => {
+    archiveExpanded = !archiveExpanded;
+    renderArchiveTable();
+});
+
 async function loadArchiveYears() {
     archiveYearsList = await getFromServer('/api/admin/archive/years');
     const sel = document.getElementById('archive-year-filter'); if (!sel) return;
@@ -198,7 +231,7 @@ async function loadArchive() {
 
 function renderArchiveTable() {
     const tb = document.getElementById('archive-table-body'); if (!tb) return;
-    if (!archivedResults.length) { tb.innerHTML = '<tr><td colspan="6">📭 لا توجد نتائج مؤرشفة</td></tr>'; return; }
+    if (!archivedResults.length) { tb.innerHTML = '<tr><td colspan="6">📭 لا توجد نتائج مؤرشفة</td></tr>'; updateShowMoreState('archive', tb, 0); return; }
     const gradeLabel = { first: 'الأولى ثانوي', second: 'الثانية ثانوي', third: 'الثالثة ثانوي' };
     tb.innerHTML = archivedResults.map(r => {
         // ✅ الأرشيف بيحتفظ بدرجات الترمين، نعرض حسب الترم المُختار حاليًا في الواجهة
@@ -207,6 +240,7 @@ function renderArchiveTable() {
         subs.forEach(s => { const n = normalizeSubjectName(s.name); const c = t.config[n]; if (c && !c.isExtra) total += Number(s.grade) || 0; });
         return `<tr><td>${escapeHtml(r.fullName)}</td><td>${escapeHtml(r.studentCode)}</td><td>${gradeLabel[r.grade] || r.grade || '-'}</td><td>${escapeHtml(r.academicYear)}</td><td>${total} / ${t.total}</td><td>${isManagerRole() ? `<button class="delete-btn" onclick="deleteArchivedResult('${r._id}')"><i class="fas fa-trash"></i> حذف</button>` : ''}</td></tr>`;
     }).join('');
+    updateShowMoreState('archive', tb, archivedResults.length);
 }
 
 window.deleteArchivedResult = async function(id) {
@@ -263,7 +297,7 @@ function renderResults(filter = '') {
     const tbody = document.getElementById('results-table-body'); if (!tbody) return; tbody.innerHTML = '';
     const t = getTermInfo(currentResultsTerm);
     let filtered = [...studentsWithGrades]; if (filter) filtered = filtered.filter(s => (s.fullName||'').toLowerCase().includes(filter.toLowerCase()) || (s.studentCode||'').toLowerCase().includes(filter.toLowerCase()));
-    if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="5">📭 لا توجد نتائج مسجلة</td></tr>'; return; }
+    if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="5">📭 لا توجد نتائج مسجلة</td></tr>'; updateShowMoreState('results', tbody, 0); return; }
     filtered.forEach(st => {
         const total = calculateStudentTotal(st, currentResultsTerm), pct = calculateStudentPercentage(st, currentResultsTerm), grades = getStudentFormattedGrades(st, currentResultsTerm);
         let html = '<div class="subjects-container">';
@@ -272,6 +306,7 @@ function renderResults(filter = '') {
         let row = tbody.insertRow(); row.innerHTML = `<td><strong>${escapeHtml(st.fullName)}</strong><br><small>رقم الجلوس: ${st.studentCode}</small></td><td>${html}</td><td><span class="total-cell">${total} / ${t.total}</span></td><td><span class="percentage-cell ${pClass}">${pct.toFixed(1)}% (${pText})</span></td><td><button class="table-action-btn edit-action" onclick="editStudent('${st.studentCode}')"><i class="fas fa-edit"></i> <span>تعديل</span></button> ${isManagerRole()?`<button class="table-action-btn delete-action" onclick="deleteStudent('${st.studentCode}')"><i class="fas fa-trash"></i> <span>حذف</span></button>`:''}</td>`;
         updateTopStudentsAfterDataChange();
     });
+    updateShowMoreState('results', tbody, filtered.length);
 }
 
 // ✅ تبديل الترم المعروض في تحليل/عرض النتائج بلوحة التحكم (الترم الأول / نهاية العام)
@@ -411,6 +446,23 @@ document.getElementById('question-type')?.addEventListener('change', renderQuest
 document.getElementById('add-question')?.addEventListener('click', addQuestion);
 document.getElementById('save-exam')?.addEventListener('click', saveExam);
 
+// ====================== ✅ صندوق رفع ملف Excel (شكل + اسم الملف المختار) ======================
+(function initExcelDropZone() {
+    const input = document.getElementById('excel-upload');
+    const zone = document.getElementById('excel-drop-zone');
+    const title = document.getElementById('excel-file-title');
+    const sub = document.getElementById('excel-file-sub');
+    if (!input || !zone) return;
+    const defaultTitle = 'اضغط لاختيار ملف Excel', defaultSub = 'أو اسحب الملف وأفلته هنا (xlsx / xls)';
+    input.addEventListener('change', () => {
+        const f = input.files[0];
+        if (f) { zone.classList.add('has-file'); if (title) title.textContent = f.name; if (sub) sub.textContent = '✅ تم اختيار الملف — اضغط لتغييره'; }
+        else { zone.classList.remove('has-file'); if (title) title.textContent = defaultTitle; if (sub) sub.textContent = defaultSub; }
+    });
+    ['dragenter', 'dragover'].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add('drag-over'); }));
+    ['dragleave', 'drop'].forEach(evt => zone.addEventListener(evt, () => zone.classList.remove('drag-over')));
+})();
+
 // ====================== ✅ تحليل Excel - نظامين ======================
 // نظام "الترم الأول": A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم, F=طب باطنة, G=تمريض, H=حاسب, I=دين(خارج المجموع), J=مجموع(نتجاهله)
 // نظام "نهاية العام (الترم الثاني)": A=رقم, B=اسم, C=عربي, D=إنجليزي, E=علوم تطبيقية, F=إحصاء, G=طب الباطني, H=طب الجراحة, I=تمريض, J=حاسب, K=صحة مجتمع, L=مجموع(نتجاهله), M=تربية دينية(خارج المجموع)
@@ -529,7 +581,7 @@ function exportToExcel() { if(!studentsWithGrades.length){ showToast('لا تو�
 
 // ====================== بحث وتصفية ======================
 document.getElementById('search-input')?.addEventListener('input', e => renderResults(e.target.value));
-document.getElementById('filter-select')?.addEventListener('change', e => { document.querySelectorAll('#results-table-body tr').forEach(row => { let pctCell=row.cells[3]?.querySelector('.percentage-cell'); if(pctCell){ let pct=parseFloat(pctCell.innerText); if(e.target.value==='passed') row.style.display=pct>=60?'':'none'; else if(e.target.value==='failed') row.style.display=pct<60?'':'none'; else row.style.display=''; } }); });
+document.getElementById('filter-select')?.addEventListener('change', e => { const tbody=document.getElementById('results-table-body'); if(e.target.value!=='all' && tbody && !resultsExpanded){ resultsExpanded=true; updateShowMoreState('results', tbody, tbody.querySelectorAll('tr').length); } document.querySelectorAll('#results-table-body tr').forEach(row => { let pctCell=row.cells[3]?.querySelector('.percentage-cell'); if(pctCell){ let pct=parseFloat(pctCell.innerText); if(e.target.value==='passed') row.style.display=pct>=60?'':'none'; else if(e.target.value==='failed') row.style.display=pct<60?'':'none'; else row.style.display=''; } }); });
 
 // ====================== دوال مساعدة ======================
 function renderAdminWelcomeMessage() { let u=getLoggedInUser(), d=document.querySelector('.admin-welcome-message'); if(d&&u) d.textContent=`أهلًا بك يا ${u.fullName||u.username} في لوحة التحكم (${roleLabel(getAdminRole())})`; }

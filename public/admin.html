@@ -90,7 +90,14 @@
 
     <!-- ====================== رفع Excel ====================== -->
     <div class="excel-upload-section">
-        <input type="file" id="excel-upload" accept=".xlsx, .xls">
+        <label for="excel-upload" class="file-drop-zone" id="excel-drop-zone">
+            <input type="file" id="excel-upload" accept=".xlsx, .xls" class="file-drop-input">
+            <span class="file-drop-icon"><i class="fas fa-file-excel"></i></span>
+            <span class="file-drop-text">
+                <span class="file-drop-title" id="excel-file-title">اضغط لاختيار ملف Excel</span>
+                <span class="file-drop-sub" id="excel-file-sub">أو اسحب الملف وأفلته هنا (xlsx / xls)</span>
+            </span>
+        </label>
         <div class="input-group" style="min-width: 150px;">
             <label for="upload-grade"><i class="fas fa-graduation-cap"></i> الصف الدراسي</label>
             <select id="upload-grade" required>
@@ -184,6 +191,11 @@
             <tbody id="results-table-body"></tbody>
         </table>
     </div>
+    <div class="show-more-wrapper" id="results-show-more-wrapper" style="display:none;">
+        <button type="button" id="results-show-more-btn" class="show-more-btn">
+            <i class="fas fa-chevron-down"></i> <span>عرض كل النتائج</span>
+        </button>
+    </div>
     <button id="export-excel" class="submit-btn"><i class="fas fa-file-excel"></i> تصدير إلى Excel</button>
 
     <!-- ====================== أرشيف النتائج ====================== -->
@@ -228,6 +240,11 @@
                 <thead><tr><th>الطالب</th><th>رقم الجلوس</th><th>الصف</th><th>السنة الدراسية</th><th>المجموع</th><th class="manager-only">إجراء</th></tr></thead>
                 <tbody id="archive-table-body"></tbody>
             </table>
+        </div>
+        <div class="show-more-wrapper" id="archive-show-more-wrapper" style="display:none;">
+            <button type="button" id="archive-show-more-btn" class="show-more-btn">
+                <i class="fas fa-chevron-down"></i> <span>عرض كل الأرشيف</span>
+            </button>
         </div>
     </div>
 
@@ -352,7 +369,7 @@
 
 
    <!-- ====================== إدارة فعاليات المعهد (مدير المعهد فقط) ====================== -->
-<h2 class="manager-only"><i class="fas fa-calendar-star"></i> إدارة فعاليات المعهد</h2>
+<h2 class="manager-only"><i class="fas fa-calendar-days"></i> إدارة فعاليات المعهد</h2>
 <div class="events-section manager-only">
     <!-- إحصائيات سريعة -->
     <div class="events-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
