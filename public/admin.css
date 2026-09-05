@@ -216,14 +216,22 @@ h2 {
 h2 i {
     color: var(--white);
     background: var(--secondary);
-    font-size: 0.85rem;
-    width: 30px;
-    height: 30px;
-    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    line-height: 1;
+    text-align: center;
+    overflow: hidden;
     flex-shrink: 0;
+}
+
+h2 i::before {
+    display: inline-block;
+    line-height: 1;
 }
 
 h3 {
