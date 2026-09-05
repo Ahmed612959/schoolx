@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7676282531413677"
-     crossorigin="anonymous"></script>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>تسجيل الدخول - معهد رعاية الضبعية</title>
@@ -16,66 +13,6 @@
     <script src="webauthn-lib.js"></script>
     <script src="biometric.js"></script>
     <link rel="icon" type="image/png" href="/logo.png">
-  
-    
-    <script>
-        (function() {
-            // منع جميع طرق فتح Page Source
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'F12' || 
-                    (e.ctrlKey && e.key === 'u') || 
-                    (e.ctrlKey && e.key === 'U') ||
-                    (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-                    (e.ctrlKey && e.shiftKey && e.key === 'C') ||
-                    (e.ctrlKey && e.shiftKey && e.key === 'J')) {
-                    e.preventDefault();
-                    return false;
-                }
-            });
-
-            // منع النقر الأيمن
-            document.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
-                return false;
-            });
-
-            // منع التحديد والنسخ
-            document.addEventListener('selectstart', function(e) {
-                e.preventDefault();
-                return false;
-            });
-
-            document.addEventListener('copy', function(e) {
-                e.preventDefault();
-                return false;
-            });
-
-            // تعطيل Console تماماً
-            if (typeof console !== 'undefined') {
-                console.log = console.warn = console.error = console.info = console.debug = function() {};
-            }
-
-            // كشف محاولة فتح DevTools
-            let devToolsDetected = false;
-            setInterval(function() {
-                const start = performance.now();
-                debugger;
-                const end = performance.now();
-                if (end - start > 100 && !devToolsDetected) {
-                    devToolsDetected = true;
-                    document.body.innerHTML = `
-                        <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:white;z-index:999999;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:Tajawal,monospace;text-align:center;">
-                            <i class="fas fa-shield-alt" style="font-size:80px;color:#d4af37;margin-bottom:20px;"></i>
-                            <h2 style="color:#1a4f6e;">🔒 تم تعطيل أدوات المطور</h2>
-                            <p style="color:#64748b;margin-top:10px;">الرجاء إغلاق أدوات المطور للمتابعة</p>
-                            <button onclick="location.reload()" style="margin-top:20px;padding:10px 30px;background:#d4af37;border:none;border-radius:25px;cursor:pointer;">إعادة تحميل الصفحة</button>
-                        </div>
-                    `;
-                    document.body.style.overflow = 'hidden';
-                }
-            }, 500);
-        })();
-    </script>
 </head>
 <body>
     <header class="main-header">
@@ -83,70 +20,24 @@
         <h1>نظام إدارة المعهد</h1>
     </header>
 
-    <!-- الروبوت المتحرك -->
-    <div class="robot-container">
-        <div class="robot">
-            <div class="robot-head">
-                <div class="robot-face">
-                    <div class="robot-eyes">
-                        <div class="robot-eye left-eye"></div>
-                        <div class="robot-eye right-eye"></div>
-                    </div>
-                    <div class="robot-mouth">
-                        <div class="mouth-line"></div>
-                    </div>
-                </div>
-                <div class="robot-antenna">
-                    <div class="antenna-ball"></div>
-                </div>
-            </div>
-            <div class="robot-body">
-                <div class="robot-heart">🤖</div>
-                <div class="robot-screen">
-                    <div class="screen-text" id="robotSpeech">مرحباً! 👋</div>
-                </div>
-                <div class="robot-buttons">
-                    <div class="robot-btn"></div>
-                    <div class="robot-btn"></div>
-                    <div class="robot-btn"></div>
-                </div>
-            </div>
-            <div class="robot-arms">
-                <div class="robot-arm left-arm">
-                    <div class="arm-hand">✋</div>
-                </div>
-                <div class="robot-arm right-arm">
-                    <div class="arm-hand">✋</div>
-                </div>
-            </div>
-            <div class="robot-legs">
-                <div class="robot-leg"></div>
-                <div class="robot-leg"></div>
-            </div>
-        </div>
-        <div class="speech-bubble" id="speechBubble">
-            <div class="bubble-text" id="bubbleText">أنا هنا لمساعدتك! 🤗</div>
-            <div class="bubble-tail"></div>
-        </div>
-    </div>
-
     <div class="main-container">
         <div class="login-form-container">
             <div class="login-icon">
                 <i class="fas fa-user-graduate"></i>
             </div>
             <h2>تسجيل الدخول</h2>
+            <p class="login-subtitle">معهد رعاية الضبعية الفني للتمريض</p>
 
             <div id="message-container"></div>
 
             <form id="login-form" autocomplete="on">
                 <div class="input-group">
-                    <label><i class="fas fa-user"></i> اسم المستخدم</label>
+                    <label for="username"><i class="fas fa-user"></i> اسم المستخدم</label>
                     <input type="text" id="username" name="username" placeholder="أدخل اسم المستخدم" autocomplete="username" required>
                 </div>
 
                 <div class="input-group">
-                    <label><i class="fas fa-lock"></i> كلمة المرور</label>
+                    <label for="password"><i class="fas fa-lock"></i> كلمة المرور</label>
                     <div class="password-wrapper">
                         <input type="password" id="password" name="password" placeholder="أدخل كلمة المرور" autocomplete="current-password" required>
                         <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
@@ -155,44 +46,24 @@
                     </div>
                 </div>
 
-
-<!-- ====================== 🔐 زر تسجيل الدخول بالبصمة ====================== -->
-<div class="biometric-section">
-    <button type="button" class="biometric-btn" id="biometricLoginBtn" onclick="startBiometricLogin()">
-        <i class="fas fa-fingerprint"></i>
-        <span>تسجيل الدخول بالبصمة</span>
-    </button>
-    <button type="button" class="biometric-register-btn" id="biometricRegisterBtn" onclick="registerBiometric()" style="display: none;">
-        <i class="fas fa-plus-circle"></i>
-        <span>تسجيل بصمتي</span>
-    </button>
-    <div class="biometric-status" id="biometricStatus"></div>
-</div>
-
-<!-- ====================== 🎓 Tutorial التفاعلي ====================== -->
-<div class="tutorial-overlay" id="tutorialOverlay" style="display: none;">
-    <div class="tutorial-step" id="tutorialStep">
-        <div class="tutorial-header">
-            <span class="tutorial-progress" id="tutorialProgress">1/4</span>
-            <button class="tutorial-close" onclick="closeTutorial()">×</button>
-        </div>
-        <div class="tutorial-icon" id="tutorialIcon">👋</div>
-        <h3 class="tutorial-title" id="tutorialTitle">مرحباً بك!</h3>
-        <p class="tutorial-text" id="tutorialText">سأساعدك في التعرف على صفحة تسجيل الدخول</p>
-        <div class="tutorial-actions">
-            <button class="tutorial-btn secondary" onclick="skipTutorial()">تخطي</button>
-            <button class="tutorial-btn primary" onclick="nextTutorial()">التالي <i class="fas fa-arrow-left"></i></button>
-        </div>
-    </div>
-    <div class="tutorial-highlight" id="tutorialHighlight"></div>
-</div>
-
-                
-                <!-- تم إزالة الكابتشا نهائياً -->
-
                 <button type="submit" class="submit-btn">
                     <i class="fas fa-sign-in-alt"></i> تسجيل الدخول
                 </button>
+
+                <!-- ====================== 🔐 تسجيل الدخول بالبصمة ====================== -->
+                <div class="biometric-section">
+                    <button type="button" class="biometric-btn" id="biometricLoginBtn" onclick="startBiometricLogin()" style="display:none;">
+                        <i class="fas fa-fingerprint"></i>
+                        <span>تسجيل الدخول بالبصمة</span>
+                    </button>
+                    <button type="button" class="biometric-register-btn" id="biometricRegisterBtn" onclick="registerBiometric()" style="display: none;">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>تسجيل بصمتي</span>
+                    </button>
+                    <div class="biometric-status" id="biometricStatus"></div>
+                </div>
+
+                <div class="divider">أو</div>
 
                 <div class="signup-link">
                     ليس لديك حساب؟ <a href="signup.html"><i class="fas fa-user-plus"></i> إنشاء حساب جديد</a>
@@ -209,1033 +80,306 @@
         <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
     </footer>
 
-    <!-- مؤشر تحميل الروبوت -->
-    <div class="robot-loading-overlay" style="display: none;">
-        <div class="loading-spinner"></div>
+    <!-- ====================== نافذة "هل سبق لك التسجيل؟" ====================== -->
+    <div id="regModal" class="reg-modal-overlay" style="display:none;">
+        <div class="reg-modal-card">
+            <div class="reg-icon">🤔</div>
+            <h3>هل سبق لك التسجيل في المنصة؟</h3>
+            <p>لكي لا يمكن إنشاء أكثر من حساب على المنصة</p>
+
+            <div class="reg-modal-actions">
+                <button id="btnYes">✅ نعم، سبق لي التسجيل</button>
+                <button id="btnNo">❌ لا، حساب جديد</button>
+            </div>
+
+            <div class="reg-modal-help">
+                <p>لو محتاج أي مساعدة في حسابك في أي معلومة</p>
+                <p class="contact-name">📞 تواصل مع أحمد موسى</p>
+                <a href="https://wa.me/201124963765" target="_blank"><i class="fab fa-whatsapp"></i> 01124963765</a>
+            </div>
+        </div>
     </div>
-
-    <style>
-        /* مؤشر تحميل الروبوت */
-        .robot-loading-overlay {
-            position: fixed;
-            bottom: 100px;
-            right: 80px;
-            z-index: 10002;
-        }
-        .loading-spinner {
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(212, 175, 55, 0.3);
-            border-top: 3px solid #d4af37;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-/* ====================== 🔐 أزرار البصمة ====================== */
-.biometric-section {
-    margin: 20px 0;
-    text-align: center;
-}
-
-.biometric-btn, .biometric-register-btn {
-    width: 100%;
-    padding: 14px 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 50px;
-    font-family: 'Tajawal', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    margin-bottom: 10px;
-}
-
-.biometric-btn:hover, .biometric-register-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-}
-
-.biometric-btn:active, .biometric-register-btn:active {
-    transform: translateY(0);
-}
-
-.biometric-btn i, .biometric-register-btn i {
-    font-size: 1.3rem;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-}
-
-.biometric-status {
-    margin-top: 10px;
-    font-size: 0.85rem;
-    color: #666;
-    min-height: 20px;
-}
-
-.biometric-status.success {
-    color: #2d6a4f;
-}
-
-.biometric-status.error {
-    color: #dc3545;
-}
-
-.biometric-status.info {
-    color: #0d6efd;
-}
-
-/* ====================== 🎓 Tutorial التفاعلي ====================== */
-.tutorial-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 99998;
-    backdrop-filter: blur(3px);
-}
-
-.tutorial-step {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: white;
-    border-radius: 20px;
-    padding: 30px;
-    max-width: 400px;
-    width: 90%;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    z-index: 99999;
-    text-align: center;
-    animation: tutorialSlideIn 0.4s ease;
-}
-
-@keyframes tutorialSlideIn {
-    from {
-        opacity: 0;
-        transform: translate(-50%, -60%);
-    }
-    to {
-        opacity: 1;
-        transform: translate(-50%, -50%);
-    }
-}
-
-.tutorial-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.tutorial-progress {
-    background: linear-gradient(135deg, #d4af37, #b8941f);
-    color: white;
-    padding: 5px 15px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 700;
-}
-
-.tutorial-close {
-    background: none;
-    border: none;
-    font-size: 1.8rem;
-    color: #999;
-    cursor: pointer;
-    transition: color 0.3s;
-    line-height: 1;
-}
-
-.tutorial-close:hover {
-    color: #dc3545;
-}
-
-.tutorial-icon {
-    font-size: 4rem;
-    margin-bottom: 15px;
-    animation: tutorialBounce 1s ease infinite;
-}
-
-@keyframes tutorialBounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-}
-
-.tutorial-title {
-    color: #1a4f6e;
-    font-size: 1.5rem;
-    margin-bottom: 10px;
-    font-weight: 800;
-}
-
-.tutorial-text {
-    color: #64748b;
-    font-size: 1rem;
-    line-height: 1.6;
-    margin-bottom: 25px;
-}
-
-.tutorial-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-}
-
-.tutorial-btn {
-    padding: 12px 25px;
-    border: none;
-    border-radius: 50px;
-    font-family: 'Tajawal', sans-serif;
-    font-size: 0.95rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.tutorial-btn.primary {
-    background: linear-gradient(135deg, #d4af37, #b8941f);
-    color: white;
-    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
-}
-
-.tutorial-btn.primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
-}
-
-.tutorial-btn.secondary {
-    background: #f0f0f0;
-    color: #666;
-}
-
-.tutorial-btn.secondary:hover {
-    background: #e0e0e0;
-}
-
-/* تسليط الضوء على العنصر */
-.tutorial-highlight {
-    position: fixed;
-    border: 3px solid #d4af37;
-    border-radius: 10px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 20px rgba(212, 175, 55, 0.8);
-    z-index: 99997;
-    pointer-events: none;
-    transition: all 0.4s ease;
-    animation: highlightPulse 2s infinite;
-}
-
-@keyframes highlightPulse {
-    0%, 100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 20px rgba(212, 175, 55, 0.8); }
-    50% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 30px rgba(212, 175, 55, 1); }
-}
-
-/* رسالة الترحيب */
-.tutorial-welcome {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(135deg, #2d6a4f, #1b4d3b);
-    color: white;
-    padding: 15px 30px;
-    border-radius: 50px;
-    box-shadow: 0 4px 20px rgba(45, 106, 79, 0.4);
-    z-index: 100000;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    animation: welcomeSlide 0.5s ease;
-}
-
-@keyframes welcomeSlide {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(-100%);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
-}
-
-/* ====================== 📱 التجاوب ====================== */
-@media (max-width: 480px) {
-    .biometric-btn, .biometric-register-btn {
-        font-size: 0.9rem;
-        padding: 12px 18px;
-    }
-    
-    .tutorial-step {
-        padding: 20px;
-        max-width: 95%;
-    }
-    
-    .tutorial-icon {
-        font-size: 3rem;
-    }
-    
-    .tutorial-title {
-        font-size: 1.2rem;
-    }
-    
-    .tutorial-text {
-        font-size: 0.9rem;
-    }
-    
-    .tutorial-btn {
-        padding: 10px 20px;
-        font-size: 0.85rem;
-    }
-}
-        
-    </style>
 
     <script src="auth.js"></script>
-    <!-- حماية إضافية -->
     <script>
-        (function() {
-            // منع F12
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'F12' || 
-                    (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C' || e.key === 'J')) ||
-                    (e.ctrlKey && e.key === 'U') ||
-                    (e.metaKey && e.altKey && (e.key === 'I' || e.key === 'C'))) {
-                    e.preventDefault();
-                    return false;
+        // ====================== ✅ نافذة "هل سبق لك التسجيل؟" ======================
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('regModal');
+            const btnYes = document.getElementById('btnYes');
+            const btnNo = document.getElementById('btnNo');
+            const body = document.body;
+
+            // تحميل الاختيار السابق لو موجود
+            const savedChoice = localStorage.getItem('regChoice');
+            if (savedChoice === 'no') body.classList.add('show-signup');
+
+            modal.style.display = 'flex';
+
+            btnYes.onclick = function () {
+                localStorage.setItem('regChoice', 'yes');
+                body.classList.remove('show-signup');
+                modal.style.display = 'none';
+            };
+            btnNo.onclick = function () {
+                localStorage.setItem('regChoice', 'no');
+                body.classList.add('show-signup');
+                modal.style.display = 'none';
+            };
+        });
+
+        // ====================== 🔐 نظام البصمة ======================
+        class BiometricAuth {
+            constructor() {
+                this.isSupported = false;
+                this.initPromise = this.init();
+            }
+
+            async init() {
+                // ✅ يتحقق فعليًا إن المتصفح والجهاز بيدعموا WebAuthn ومصادقة بيومترية (بصمة/Face ID)
+                const loginBtn = document.getElementById('biometricLoginBtn');
+                if (loginBtn) loginBtn.style.display = 'none'; // مخفي لحد ما نتأكد
+
+                if (!window.SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.browserSupportsWebAuthn()) {
+                    this.isSupported = false;
+                    return;
                 }
-            });
-
-            // منع النقر بزر الماوس الأيمن
-            document.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
-                return false;
-            });
-
-            // منع اختصار Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
-            document.addEventListener('keydown', function(e) {
-                if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) {
-                    e.preventDefault();
-                    return false;
+                try {
+                    this.isSupported = await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable();
+                } catch (error) {
+                    this.isSupported = false;
                 }
-                if (e.ctrlKey && e.keyCode === 85) {
-                    e.preventDefault();
-                    return false;
-                }
-            });
-
-            // تشويش على console.log
-            if (typeof console !== 'undefined') {
-                console.log = function() {};
-                console.warn = function() {};
-                console.error = function() {};
-                console.info = function() {};
-                console.debug = function() {};
-            }
-
-            // منع فتح DevTools عن طريق الكشف
-            setInterval(function() {
-                const start = performance.now();
-                debugger;
-                const end = performance.now();
-                if (end - start > 100) {
-                    document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:white;z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:Tajawal,monospace;"><i class="fas fa-shield-alt" style="font-size:80px;color:#d4af37;margin-bottom:20px;"></i><h2 style="color:#1a4f6e;">تم تعطيل أدوات المطور</h2><p style="color:#64748b;">يرجى إغلاق أدوات المطور لإكمال العملية</p></div>';
-                    document.body.style.overflow = 'hidden';
-                }
-            }, 1000);
-
-            // منع حفظ الصفحة (Ctrl+S)
-            document.addEventListener('keydown', function(e) {
-                if (e.ctrlKey && e.keyCode === 83) {
-                    e.preventDefault();
-                    return false;
-                }
-            });
-
-            // منع dragging الصور
-            document.querySelectorAll('img').forEach(img => {
-                img.setAttribute('draggable', 'false');
-                img.addEventListener('dragstart', (e) => {
-                    e.preventDefault();
-                    return false;
-                });
-            });
-        })();
-    </script>
-<!-- ====================== نافذة منبثقة للسؤال عن التسجيل ====================== -->
-<div id="regModal" style="display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center;">
-    <div style="background:white; border-radius:24px; padding:30px 25px; max-width:440px; width:90%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
-        
-        <div style="font-size:50px; margin-bottom:12px;">🤔</div>
-        
-        <h3 style="color:#1a4f6e; margin-bottom:8px; font-size:1.2rem;">
-            هل سبق لك التسجيل في المنصة؟
-        </h3>
-        
-        <p style="color:#64748b; font-size:0.85rem; margin-bottom:15px;">
-            لكي لا يمكن إنشاء أكثر من حساب على المنصة
-        </p>
-        
-        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-            <button id="btnYes" style="background:#2d6a4f; color:white; border:none; padding:14px 24px; border-radius:50px; font-weight:700; cursor:pointer; font-family:'Tajawal',sans-serif; font-size:0.9rem; min-width:130px;">
-                ✅ نعم، سبق لي التسجيل
-            </button>
-            <button id="btnNo" style="background:#dc3545; color:white; border:none; padding:14px 24px; border-radius:50px; font-weight:700; cursor:pointer; font-family:'Tajawal',sans-serif; font-size:0.9rem; min-width:130px;">
-                ❌ لا، حساب جديد
-            </button>
-        </div>
-        
-        <div style="background:#f8fafc; border-radius:12px; padding:14px; margin-top:20px; border:1px solid #e2e8f0;">
-            <p style="color:#64748b; font-size:0.8rem; margin:0 0 8px 0;">
-                لو محتاج أي مساعدة في حسابك في أي معلومات
-            </p>
-            <p style="color:#1a4f6e; font-size:0.85rem; font-weight:700; margin:0;">
-                📞 تواصل مع أحمد موسى
-            </p>
-            <p style="margin:5px 0 0 0;">
-                <a href="https://wa.me/201124963765" target="_blank" style="color:#25D366; font-weight:700; text-decoration:none; font-size:0.95rem;">
-                    <i class="fab fa-whatsapp"></i> 01124963765
-                </a>
-            </p>
-        </div>
-        
-    </div>
-</div>
-
-<!-- ✅ إخفاء اللينك افتراضياً، يظهر بس للمستخدمين الجدد -->
-<style>
-    .signup-link { display: none !important; }
-    body.show-signup .signup-link { display: block !important; }
-</style>
-
-<script>
-    // ✅ تشغيل الكود بعد تحميل الصفحة
-    document.addEventListener('DOMContentLoaded', function() {
-        
-        var modal = document.getElementById('regModal');
-        var btnYes = document.getElementById('btnYes');
-        var btnNo = document.getElementById('btnNo');
-        var body = document.body;
-        
-        // ✅ تحميل الاختيار السابق لو موجود
-        var savedChoice = localStorage.getItem('regChoice');
-        
-        if (savedChoice === 'no') {
-            // المستخدم اختار "لا" قبل كده → أظهر اللينك
-            body.classList.add('show-signup');
-        }
-        // لو اختار "yes" أو مفيش اختيار → اللينك مختفي (default)
-        
-        // ✅ النافذة تظهر دايمًا
-        modal.style.display = 'flex';
-        
-        // ✅ زر "نعم"
-        btnYes.onclick = function() {
-            localStorage.setItem('regChoice', 'yes');
-            body.classList.remove('show-signup');
-            modal.style.display = 'none';
-        };
-        
-        // ✅ زر "لا"
-        btnNo.onclick = function() {
-            localStorage.setItem('regChoice', 'no');
-            body.classList.add('show-signup');
-            modal.style.display = 'none';
-        };
-    });
-
-// ====================== 🔐 نظام البصمة المُحسَّن ======================
-
-class BiometricAuth {
-    constructor() {
-        this.isSupported = false;
-        this.initPromise = this.init();
-    }
-
-    async init() {
-        // ✅ يتحقق فعليًا إن المتصفح والجهاز بيدعموا WebAuthn ومصادقة بيومترية (بصمة/Face ID)
-        const loginBtn = document.getElementById('biometricLoginBtn');
-        if (loginBtn) loginBtn.style.display = 'none'; // مخفي لحد ما نتأكد
-
-        if (!window.SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.browserSupportsWebAuthn()) {
-            console.log('⚠️ البصمة غير مدعومة في هذا المتصفح');
-            this.isSupported = false;
-            return;
-        }
-
-        try {
-            const platformAvailable = await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable();
-            this.isSupported = platformAvailable;
-            if (!platformAvailable) {
-                console.log('⚠️ لا يوجد جهاز بصمة/Face ID متاح على هذا الهاتف');
-            }
-        } catch (error) {
-            console.error('خطأ في التحقق من دعم البصمة:', error);
-            this.isSupported = false;
-        }
-    }
-}
-
-window.biometricAuth = new BiometricAuth();
-
-// ✅ إظهار زر "الدخول بالبصمة" فقط لو: الجهاز بيدعم + المستخدم ده فعّل بصمة قبل كده
-async function refreshBiometricLoginButton() {
-    const username = document.getElementById('username')?.value.trim();
-    const loginBtn = document.getElementById('biometricLoginBtn');
-    if (!loginBtn) return;
-
-    // استنى لحد ما يتأكد من دعم الجهاز (init() شغالة async)
-    await window.biometricAuth.initPromise;
-
-    if (!username || !window.biometricAuth?.isSupported) {
-        loginBtn.style.display = 'none';
-        return;
-    }
-
-    try {
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-        const response = await fetch(`${BASE_URL}/api/biometric/check/${encodeURIComponent(username)}`);
-        const data = await response.json();
-        loginBtn.style.display = data.hasBiometric ? 'inline-flex' : 'none';
-    } catch (error) {
-        loginBtn.style.display = 'none';
-    }
-}
-
-document.getElementById('username')?.addEventListener('blur', refreshBiometricLoginButton);
-document.getElementById('username')?.addEventListener('input', () => {
-    // إخفاء الزر لحد ما نتأكد تاني بعد ما يخلص يكتب (blur)
-    const loginBtn = document.getElementById('biometricLoginBtn');
-    if (loginBtn) loginBtn.style.display = 'none';
-});
-
-// ====================== ✅ تسجيل الدخول + عرض رسالة تفعيل البصمة قبل الضغط على الزر ======================
-// بمجرد ما اليوزرنيم والباسورد يتحققوا فعليًا من السيرفر (حتى قبل الضغط على "تسجيل الدخول")
-// بتظهر رسالة تفعيل البصمة لو الشروط اتحققت، وبعدين بيتم التنقل.
-
-let silentLoginPromise = null;   // النداء الصامت اللي بيتحقق من البيانات وهو لسه بيكتب
-let loginDestination = null;     // الصفحة اللي هيتنقل لها بعد ما ياخد قراره في رسالة البصمة
-let silentLoginDebounce = null;
-
-async function completeLogin(data, username) {
-    if (data.csrfToken) saveCsrfToken(data.csrfToken);
-    if (data.user) saveUserData(data.user);
-
-    showToastMessage(`🎉 مرحباً ${data.user?.fullName || username}!`, 'success');
-    loginDestination = data.user?.type === 'admin' ? 'admin.html' : 'Home.html';
-
-    const popupShown = await window.initBiometricPrompt?.();
-    if (!popupShown) {
-        setTimeout(() => { window.location.href = loginDestination; }, 800);
-    }
-    // لو ظهرت الرسالة، التنقل هيحصل تلقائيًا لما تتقفل (حدث biometricPromptResolved تحت)
-}
-
-window.addEventListener('biometricPromptResolved', () => {
-    if (loginDestination) window.location.href = loginDestination;
-});
-
-async function attemptSilentLogin(username, password) {
-    if (silentLoginPromise) return silentLoginPromise; // في انتظار محاولة سابقة بالفعل
-
-    silentLoginPromise = (async () => {
-        try {
-            const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-            const response = await fetch(`${BASE_URL}/api/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ username, password })
-            });
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                await completeLogin(data, username);
-                return true;
-            }
-            // بيانات غلط - نمسح المحاولة عشان يقدر يجرب تاني لو عدّل كلمة المرور
-            silentLoginPromise = null;
-            return false;
-        } catch (error) {
-            silentLoginPromise = null;
-            return false;
-        }
-    })();
-
-    return silentLoginPromise;
-}
-
-document.getElementById('password')?.addEventListener('input', () => {
-    clearTimeout(silentLoginDebounce);
-    const username = document.getElementById('username')?.value.trim();
-    const password = document.getElementById('password')?.value.trim();
-    if (!username || !password || password.length < 4) return;
-
-    // ننتظر شوية بعد ما يخلص يكتب عشان منبعتش طلب تسجيل دخول مع كل حرف
-    silentLoginDebounce = setTimeout(() => attemptSilentLogin(username, password), 700);
-});
-
-document.getElementById('login-form')?.addEventListener('submit', async function (e) {
-    e.preventDefault();
-
-    const username = document.getElementById('username')?.value.trim();
-    const password = document.getElementById('password')?.value.trim();
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const originalText = submitBtn?.innerHTML || 'تسجيل الدخول';
-
-    if (!username || !password) {
-        showToastMessage('⚠️ يرجى إدخال اسم المستخدم وكلمة المرور!', 'error');
-        return;
-    }
-
-    if (submitBtn) {
-        submitBtn.innerHTML = '⏳ جاري...';
-        submitBtn.disabled = true;
-    }
-
-    try {
-        // لو النداء الصامت شغال أو خلص بالفعل، منبعتش تسجيل دخول تاني - نستنى نتيجته بس
-        if (silentLoginPromise) {
-            const success = await silentLoginPromise;
-            if (!success) {
-                showToastMessage('اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
-            }
-            return;
-        }
-
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-        const response = await fetch(`${BASE_URL}/api/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ username, password })
-        });
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            await completeLogin(data, username);
-        } else {
-            showToastMessage(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
-        }
-    } catch (error) {
-        console.error('Login Error:', error);
-        showToastMessage('❌ فشل الاتصال بالخادم! تأكد من تشغيل السيرفر', 'error');
-    } finally {
-        if (submitBtn) {
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
-        }
-    }
-});
-
-// ====================== ✅ تسجيل الدخول بالبصمة (للمستخدمين اللي عندهم بصمة مسجلة) ======================
-async function startBiometricLogin() {
-    const username = document.getElementById('username')?.value.trim();
-    const status = document.getElementById('biometricStatus');
-    
-    if (!username) {
-        showToastMessage('⚠️ أدخل اسم المستخدم أولاً', 'error');
-        return;
-    }
-    
-    if (!window.biometricAuth?.isSupported) {
-        showToastMessage('❌ البصمة غير مدعومة في هذا الجهاز', 'error');
-        return;
-    }
-    
-    try {
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-        
-        if (status) {
-            status.className = 'biometric-status info';
-            status.innerHTML = '<i class="fas fa-fingerprint fa-pulse"></i> ضع إصبعك على المستشعر...';
-        }
-        
-        // 1. بدء العملية
-        const startRes = await fetch(`${BASE_URL}/api/biometric/login-start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ username })
-        });
-        
-        const startData = await startRes.json();
-        
-        if (!startData.success) {
-            if (status) {
-                status.className = 'biometric-status error';
-                status.innerHTML = `<i class="fas fa-info-circle"></i> ${startData.error || 'لم يتم تسجيل بصمة لهذا المستخدم'}`;
-            }
-            
-            // ✅ عرض زر التسجيل لو مفيش بصمة
-            const registerBtn = document.getElementById('biometricRegisterBtn');
-            if (registerBtn) {
-                registerBtn.style.display = 'inline-flex';
-                registerBtn.innerHTML = '<i class="fas fa-fingerprint"></i><span>سجّل بصمتك الآن</span>';
-            }
-            return;
-        }
-        
-        // 2. طلب البصمة من المستخدم (المكتبة بتتولى كل تحويلات base64url تلقائيًا)
-        let authResp;
-        try {
-            authResp = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: startData.options });
-        } catch (err) {
-            if (err.name === 'NotAllowedError') throw new Error('تم إلغاء العملية أو انتهت المهلة');
-            throw err;
-        }
-        
-        // 3. إرسال البصمة للسيرفر
-        const finishRes = await fetch(`${BASE_URL}/api/biometric/login-finish`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ credential: authResp })
-        });
-        
-        const finishData = await finishRes.json();
-        
-        if (finishData.success) {
-            if (finishData.user) sessionStorage.setItem('userData', JSON.stringify(finishData.user));
-            showToastMessage('🎉 تم تسجيل الدخول بالبصمة!', 'success');
-            setTimeout(() => {
-                window.location.href = finishData.user?.type === 'admin' ? 'admin.html' : 'Home.html';
-            }, 1000);
-        } else {
-            throw new Error(finishData.error);
-        }
-        
-    } catch (error) {
-        console.error('❌ خطأ:', error);
-        if (status) {
-            status.className = 'biometric-status error';
-            if (error.name === 'NotAllowedError') {
-                status.innerHTML = '<i class="fas fa-times"></i> تم إلغاء العملية';
-            } else {
-                status.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${error.message}`;
             }
         }
-    }
-}
 
-// ====================== ✅ تسجيل بصمة جديدة (بعد تسجيل الدخول) ======================
-async function registerBiometric() {
-    const username = document.getElementById('username')?.value.trim();
-    const password = document.getElementById('password')?.value.trim();
-    const status = document.getElementById('biometricStatus');
-    
-    if (!username || !password) {
-        showToastMessage('⚠️ أدخل اسم المستخدم وكلمة المرور أولاً', 'error');
-        return;
-    }
-    
-    try {
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-        
-        if (status) {
-            status.className = 'biometric-status info';
-            status.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تسجيل الدخول...';
-        }
-        
-        // 1. تسجيل الدخول بكلمة المرور أولاً
-        const loginRes = await fetch(`${BASE_URL}/api/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ username, password })
-        });
-        
-        const loginData = await loginRes.json();
-        
-        if (!loginData.success) {
-            throw new Error(loginData.error || 'فشل تسجيل الدخول');
-        }
-        
-        if (loginData.user) sessionStorage.setItem('userData', JSON.stringify(loginData.user));
-        
-        if (status) {
-            status.innerHTML = '<i class="fas fa-fingerprint fa-pulse"></i> ضع إصبعك على المستشعر...';
-        }
-        
-        // 2. بدء تسجيل البصمة
-        const startRes = await fetch(`${BASE_URL}/api/biometric/register-start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include'
-        });
-        
-        const startData = await startRes.json();
-        
-        if (!startData.success) throw new Error(startData.error);
-        
-        // 3. طلب البصمة من المستخدم (المكتبة بتتولى كل تحويلات base64url تلقائيًا)
-        let attResp;
-        try {
-            attResp = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: startData.options });
-        } catch (err) {
-            if (err.name === 'NotAllowedError') throw new Error('تم إلغاء العملية');
-            if (err.name === 'InvalidStateError') throw new Error('البصمة مسجلة مسبقاً على هذا الجهاز');
-            throw err;
-        }
-        
-        // 4. حفظ البصمة في السيرفر
-        const finishRes = await fetch(`${BASE_URL}/api/biometric/register-finish`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ credential: attResp })
-        });
-        
-        const finishData = await finishRes.json();
-        
-        if (finishData.success) {
-            if (status) {
-                status.className = 'biometric-status success';
-                status.innerHTML = '<i class="fas fa-check-circle"></i> ✅ تم تسجيل بصمتك بنجاح!';
+        window.biometricAuth = new BiometricAuth();
+
+        // ✅ إظهار زر "الدخول بالبصمة" فقط لو: الجهاز بيدعم + المستخدم ده فعّل بصمة قبل كده
+        async function refreshBiometricLoginButton() {
+            const username = document.getElementById('username')?.value.trim();
+            const loginBtn = document.getElementById('biometricLoginBtn');
+            if (!loginBtn) return;
+
+            await window.biometricAuth.initPromise;
+
+            if (!username || !window.biometricAuth?.isSupported) {
+                loginBtn.style.display = 'none';
+                return;
             }
-            showToastMessage('🎉 تم تسجيل بصمتك! المرة الجاية تقدر تدخل بالبصمة', 'success');
-            
-            // إخفاء زر التسجيل
-            const registerBtn = document.getElementById('biometricRegisterBtn');
-            if (registerBtn) registerBtn.style.display = 'none';
-            
-            // التوجيه للصفحة الرئيسية
-            setTimeout(() => {
-                window.location.href = loginData.user?.type === 'admin' ? 'admin.html' : 'Home.html';
-            }, 1500);
-        } else {
-            throw new Error(finishData.error);
-        }
-        
-    } catch (error) {
-        console.error('❌ خطأ:', error);
-        if (status) {
-            status.className = 'biometric-status error';
-            if (error.name === 'NotAllowedError') {
-                status.innerHTML = '<i class="fas fa-times"></i> تم إلغاء العملية';
-            } else if (error.name === 'InvalidStateError') {
-                status.innerHTML = '<i class="fas fa-info"></i> البصمة مسجلة مسبقاً';
-            } else {
-                status.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${error.message}`;
-            }
-        }
-    }
-}
-
-// ملحوظة: منطق popup تفعيل البصمة بعد تسجيل الدخول موجود في auth.js
-// (showBiometricEnrollmentPopup / enrollBiometricFromPopup / closeBiometricPopup)
-// اتشالت النسخة المكررة من هنا عشان متبقاش بتلغي نسخة auth.js المُصلَّحة.
-
-// ====================== 🎓 نظام التوتوريال التفاعلي ======================
-
-class InteractiveTutorial {
-    constructor() {
-        this.steps = [
-            {
-                icon: '👋',
-                title: 'مرحباً بك في نظام المعهد!',
-                text: 'سأساعدك في التعرف على صفحة تسجيل الدخول. هذه الجولة ستستغرق دقيقة واحدة فقط.',
-                target: null,
-                action: null
-            },
-            {
-                icon: '👤',
-                title: 'خطوة 1: اسم المستخدم',
-                text: 'أدخل اسم المستخدم الخاص بك هنا. إذا كنت طالباً، استخدم اسم المستخدم الذي سجلت به.',
-                target: '#username',
-                action: 'focus'
-            },
-            {
-                icon: '🔐',
-                title: 'خطوة 2: كلمة المرور',
-                text: 'أدخل كلمة المرور الخاصة بك. يمكنك إظهار/إخفاء كلمة المرور بالضغط على أيقونة العين.',
-                target: '#password',
-                action: 'focus'
-            },
-            {
-                icon: '🔑',
-                title: 'خطوة 3: زر تسجيل الدخول',
-                text: 'بعد إدخال البيانات، اضغط هنا لتسجيل الدخول. أو استخدم زر البصمة للدخول السريع!',
-                target: '.submit-btn',
-                action: 'highlight'
-            },
-            {
-                icon: '🎉',
-                title: 'أنت جاهز!',
-                text: 'ممتاز! الآن أنت تعرف كيفية تسجيل الدخول. استمتع باستخدام النظام! 💪',
-                target: null,
-                action: 'complete'
-            }
-        ];
-        
-        this.currentStep = 0;
-        this.overlay = document.getElementById('tutorialOverlay');
-        this.highlight = document.getElementById('tutorialHighlight');
-        this.completed = localStorage.getItem('tutorial_completed') === 'true';
-    }
-    
-    start() {
-        if (this.completed) {
-            console.log('✅ التوتوريال مكتمل مسبقاً');
-            return;
-        }
-        
-        setTimeout(() => {
-            this.showStep();
-        }, 1500);
-    }
-    
-    showStep() {
-        if (this.currentStep >= this.steps.length) {
-            this.complete();
-            return;
-        }
-        
-        const step = this.steps[this.currentStep];
-        
-        // تحديث المحتوى
-        document.getElementById('tutorialProgress').textContent = `${this.currentStep + 1}/${this.steps.length}`;
-        document.getElementById('tutorialIcon').textContent = step.icon;
-        document.getElementById('tutorialTitle').textContent = step.title;
-        document.getElementById('tutorialText').textContent = step.text;
-        
-        // إظهار الـ overlay
-        this.overlay.style.display = 'block';
-        
-        // تسليط الضوء على العنصر
-        if (step.target) {
-            this.highlightElement(step.target);
-            
-            // تنفيذ الإجراء
-            if (step.action === 'focus') {
-                setTimeout(() => {
-                    const element = document.querySelector(step.target);
-                    if (element) element.focus();
-                }, 500);
-            }
-        } else {
-            this.hideHighlight();
-        }
-    }
-    
-    highlightElement(selector) {
-        const element = document.querySelector(selector);
-        if (!element) {
-            this.hideHighlight();
-            return;
-        }
-        
-        const rect = element.getBoundingClientRect();
-        const padding = 8;
-        
-        this.highlight.style.display = 'block';
-        this.highlight.style.top = `${rect.top - padding}px`;
-        this.highlight.style.left = `${rect.left - padding}px`;
-        this.highlight.style.width = `${rect.width + padding * 2}px`;
-        this.highlight.style.height = `${rect.height + padding * 2}px`;
-    }
-    
-    hideHighlight() {
-        if (this.highlight) {
-            this.highlight.style.display = 'none';
-        }
-    }
-    
-    next() {
-        this.currentStep++;
-        this.showStep();
-    }
-    
-    skip() {
-        this.complete();
-    }
-    
-    complete() {
-        this.overlay.style.display = 'none';
-        this.hideHighlight();
-        localStorage.setItem('tutorial_completed', 'true');
-        this.completed = true;
-        
-        showToastMessage('🎉 تم إكمال الجولة بنجاح!', 'success');
-    }
-}
-
-// إنشاء instance عام
-window.tutorial = new InteractiveTutorial();
-
-// دوال عامة
-function nextTutorial() {
-    window.tutorial.next();
-}
-
-function skipTutorial() {
-    window.tutorial.skip();
-}
-
-function closeTutorial() {
-    window.tutorial.skip();
-}
-
-// تشغيل التوتوريال عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        window.tutorial.start();
-    }, 1000);
-});
-
-// ====================== تحديث دالة تسجيل الدخول الأصلية ======================
-// تأكد من أن تسجيل الدخول العادي يعمل مع البصمة
-const originalLoginForm = document.getElementById('login-form');
-if (originalLoginForm) {
-    const originalSubmit = originalLoginForm.onsubmit;
-    
-    originalLoginForm.addEventListener('submit', async function(e) {
-        // إذا كان المستخدم مسجل بالبصمة، اقترح عليه استخدامها
-        const username = document.getElementById('username')?.value.trim();
-        if (username && window.biometricAuth?.isSupported) {
             try {
                 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
                 const response = await fetch(`${BASE_URL}/api/biometric/check/${encodeURIComponent(username)}`);
                 const data = await response.json();
-                
-                if (data.hasBiometric) {
-                    const status = document.getElementById('biometricStatus');
-                    if (status) {
-                        status.className = 'biometric-status info';
-                        status.innerHTML = '<i class="fas fa-fingerprint"></i> يمكنك تسجيل الدخول بالبصمة في المرة القادمة!';
-                    }
-                }
+                loginBtn.style.display = data.hasBiometric ? 'inline-flex' : 'none';
             } catch (error) {
-                // تجاهل الأخطاء
+                loginBtn.style.display = 'none';
             }
         }
-    });
-}
 
-console.log('✅ تم تحميل نظام البصمة والتوتوريال');
-    
-</script>
+        document.getElementById('username')?.addEventListener('blur', refreshBiometricLoginButton);
+        document.getElementById('username')?.addEventListener('input', () => {
+            const loginBtn = document.getElementById('biometricLoginBtn');
+            if (loginBtn) loginBtn.style.display = 'none';
+        });
 
+        // ====================== ✅ تسجيل الدخول (عادي + صامت أثناء الكتابة) ======================
+        let silentLoginPromise = null;
+        let loginDestination = null;
+        let silentLoginDebounce = null;
+
+        async function completeLogin(data, username) {
+            if (data.csrfToken) saveCsrfToken(data.csrfToken);
+            if (data.user) saveUserData(data.user);
+
+            showToastMessage(`🎉 مرحباً ${data.user?.fullName || username}!`, 'success');
+            loginDestination = data.user?.type === 'admin' ? 'admin.html' : 'Home.html';
+
+            const popupShown = await window.initBiometricPrompt?.();
+            if (!popupShown) {
+                setTimeout(() => { window.location.href = loginDestination; }, 800);
+            }
+        }
+
+        window.addEventListener('biometricPromptResolved', () => {
+            if (loginDestination) window.location.href = loginDestination;
+        });
+
+        async function attemptSilentLogin(username, password) {
+            if (silentLoginPromise) return silentLoginPromise;
+
+            silentLoginPromise = (async () => {
+                try {
+                    const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+                    const response = await fetch(`${BASE_URL}/api/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ username, password })
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.success) {
+                        await completeLogin(data, username);
+                        return true;
+                    }
+                    silentLoginPromise = null;
+                    return false;
+                } catch (error) {
+                    silentLoginPromise = null;
+                    return false;
+                }
+            })();
+
+            return silentLoginPromise;
+        }
+
+        document.getElementById('password')?.addEventListener('input', () => {
+            clearTimeout(silentLoginDebounce);
+            const username = document.getElementById('username')?.value.trim();
+            const password = document.getElementById('password')?.value.trim();
+            if (!username || !password || password.length < 4) return;
+            silentLoginDebounce = setTimeout(() => attemptSilentLogin(username, password), 700);
+        });
+
+        document.getElementById('login-form')?.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const username = document.getElementById('username')?.value.trim();
+            const password = document.getElementById('password')?.value.trim();
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn?.innerHTML || 'تسجيل الدخول';
+
+            if (!username || !password) {
+                showToastMessage('⚠️ يرجى إدخال اسم المستخدم وكلمة المرور!', 'error');
+                return;
+            }
+            if (submitBtn) { submitBtn.innerHTML = '⏳ جاري...'; submitBtn.disabled = true; }
+
+            try {
+                if (silentLoginPromise) {
+                    const success = await silentLoginPromise;
+                    if (!success) showToastMessage('اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
+                    return;
+                }
+                const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+                const response = await fetch(`${BASE_URL}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    await completeLogin(data, username);
+                } else {
+                    showToastMessage(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة!', 'error');
+                }
+            } catch (error) {
+                showToastMessage('❌ فشل الاتصال بالخادم! تأكد من تشغيل السيرفر', 'error');
+            } finally {
+                if (submitBtn) { submitBtn.innerHTML = originalText; submitBtn.disabled = false; }
+            }
+        });
+
+        // ====================== ✅ تسجيل الدخول بالبصمة ======================
+        async function startBiometricLogin() {
+            const username = document.getElementById('username')?.value.trim();
+            const status = document.getElementById('biometricStatus');
+            if (!username) { showToastMessage('⚠️ أدخل اسم المستخدم أولاً', 'error'); return; }
+            if (!window.biometricAuth?.isSupported) { showToastMessage('❌ البصمة غير مدعومة في هذا الجهاز', 'error'); return; }
+
+            try {
+                const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+                if (status) { status.className = 'biometric-status info'; status.innerHTML = '<i class="fas fa-fingerprint fa-pulse"></i> ضع إصبعك على المستشعر...'; }
+
+                const startRes = await fetch(`${BASE_URL}/api/biometric/login-start`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ username })
+                });
+                const startData = await startRes.json();
+                if (!startData.success) {
+                    if (status) { status.className = 'biometric-status error'; status.innerHTML = `<i class="fas fa-info-circle"></i> ${startData.error || 'لم يتم تسجيل بصمة لهذا المستخدم'}`; }
+                    const registerBtn = document.getElementById('biometricRegisterBtn');
+                    if (registerBtn) { registerBtn.style.display = 'inline-flex'; registerBtn.innerHTML = '<i class="fas fa-fingerprint"></i><span>سجّل بصمتك الآن</span>'; }
+                    return;
+                }
+
+                let authResp;
+                try {
+                    authResp = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: startData.options });
+                } catch (err) {
+                    if (err.name === 'NotAllowedError') throw new Error('تم إلغاء العملية أو انتهت المهلة');
+                    throw err;
+                }
+
+                const finishRes = await fetch(`${BASE_URL}/api/biometric/login-finish`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ credential: authResp })
+                });
+                const finishData = await finishRes.json();
+                if (finishData.success) {
+                    if (finishData.user) sessionStorage.setItem('userData', JSON.stringify(finishData.user));
+                    showToastMessage('🎉 تم تسجيل الدخول بالبصمة!', 'success');
+                    setTimeout(() => { window.location.href = finishData.user?.type === 'admin' ? 'admin.html' : 'Home.html'; }, 1000);
+                } else {
+                    throw new Error(finishData.error);
+                }
+            } catch (error) {
+                if (status) {
+                    status.className = 'biometric-status error';
+                    status.innerHTML = error.name === 'NotAllowedError' ? '<i class="fas fa-times"></i> تم إلغاء العملية' : `<i class="fas fa-exclamation-circle"></i> ${error.message}`;
+                }
+            }
+        }
+
+        // ====================== ✅ تسجيل بصمة جديدة ======================
+        async function registerBiometric() {
+            const username = document.getElementById('username')?.value.trim();
+            const password = document.getElementById('password')?.value.trim();
+            const status = document.getElementById('biometricStatus');
+            if (!username || !password) { showToastMessage('⚠️ أدخل اسم المستخدم وكلمة المرور أولاً', 'error'); return; }
+
+            try {
+                const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+                if (status) { status.className = 'biometric-status info'; status.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تسجيل الدخول...'; }
+
+                const loginRes = await fetch(`${BASE_URL}/api/login`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ username, password })
+                });
+                const loginData = await loginRes.json();
+                if (!loginData.success) throw new Error(loginData.error || 'فشل تسجيل الدخول');
+                if (loginData.user) sessionStorage.setItem('userData', JSON.stringify(loginData.user));
+
+                if (status) status.innerHTML = '<i class="fas fa-fingerprint fa-pulse"></i> ضع إصبعك على المستشعر...';
+
+                const startRes = await fetch(`${BASE_URL}/api/biometric/register-start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
+                const startData = await startRes.json();
+                if (!startData.success) throw new Error(startData.error);
+
+                let attResp;
+                try {
+                    attResp = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: startData.options });
+                } catch (err) {
+                    if (err.name === 'NotAllowedError') throw new Error('تم إلغاء العملية');
+                    if (err.name === 'InvalidStateError') throw new Error('البصمة مسجلة مسبقاً على هذا الجهاز');
+                    throw err;
+                }
+
+                const finishRes = await fetch(`${BASE_URL}/api/biometric/register-finish`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ credential: attResp })
+                });
+                const finishData = await finishRes.json();
+                if (finishData.success) {
+                    if (status) { status.className = 'biometric-status success'; status.innerHTML = '<i class="fas fa-check-circle"></i> ✅ تم تسجيل بصمتك بنجاح!'; }
+                    showToastMessage('🎉 تم تسجيل بصمتك! المرة الجاية تقدر تدخل بالبصمة', 'success');
+                    const registerBtn = document.getElementById('biometricRegisterBtn');
+                    if (registerBtn) registerBtn.style.display = 'none';
+                    setTimeout(() => { window.location.href = loginData.user?.type === 'admin' ? 'admin.html' : 'Home.html'; }, 1500);
+                } else {
+                    throw new Error(finishData.error);
+                }
+            } catch (error) {
+                if (status) {
+                    status.className = 'biometric-status error';
+                    status.innerHTML = error.name === 'NotAllowedError' ? '<i class="fas fa-times"></i> تم إلغاء العملية' : (error.name === 'InvalidStateError' ? '<i class="fas fa-info"></i> البصمة مسجلة مسبقاً' : `<i class="fas fa-exclamation-circle"></i> ${error.message}`);
+                }
+            }
+        }
+    </script>
 </body>
 </html>
