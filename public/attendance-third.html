@@ -7,167 +7,366 @@
     <title>تسجيل الحضور - الصف الثالث | معهد رعاية الضبعية</title>
     <link rel="stylesheet" href="admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
+        :root {
+            --navy: #1a4f6e;
+            --navy-deep: #0d3b54;
+            --navy-ink: #0a2e42;
+            --gold: #c4a35a;
+            --gold-soft: #e6cd9a;
+            --success: #1f9d63;
+            --success-bg: #e7f7f0;
+            --danger: #e0393e;
+            --danger-bg: #fdecec;
+            --warning: #e08e0b;
+            --warning-bg: #fef3e0;
+            --ink: #1c2b36;
+            --muted: #6b7c8c;
+            --line: #e7edf2;
+            --surface: #ffffff;
+            --bg: #eef3f7;
+            --radius-lg: 22px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
+            --shadow-sm: 0 1px 3px rgba(13, 43, 66, 0.06);
+            --shadow-md: 0 10px 28px rgba(13, 43, 66, 0.08);
+            --shadow-lg: 0 20px 50px rgba(13, 43, 66, 0.14);
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Tajawal', sans-serif;
-            background: linear-gradient(145deg, #f0f4f8 0%, #e2e8f0 100%);
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 10% 0%, rgba(196,163,90,0.08), transparent 40%),
+                radial-gradient(circle at 90% 10%, rgba(26,79,110,0.06), transparent 45%),
+                var(--bg);
             min-height: 100vh;
         }
-        .attendance-table { width: 100%; overflow-x: auto; }
-        .attendance-table table { width: 100%; border-collapse: collapse; }
-        .attendance-table th, .attendance-table td { padding: 12px; text-align: center; border-bottom: 1px solid #e2e8f0; }
-        .attendance-table th { background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: white; }
-        .btn-attendance { background: #c4a35a; color: #1a4f6e; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
-        .btn-attendance:hover { background: #1a4f6e; color: #c4a35a; transform: translateY(-2px); }
-        .date-picker { text-align: center; margin-bottom: 20px; }
-        .date-picker input { padding: 10px; font-size: 16px; border: 2px solid #c4a35a; border-radius: 12px; background: white; }
-        .summary-card { background: linear-gradient(135deg, #1a4f6e, #0d3b54); color: #c4a35a; padding: 20px; border-radius: 20px; margin-bottom: 20px; }
-        .summary-stats { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
-        .stat-box { text-align: center; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 12px; min-width: 120px; }
-        .stat-number { font-size: 28px; font-weight: bold; color: white; }
-        .stat-label { font-size: 14px; }
-        .bulk-buttons { margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-        .bulk-btn { padding: 10px 20px; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; transition: all 0.3s; }
-        .bulk-present { background: #2d6a4f; color: white; }
-        .bulk-absent { background: #b91c1c; color: white; }
-        .bulk-late { background: #d97706; color: white; }
-        .bulk-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
-        .search-section { margin-bottom: 20px; text-align: center; }
-        .search-input { width: 100%; max-width: 400px; padding: 12px 20px; border: 2px solid #c4a35a; border-radius: 30px; font-size: 16px; outline: none; background: white; }
-        .search-input:focus { border-color: #1a4f6e; box-shadow: 0 0 0 4px rgba(196,163,90,0.15); }
-        .search-info { margin-top: 10px; color: #64748b; font-size: 14px; }
-        .grade-tabs { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
-        .grade-tab { padding: 10px 25px; background: #1a4f6e; color: #c4a35a; text-decoration: none; border-radius: 30px; font-weight: bold; transition: all 0.3s; }
-        .grade-tab.active { background: #c4a35a; color: #1a4f6e; }
-        .grade-tab:hover { transform: translateY(-2px); }
-        .logout-btn { background: #b91c1c; color: white; border: none; padding: 8px 20px; border-radius: 30px; cursor: pointer; font-weight: bold; transition: all 0.3s; }
-        .logout-btn:hover { background: #991b1b; transform: translateY(-2px); }
+
+        /* ================= Header ================= */
         .main-header {
-            background: linear-gradient(135deg, #1a4f6e, #0d3b54);
-            padding: 15px 40px;
+            background: linear-gradient(135deg, var(--navy), var(--navy-deep));
+            padding: 14px 40px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            gap: 12px;
             position: sticky;
             top: 0;
-            z-index: 100;
+            z-index: 200;
+            box-shadow: 0 4px 18px rgba(10, 30, 45, 0.25);
         }
-        .logo { width: 55px; border-radius: 50%; border: 2px solid #c4a35a; padding: 3px; background: white; }
-        .main-header h1 { color: #c4a35a; font-size: 1.3rem; }
-        .admin-container { max-width: 1400px; margin: 30px auto; padding: 0 30px 80px; }
-        .submit-btn { background: #c4a35a; color: #1a4f6e; padding: 12px 30px; border-radius: 40px; font-weight: bold; border: none; cursor: pointer; transition: all 0.3s; }
-        .submit-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            background: #f8fafc;
-            border-radius: 20px;
-            margin: 20px 0;
-        }
-        .empty-state i {
-            font-size: 64px;
-            color: #c4a35a;
-            margin-bottom: 20px;
-            opacity: 0.5;
-        }
-        .empty-state h3 {
-            color: #1a4f6e;
-            font-size: 1.3rem;
-            margin-bottom: 10px;
-        }
-        .empty-state p {
-            color: #64748b;
-            font-size: 1rem;
-        }
-        .status-select {
-            padding: 6px 10px;
-            border-radius: 8px;
-            border: 1px solid #c4a35a;
-            background: white;
+        .header-identity { display: flex; align-items: center; gap: 14px; }
+        .logo { width: 50px; height: 50px; object-fit: cover; border-radius: 50%; border: 2px solid var(--gold); padding: 2px; background: white; }
+        .header-titles h1 { color: white; font-size: 1.15rem; font-weight: 700; }
+        .header-titles span { color: var(--gold-soft); font-size: 0.8rem; font-weight: 400; }
+        .logout-btn {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.25);
+            padding: 9px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 600;
             font-family: 'Tajawal', sans-serif;
-            font-size: 14px;
+            transition: all 0.25s;
+            display: flex; align-items: center; gap: 8px;
         }
+        .logout-btn:hover { background: var(--danger); border-color: var(--danger); transform: translateY(-1px); }
+
+        .admin-container { max-width: 1400px; margin: 28px auto; padding: 0 28px 90px; }
+
+        /* ================= Grade tabs ================= */
+        .grade-tabs { display: flex; gap: 8px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; background: rgba(255,255,255,0.6); padding: 6px; border-radius: 40px; width: fit-content; margin-inline: auto; box-shadow: var(--shadow-sm); border: 1px solid rgba(255,255,255,0.8); }
+        .grade-tab { padding: 10px 26px; color: var(--navy); text-decoration: none; border-radius: 30px; font-weight: 700; font-size: 0.92rem; transition: all 0.25s; }
+        .grade-tab.active { background: linear-gradient(135deg, var(--navy), var(--navy-deep)); color: var(--gold-soft); box-shadow: var(--shadow-sm); }
+        .grade-tab:not(.active):hover { background: rgba(26,79,110,0.08); }
+
+        /* ================= Summary card ================= */
+        .summary-card {
+            background: linear-gradient(135deg, var(--navy), var(--navy-deep));
+            color: white;
+            padding: 22px 24px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 22px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+        .summary-card::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: radial-gradient(circle at 100% 0%, rgba(196,163,90,0.18), transparent 55%);
+            pointer-events: none;
+        }
+        .summary-card h3 { margin-bottom: 16px; font-size: 1.05rem; font-weight: 700; color: var(--gold-soft); position: relative; }
+        .summary-stats { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; }
+        .stat-box {
+            display: flex; align-items: center; gap: 12px;
+            text-align: right; padding: 12px 18px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: var(--radius-md);
+            min-width: 150px;
+        }
+        .stat-icon { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+        .stat-icon.total { background: rgba(196,163,90,0.25); color: var(--gold-soft); }
+        .stat-icon.present { background: rgba(31,157,99,0.22); color: #6fe0ac; }
+        .stat-icon.absent { background: rgba(224,57,62,0.22); color: #ff9b9e; }
+        .stat-icon.late { background: rgba(224,142,11,0.22); color: #ffc978; }
+        .stat-icon.percentage { background: rgba(255,255,255,0.15); color: white; }
+        .stat-number { font-size: 22px; font-weight: 800; color: white; line-height: 1.1; }
+        .stat-label { font-size: 12.5px; color: rgba(255,255,255,0.7); }
+
+        /* ================= Control bar (search + selection) ================= */
+        .control-bar { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+        .search-section { display: flex; justify-content: center; }
+        .search-wrap { position: relative; width: 100%; max-width: 420px; }
+        .search-wrap i { position: absolute; top: 50%; right: 18px; transform: translateY(-50%); color: var(--muted); }
+        .search-input {
+            width: 100%; padding: 12px 46px 12px 18px;
+            border: 1.5px solid var(--line); border-radius: 30px;
+            font-size: 15px; outline: none; background: white;
+            font-family: 'Tajawal', sans-serif;
+            box-shadow: var(--shadow-sm);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .search-input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(196,163,90,0.15); }
+        .search-info { margin-top: 8px; color: var(--muted); font-size: 13px; text-align: center; }
+
+        .selection-toolbar {
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 12px;
+            background: white; border-radius: var(--radius-md);
+            padding: 12px 18px; box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+        }
+        .select-all-wrap { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; color: var(--navy); }
+        .select-all-wrap input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--navy); cursor: pointer; }
+        .selected-count { color: var(--gold); font-weight: 700; }
+        .bulk-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .bulk-btn {
+            padding: 9px 18px; border: none; border-radius: 30px; cursor: pointer;
+            font-weight: 700; font-size: 13.5px; font-family: 'Tajawal', sans-serif;
+            display: flex; align-items: center; gap: 6px;
+            transition: all 0.2s;
+        }
+        .bulk-present { background: var(--success-bg); color: var(--success); }
+        .bulk-absent { background: var(--danger-bg); color: var(--danger); }
+        .bulk-late { background: var(--warning-bg); color: var(--warning); }
+        .bulk-btn:hover { filter: brightness(0.95); transform: translateY(-1px); }
+        .bulk-btn:active { transform: translateY(0); }
+
+        /* ================= Students list (row-based, not cards) ================= */
+        .students-panel { background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden; }
+        .list-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .list-head, .student-row {
+            display: grid !important;
+            grid-template-columns: 34px 1fr 190px 44px 46px;
+            align-items: center;
+            gap: 10px;
+            min-width: 560px;
+        }
+        .list-head {
+            padding: 12px 18px;
+            background: #f4f7fa;
+            border-bottom: 1px solid var(--line);
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--muted);
+            position: sticky; top: 0;
+        }
+        .list-head input[type="checkbox"], .row-check { width: 18px; height: 18px; accent-color: var(--navy); cursor: pointer; }
+        .student-row {
+            padding: 10px 18px;
+            border-bottom: 1px solid var(--line);
+            transition: background 0.15s;
+        }
+        .student-row:last-child { border-bottom: none; }
+        .student-row:hover { background: #fafcfe; }
+        .student-row.is-selected { background: rgba(196,163,90,0.08); }
+
+        .student-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .avatar {
+            width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, var(--navy), var(--navy-deep));
+            color: var(--gold-soft); font-weight: 800; font-size: 15px;
+        }
+        .student-text { min-width: 0; }
+        .student-name { font-weight: 700; font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .student-code { font-size: 12px; color: var(--muted); }
+
+        .status-seg { display: flex; background: #f1f5f9; border-radius: 30px; padding: 3px; gap: 3px; }
+        .seg-btn {
+            border: none; background: transparent; cursor: pointer;
+            width: 34px; height: 30px; border-radius: 30px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--muted); font-size: 13.5px; transition: all 0.2s;
+        }
+        .seg-btn:hover { color: var(--ink); }
+        .seg-btn.active-present { background: var(--success); color: white; box-shadow: 0 2px 8px rgba(31,157,99,0.35); }
+        .seg-btn.active-absent { background: var(--danger); color: white; box-shadow: 0 2px 8px rgba(224,57,62,0.35); }
+        .seg-btn.active-late { background: var(--warning); color: white; box-shadow: 0 2px 8px rgba(224,142,11,0.35); }
+
+        .note-toggle, .save-icon-btn {
+            width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 14px;
+            transition: all 0.2s; position: relative;
+        }
+        .note-toggle { background: #f1f5f9; color: var(--muted); }
+        .note-toggle.has-note { color: var(--gold); }
+        .note-toggle.has-note::after { content: ''; position: absolute; top: 4px; left: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
+        .note-toggle:hover { background: #e2e8f0; }
+        .save-icon-btn { background: var(--gold); color: var(--navy-deep); }
+        .save-icon-btn:hover { background: var(--navy); color: var(--gold-soft); transform: translateY(-1px); }
+
+        .row-note { grid-column: 1 / -1; overflow: hidden; max-height: 0; transition: max-height 0.25s ease, padding 0.25s ease; }
+        .row-note.open { max-height: 70px; padding-top: 10px; }
         .note-input {
-            width: 100%;
-            padding: 6px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
-            background: white;
-            font-family: 'Tajawal', sans-serif;
-            font-size: 14px;
+            width: 100%; padding: 9px 14px; border-radius: var(--radius-sm);
+            border: 1px solid var(--line); background: #f9fbfc;
+            font-family: 'Tajawal', sans-serif; font-size: 13.5px; outline: none;
         }
-        .note-input:focus {
-            border-color: #c4a35a;
-            outline: none;
+        .note-input:focus { border-color: var(--gold); background: white; }
+
+        .submit-btn {
+            background: linear-gradient(135deg, var(--gold), #b8944a);
+            color: var(--navy-deep); padding: 13px 34px; border-radius: 40px;
+            font-weight: 800; border: none; cursor: pointer; transition: all 0.25s;
+            font-family: 'Tajawal', sans-serif; font-size: 15px;
+            box-shadow: var(--shadow-md);
         }
-        .table-wrapper {
-            overflow-x: auto;
-            background: white;
-            border-radius: 16px;
-            padding: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .submit-btn:active { transform: translateY(0); }
+
+        .date-picker { text-align: center; margin-bottom: 18px; }
+        .date-picker label { font-weight: 600; color: var(--navy); margin-inline-end: 8px; }
+        .date-picker input { padding: 10px 16px; font-size: 15px; border: 1.5px solid var(--line); border-radius: 12px; background: white; font-family: 'Tajawal', sans-serif; }
+        .date-picker input:focus { outline: none; border-color: var(--gold); }
+
+        .empty-state { text-align: center; padding: 70px 20px; background: white; border-radius: var(--radius-lg); margin: 20px 0; box-shadow: var(--shadow-sm); }
+        .empty-state i { font-size: 58px; color: var(--gold); margin-bottom: 18px; opacity: 0.55; }
+        .empty-state h3 { color: var(--navy); font-size: 1.25rem; margin-bottom: 8px; }
+        .empty-state p { color: var(--muted); font-size: 0.95rem; }
+
+        /* ================= iOS-style notifications ================= */
+        #iosNotifications {
+            position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; display: flex; flex-direction: column; gap: 10px;
+            width: min(92vw, 400px); pointer-events: none;
         }
+        .ios-toast {
+            pointer-events: auto; direction: rtl; cursor: pointer;
+            display: flex; align-items: flex-start; gap: 12px;
+            background: rgba(255,255,255,0.78);
+            backdrop-filter: blur(22px) saturate(180%);
+            -webkit-backdrop-filter: blur(22px) saturate(180%);
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 18px; padding: 13px 15px;
+            box-shadow: 0 14px 34px rgba(10,30,45,0.18), 0 2px 8px rgba(10,30,45,0.08);
+            animation: iosIn 0.5s cubic-bezier(.22,1,.36,1);
+        }
+        .ios-toast.leaving { animation: iosOut 0.35s ease forwards; }
+        @keyframes iosIn { from { opacity: 0; transform: translateY(-24px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes iosOut { to { opacity: 0; transform: translateY(-16px) scale(0.96); } }
+        .ios-toast-icon {
+            width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; color: white; font-size: 13px;
+            margin-top: 1px;
+        }
+        .ios-toast.type-success .ios-toast-icon { background: linear-gradient(135deg, #24b876, #178f5a); }
+        .ios-toast.type-error .ios-toast-icon { background: linear-gradient(135deg, #ec4c4c, #c4272c); }
+        .ios-toast.type-info .ios-toast-icon { background: linear-gradient(135deg, var(--navy), var(--navy-deep)); }
+        .ios-toast-body { flex: 1; min-width: 0; }
+        .ios-toast-title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .ios-toast-title { font-size: 12.5px; font-weight: 700; color: var(--navy-ink); }
+        .ios-toast-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+        .ios-toast-message { font-size: 13.5px; color: var(--ink); margin-top: 2px; line-height: 1.4; }
+
+        .table-wrapper { display: none; } /* legacy class kept for compatibility */
+
         @media (max-width: 768px) {
-            .main-header { flex-direction: column; text-align: center; gap: 10px; }
-            .admin-container { padding: 0 15px 80px; }
-            .stat-number { font-size: 20px; }
-            .attendance-table th, .attendance-table td { padding: 8px 4px; font-size: 13px; }
-            .status-select { padding: 4px 6px; font-size: 12px; }
+            .main-header { padding: 12px 18px; }
+            .admin-container { padding: 0 14px 90px; }
+            .header-titles h1 { font-size: 1rem; }
+            .stat-box { min-width: 130px; padding: 10px 14px; }
+            .stat-number { font-size: 19px; }
+        }
+        @media (max-width: 640px) {
+            .list-head, .student-row { grid-template-columns: 30px 1fr 154px 40px 42px; gap: 8px; padding-inline: 12px; }
+            .student-name { font-size: 13.5px; }
+            .avatar { width: 32px; height: 32px; font-size: 13px; }
+            .seg-btn { width: 30px; height: 27px; font-size: 12px; }
         }
     </style>
 </head>
 <body>
 
+<div id="iosNotifications"></div>
+
 <header class="main-header">
-    <img src="logo.png" alt="شعار المعهد" class="logo" onerror="this.style.display='none'">
-    <h1>📖 تسجيل الحضور والغياب - الصف الثالث</h1>
+    <div class="header-identity">
+        <img src="logo.png" alt="شعار المعهد" class="logo" onerror="this.style.display='none'">
+        <div class="header-titles">
+            <h1>📖 تسجيل الحضور والغياب</h1>
+            <span>الصف الثالث &middot; معهد رعاية الضبعية للتمريض</span>
+        </div>
+    </div>
     <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
 </header>
 
 <div class="admin-container">
     <div class="grade-tabs">
-        <a href="attendance-first.html" class="grade-tab">🎓 الصف الأول</a>
-        <a href="attendance-second.html" class="grade-tab">📚 الصف الثاني</a>
+        <a href="attendance-first.html" class="grade-tab ">🎓 الصف الأول</a>
+        <a href="attendance-second.html" class="grade-tab ">📚 الصف الثاني</a>
         <a href="attendance-third.html" class="grade-tab active">📖 الصف الثالث</a>
     </div>
 
     <div class="summary-card">
-        <h3 style="margin-bottom: 15px;">📊 ملخص الحضور لليوم - الصف الثالث</h3>
+        <h3>📊 ملخص الحضور لليوم - الصف الثالث</h3>
         <div class="summary-stats" id="summaryStats">
-            <div class="stat-box"><div class="stat-number" id="totalCount">0</div><div class="stat-label">إجمالي الطلاب</div></div>
-            <div class="stat-box"><div class="stat-number" id="presentCount">0</div><div class="stat-label">✅ حاضرون</div></div>
-            <div class="stat-box"><div class="stat-number" id="absentCount">0</div><div class="stat-label">❌ غائبون</div></div>
-            <div class="stat-box"><div class="stat-number" id="lateCount">0</div><div class="stat-label">⏰ متأخرون</div></div>
-            <div class="stat-box"><div class="stat-number" id="presentPercentage">0%</div><div class="stat-label">نسبة الحضور</div></div>
+            <div class="stat-box"><div class="stat-icon total"><i class="fas fa-users"></i></div><div><div class="stat-number" id="totalCount">0</div><div class="stat-label">إجمالي الطلاب</div></div></div>
+            <div class="stat-box"><div class="stat-icon present"><i class="fas fa-check"></i></div><div><div class="stat-number" id="presentCount">0</div><div class="stat-label">حاضرون</div></div></div>
+            <div class="stat-box"><div class="stat-icon absent"><i class="fas fa-xmark"></i></div><div><div class="stat-number" id="absentCount">0</div><div class="stat-label">غائبون</div></div></div>
+            <div class="stat-box"><div class="stat-icon late"><i class="fas fa-clock"></i></div><div><div class="stat-number" id="lateCount">0</div><div class="stat-label">متأخرون</div></div></div>
+            <div class="stat-box"><div class="stat-icon percentage"><i class="fas fa-chart-pie"></i></div><div><div class="stat-number" id="presentPercentage">0%</div><div class="stat-label">نسبة الحضور</div></div></div>
         </div>
     </div>
 
-    <div class="bulk-buttons" id="bulkButtons" style="display: none;">
-        <button class="bulk-btn bulk-present" onclick="bulkUpdate('present')">✅ تحديد الكل حاضر</button>
-        <button class="bulk-btn bulk-absent" onclick="bulkUpdate('absent')">❌ تحديد الكل غائب</button>
-        <button class="bulk-btn bulk-late" onclick="bulkUpdate('late')">⏰ تحديد الكل متأخر</button>
-    </div>
-
     <div class="date-picker" id="datePicker" style="display: none;">
-        <label for="attendance-date">اختر التاريخ: </label>
+        <label for="attendance-date">اختر التاريخ:</label>
         <input type="date" id="attendance-date" onchange="loadAttendance()">
     </div>
 
-    <div class="search-section" id="searchSection" style="display: none;">
-        <input type="text" id="searchInput" class="search-input" placeholder="🔍 ابحث باسم الطالب أو رقم الجلوس..." oninput="filterStudents()">
+    <div class="control-bar">
+        <div class="search-section" id="searchSection" style="display: none;">
+            <div class="search-wrap">
+                <i class="fas fa-magnifying-glass"></i>
+                <input type="text" id="searchInput" class="search-input" placeholder="ابحث باسم الطالب أو رقم الجلوس..." oninput="filterStudents()">
+            </div>
+        </div>
         <div class="search-info" id="searchInfo"></div>
+
+        <div class="selection-toolbar" id="selectionToolbar" style="display: none;">
+            <label class="select-all-wrap">
+                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)">
+                تحديد الكل <span class="selected-count" id="selectedCountLabel"></span>
+            </label>
+            <div class="bulk-buttons" id="bulkButtons">
+                <button class="bulk-btn bulk-present" onclick="bulkUpdate('present')"><i class="fas fa-check"></i> تحضير</button>
+                <button class="bulk-btn bulk-absent" onclick="bulkUpdate('absent')"><i class="fas fa-xmark"></i> تغييب</button>
+                <button class="bulk-btn bulk-late" onclick="bulkUpdate('late')"><i class="fas fa-clock"></i> تأخير</button>
+            </div>
+        </div>
     </div>
 
     <div id="attendanceTableContainer"></div>
 
-    <div style="margin-top: 20px; text-align: center;" id="saveButtonContainer">
-        <button class="submit-btn" onclick="saveAttendance()">💾 حفظ جميع التغييرات</button>
+    <div style="margin-top: 24px; text-align: center;" id="saveButtonContainer">
+        <button class="submit-btn" onclick="saveAttendance()"><i class="fas fa-floppy-disk"></i> حفظ جميع التغييرات</button>
     </div>
 </div>
 
@@ -180,11 +379,69 @@ let currentDate = new Date().toISOString().split('T')[0];
 function getCsrfToken() { return sessionStorage.getItem('csrfToken'); }
 function getLoggedInUser() { const u = sessionStorage.getItem('userData'); return u ? JSON.parse(u) : null; }
 
+// ====================== إشعارات بأسلوب الآيفون ======================
+let audioCtx = null;
+function getAudioCtx() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+    } catch (e) { return null; }
+}
+
+function playNotificationSound(type) {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+        const now = ctx.currentTime;
+        const tones = type === 'error' ? [520, 380] : type === 'info' ? [700] : [660, 990];
+        tones.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            const start = now + i * 0.09;
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.14, start + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(start); osc.stop(start + 0.24);
+        });
+    } catch (e) { /* silent */ }
+}
+
+const TOAST_ICONS = { success: 'fa-check', error: 'fa-exclamation', info: 'fa-bell' };
+const TOAST_TITLES = { success: 'تم بنجاح', error: 'حدث خطأ', info: 'إشعار' };
+
 function showToast(message, type = 'success') {
-    if (typeof Toastify !== 'undefined') {
-        const bg = type === 'success' ? '#2d6a4f' : type === 'error' ? '#b91c1c' : '#d97706';
-        Toastify({ text: message, duration: 3000, gravity: 'top', position: 'right', backgroundColor: bg, stopOnFocus: true }).showToast();
-    } else { alert(message); }
+    const container = document.getElementById('iosNotifications');
+    if (!container) { alert(message); return; }
+
+    playNotificationSound(type);
+
+    const toast = document.createElement('div');
+    toast.className = `ios-toast type-${type}`;
+    toast.innerHTML = `
+        <div class="ios-toast-icon"><i class="fas ${TOAST_ICONS[type] || TOAST_ICONS.info}"></i></div>
+        <div class="ios-toast-body">
+            <div class="ios-toast-title-row">
+                <span class="ios-toast-title">${TOAST_TITLES[type] || TOAST_TITLES.info}</span>
+                <span class="ios-toast-time">الآن</span>
+            </div>
+            <div class="ios-toast-message"></div>
+        </div>
+    `;
+    toast.querySelector('.ios-toast-message').textContent = message;
+
+    const dismiss = () => {
+        toast.classList.add('leaving');
+        setTimeout(() => toast.remove(), 350);
+    };
+    toast.addEventListener('click', dismiss);
+
+    container.prepend(toast);
+    const duration = type === 'error' ? 4200 : 3200;
+    setTimeout(dismiss, duration);
 }
 
 async function apiRequest(endpoint, options = {}) {
@@ -209,24 +466,18 @@ function sendAttendanceUpdateSignal() {
             const channel = new BroadcastChannel('attendance-updates');
             channel.postMessage({ type: 'attendance-updated', timestamp: Date.now(), grade: GRADE });
             channel.close();
-            console.log('📡 تم إرسال إشارة تحديث الحضور عبر BroadcastChannel');
         }
-    } catch (e) {
-        console.log('⚠️ BroadcastChannel not supported:', e.message);
-    }
-    
+    } catch (e) { /* not supported */ }
     try {
         if (window.opener && !window.opener.closed) {
             if (typeof window.opener.refreshAttendance === 'function') {
                 window.opener.refreshAttendance();
-                console.log('📡 تم تحديث Home عبر window.opener');
             }
         }
-    } catch (e) {
-        console.log('⚠️ Could not update Home via opener:', e.message);
-    }
+    } catch (e) { /* ignore */ }
 }
 
+// ====================== التحقق من الصلاحية ======================
 async function verifyAccess() {
     const user = getLoggedInUser();
     if (!user || user.type !== 'admin') {
@@ -250,16 +501,16 @@ function showEmptyState() {
     const container = document.getElementById('attendanceTableContainer');
     container.innerHTML = `
         <div class="empty-state">
-            <i class="fas fa-users-slash"></i>
-            <h3>📭 لا توجد طلاب في هذا الصف</h3>
+            <i class="fas fa-user-slash"></i>
+            <h3>لا توجد طلاب في هذا الصف</h3>
             <p>لم يتم تسجيل أي طلاب في الصف الثالث حتى الآن</p>
-            <p style="margin-top: 15px; font-size: 0.85rem;">يمكنك إضافة طلاب من لوحة التحكم</p>
+            <p style="margin-top: 12px; font-size: 0.85rem;">يمكنك إضافة طلاب من لوحة التحكم</p>
         </div>
     `;
-    document.getElementById('bulkButtons').style.display = 'none';
+    document.getElementById('selectionToolbar').style.display = 'none';
     document.getElementById('datePicker').style.display = 'none';
     document.getElementById('searchSection').style.display = 'none';
-    
+
     document.getElementById('totalCount').textContent = '0';
     document.getElementById('presentCount').textContent = '0';
     document.getElementById('absentCount').textContent = '0';
@@ -268,7 +519,7 @@ function showEmptyState() {
 }
 
 function showAttendanceTable() {
-    document.getElementById('bulkButtons').style.display = 'flex';
+    document.getElementById('selectionToolbar').style.display = 'flex';
     document.getElementById('datePicker').style.display = 'block';
     document.getElementById('searchSection').style.display = 'block';
 }
@@ -277,27 +528,23 @@ async function loadStudents() {
     try {
         showToast('جاري تحميل بيانات الطلاب...', 'info');
         const response = await apiRequest(`/api/students/by-grade/${GRADE}`);
-        
-        if (!response.ok) {
-            throw new Error('فشل في جلب البيانات');
-        }
-        
+
+        if (!response.ok) throw new Error('فشل في جلب البيانات');
+
         students = await response.json();
-        
+
         if (!students || students.length === 0) {
-            console.log(`📭 لا يوجد طلاب في الصف ${GRADE}`);
             showEmptyState();
             return;
         }
-        
-        console.log(`✅ تم تحميل ${students.length} طالب من الصف ${GRADE}`);
+
         filteredStudents = [...students];
         document.getElementById('attendance-date').value = currentDate;
         showAttendanceTable();
         await loadAttendance();
         updateSearchInfo();
         updateSummary();
-        
+
     } catch (error) {
         console.error('Error loading students:', error);
         if (error.message.includes('404')) {
@@ -329,8 +576,8 @@ async function loadAttendance() {
 
 function filterStudents() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
-    filteredStudents = searchTerm === '' ? [...students] : students.filter(s => 
-        s.fullName?.toLowerCase().includes(searchTerm) || 
+    filteredStudents = searchTerm === '' ? [...students] : students.filter(s =>
+        s.fullName?.toLowerCase().includes(searchTerm) ||
         s.studentCode?.toLowerCase().includes(searchTerm)
     );
     renderAttendanceTable();
@@ -339,161 +586,232 @@ function filterStudents() {
 
 function updateSearchInfo() {
     const searchInfo = document.getElementById('searchInfo');
-    if (searchInfo) {
-        if (filteredStudents.length === 0) {
-            searchInfo.innerHTML = '🔍 لا توجد نتائج مطابقة للبحث';
-        } else if (filteredStudents.length === students.length) {
-            searchInfo.innerHTML = `📋 عرض كل طلاب الصف (${students.length} طالب)`;
-        } else {
-            searchInfo.innerHTML = `🔍 تم العثور على ${filteredStudents.length} طالب من أصل ${students.length}`;
-        }
+    if (!searchInfo) return;
+    if (filteredStudents.length === 0) {
+        searchInfo.innerHTML = '🔍 لا توجد نتائج مطابقة للبحث';
+    } else if (filteredStudents.length === students.length) {
+        searchInfo.innerHTML = `📋 عرض كل طلاب الصف (${students.length} طالب)`;
+    } else {
+        searchInfo.innerHTML = `🔍 تم العثور على ${filteredStudents.length} طالب من أصل ${students.length}`;
     }
+}
+
+function initials(name) {
+    if (!name) return '؟';
+    const parts = name.trim().split(/\s+/);
+    return parts[0].charAt(0);
 }
 
 function renderAttendanceTable() {
     const container = document.getElementById('attendanceTableContainer');
     if (!container) return;
-    
+
     if (filteredStudents.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <i class="fas fa-search"></i>
-                <h3>🔍 لا توجد نتائج</h3>
+                <i class="fas fa-magnifying-glass"></i>
+                <h3>لا توجد نتائج</h3>
                 <p>لم يتم العثور على طلاب مطابقين لبحثك</p>
             </div>
         `;
+        updateSelectedCount();
         return;
     }
-    
-    let tableHtml = `
-        <div class="attendance-table">
-            <div class="table-wrapper">
-                <table id="attendanceTable">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>رقم الجلوس</th>
-                            <th>اسم الطالب</th>
-                            <th>الحالة</th>
-                            <th>ملاحظة</th>
-                            <th>إجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody id="attendance-table-body">
-    `;
-    
-    filteredStudents.forEach((student, index) => {
+
+    let rowsHtml = '';
+    filteredStudents.forEach((student) => {
         const record = attendanceRecords[student.studentCode];
         const status = record ? record.status : 'present';
         const note = record ? (record.note || '') : '';
-        
-        tableHtml += `
-            <tr>
-                <td>${index + 1}</td>
-                <td><strong>${escapeHtml(student.studentCode)}</strong></td>
-                <td style="text-align:right;">${escapeHtml(student.fullName)}</td>
-                <td>
-                    <select class="status-select" data-code="${student.studentCode}" style="padding: 6px 10px; border-radius: 8px; border: 1px solid #c4a35a; background: white; font-family: 'Tajawal', sans-serif;">
-                        <option value="present" ${status === 'present' ? 'selected' : ''}>✅ حاضر</option>
-                        <option value="absent" ${status === 'absent' ? 'selected' : ''}>❌ غائب</option>
-                        <option value="late" ${status === 'late' ? 'selected' : ''}>⏰ متأخر</option>
-                    </select>
-                </td>
-                <td><input type="text" class="note-input" data-code="${student.studentCode}" value="${escapeHtml(note)}" placeholder="ملاحظة" style="width:100%; padding:6px; border-radius:8px; border:1px solid #ddd; background:white;"></td>
-                <td><button class="btn-attendance" onclick="updateSingle('${student.studentCode}')"><i class="fas fa-save"></i> حفظ</button></td>
-            </tr>
+        const code = escapeHtml(student.studentCode);
+        const name = escapeHtml(student.fullName);
+
+        rowsHtml += `
+            <div class="student-row" data-code="${code}" data-status="${status}">
+                <input type="checkbox" class="row-check" onchange="onRowCheckChange(this)">
+                <div class="student-identity">
+                    <div class="avatar">${escapeHtml(initials(student.fullName))}</div>
+                    <div class="student-text">
+                        <div class="student-name" title="${name}">${name}</div>
+                        <div class="student-code">كود: ${code}</div>
+                    </div>
+                </div>
+                <div class="status-seg">
+                    <button type="button" class="seg-btn ${status === 'present' ? 'active-present' : ''}" title="حاضر" onclick="setRowStatus(this, 'present')"><i class="fas fa-check"></i></button>
+                    <button type="button" class="seg-btn ${status === 'absent' ? 'active-absent' : ''}" title="غائب" onclick="setRowStatus(this, 'absent')"><i class="fas fa-xmark"></i></button>
+                    <button type="button" class="seg-btn ${status === 'late' ? 'active-late' : ''}" title="متأخر" onclick="setRowStatus(this, 'late')"><i class="fas fa-clock"></i></button>
+                </div>
+                <button type="button" class="note-toggle ${note ? 'has-note' : ''}" title="ملاحظة" onclick="toggleNote(this)"><i class="fas fa-note-sticky"></i></button>
+                <button type="button" class="save-icon-btn" title="حفظ" onclick="updateSingle('${code}')"><i class="fas fa-floppy-disk"></i></button>
+                <div class="row-note">
+                    <input type="text" class="note-input" data-code="${code}" value="${escapeHtml(note)}" placeholder="أضف ملاحظة...">
+                </div>
+            </div>
         `;
     });
-    
-    tableHtml += `
-                    </tbody>
-                </table>
+
+    container.innerHTML = `
+        <div class="students-panel">
+            <div class="list-scroll">
+                <div class="list-head">
+                    <span></span>
+                    <span>الطالب</span>
+                    <span style="text-align:center;">الحالة</span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <div id="attendance-rows">${rowsHtml}</div>
             </div>
         </div>
     `;
-    
-    container.innerHTML = tableHtml;
+
+    document.getElementById('selectAllCheckbox').checked = false;
+    updateSelectedCount();
 }
 
 function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
 
+// ====================== تحديد الحالة لصف واحد ======================
+window.setRowStatus = function(button, status) {
+    const row = button.closest('.student-row');
+    row.dataset.status = status;
+    row.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active-present', 'active-absent', 'active-late'));
+    button.classList.add(`active-${status}`);
+};
+
+// ====================== طي/فتح الملاحظة ======================
+window.toggleNote = function(button) {
+    const row = button.closest('.student-row');
+    const noteRow = row.querySelector('.row-note');
+    noteRow.classList.toggle('open');
+    if (noteRow.classList.contains('open')) {
+        setTimeout(() => noteRow.querySelector('.note-input')?.focus(), 200);
+    }
+};
+
+// ====================== التحديد الجماعي (checkboxes) ======================
+window.onRowCheckChange = function(checkbox) {
+    checkbox.closest('.student-row').classList.toggle('is-selected', checkbox.checked);
+    updateSelectedCount();
+};
+
+window.toggleSelectAll = function(checked) {
+    document.querySelectorAll('.row-check').forEach(cb => {
+        cb.checked = checked;
+        cb.closest('.student-row').classList.toggle('is-selected', checked);
+    });
+    updateSelectedCount();
+};
+
+function getSelectedRows() {
+    return Array.from(document.querySelectorAll('.row-check:checked')).map(cb => cb.closest('.student-row'));
+}
+
+function updateSelectedCount() {
+    const label = document.getElementById('selectedCountLabel');
+    if (!label) return;
+    const count = document.querySelectorAll('.row-check:checked').length;
+    label.textContent = count > 0 ? `(${count} محدد)` : '';
+    const selectAll = document.getElementById('selectAllCheckbox');
+    const totalRows = document.querySelectorAll('.row-check').length;
+    if (selectAll) selectAll.checked = totalRows > 0 && count === totalRows;
+}
+
+// ====================== تحديث طالب واحد ======================
 window.updateSingle = async function(studentCode) {
-    const select = document.querySelector(`.status-select[data-code="${studentCode}"]`);
-    const noteInput = document.querySelector(`.note-input[data-code="${studentCode}"]`);
+    const row = document.querySelector(`.student-row[data-code="${studentCode}"]`);
+    const noteInput = row?.querySelector('.note-input');
     const student = students.find(s => s.studentCode === studentCode);
-    if (!student) {
-        showToast('❌ الطالب غير موجود', 'error');
+    if (!student || !row) {
+        showToast('الطالب غير موجود', 'error');
         return;
     }
-    
-    const data = { 
-        studentCode, 
-        studentName: student.fullName, 
-        date: currentDate, 
-        status: select.value, 
-        note: noteInput?.value || '', 
-        recordedBy: 'admin' 
+
+    const data = {
+        studentCode,
+        studentName: student.fullName,
+        date: currentDate,
+        status: row.dataset.status,
+        note: noteInput?.value || '',
+        recordedBy: 'admin'
     };
-    
+
     try {
         const response = await apiRequest('/api/attendance', { method: 'POST', body: JSON.stringify(data) });
-        if (response.ok) { 
-            showToast('✅ تم حفظ الحضور بنجاح', 'success'); 
+        if (response.ok) {
+            showToast(`تم حفظ حضور ${student.fullName} بنجاح`, 'success');
             await loadAttendance();
             sendAttendanceUpdateSignal();
         } else {
             const errorData = await response.json();
-            showToast('❌ ' + (errorData.error || 'خطأ في حفظ الحضور'), 'error');
+            showToast(errorData.error || 'خطأ في حفظ الحضور', 'error');
         }
-    } catch (error) { 
-        showToast('❌ خطأ في الاتصال', 'error'); 
+    } catch (error) {
+        showToast('خطأ في الاتصال', 'error');
     }
 };
 
+// ====================== تحديث جماعي (يطبّق على المحدد، أو على الكل إن لم يُحدد أحد) ======================
 window.bulkUpdate = function(status) {
-    document.querySelectorAll('.status-select').forEach(select => select.value = status);
-    const statusMap = { 'present': 'حاضر', 'absent': 'غائب', 'late': 'متأخر' };
-    showToast(`✅ تم تغيير جميع الطلاب إلى ${statusMap[status] || status}`, 'info');
+    let rows = getSelectedRows();
+    let scopeLabel = 'الطلاب المحددين';
+    if (rows.length === 0) {
+        rows = Array.from(document.querySelectorAll('.student-row'));
+        scopeLabel = 'كل الطلاب';
+    }
+    if (rows.length === 0) {
+        showToast('لا يوجد طلاب لتطبيق الإجراء عليهم', 'info');
+        return;
+    }
+    rows.forEach(row => {
+        row.dataset.status = status;
+        row.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active-present', 'active-absent', 'active-late'));
+        const btn = row.querySelector(`.seg-btn[title="${status === 'present' ? 'حاضر' : status === 'absent' ? 'غائب' : 'متأخر'}"]`);
+        btn?.classList.add(`active-${status}`);
+    });
+    const statusMap = { present: 'حاضر', absent: 'غائب', late: 'متأخر' };
+    showToast(`تم تغيير ${scopeLabel} إلى ${statusMap[status] || status}`, 'info');
 };
 
+// ====================== حفظ جميع التغييرات ======================
 window.saveAttendance = async function() {
     const updates = [];
-    document.querySelectorAll('.status-select').forEach(select => {
-        const studentCode = select.dataset.code;
-        const noteInput = document.querySelector(`.note-input[data-code="${studentCode}"]`);
+    document.querySelectorAll('.student-row').forEach(row => {
+        const studentCode = row.dataset.code;
+        const noteInput = row.querySelector('.note-input');
         const student = students.find(s => s.studentCode === studentCode);
         if (student) {
-            updates.push({ 
-                code: studentCode, 
-                name: student.fullName, 
-                status: select.value, 
-                note: noteInput?.value || '' 
+            updates.push({
+                code: studentCode,
+                name: student.fullName,
+                status: row.dataset.status,
+                note: noteInput?.value || ''
             });
         }
     });
-    
+
     if (updates.length === 0) {
         showToast('لا توجد طلاب للحفظ', 'info');
         return;
     }
-    
+
     showToast('جاري حفظ التغييرات...', 'info');
-    
+
     try {
-        const response = await apiRequest('/api/attendance/bulk', { 
-            method: 'POST', 
-            body: JSON.stringify({ date: currentDate, students: updates, recordedBy: 'admin' }) 
+        const response = await apiRequest('/api/attendance/bulk', {
+            method: 'POST',
+            body: JSON.stringify({ date: currentDate, students: updates, recordedBy: 'admin' })
         });
-        if (response.ok) { 
-            showToast('✅ تم حفظ جميع تغييرات الحضور بنجاح', 'success'); 
+        if (response.ok) {
+            showToast('تم حفظ جميع تغييرات الحضور بنجاح', 'success');
             await loadAttendance();
             sendAttendanceUpdateSignal();
         } else {
             const errorData = await response.json();
-            showToast('❌ ' + (errorData.error || 'خطأ في حفظ التغييرات'), 'error');
+            showToast(errorData.error || 'خطأ في حفظ التغييرات', 'error');
         }
-    } catch (error) { 
-        showToast('❌ خطأ في الاتصال', 'error'); 
+    } catch (error) {
+        showToast('خطأ في الاتصال', 'error');
     }
 };
 
@@ -501,10 +819,10 @@ function updateSummary() {
     let present = 0, absent = 0, late = 0;
     students.forEach(student => {
         const record = attendanceRecords[student.studentCode];
-        if (record) { 
-            if (record.status === 'present') present++; 
-            else if (record.status === 'absent') absent++; 
-            else if (record.status === 'late') late++; 
+        if (record) {
+            if (record.status === 'present') present++;
+            else if (record.status === 'absent') absent++;
+            else if (record.status === 'late') late++;
         } else {
             present++;
         }
