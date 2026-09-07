@@ -446,6 +446,13 @@ const adminSchema = new mongoose.Schema({
     failedAttempts: { type: Number, default: 0 },
     lockedUntil: Date,
     profile: { phone: String, email: String },
+    // صورة شخصية دائرية تظهر بجانب الاسم في كل مكان (البروفايل الأكاديمي، صفحة
+    // الإعدادات، قائمة الحسابات الموثقة..) — كل حسابات الأدمن تقدر ترفع واحدة
+    // دايمًا (isVerified افتراضيًا true تحت).
+    avatarUrl: { type: String, default: '' },
+    // كل حسابات الأدمن موثّقة تلقائيًا (علامة صح زرقاء زي فيسبوك/إنستجرام) —
+    // من غير ما الأدمن يحتاج يفعّلها بنفسه.
+    isVerified: { type: Boolean, default: true },
     refreshToken: String,
     // ====== جلسة واحدة فقط في نفس الوقت (single active session) ======
     // activeSessionId: معرّف عشوائي بيتولّد مع كل تسجيل دخول ناجح، ومتحفوظ هنا
@@ -486,6 +493,12 @@ const studentSchema = new mongoose.Schema({
     // premium_clinical_sim (محاكي مواقف إكلينيكية) / premium_lecture_audio (ملخص صوتي للمحاضرات)
     // premium_video_sim (محاكاة قرارات بفيديو/مشهد متفرّع)
     premiumFeatures: { type: [String], default: [] },
+    // صورة شخصية دائرية — متاح رفعها بس للطلاب اللي isVerified مفعّلة عندهم (شوف
+    // /api/profile/avatar). الأدمن هو اللي بيفعّل التوثيق للطالب يدويًا من لوحته.
+    avatarUrl: { type: String, default: '' },
+    // علامة التوثيق (الصح الزرقاء) — false افتراضيًا للطلاب، الأدمن يفعّلها يدويًا
+    // من /api/admin/students/:studentCode/verify لأي طالب يستاهلها.
+    isVerified: { type: Boolean, default: false },
     // لو موجودة وتاريخها في المستقبل، الطالب متوقف مؤقتًا ومش هيقدر يسجل دخول لحد ما
     // التاريخ ده يعدي (أو الأدمن يمسحها يدويًا قبل كده). null = مش موقف.
     // نفس فكرة lockedUntil الموجودة أصلًا، بس ده إيقاف يدوي من الأدمن مش قفل تلقائي بسبب فشل باسورد.
@@ -3858,6 +3871,78 @@ app.get('/api/me', verifyToken, async (req, res) => {
         res.json({ type: 'student', profile: student, violations, attendance, examResults: enrichedExamResults, pendingHomework, activeTournaments });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب البيانات: ' });
+    }
+});
+
+// ====================== الصور الشخصية الموثّقة (شارة التوثيق الزرقاء) ======================
+// أي حساب أدمن (isVerified = true افتراضيًا)، أو أي طالب فعّل الأدمن التوثيق ليه
+// يدويًا، يقدر يرفع صورة شخصية دائرية تظهر بجانب اسمه في كل مكان (البروفايل
+// الأكاديمي، أعلى صفحة الإعدادات، قائمة الحسابات الموثقة).
+app.post('/api/profile/avatar', verifyToken, upload.single('avatar'), async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (!req.file) return res.status(400).json({ error: 'مفيش صورة في الطلب' });
+        if (!req.file.mimetype || !req.file.mimetype.startsWith('image/')) {
+            return res.status(400).json({ error: 'الملف لازم يكون صورة (jpg/png/webp)' });
+        }
+        if (req.file.size > 5 * 1024 * 1024) {
+            return res.status(400).json({ error: 'أقصى حجم مسموح للصورة الشخصية 5 ميجا' });
+        }
+
+        const Model = req.user.type === 'admin' ? Admin : Student;
+        const user = await Model.findById(req.user.id);
+        if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+
+        // الطلاب لازم يكونوا موثّقين الأول (الأدمن هو اللي بيفعّلها) — الأدمن نفسه
+        // مسموحله دايمًا لأن isVerified بتاعته true افتراضيًا من الـ schema.
+        if (!user.isVerified) {
+            return res.status(403).json({ error: 'رفع صورة شخصية متاح بس للحسابات الموثقة — اطلب من الأدمن يفعّل التوثيق لحسابك الأول' });
+        }
+
+        const uploaded = await uploadToCloudinary(req.file.buffer, 'avatars', `${user.username}-${Date.now()}`, req.file.mimetype);
+        user.avatarUrl = uploaded.secure_url;
+        await user.save();
+        res.json({ success: true, avatarUrl: user.avatarUrl });
+    } catch (error) {
+        res.status(500).json({ error: 'تعذر رفع الصورة الشخصية' });
+    }
+});
+
+// الأدمن بيفعّل/يلغي التوثيق لطالب معيّن (الأدمن نفسه موثّق دايمًا تلقائي، مش
+// محتاج الـ endpoint ده). لما تتفعّل، الطالب يقدر يرفع صورة شخصية وتظهرله شارة
+// التوثيق الزرقاء بجانب اسمه.
+app.post('/api/admin/students/:studentCode/verify', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { verified } = req.body;
+        const student = await Student.findOneAndUpdate(
+            { studentCode: req.params.studentCode },
+            { isVerified: Boolean(verified) },
+            { new: true }
+        ).select('studentCode fullName isVerified avatarUrl');
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        res.json({ success: true, student });
+    } catch (error) {
+        res.status(500).json({ error: 'تعذر تحديث حالة التوثيق' });
+    }
+});
+
+// قائمة كل الحسابات الموثقة (كل الأدمنز + الطلاب اللي اتفعّلها لهم) — تظهر في
+// صفحة "الحسابات الموثقة" بالفرونت إند، لأي مستخدم مسجّل دخوله.
+app.get('/api/verified-accounts', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const [admins, students] = await Promise.all([
+            Admin.find().select('fullName username avatarUrl').lean(),
+            Student.find({ isVerified: true }).select('fullName username studentCode grade avatarUrl').lean()
+        ]);
+        const accounts = [
+            ...admins.map(a => ({ type: 'admin', fullName: a.fullName, username: a.username, avatarUrl: a.avatarUrl || '' })),
+            ...students.map(s => ({ type: 'student', fullName: s.fullName, username: s.username, studentCode: s.studentCode, grade: s.grade, avatarUrl: s.avatarUrl || '' }))
+        ];
+        res.json({ success: true, accounts });
+    } catch (error) {
+        res.status(500).json({ error: 'تعذر تحميل الحسابات الموثقة' });
     }
 });
 
