@@ -4294,8 +4294,22 @@ app.post('/api/admin-messages', optionalAuthLoose, async (req, res) => {
 app.get('/api/admin-messages', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
-        const messages = await AdminMessage.find().sort({ createdAt: -1 }).limit(500);
-        res.json({ messages });
+        const messages = await AdminMessage.find().sort({ createdAt: -1 }).limit(500).lean();
+
+        // بنجيب حالة التوثيق (isVerified) بتاعة كل مرسل معروف الهوية (senderId موجود)
+        // عشان نعرض علامة الصح الزرقاء جنب اسمه في قايمة رسايل الأدمن، زي أي حتة تانية
+        // في الموقع بتعرض اسم حساب موثّق.
+        const senderIds = [...new Set(messages.filter(m => m.senderId).map(m => String(m.senderId)))];
+        let verifiedSet = new Set();
+        if (senderIds.length) {
+            const [verifiedStudents, verifiedAdmins] = await Promise.all([
+                Student.find({ _id: { $in: senderIds }, isVerified: true }).select('_id').lean(),
+                Admin.find({ _id: { $in: senderIds } }).select('_id').lean()
+            ]);
+            verifiedSet = new Set([...verifiedStudents, ...verifiedAdmins].map(d => String(d._id)));
+        }
+        const enriched = messages.map(m => ({ ...m, senderVerified: m.senderId ? verifiedSet.has(String(m.senderId)) : false }));
+        res.json({ messages: enriched });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الرسايل' }); }
 });
 
@@ -4306,6 +4320,25 @@ app.patch('/api/admin-messages/:id/read', verifyToken, isAdmin, async (req, res)
         if (!updated) return res.status(404).json({ error: 'الرسالة غير موجودة' });
         res.json({ success: true });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الرسالة' }); }
+});
+
+// حذف رسالة واحدة بعينها من رسايل الطلاب — الأدمن بس اللي يقدر يعمل كده
+app.delete('/api/admin-messages/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deleted = await AdminMessage.findByIdAndDelete(req.params.id);
+        if (!deleted) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+        res.json({ success: true });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الرسالة' }); }
+});
+
+// حذف كل رسايل الطلاب دفعة واحدة — الأدمن بس اللي يقدر يعمل كده
+app.delete('/api/admin-messages', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const result = await AdminMessage.deleteMany({});
+        res.json({ success: true, deletedCount: result.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الرسايل' }); }
 });
 
 // ====================== المخالفات ======================
@@ -10741,6 +10774,15 @@ app.get('/api/rooms/search-friends', verifyToken, async (req, res) => {
 
     // المتصلين يظهروا الأول
     const results = [...merged.values()].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0)).slice(0, 20);
+
+    // نجيب حالة التوثيق (isVerified) بتاعة كل يوزر ظاهر في النتايج، عشان الواجهة
+    // تقدر تعرض علامة الصح الزرقاء جنب اليوزر نيم في قايمة البحث دي زي أي مكان تاني.
+    if (results.length) {
+        const verifiedStudents = await Student.find({ username: { $in: results.map(r => r.username) }, isVerified: true }).select('username').lean();
+        const verifiedUsernames = new Set(verifiedStudents.map(s => s.username));
+        results.forEach(r => { r.isVerified = verifiedUsernames.has(r.username); });
+    }
+
     res.json({ success: true, results, onlineCount: onlineSet.size });
   } catch (error) {
     console.error('❌ search friends error:', error.message);
