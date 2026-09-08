@@ -79,6 +79,17 @@ const loginLimiter = rateLimit({
     keyGenerator: (req) => req.ip || req.headers['x-forwarded-for'] || 'unknown'
 });
 
+// حد أقصى لرسايل "تواصل مع الأدمن" — عشان نمنع طالب واحد (أو حساب مجهول) إنه يغرق
+// صندوق الأدمن برسايل كتير في وقت قصير. بيتحسب باليوزر نيم لو الطالب مسجل باسمه،
+// أو بالـ IP لو الرسالة مجهولة (مفيش user متاح وقتها).
+const adminMessageLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 5,
+    message: { error: 'بعتّ رسايل كتير للأدمن في وقت قصير — استنى شوية وجرب تاني' },
+    trustProxy: true,
+    keyGenerator: (req) => (req.user && req.user.username) || req.ip || req.headers['x-forwarded-for'] || 'unknown'
+});
+
 // ====================== متغيرات البيئة ======================
 // ⚠️ لازم JWT_SECRET يتحط كـ Environment Variable ثابت في الإنتاج. الـ fallback
 // العشوائي هنا موجود بس عشان السيرفر ميقعش لو حد نسي يضبطه، لكنه بيولّد سر
@@ -3412,6 +3423,28 @@ const adminMessageSchema = new mongoose.Schema({
 });
 const AdminMessage = mongoose.models.AdminMessage || mongoose.model('AdminMessage', adminMessageSchema);
 
+// ====================== سجل عمليات الأدمن (Audit Log) ======================
+// بيسجّل أي إجراء حساس/نهائي يعمله أي أدمن (حذف، تفعيل/تعديل Premium، إلخ) —
+// عشان لو حصل خطأ يتعرف مين عمل إيه وإمتى، من غير ما يأثر على أداء العملية
+// نفسها لو فشل التسجيل لأي سبب (بنستخدم logAdminAction بصيغة "fire and forget").
+const auditLogSchema = new mongoose.Schema({
+    adminId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    adminUsername: { type: String, default: null },
+    action: { type: String, required: true },
+    details: { type: mongoose.Schema.Types.Mixed, default: {} },
+    createdAt: { type: Date, default: Date.now }
+});
+const AuditLog = mongoose.models.AuditLog || mongoose.model('AuditLog', auditLogSchema);
+
+function logAdminAction(req, action, details) {
+    AuditLog.create({
+        adminId: req.user?.id || null,
+        adminUsername: req.user?.username || null,
+        action,
+        details: details || {}
+    }).catch(err => console.error('⚠️ تعذر تسجيل عملية الأدمن في الـ audit log:', err.message));
+}
+
 // ====================== تقييم ردود الذكاء الاصطناعي 👍/👎 (من Chat X) ======================
 // أي طالب (عادي أو Premium) يقدر يقيّم أي رد بوت في محادثته. الهدف إن الأدمن يعرف
 // فعليًا أي موديل بيدي إجابات ضعيفة، بدل ما يعتمد بس على شكاوى بتوصله بالصدفة.
@@ -3919,8 +3952,9 @@ app.post('/api/admin/students/:studentCode/verify', verifyToken, isAdmin, async 
             { studentCode: req.params.studentCode },
             { isVerified: Boolean(verified) },
             { new: true }
-        ).select('studentCode fullName isVerified avatarUrl');
+        ).select('studentCode username fullName isVerified avatarUrl');
         if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        logAdminAction(req, 'toggle_student_verification', { studentCode: req.params.studentCode, studentUsername: student.username, verified: Boolean(verified) });
         res.json({ success: true, student });
     } catch (error) {
         res.status(500).json({ error: 'تعذر تحديث حالة التوثيق' });
@@ -4272,7 +4306,7 @@ function optionalAuthLoose(req, res, next) {
     next();
 }
 
-app.post('/api/admin-messages', optionalAuthLoose, async (req, res) => {
+app.post('/api/admin-messages', optionalAuthLoose, adminMessageLimiter, async (req, res) => {
     try {
         await connectToDatabase();
         const { text, anonymous } = req.body;
@@ -4328,6 +4362,7 @@ app.delete('/api/admin-messages/:id', verifyToken, isAdmin, async (req, res) => 
         await connectToDatabase();
         const deleted = await AdminMessage.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+        logAdminAction(req, 'delete_admin_message', { messageId: req.params.id, senderName: deleted.senderName, textPreview: (deleted.text || '').slice(0, 80) });
         res.json({ success: true });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الرسالة' }); }
 });
@@ -4337,8 +4372,19 @@ app.delete('/api/admin-messages', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
         const result = await AdminMessage.deleteMany({});
+        logAdminAction(req, 'delete_all_admin_messages', { deletedCount: result.deletedCount });
         res.json({ success: true, deletedCount: result.deletedCount });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الرسايل' }); }
+});
+
+// سجل عمليات الأدمن (Audit Log) — بيعرض آخر الإجراءات الحساسة اللي عملها أي أدمن
+// (حذف رسايل، تفعيل/تعديل Premium، تفعيل/إلغاء توثيق) عشان الشفافية والمراجعة.
+app.get('/api/admin-audit-log', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(200).lean();
+        res.json({ logs });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب سجل العمليات' }); }
 });
 
 // ====================== المخالفات ======================
@@ -4866,6 +4912,7 @@ app.patch('/api/admin/students/:studentCode/premium', verifyToken, isAdmin, asyn
             { new: true }
         ).select('username fullName studentCode premiumFeatures');
         if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
+        logAdminAction(req, 'update_premium_features', { studentCode: req.params.studentCode, studentUsername: updated.username, premiumFeatures: cleaned });
         res.json({ success: true, student: updated });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في تحديث مميزات Premium: ' });
