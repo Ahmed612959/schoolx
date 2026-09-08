@@ -3419,9 +3419,24 @@ const adminMessageSchema = new mongoose.Schema({
     senderId: { type: mongoose.Schema.Types.ObjectId, default: null },
     senderName: { type: String, default: null },
     read: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now },
+    // لو الرسالة دي "طلب تفعيل ميزة Premium" جاي تلقائي من زرار في الواجهة (مش
+    // كتابة يدوية)، بيتسجل هنا عشان الأدمن يقدر يوافق عليه بضغطة واحدة من غير ما
+    // يحتاج يفتح لوحة تحكم Premium المنفصلة ويدور على الطالب بنفسه.
+    requestType: { type: String, default: null },
+    requestFeatureKey: { type: String, default: null },
+    requestHandled: { type: Boolean, default: false }
 });
 const AdminMessage = mongoose.models.AdminMessage || mongoose.model('AdminMessage', adminMessageSchema);
+
+// لازم يتطابق مع مفاتيح PREMIUM_LABELS في الواجهة — قايمة تحقق عشان أي قيمة
+// تتبعت في requestFeatureKey تكون مفتاح Premium حقيقي معروف، مش أي نص عشوائي.
+const KNOWN_PREMIUM_KEYS = [
+    'premium_ai', 'premium_mock_exams', 'premium_prompts', 'premium_theme',
+    'premium_drug_library', 'premium_clinical_sim', 'premium_lecture_audio',
+    'premium_skills', 'premium_academic_profile', 'premium_german_pro',
+    'premium_english_pro', 'premium_image_studio', 'premium_video_sim', 'premium_voice'
+];
 
 // ====================== سجل عمليات الأدمن (Audit Log) ======================
 // بيسجّل أي إجراء حساس/نهائي يعمله أي أدمن (حذف، تفعيل/تعديل Premium، إلخ) —
@@ -4309,17 +4324,24 @@ function optionalAuthLoose(req, res, next) {
 app.post('/api/admin-messages', optionalAuthLoose, adminMessageLimiter, async (req, res) => {
     try {
         await connectToDatabase();
-        const { text, anonymous } = req.body;
+        const { text, anonymous, requestType, requestFeatureKey } = req.body;
         if (!text || !text.trim()) return res.status(400).json({ error: 'الرسالة فاضية' });
         if (text.length > 2000) return res.status(400).json({ error: 'الرسالة طويلة جدًا' });
 
         // مجهولة لو الطالب اختارها بنفسه، أو لو أصلاً مفيش توكن اتبعت (احتياطًا)
         const isAnonymous = anonymous === true || !req.user;
+
+        // طلب تفعيل Premium بس بيتسجل لو الرسالة مش مجهولة (محتاجين نعرف مين الطالب
+        // عشان نفعّلها له بعدين) والمفتاح معروف فعلاً — أي حاجة تانية بتتجاهل بصمت.
+        const isValidRequest = requestType === 'premium_feature' && !isAnonymous && KNOWN_PREMIUM_KEYS.includes(requestFeatureKey);
+
         const doc = await AdminMessage.create({
             text: text.trim(),
             anonymous: isAnonymous,
             senderId: isAnonymous ? null : req.user.id,
-            senderName: isAnonymous ? null : (req.user.fullName || req.user.username)
+            senderName: isAnonymous ? null : (req.user.fullName || req.user.username),
+            requestType: isValidRequest ? 'premium_feature' : null,
+            requestFeatureKey: isValidRequest ? requestFeatureKey : null
         });
         res.json({ success: true, id: doc._id });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إرسال الرسالة' }); }
@@ -4354,6 +4376,37 @@ app.patch('/api/admin-messages/:id/read', verifyToken, isAdmin, async (req, res)
         if (!updated) return res.status(404).json({ error: 'الرسالة غير موجودة' });
         res.json({ success: true });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الرسالة' }); }
+});
+
+// بيوافق على طلب تفعيل ميزة Premium جاي من رسالة في صندوق الأدمن، وبيفعّلها
+// للطالب فورًا (بضغطة واحدة، من غير ما الأدمن يحتاج يفتح لوحة تحكم Premium
+// المنفصلة ويدوّر على الطالب بنفسه). بيتأكد إن الرسالة فعلاً طلب Premium صحيح
+// ومعاها هوية طالب معروفة قبل ما يعمل أي حاجة.
+app.post('/api/admin-messages/:id/approve-premium', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const msg = await AdminMessage.findById(req.params.id);
+        if (!msg) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+        if (msg.requestType !== 'premium_feature' || !msg.requestFeatureKey) {
+            return res.status(400).json({ error: 'الرسالة دي مش طلب تفعيل Premium' });
+        }
+        if (!msg.senderId) return res.status(400).json({ error: 'مفيش هوية طالب معروفة مربوطة بالرسالة دي' });
+
+        const student = await Student.findById(msg.senderId);
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+        const current = Array.isArray(student.premiumFeatures) ? student.premiumFeatures : [];
+        if (!current.includes(msg.requestFeatureKey)) {
+            student.premiumFeatures = [...current, msg.requestFeatureKey];
+            await student.save();
+        }
+        msg.requestHandled = true;
+        msg.read = true;
+        await msg.save();
+
+        logAdminAction(req, 'approve_premium_request', { studentUsername: student.username, featureKey: msg.requestFeatureKey, messageId: msg._id });
+        res.json({ success: true, student: { username: student.username, premiumFeatures: student.premiumFeatures } });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تفعيل الميزة' }); }
 });
 
 // حذف رسالة واحدة بعينها من رسايل الطلاب — الأدمن بس اللي يقدر يعمل كده
