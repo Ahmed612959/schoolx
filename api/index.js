@@ -6902,6 +6902,95 @@ app.post('/api/gemini', async (req, res) => {
     } catch (error) { res.json({ reply: getFallbackResponse(req.body.prompt) }); }
 });
 
+// ====================== Deep Think (تفكير عميق حقيقي قبل الرد) ======================
+// وضع اختياري بيفعّله الطالب من الواجهة (زرار "تفكير عميق"). بدل ما نطلب رد واحد
+// مباشر من الموديل، بنعمل مرحلتين حقيقيتين بنداءين فعليين للـ AI:
+//   1) تحليل داخلي للسؤال (مطلوب إيه بالظبط، المفاهيم المطلوبة، أي لبس، أفضل
+//      هيكل للإجابة) — ده مش بيتبعت للطالب كرد، ده تفكير الموديل لنفسه.
+//   2) رد نهائي مبني فعليًا على التحليل ده (بنبعت التحليل نفسه كسياق للنداء
+//      التاني)، مش مجرد سؤال تاني من غير علاقة بالأول.
+// النتيجة: وقت انتظار حقيقي لأن فيه فعلاً نداءين متتاليين للموديل (مش تأخير
+// شكلي)، وتحليل حقيقي مبني عليه الرد (مش ديكور بصري بس).
+async function callTextModel(systemPrompt, userPrompt, maxTokens, temperature) {
+    if (GEMINI_API_KEY) {
+        try {
+            const response = await fetch(
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+                {
+                    method: 'POST',
+                    headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: systemPrompt }] },
+                        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                        generationConfig: { maxOutputTokens: maxTokens, temperature }
+                    })
+                }
+            );
+            if (response.ok) {
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) return text;
+            }
+        } catch (error) { console.log('⚠️ Gemini deep-think error:', error.message); }
+    }
+    if (DEEPSEEK_API_KEY) {
+        try {
+            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'deepseek-chat',
+                    messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+                    temperature,
+                    max_tokens: maxTokens
+                })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const text = data.choices?.[0]?.message?.content;
+                if (text) return text;
+            }
+        } catch (error) { console.log('⚠️ DeepSeek deep-think error:', error.message); }
+    }
+    return null;
+}
+
+app.post('/api/gemini/deep-think', async (req, res) => {
+    const startedAt = Date.now();
+    try {
+        const { prompt, systemPrompt, userId = req.user?.id || req.ip || 'anonymous' } = req.body;
+        if (!prompt || prompt.trim() === '') return res.status(400).json({ error: 'الرسالة مطلوبة' });
+
+        const conversationContext = getConversationContext(userId);
+        const baseSystem = systemPrompt || `أنت مساعد تعليمي ذكي لمعهد رعاية الضبعية للتمريض. رد باللغة العربية (مصري أو فصحى)، تخصصك التمريض والرعاية التلطيفية والموت الدماغي، وكن دقيقًا ومحترفًا.`;
+
+        // المرحلة 1: تحليل حقيقي — نداء فعلي للموديل، ناتجه مش بيتبعت للطالب.
+        const analysisSystem = `${baseSystem}
+${conversationContext ? `\n📚 سياق المحادثة السابقة مع هذا الطالب:\n${conversationContext}\n` : ''}
+مهمتك دلوقتي مش الرد على الطالب. مهمتك إنك تحلل سؤاله بعمق قبل ما تجاوب:
+1) إيه بالظبط المطلوب في السؤال؟ لو فيه أكتر من جزء، افصلهم.
+2) إيه المفاهيم أو المعلومات اللي محتاج تستحضرها عشان تجاوب بدقة؟
+3) فيه أي لبس أو افتراض لازم تاخده بالك منه؟
+4) إيه أفضل ترتيب/هيكل للإجابة عشان تبقى واضحة ومفيدة؟
+اكتب التحليل ده بس، مختصر في نقاط، من غير مقدمات ومن غير ما تكتب الإجابة النهائية.`;
+        const thinking = await callTextModel(analysisSystem, prompt, 700, 0.3);
+
+        // المرحلة 2: الرد النهائي — نداء تاني فعلي، مبني على التحليل اللي فوق (لو نجح).
+        const finalSystem = `${baseSystem}
+${conversationContext ? `\n📚 سياق المحادثة السابقة مع هذا الطالب:\n${conversationContext}\n` : ''}
+${thinking ? `\n🧠 التحليل اللي عملته لنفسك قبل الرد (استخدمه كأساس لإجابتك، ومتكتبوش تاني حرفيًا في الرد):\n${thinking}\n` : ''}
+اكتب دلوقتي الرد النهائي الكامل والدقيق للطالب، مبني على التحليل اللي فوق، بأسلوب واضح ومنظم ومفيد باللغة العربية.`;
+        let reply = await callTextModel(finalSystem, prompt, 1600, 0.6);
+        if (!reply) reply = getFallbackResponse(prompt);
+
+        saveConversationContext(userId, prompt, reply);
+        res.json({ reply, thinking: thinking || null, tookMs: Date.now() - startedAt, deepThink: true });
+    } catch (error) {
+        console.error(error);
+        res.json({ reply: getFallbackResponse(req.body.prompt || ''), thinking: null, tookMs: Date.now() - startedAt, deepThink: true });
+    }
+});
+
 app.post('/api/gemini/clear-memory', verifyToken, (req, res) => {
     const userId = req.user?.id || req.ip;
     conversationHistory.delete(userId);
