@@ -8545,6 +8545,118 @@ app.delete('/api/shared-summaries/:id', verifyToken, async (req, res) => {
     }
 });
 
+// ====================== فيديوهات شرح المنصة (Tutorial Videos) ======================
+// فيديوهات تعليمية بيرفعها الأدمن بس (عنوان + وصف اختياري + اسم صاحب الفيديو)،
+// وأي مستخدم مسجّل دخول (طالب أو أدمن) يقدر يتفرج عليها. نفس فكرة الرفع
+// المباشر على R2 المستخدمة في المكتبة المشتركة (رابط موقّع + PUT من المتصفح)
+// بدل ما نمرر الفيديو (ممكن يوصل لمئات الميجا) على سيرفر الـ Express نفسه.
+const tutorialVideoSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    description: { type: String, default: '' },
+    creatorName: { type: String, required: true }, // اسم الشخص اللي عمل الفيديو
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
+    size: { type: Number, default: 0 },
+    mimeType: { type: String, default: 'video/mp4' },
+    duration: { type: Number, default: 0 }, // بالثواني — بيتحسب في المتصفح وقت الرفع
+    thumbnailUrl: { type: String, default: '' },
+    thumbnailPublicId: { type: String, default: '' },
+    uploadedBy: { type: String, required: true }, // username الأدمن اللي رفعه
+    views: { type: Number, default: 0 }
+}, { timestamps: true });
+const TutorialVideo = mongoose.models.TutorialVideo || mongoose.model('TutorialVideo', tutorialVideoSchema);
+
+// رابط رفع موقّع مباشر على R2 — للفيديو نفسه أو للصورة المصغّرة (thumbnail) اللي
+// بتتولّد من أول فريم في الفيديو جوه المتصفح. الأدمن بس هو اللي يقدر يرفع.
+// ⚠️ لازم Content-Type صحيح هنا (عكس رفع الملخصات) عشان متصفحات كتير بترفض
+// تشغيل <video>/عرض <img> من غير Content-Type مضبوط.
+app.post('/api/tutorial-videos/upload-url', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const { fileName, fileType, kind } = req.body;
+        if (!fileName || !fileType) return res.status(400).json({ error: 'اسم الملف ونوعه مطلوبين' });
+        const folder = kind === 'thumbnail' ? 'tutorial-videos/thumbnails' : 'tutorial-videos';
+        const safeFolder = folder.split('/').map(sanitizeForStorage).join('/');
+        const safeName = `${Date.now()}-${sanitizeFileName(fileName)}`;
+        const path = `${safeFolder}/${safeName}`;
+
+        const command = new PutObjectCommand({ Bucket: R2_BUCKET, Key: path, ContentType: fileType });
+        const signedUrl = await getSignedUrl(r2, command, { expiresIn: 600 });
+
+        res.json({ success: true, path, uploadUrl: signedUrl, publicUrl: `${R2_PUBLIC_URL}/${path}`, contentType: fileType });
+    } catch (error) {
+        console.error('❌ Tutorial video upload-url error:', error);
+        res.status(500).json({ error: 'خطأ في إنشاء رابط الرفع' });
+    }
+});
+
+// حفظ بيانات الفيديو (وبيانات الثمبنيل لو اتولّد) بعد الرفع الفعلي على R2 — الأدمن بس
+app.post('/api/tutorial-videos/save', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, description, creatorName, url, publicId, size, mimeType, duration, thumbnailUrl, thumbnailPublicId } = req.body;
+        if (!title || !creatorName || !url || !publicId) {
+            return res.status(400).json({ error: 'عنوان الفيديو واسم صاحبه والملف نفسه مطلوبين' });
+        }
+        const doc = new TutorialVideo({
+            title: String(title).trim().slice(0, 200),
+            description: String(description || '').trim().slice(0, 1000),
+            creatorName: String(creatorName).trim().slice(0, 100),
+            url,
+            publicId,
+            size: size || 0,
+            mimeType: mimeType || 'video/mp4',
+            duration: Number(duration) || 0,
+            thumbnailUrl: thumbnailUrl || '',
+            thumbnailPublicId: thumbnailPublicId || '',
+            uploadedBy: req.user.username || 'admin'
+        });
+        await doc.save();
+        res.json({ success: true, video: doc });
+    } catch (error) {
+        console.error('❌ Tutorial video save error:', error);
+        res.status(500).json({ error: 'خطأ في حفظ بيانات الفيديو' });
+    }
+});
+
+// عرض كل فيديوهات الشرح — متاح لأي مستخدم مسجّل دخول (طالب أو أدمن)
+app.get('/api/tutorial-videos', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const videos = await TutorialVideo.find().sort({ createdAt: -1 }).limit(300);
+        res.json(videos);
+    } catch (error) {
+        console.error('❌ خطأ في جلب فيديوهات الشرح:', error);
+        res.status(500).json({ error: 'خطأ في جلب فيديوهات الشرح' });
+    }
+});
+
+// تحديث عدد المشاهدات لفيديو معيّن — بتتنادى أول ما الطالب يفتح المشغّل
+app.post('/api/tutorial-videos/:id/view', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        await TutorialVideo.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في تحديث المشاهدات' });
+    }
+});
+
+// حذف فيديو شرح — الأدمن بس، وبيمسح الفيديو والثمبنيل من R2 كمان
+app.delete('/api/tutorial-videos/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const doc = await TutorialVideo.findById(req.params.id);
+        if (!doc) return res.status(404).json({ error: 'الفيديو غير موجود' });
+        try { await deleteFromSupabase(doc.publicId); } catch (e) { console.log('⚠️ R2 delete error (video):', e.message); }
+        if (doc.thumbnailPublicId) {
+            try { await deleteFromSupabase(doc.thumbnailPublicId); } catch (e) { console.log('⚠️ R2 delete error (thumbnail):', e.message); }
+        }
+        await TutorialVideo.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في حذف الفيديو' });
+    }
+});
 
 // 1. إنشاء واجب جديد (للأدمن)
 app.post('/api/homework', verifyToken, isAdmin, async (req, res) => {
