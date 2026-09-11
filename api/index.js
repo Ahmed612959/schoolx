@@ -61,6 +61,19 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
+// ====================== ضغط الاستجابات (Gzip/Brotli) ======================
+// بيقلل حجم ردود الـ JSON (خصوصًا القوايم الطويلة زي المكتبة المشتركة وفيديوهات
+// الشرح) قبل ما تتبعت للمتصفح — تحسين حقيقي في السرعة خصوصًا على نت ضعيف،
+// ومنفصل تمامًا عن سياسة "منع الكاش" اللي فوق (الضغط بيقلل الحجم، مش بيخزّن
+// نسخة قديمة). لو الباكيدج مش متثبت لسه، السيرفر بيكمل شغل عادي من غيره
+// (تجنبًا لأي كراش) — شغّل `npm install compression` وارفعها تاني عشان تتفعّل.
+try {
+    const compression = require('compression');
+    app.use(compression());
+} catch (e) {
+    console.warn('⚠️ باكيدج compression مش متثبت — شغّل npm install compression لتفعيل ضغط الردود.');
+}
+
 // ====================== Rate Limiting ======================
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -86,6 +99,18 @@ const adminMessageLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
     max: 5,
     message: { error: 'بعتّ رسايل كتير للأدمن في وقت قصير — استنى شوية وجرب تاني' },
+    trustProxy: true,
+    keyGenerator: (req) => (req.user && req.user.username) || req.ip || req.headers['x-forwarded-for'] || 'unknown'
+});
+
+// حد أقصى لطلبات رفع الملفات/الفيديوهات (المكتبة المشتركة وفيديوهات الشرح) —
+// من غيره أي حساب (حتى لو أدمن اتسرقله التوكن) يقدر يطلب مئات روابط الرفع
+// الموقّعة في دقايق ويستهلك مساحة/باندويدث R2 بلا حدود. الرفع الفعلي نفسه
+// بيروح مباشرة على R2 (مش عبر السيرفر ده) فمعدّل معقول هنا كافي.
+const uploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: { error: 'طلبات رفع كتير في وقت قصير — استنى شوية وجرب تاني' },
     trustProxy: true,
     keyGenerator: (req) => (req.user && req.user.username) || req.ip || req.headers['x-forwarded-for'] || 'unknown'
 });
@@ -4201,7 +4226,9 @@ app.get('/api/exams/:code/results', verifyToken, isAdmin, async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
     try {
         await connectToDatabase();
-        const notifications = await Notification.find().sort({ createdAt: -1 });
+        // limit كحد أمان — الجدول ده بيكبر مع الوقت من غير أي فلترة، وده كان بيرجّع
+        // كل الإشعارات من أول يوم بلا حدود؛ آخر 300 كافيين لأي واجهة عرض عادية.
+        const notifications = await Notification.find().sort({ createdAt: -1 }).limit(300);
         res.json(notifications);
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الإشعارات' }); }
 });
@@ -4444,7 +4471,9 @@ app.get('/api/admin-audit-log', verifyToken, isAdmin, async (req, res) => {
 app.get('/api/violations', verifyToken, isAdmin, async (req, res) => {
     try {
         await connectToDatabase();
-        const violations = await Violation.find().sort({ createdAt: -1 });
+        // limit كحد أمان لنفس السبب (جدول بيكبر بلا فلترة) — لو الأدمن محتاج القديم
+        // أوي يقدر يفلتر بالطالب من /api/violations/:studentCode.
+        const violations = await Violation.find().sort({ createdAt: -1 }).limit(500);
         res.json(violations);
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب المخالفات' }); }
 });
@@ -7582,7 +7611,8 @@ app.post('/api/files/upload-multiple', verifyToken, isAdmin, upload.array('files
 app.get('/api/files', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
-        const files = await File.find().sort({ createdAt: -1 });
+        // limit كحد أمان لنفس السبب (قايمة كل الملفات بتكبر بلا حدود مع الوقت).
+        const files = await File.find().sort({ createdAt: -1 }).limit(500);
         console.log('📁 عدد الملفات في DB:', files.length);
         res.json(files);
     } catch (error) {
@@ -7773,6 +7803,12 @@ const sharedSummarySchema = new mongoose.Schema({
         generatedAt: { type: Date }
     }
 }, { timestamps: true });
+// أداء: الاستعلامات الرئيسية بتفلتر بـ status (+ grade/subject اختياري) أو
+// uploadedBy وبترتب بـ createdAt — index مركّب بيسرّع الاستعلامين الأكتر
+// استخدامًا (المكتبة العامة وملفاتي) بدل ما مونجو يعمل collection scan كامل
+// كل ما الجدول يكبر.
+sharedSummarySchema.index({ status: 1, createdAt: -1 });
+sharedSummarySchema.index({ uploadedBy: 1, createdAt: -1 });
 const SharedSummary = mongoose.models.SharedSummary || mongoose.model('SharedSummary', sharedSummarySchema);
 
 // أسئلة اختيار من متعدد اتولّدت تلقائيًا من محتوى ملف في المكتبة المشتركة —
@@ -8085,7 +8121,7 @@ async function withKeyRotation(provider, envFallback, requestFn) {
 
 // رابط رفع موقّع للطالب (نفس فكرة /api/files/upload-url بتاعة الأدمن، بس متاحة
 // لأي طالب مسجل دخول بدل ما تكون مقصورة على الأدمن)
-app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
+app.post('/api/shared-summaries/upload-url', verifyToken, uploadLimiter, async (req, res) => {
     try {
         if (req.user?.type !== 'student') {
             return res.status(403).json({ error: 'رفع الملخصات متاح للطلاب فقط' });
@@ -8116,7 +8152,7 @@ app.post('/api/shared-summaries/upload-url', verifyToken, async (req, res) => {
 
 // حفظ معلومات الملف بعد الرفع المباشر على R2 — بيتسجل status: pending
 // لحد ما الأدمن يراجعه ويوافق عليه أو يرفضه.
-app.post('/api/shared-summaries/save', verifyToken, async (req, res) => {
+app.post('/api/shared-summaries/save', verifyToken, uploadLimiter, async (req, res) => {
     try {
         if (req.user?.type !== 'student') {
             return res.status(403).json({ error: 'المشاركة في المكتبة متاحة للطلاب فقط' });
@@ -8564,13 +8600,16 @@ const tutorialVideoSchema = new mongoose.Schema({
     uploadedBy: { type: String, required: true }, // username الأدمن اللي رفعه
     views: { type: Number, default: 0 }
 }, { timestamps: true });
+// أداء: القايمة الرئيسية بترتب بـ createdAt دايمًا، فـ index عليه بيمنع
+// collection scan مع زيادة عدد الفيديوهات مستقبلًا.
+tutorialVideoSchema.index({ createdAt: -1 });
 const TutorialVideo = mongoose.models.TutorialVideo || mongoose.model('TutorialVideo', tutorialVideoSchema);
 
 // رابط رفع موقّع مباشر على R2 — للفيديو نفسه أو للصورة المصغّرة (thumbnail) اللي
 // بتتولّد من أول فريم في الفيديو جوه المتصفح. الأدمن بس هو اللي يقدر يرفع.
 // ⚠️ لازم Content-Type صحيح هنا (عكس رفع الملخصات) عشان متصفحات كتير بترفض
 // تشغيل <video>/عرض <img> من غير Content-Type مضبوط.
-app.post('/api/tutorial-videos/upload-url', verifyToken, isAdmin, async (req, res) => {
+app.post('/api/tutorial-videos/upload-url', verifyToken, isAdmin, uploadLimiter, async (req, res) => {
     try {
         const { fileName, fileType, kind } = req.body;
         if (!fileName || !fileType) return res.status(400).json({ error: 'اسم الملف ونوعه مطلوبين' });
@@ -8590,7 +8629,7 @@ app.post('/api/tutorial-videos/upload-url', verifyToken, isAdmin, async (req, re
 });
 
 // حفظ بيانات الفيديو (وبيانات الثمبنيل لو اتولّد) بعد الرفع الفعلي على R2 — الأدمن بس
-app.post('/api/tutorial-videos/save', verifyToken, isAdmin, async (req, res) => {
+app.post('/api/tutorial-videos/save', verifyToken, isAdmin, uploadLimiter, async (req, res) => {
     try {
         await connectToDatabase();
         const { title, description, creatorName, url, publicId, size, mimeType, duration, thumbnailUrl, thumbnailPublicId } = req.body;
