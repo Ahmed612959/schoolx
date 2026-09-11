@@ -7956,6 +7956,127 @@ async function releaseImageQuota(username) {
     }
 }
 
+// ====================== Deep Thinking: تحكم إداري + حد استخدام يومي ======================
+// إعداد واحد بس (singleton) بيحكم في تفعيل/تعطيل ميزة "التفكير العميق" عالميًا
+// وفي الحد اليومي لكل طالب (الأدمن مستثنى من الحد، زي باقي حدود Premium في
+// الموقع). نداء التفكير الفعلي (لـ Gemini) بيروح مباشرة من الفرونت إند لباك إند
+// تاني منفصل (شات إكس نفسه، settings.backendUrl) مش على السيرفر ده — فمفيش
+// طريقة نمنع النداء ده فعليًا من هنا. الإنفاذ بيحصل بإن الفرونت إند لازم "ياخد
+// إذن" من هنا الأول (GET status / POST use) قبل ما يبدأ التفكير، وده أفضل تحكم
+// ممكن من غير الوصول لكود الباك إند التاني.
+const deepThinkConfigSchema = new mongoose.Schema({
+    _id: { type: String, default: 'singleton' },
+    enabled: { type: Boolean, default: true },
+    dailyLimitPerStudent: { type: Number, default: 30 }, // 0 = بلا حد
+    updatedBy: { type: String, default: '' }
+}, { timestamps: true });
+const DeepThinkConfig = mongoose.models.DeepThinkConfig || mongoose.model('DeepThinkConfig', deepThinkConfigSchema);
+
+async function getDeepThinkConfig() {
+    await connectToDatabase();
+    let cfg = await DeepThinkConfig.findOne({ _id: 'singleton' });
+    if (!cfg) cfg = await DeepThinkConfig.create({ _id: 'singleton' });
+    return cfg;
+}
+
+const deepThinkUsageSchema = new mongoose.Schema({
+    username: { type: String, required: true },
+    dayKey: { type: String, required: true }, // من getTodayKey()
+    count: { type: Number, default: 0 }
+}, { timestamps: true });
+deepThinkUsageSchema.index({ username: 1, dayKey: 1 }, { unique: true });
+const DeepThinkUsage = mongoose.models.DeepThinkUsage || mongoose.model('DeepThinkUsage', deepThinkUsageSchema);
+
+// بترجع حالة الحد اليومي من غير ما تزوّد العداد — لعرض "متبقّي كام" في الواجهة.
+// limit=0 معناها بلا حد (remaining بترجع null عشان الفرونت إند يعرف يعاملها كـ∞).
+async function getDeepThinkQuotaStatus(username, limit) {
+    if (!limit || limit <= 0) return { used: 0, remaining: null, limit: 0 };
+    await connectToDatabase();
+    const doc = await DeepThinkUsage.findOne({ username, dayKey: getTodayKey() }).select('count');
+    const used = doc?.count || 0;
+    return { used, remaining: Math.max(0, limit - used), limit };
+}
+
+// بتحاول تحجز "طلقة" واحدة من الحد اليومي (زي reserveImageQuota بالظبط).
+async function reserveDeepThinkQuota(username, limit) {
+    if (!limit || limit <= 0) return { allowed: true, used: 0, remaining: null, limit: 0 };
+    await connectToDatabase();
+    const dayKey = getTodayKey();
+    const updated = await DeepThinkUsage.findOneAndUpdate(
+        { username, dayKey },
+        { $inc: { count: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    if (updated.count > limit) {
+        await DeepThinkUsage.updateOne({ _id: updated._id }, { $inc: { count: -1 } });
+        return { allowed: false, used: limit, remaining: 0, limit };
+    }
+    return { allowed: true, used: updated.count, remaining: Math.max(0, limit - updated.count), limit };
+}
+
+// حالة الميزة للطالب الحالي — بتتنادى وقت فتح الشات عشان نعرف نوري زرار Deep
+// Thinking ولا نعطّله، ونوريه متبقّي له كام استخدام النهاردة.
+app.get('/api/deep-think/status', verifyToken, async (req, res) => {
+    try {
+        const cfg = await getDeepThinkConfig();
+        if (req.user.type === 'admin') {
+            return res.json({ enabled: cfg.enabled, used: 0, remaining: null, limit: 0 });
+        }
+        const quota = await getDeepThinkQuotaStatus(req.user.username, cfg.dailyLimitPerStudent);
+        res.json({ enabled: cfg.enabled, ...quota });
+    } catch (error) {
+        console.error('❌ خطأ في جلب حالة التفكير العميق:', error);
+        res.status(500).json({ error: 'خطأ في جلب حالة التفكير العميق' });
+    }
+});
+
+// بتحجز استخدام واحد قبل ما الفرونت إند يبدأ فعليًا نداء التفكير العميق —
+// بترفض (403) لو الميزة متعطّلة عالميًا، أو (429) لو الطالب وصل لحده اليومي.
+app.post('/api/deep-think/use', verifyToken, async (req, res) => {
+    try {
+        const cfg = await getDeepThinkConfig();
+        if (!cfg.enabled) return res.status(403).json({ error: 'التفكير العميق متوقف مؤقتًا من الإدارة', enabled: false });
+        if (req.user.type === 'admin') return res.json({ allowed: true, used: 0, remaining: null, limit: 0 });
+        const quota = await reserveDeepThinkQuota(req.user.username, cfg.dailyLimitPerStudent);
+        if (!quota.allowed) return res.status(429).json({ error: 'وصلت للحد اليومي لاستخدام التفكير العميق — جرب تاني بكرة', ...quota });
+        res.json({ allowed: true, ...quota });
+    } catch (error) {
+        console.error('❌ خطأ في حجز استخدام التفكير العميق:', error);
+        res.status(500).json({ error: 'خطأ في التحقق من حالة التفكير العميق' });
+    }
+});
+
+// إعدادات التحكم الإداري في الميزة — الأدمن بس
+app.get('/api/deep-think/admin-config', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const cfg = await getDeepThinkConfig();
+        res.json({ enabled: cfg.enabled, dailyLimitPerStudent: cfg.dailyLimitPerStudent });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب إعدادات التفكير العميق' });
+    }
+});
+
+app.post('/api/deep-think/admin-config', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { enabled, dailyLimitPerStudent } = req.body;
+        const update = { updatedBy: req.user.username || 'admin' };
+        if (typeof enabled === 'boolean') update.enabled = enabled;
+        if (dailyLimitPerStudent !== undefined) {
+            const n = Number(dailyLimitPerStudent);
+            if (!Number.isFinite(n) || n < 0) return res.status(400).json({ error: 'الحد اليومي لازم يكون رقم صحيح 0 أو أكبر (0 = بلا حد)' });
+            update.dailyLimitPerStudent = Math.floor(n);
+        }
+        const cfg = await DeepThinkConfig.findOneAndUpdate(
+            { _id: 'singleton' }, update, { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        res.json({ success: true, enabled: cfg.enabled, dailyLimitPerStudent: cfg.dailyLimitPerStudent });
+    } catch (error) {
+        console.error('❌ خطأ في حفظ إعدادات التفكير العميق:', error);
+        res.status(500).json({ error: 'خطأ في حفظ إعدادات التفكير العميق' });
+    }
+});
+
 // ====================== مكتبة فيديوهات استوديو الصور (Premium) ======================
 // نفس فكرة GeneratedImage بالظبط — بنخزّن نسخة دائمة من الفيديو على R2 (روابط
 // المزوّد الأصلية مؤقتة زي روابط الصور) + سطر في الكولكشن دي عشان يفضل موجود
