@@ -92,6 +92,17 @@ const loginLimiter = rateLimit({
     keyGenerator: (req) => req.ip || req.headers['x-forwarded-for'] || 'unknown'
 });
 
+// استرجاع كلمة السر بيعتمد على تطابق رقم الهاتف المسجّل عندنا (مفيش بريد
+// إلكتروني/SMS في المنصة نبعت بيه كود)، فده نقطة حساسة بتسمح لحد "يجرّب" أرقام
+// تليفونات على يوزر معروف — محتاجة حد أقصى صارم جدًا (أصرم من لوجين نفسه).
+const passwordResetLimiter = rateLimit({
+    windowMs: 30 * 60 * 1000,
+    max: 6,
+    message: { error: 'محاولات كتير لاسترجاع كلمة السر، حاول تاني بعد نص ساعة' },
+    trustProxy: true,
+    keyGenerator: (req) => req.ip || req.headers['x-forwarded-for'] || 'unknown'
+});
+
 // حد أقصى لرسايل "تواصل مع الأدمن" — عشان نمنع طالب واحد (أو حساب مجهول) إنه يغرق
 // صندوق الأدمن برسايل كتير في وقت قصير. بيتحسب باليوزر نيم لو الطالب مسجل باسمه،
 // أو بالـ IP لو الرسالة مجهولة (مفيش user متاح وقتها).
@@ -276,6 +287,49 @@ async function logSessionEvent({ username, userType, event, fingerprint, req }) 
         await SessionEvent.create({ username, userType, event, fingerprint: fingerprint || '', deviceType, os, browser, ip: String(ip).split(',')[0].trim() });
     } catch (e) { /* تسجيل تحليلي بس — فشله مايوقفش تسجيل الدخول نفسه */ }
 }
+
+// ====================== Telegram Bot (ربط حساب + أكواد تحقق مجانية) ======================
+// بديل مجاني تمامًا وبلا حدود لإرسال SMS — المنصة مفيهاش بوابة SMS مدفوعة، فبدل
+// كده بنبعت كود التحقق عبر بوت Telegram للمستخدمين اللي رابطوا حسابهم بيه.
+// المستخدمين اللي مارابطوش، بيفضل معاهم أسلوب التحقق برقم الهاتف المسجّل القديم
+// (شوف /api/password-reset/verify تحت) — الميزة دي إضافة اختيارية مش استبدال.
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || ''; // من غير @
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+
+async function sendTelegramMessage(chatId, text) {
+    if (!TELEGRAM_BOT_TOKEN || !chatId) return false;
+    try {
+        const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' })
+        });
+        return res.ok;
+    } catch (e) {
+        console.error('❌ Telegram sendMessage error:', e.message);
+        return false;
+    }
+}
+
+function generateOtp() {
+    return String(crypto.randomInt(100000, 999999)); // كود من 6 أرقام
+}
+
+function hashOtp(code) {
+    return crypto.createHash('sha256').update(String(code)).digest('hex');
+}
+
+// كود التحقق نفسه (مش هاش الباسورد الدائم زي باقي الموقع) — بيتخزّن مؤقت 10
+// دقايق بس (TTL) وبيتمسح فورًا بعد أول استخدام ناجح أو بعد محاولات غلط كتير.
+const otpCodeSchema = new mongoose.Schema({
+    username: { type: String, required: true, index: true },
+    userType: { type: String, enum: ['student', 'admin'], required: true },
+    codeHash: { type: String, required: true },
+    attempts: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now, expires: 600 }
+});
+const OtpCode = mongoose.models.OtpCode || mongoose.model('OtpCode', otpCodeSchema);
 
 // ====================== Cloudflare R2 Storage و Multer ======================
 const multer = require('multer');
@@ -498,7 +552,13 @@ const adminSchema = new mongoose.Schema({
     // قفل التطبيق من غير تسجيل خروج صريح)، بنعتبر الجلسة "ماتت" ونسمح لجهاز تاني يدخل.
     activeSessionId: { type: String, default: null },
     sessionLastSeenAt: { type: Date, default: null },
-    activeSessionFingerprint: { type: String, default: null }
+    activeSessionFingerprint: { type: String, default: null },
+    // ====== ربط حساب Telegram (لاستلام أكواد التحقق عند استرجاع كلمة السر) ======
+    // telegramChatId بيتسجّل أول ما المستخدم يبدأ محادثة مع البوت من رابط ربط
+    // مؤقت (telegramLinkCode) بنولّده وقت ما يدوس "اربط تليجرام" من التطبيق.
+    telegramChatId: { type: String, default: null },
+    telegramLinkCode: { type: String, default: null },
+    telegramLinkCodeExpires: { type: Date, default: null }
 }, { timestamps: true });
 
 const studentSchema = new mongoose.Schema({
@@ -544,7 +604,11 @@ const studentSchema = new mongoose.Schema({
     // ====== جلسة واحدة فقط في نفس الوقت — نفس فكرة الحقول المشروحة في adminSchema فوق ======
     activeSessionId: { type: String, default: null },
     sessionLastSeenAt: { type: Date, default: null },
-    activeSessionFingerprint: { type: String, default: null }
+    activeSessionFingerprint: { type: String, default: null },
+    // ====== ربط حساب Telegram (نفس الفكرة والاستخدام الموضّح في adminSchema فوق) ======
+    telegramChatId: { type: String, default: null },
+    telegramLinkCode: { type: String, default: null },
+    telegramLinkCodeExpires: { type: Date, default: null }
 }, { timestamps: true });
 
 const violationSchema = new mongoose.Schema({
@@ -577,7 +641,7 @@ const pushTokenSchema = new mongoose.Schema({
 const sessionEventSchema = new mongoose.Schema({
     username: { type: String, required: true, index: true },
     userType: { type: String, enum: ['student', 'admin'], default: 'student' },
-    event: { type: String, enum: ['login', 'blocked', 'heartbeat_mismatch'], required: true },
+    event: { type: String, enum: ['login', 'blocked', 'heartbeat_mismatch', 'password_reset'], required: true },
     fingerprint: String, // هاش بصمة الجهاز (متولّد من الفرونت إند)
     deviceType: String,  // mobile / tablet / desktop / unknown
     os: String,           // Android / iOS / Windows / macOS / Linux / unknown
@@ -3842,6 +3906,230 @@ app.post('/api/logout', verifyToken, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في تسجيل الخروج' });
+    }
+});
+
+// ====================== استرجاع كلمة السر ذاتيًا ======================
+// المنصة مفيهاش بريد إلكتروني ولا بوابة SMS نبعت بيها كود تحقق، فطريقة التحقق
+// من الهوية هنا هي تطابق رقم الهاتف المسجّل مسبقًا عند الأدمن (profile.phone)
+// مع اللي الطالب/الأدمن هيكتبه — ده "سر مشترك" ثاني غير كلمة السر نفسها.
+// لو الرقم مش متسجّل أصلًا أو اتغيّر، الحل الوحيد فعلاً هو التواصل مع الإدارة
+// يدويًا (زي أي نظام تاني من غير بوابة تواصل خارجية).
+function normalizePhone(p) {
+    return String(p || '').replace(/[^\d]/g, ''); // نشيل أي مسافات/شرطات/رمز دولة زيادة
+}
+
+// الخطوة 1: تأكيد الهوية بيوزرنيم + رقم الهاتف المسجّل — لو اتطابقوا بنرجّع
+// توكن مؤقت (10 دقايق بس) غرضه الوحيد إنه يسمح بتغيير الباسورد في الخطوة الجاية،
+// مش توكن دخول عادي (فيه claim خاص purpose:'pwreset' بيتفحص في الخطوة 2).
+app.post('/api/password-reset/verify', passwordResetLimiter, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { username, phone, otp } = req.body;
+        if (!username) return res.status(400).json({ error: 'اكتب اسم المستخدم' });
+
+        let user = await Admin.findOne({ username: String(username).toLowerCase() });
+        let userType = 'admin';
+        if (!user) {
+            user = await Student.findOne({ username: String(username).toLowerCase() });
+            userType = 'student';
+        }
+        // رسالة الخطأ موحّدة سواء اليوزرنيم مش موجود أو الرقم غلط — عشان محدش
+        // يقدر "يتأكد" إن يوزرنيم معيّن موجود من رسالة الخطأ نفسها.
+        const genericError = 'البيانات المدخلة مش مطابقة للمسجّل عندنا — راجع بياناتك، أو تواصل مع الإدارة';
+        if (!user) return res.status(400).json({ error: genericError });
+
+        // ====== المسار الأول (لو الحساب مربوط بـ Telegram): كود تحقق حقيقي عبر
+        // البوت — أقوى بكتير من مجرد كتابة رقم الهاتف، لأنه بيثبت إن الطالب فعلًا
+        // معاه الجهاز المربوط دلوقتي، مش بس عارف رقم متسجّل من زمان. ======
+        if (user.telegramChatId) {
+            if (!otp) {
+                // أول نداء من غير otp: نولّد كود جديد ونبعته، ونطلب من الفرونت إند
+                // يعرض حقل إدخال الكود بدل ما يكمل على طول.
+                const code = generateOtp();
+                await OtpCode.deleteMany({ username: user.username });
+                await OtpCode.create({ username: user.username, userType, codeHash: hashOtp(code) });
+                const sent = await sendTelegramMessage(user.telegramChatId, `🔑 كود استرجاع كلمة السر بتاعك في Chat X هو: <b>${code}</b>\n\nصالح لمدة 10 دقايق. لو ماطلبتوش إنت، تجاهل الرسالة دي.`);
+                if (!sent) return res.status(503).json({ error: 'تعذر إرسال كود التحقق عبر Telegram دلوقتي — جرب تاني كمان شوية' });
+                return res.json({ success: true, method: 'telegram_otp', requiresOtp: true });
+            }
+            const otpDoc = await OtpCode.findOne({ username: user.username, userType });
+            if (!otpDoc) return res.status(400).json({ error: 'مفيش كود صالح — اطلب كود جديد', method: 'telegram_otp', requiresOtp: true });
+            otpDoc.attempts = (otpDoc.attempts || 0) + 1;
+            if (otpDoc.attempts > 5) {
+                await OtpCode.deleteOne({ _id: otpDoc._id });
+                return res.status(429).json({ error: 'محاولات غلط كتير — اطلب كود جديد', method: 'telegram_otp', requiresOtp: true });
+            }
+            await otpDoc.save();
+            if (hashOtp(otp) !== otpDoc.codeHash) {
+                return res.status(400).json({ error: 'الكود غلط', method: 'telegram_otp', requiresOtp: true });
+            }
+            await OtpCode.deleteOne({ _id: otpDoc._id });
+            const resetToken = jwt.sign({ id: user._id, username: user.username, type: userType, purpose: 'pwreset' }, JWT_SECRET, { expiresIn: '10m' });
+            return res.json({ success: true, resetToken, fullName: user.fullName });
+        }
+
+        // ====== المسار الثاني (مش مربوط بـ Telegram): تطابق رقم الهاتف المسجّل،
+        // زي ما كان قبل كده بالظبط. ======
+        if (!phone || !user.profile?.phone) return res.status(400).json({ error: genericError });
+
+        if (normalizePhone(user.profile.phone) !== normalizePhone(phone) || normalizePhone(phone).length < 8) {
+            return res.status(400).json({ error: genericError });
+        }
+
+        const resetToken = jwt.sign(
+            { id: user._id, username: user.username, type: userType, purpose: 'pwreset' },
+            JWT_SECRET,
+            { expiresIn: '10m' }
+        );
+        res.json({ success: true, resetToken, fullName: user.fullName });
+    } catch (error) {
+        console.error('❌ خطأ في التحقق لاسترجاع كلمة السر:', error);
+        res.status(500).json({ error: 'خطأ في السيرفر' });
+    }
+});
+
+// الخطوة 2: تعيين كلمة سر جديدة باستخدام توكن الخطوة 1 — وبعد النجاح بنقفل أي
+// جلسة شغالة حاليًا (زي زر "تسجيل خروج من كل مكان") عشان لو حد تاني كان لسه
+// داخل بالحساب القديم يتقفل تلقائيًا، وبنصفّر أي قفل سابق بسبب محاولات فاشلة.
+app.post('/api/password-reset/confirm', passwordResetLimiter, async (req, res) => {
+    try {
+        const { resetToken, newPassword } = req.body;
+        if (!resetToken || !newPassword) return res.status(400).json({ error: 'البيانات ناقصة' });
+        if (String(newPassword).length < 6) return res.status(400).json({ error: 'كلمة السر لازم تكون 6 حروف/أرقام على الأقل' });
+
+        let decoded;
+        try {
+            decoded = jwt.verify(resetToken, JWT_SECRET);
+        } catch (e) {
+            return res.status(401).json({ error: 'انتهت صلاحية الرابط — ابدأ من الأول' });
+        }
+        if (decoded.purpose !== 'pwreset') return res.status(401).json({ error: 'توكن غير صالح' });
+
+        await connectToDatabase();
+        const Model = decoded.type === 'admin' ? Admin : Student;
+        const user = await Model.findById(decoded.id);
+        if (!user) return res.status(404).json({ error: 'الحساب غير موجود' });
+
+        user.password = await hashPassword(newPassword);
+        user.failedAttempts = 0;
+        user.lockedUntil = null;
+        // فصل أي جلسة شغالة حاليًا — لو حد تاني كان داخل بالحساب، هيتسجّل خروجه
+        // تلقائيًا أول ما يحصل أي طلب جديد منه (activeSessionId اتغيّر).
+        user.activeSessionId = null;
+        user.sessionLastSeenAt = null;
+        user.activeSessionFingerprint = null;
+        await user.save();
+
+        logSessionEvent({ username: user.username, userType: decoded.type, event: 'password_reset', fingerprint: 'password-reset', req });
+        res.json({ success: true, message: 'اتغيّرت كلمة السر بنجاح، سجّل دخول بيها دلوقتي' });
+    } catch (error) {
+        console.error('❌ خطأ في تأكيد استرجاع كلمة السر:', error);
+        res.status(500).json({ error: 'خطأ في السيرفر' });
+    }
+});
+
+// ====================== ربط حساب Telegram ======================
+// بيبدأ الطالب/الأدمن الربط من داخل التطبيق (وهو مسجّل دخول بالفعل)، فمش محتاج
+// أي تحقق هوية إضافي هنا — بس بيولّد كود مؤقت ويديله رابط يفتح بيه محادثة مع
+// البوت. الربط الفعلي بيحصل في الـ webhook تحت لما تليجرام يبعتلنا /start.
+app.post('/api/telegram/link/start', verifyToken, async (req, res) => {
+    try {
+        if (!TELEGRAM_BOT_USERNAME) return res.status(503).json({ error: 'ميزة الربط بـ Telegram مش مفعّلة على السيرفر دلوقتي' });
+        await connectToDatabase();
+        const Model = req.user.type === 'admin' ? Admin : Student;
+        const code = crypto.randomBytes(8).toString('hex');
+        await Model.updateOne(
+            { _id: req.user.id },
+            { telegramLinkCode: code, telegramLinkCodeExpires: new Date(Date.now() + 10 * 60 * 1000) }
+        );
+        res.json({ success: true, linkUrl: `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${code}`, botUsername: TELEGRAM_BOT_USERNAME });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في إنشاء رابط الربط' });
+    }
+});
+
+// حالة الربط الحالية — الفرونت إند بيسأل عليها كل شوية وهو فاتح نافذة الربط
+// (polling بسيط) عشان يعرف يقفلها تلقائيًا أول ما الربط ينجح فعليًا من تليجرام.
+app.get('/api/telegram/link/status', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const Model = req.user.type === 'admin' ? Admin : Student;
+        const user = await Model.findById(req.user.id).select('telegramChatId');
+        res.json({ linked: !!user?.telegramChatId });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب حالة الربط' });
+    }
+});
+
+app.post('/api/telegram/unlink', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const Model = req.user.type === 'admin' ? Admin : Student;
+        await Model.updateOne({ _id: req.user.id }, { telegramChatId: null, telegramLinkCode: null, telegramLinkCodeExpires: null });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في فصل الربط' });
+    }
+});
+
+// نقطة استقبال تحديثات البوت من تليجرام مباشرة (Webhook) — لازم تتسجّل مرة واحدة
+// يدويًا بعد إنشاء البوت عن طريق نداء:
+// https://api.telegram.org/bot<TOKEN>/setWebhook?url=<رابط السيرفر ده>/api/telegram/webhook&secret_token=<TELEGRAM_WEBHOOK_SECRET>
+// مفيش verifyToken هنا (تليجرام هو اللي بيبعت الطلب مش مستخدم عندنا) — بدل كده
+// بنتحقق من هيدر سري بنتفق عليه مع تليجرام وقت تسجيل الـ webhook.
+app.post('/api/telegram/webhook', async (req, res) => {
+    try {
+        if (TELEGRAM_WEBHOOK_SECRET && req.headers['x-telegram-bot-api-secret-token'] !== TELEGRAM_WEBHOOK_SECRET) {
+            return res.status(401).end();
+        }
+        const msg = req.body?.message;
+        const text = (msg?.text || '').trim();
+        const chatId = msg?.chat?.id;
+        if (chatId && text.startsWith('/start')) {
+            const code = text.replace('/start', '').trim();
+            if (code) {
+                await connectToDatabase();
+                let user = await Admin.findOne({ telegramLinkCode: code, telegramLinkCodeExpires: { $gt: new Date() } });
+                let userType = 'admin';
+                if (!user) {
+                    user = await Student.findOne({ telegramLinkCode: code, telegramLinkCodeExpires: { $gt: new Date() } });
+                    userType = 'student';
+                }
+                if (user) {
+                    user.telegramChatId = String(chatId);
+                    user.telegramLinkCode = null;
+                    user.telegramLinkCodeExpires = null;
+                    await user.save();
+                    await sendTelegramMessage(chatId, `✅ تم ربط حسابك بنجاح على منصة Chat X باسم "${user.fullName || user.username}".\n\nهتستخدم تليجرام ده لاستلام كود التحقق لما تحتاج تسترجع كلمة السر.`);
+                } else {
+                    await sendTelegramMessage(chatId, '⚠️ رابط الربط ده منتهي أو غير صحيح. افتح رابط ربط جديد من داخل التطبيق وجرب تاني.');
+                }
+            } else {
+                await sendTelegramMessage(chatId, 'أهلاً بيك في بوت Chat X! 👋\nافتح "اربط حساب Telegram" من داخل التطبيق عشان نربط حسابك ببوت التحقق.');
+            }
+        }
+        res.status(200).end(); // لازم نرد 200 دايمًا لتليجرام وإلا هيفضل يعيد إرسال نفس التحديث
+    } catch (error) {
+        console.error('❌ Telegram webhook error:', error);
+        res.status(200).end();
+    }
+});
+
+// ====================== سجل تسجيل الدخول الشخصي ======================
+// بيرجّع آخر أحداث الجلسة الخاصة بالمستخدم الحالي بس (مش أي حد تاني) — من نفس
+// جدول SessionEvent اللي بيتسجّل فيه كل محاولة دخول ناجحة/مرفوضة أصلًا. مفيدة
+// كطبقة أمان إضافية: الطالب يقدر يشوف لو حصل دخول من جهاز مش عارفه.
+app.get('/api/my-login-history', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const events = await SessionEvent.find({ username: req.user.username })
+            .sort({ at: -1 })
+            .limit(20)
+            .select('event deviceType os browser ip at -_id');
+        res.json(events);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب سجل تسجيل الدخول' });
     }
 });
 
