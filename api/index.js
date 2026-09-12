@@ -3949,7 +3949,7 @@ app.post('/api/password-reset/verify', passwordResetLimiter, async (req, res) =>
                 const code = generateOtp();
                 await OtpCode.deleteMany({ username: user.username });
                 await OtpCode.create({ username: user.username, userType, codeHash: hashOtp(code) });
-                const sent = await sendTelegramMessage(user.telegramChatId, `🔑 كود استرجاع كلمة السر بتاعك في Chat X هو: <b>${code}</b>\n\nصالح لمدة 10 دقايق. لو ماطلبتوش إنت، تجاهل الرسالة دي.`);
+                const sent = await sendTelegramMessage(user.telegramChatId, `🔑 كود استرجاع كلمة السر بتاعك في School X هو: <b>${code}</b>\n\n⚠️ متشاركوش مع حد خالص، حتى لو حد قالك إنه من الإدارة.\n⏳ صالح لمدة 10 دقايق بس. لو ماطلبتوش إنت، تجاهل الرسالة دي.`);
                 if (!sent) return res.status(503).json({ error: 'تعذر إرسال كود التحقق عبر Telegram دلوقتي — جرب تاني كمان شوية' });
                 return res.json({ success: true, method: 'telegram_otp', requiresOtp: true });
             }
@@ -4101,12 +4101,12 @@ app.post('/api/telegram/webhook', async (req, res) => {
                     user.telegramLinkCode = null;
                     user.telegramLinkCodeExpires = null;
                     await user.save();
-                    await sendTelegramMessage(chatId, `✅ تم ربط حسابك بنجاح على منصة Chat X باسم "${user.fullName || user.username}".\n\nهتستخدم تليجرام ده لاستلام كود التحقق لما تحتاج تسترجع كلمة السر.`);
+                    await sendTelegramMessage(chatId, `✅ تم ربط حسابك بنجاح بمنصة School X باسم "${user.fullName || user.username}".\n\nهتستخدم تليجرام ده لاستلام كود التحقق لما تحتاج تسترجع كلمة السر.`);
                 } else {
                     await sendTelegramMessage(chatId, '⚠️ رابط الربط ده منتهي أو غير صحيح. افتح رابط ربط جديد من داخل التطبيق وجرب تاني.');
                 }
             } else {
-                await sendTelegramMessage(chatId, 'أهلاً بيك في بوت Chat X! 👋\nافتح "اربط حساب Telegram" من داخل التطبيق عشان نربط حسابك ببوت التحقق.');
+                await sendTelegramMessage(chatId, 'أهلاً بيك في بوت School X! 👋\nافتح "اربط حساب Telegram" من داخل التطبيق عشان نربط حسابك ببوت التحقق.');
             }
         }
         res.status(200).end(); // لازم نرد 200 دايمًا لتليجرام وإلا هيفضل يعيد إرسال نفس التحديث
