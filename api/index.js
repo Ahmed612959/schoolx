@@ -3982,10 +3982,43 @@ app.post('/api/password-reset/verify', passwordResetLimiter, async (req, res) =>
             JWT_SECRET,
             { expiresIn: '10m' }
         );
-        res.json({ success: true, resetToken, fullName: user.fullName });
+
+        // فرصة كمان: بما إن الحساب ده لسه مش مربوط بـ Telegram (وصل هنا أصلًا)،
+        // نديله رابط ربط دلوقتي (اختياري) عشان المرة الجاية يقدر يسترجع كلمة
+        // السر بكود بدل رقم الهاتف — مفيش داعي يكون مسجّل دخول عشان يربطه، بما
+        // إننا أصلًا أكّدنا هويته برقم الهاتف فوق.
+        let telegramLinkUrl = null;
+        if (TELEGRAM_BOT_USERNAME) {
+            const linkCode = crypto.randomBytes(8).toString('hex');
+            user.telegramLinkCode = linkCode;
+            user.telegramLinkCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+            await user.save();
+            telegramLinkUrl = `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${linkCode}`;
+        }
+
+        res.json({ success: true, resetToken, fullName: user.fullName, telegramLinkUrl });
     } catch (error) {
         console.error('❌ خطأ في التحقق لاسترجاع كلمة السر:', error);
         res.status(500).json({ error: 'خطأ في السيرفر' });
+    }
+});
+
+// بيتنادى وهو لسه في نص فلو استرجاع كلمة السر (مسجّلش دخول لسه، فمعندوش
+// schoolToken) عشان يعرف هل الربط بتليجرام (اللي بدأه في الخطوة اللي فاتت) خلص
+// ولا لسه — بنستخدم resetToken نفسه كإثبات هوية بديل عن جلسة تسجيل الدخول.
+app.post('/api/telegram/link/status-by-reset-token', passwordResetLimiter, async (req, res) => {
+    try {
+        const { resetToken } = req.body;
+        if (!resetToken) return res.status(400).json({ error: 'بيانات ناقصة' });
+        let decoded;
+        try { decoded = jwt.verify(resetToken, JWT_SECRET); } catch (e) { return res.status(401).json({ error: 'انتهت الجلسة' }); }
+        if (decoded.purpose !== 'pwreset') return res.status(401).json({ error: 'توكن غير صالح' });
+        await connectToDatabase();
+        const Model = decoded.type === 'admin' ? Admin : Student;
+        const user = await Model.findById(decoded.id).select('telegramChatId');
+        res.json({ linked: !!user?.telegramChatId });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب حالة الربط' });
     }
 });
 
