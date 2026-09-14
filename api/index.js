@@ -7786,6 +7786,545 @@ app.post('/api/progress-internal/difficulty', verifyToken, async (req, res) => {
     }
 });
 
+// إضافات السيرفر الخاصة ببنك "الباطنة" (Internal Medicine)
+// انسخ الكتلة دي كاملة والصقها في server.js بعد تعريف الموديلات الحالية
+// (بعد سطر: const ExamResult = mongoose.models.ExamResult || ...)
+// كل حاجة هنا مستقلة تمامًا (موديلات جديدة) فمش هتلمس بيانات أي بنك تاني
+// ==========================================================================
+
+// ====================== موديلات خاصة ببنك الباطنة (Internal Medicine) ======================
+
+const internalHomeworkSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true },
+    questionCount: { type: Number, required: true },
+    categoryFilter: { type: String, default: 'all' },
+    deadline: { type: String, required: true },
+    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: { type: Array, default: [] }
+}, { timestamps: true });
+
+const InternalHomework = mongoose.models.InternalHomework || mongoose.model('InternalHomework', internalHomeworkSchema);
+
+const internalHomeworkSubmissionSchema = new mongoose.Schema({
+    homeworkId: { type: mongoose.Schema.Types.ObjectId, ref: 'InternalHomework', required: true },
+    studentId: { type: String, required: true },
+    studentName: { type: String, required: true },
+    studentCode: { type: String, required: true },
+    answers: { type: Array, default: [] },
+    score: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    timeTaken: { type: Number, default: 0 },
+    tabSwitches: { type: Number, default: 0 },
+    submittedAt: { type: Date, default: Date.now }
+});
+
+const InternalHomeworkSubmission = mongoose.models.InternalHomeworkSubmission ||
+    mongoose.model('InternalHomeworkSubmission', internalHomeworkSubmissionSchema);
+
+const internalTournamentSchema = new mongoose.Schema({
+    title: { type: String, required: [true, 'عنوان البطولة مطلوب'], trim: true, maxlength: 100 },
+    code: { type: String, unique: true, required: true, uppercase: true, match: /^[A-Z0-9]{6}$/ },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true, trim: true },
+    questionCount: { type: Number, default: 20, min: 5, max: 100 },
+    categoryFilter: { type: String, default: 'all', enum: ['all', 'mcq', 'truefalse', 'complete', 'explain', 'list', 'situations', 'definitions'] },
+    timeLimitMinutes: { type: Number, default: 10, min: 5, max: 120 },
+    startDate: { type: String, required: true },
+    endDate: { type: String, required: true },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: {
+        type: [{
+            text: { type: String, required: true },
+            translation: { type: String, default: '' },
+            cat: { type: String, required: true },
+            options: { type: [String], default: [] },
+            correct: { type: mongoose.Schema.Types.Mixed },
+            completion: { type: String, default: '' }
+        }],
+        validate: { validator: arr => arr && arr.length > 0, message: 'يجب إضافة سؤال واحد على الأقل' }
+    },
+    participants: [{
+        studentId: { type: String, required: true },
+        studentName: { type: String, required: true, trim: true },
+        score: { type: Number, default: 0, min: 0, max: 100 },
+        correctCount: { type: Number, default: 0 },
+        wrongCount: { type: Number, default: 0 },
+        timeTaken: { type: Number, default: 0 },
+        answers: [{ questionIndex: Number, answer: String, isCorrect: Boolean }],
+        submittedAt: { type: Date, default: Date.now }
+    }],
+    winner1: { type: String, default: '' },
+    winner2: { type: String, default: '' },
+    winner3: { type: String, default: '' }
+}, { timestamps: true });
+
+internalTournamentSchema.index({ code: 1 });
+internalTournamentSchema.index({ isActive: 1, startDate: 1, endDate: 1 });
+
+const InternalTournament = mongoose.models.InternalTournament || mongoose.model('InternalTournament', internalTournamentSchema);
+
+// ====================== Progress: نفس نمط progress-internal بالظبط ======================
+
+app.get('/api/progress-internal', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId });
+        if (!progress) { progress = new Progress({ userId }); await progress.save(); }
+        res.json(progress);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التقدم' }); }
+});
+
+app.post('/api/progress-internal/xp', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { amount } = req.body;
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        progress.xp = (progress.xp || 0) + amount;
+        await progress.save();
+        res.json({ success: true, xp: progress.xp });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث XP' }); }
+});
+
+app.post('/api/progress-internal/bookmarks', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        if (action === 'add') { if (!progress.bookmarks.includes(questionId)) progress.bookmarks.push(questionId); }
+        else { progress.bookmarks = progress.bookmarks.filter(id => id !== questionId); }
+        await progress.save();
+        res.json({ success: true, bookmarks: progress.bookmarks });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث المفضلة' }); }
+});
+
+app.post('/api/progress-internal/hard', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, action } = req.body;
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        if (action === 'add') { if (!progress.hardQuestions.includes(questionId)) progress.hardQuestions.push(questionId); }
+        else { progress.hardQuestions = progress.hardQuestions.filter(id => id !== questionId); }
+        await progress.save();
+        res.json({ success: true, hardQuestions: progress.hardQuestions });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الأسئلة الصعبة' }); }
+});
+
+app.post('/api/progress-internal/notes', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, note } = req.body;
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        progress.notes.set(questionId, note);
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الملاحظة' }); }
+});
+
+app.post('/api/progress-internal/quiz', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { total, correct, score, chapter } = req.body;
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        progress.quizHistory.push({ date: new Date().toISOString(), total: total || 0, correct: correct || 0, score: score || 0, chapter: chapter || 'all' });
+        if (req.body.wrongQuestions) {
+            progress.wrongQuestions = progress.wrongQuestions.concat(req.body.wrongQuestions);
+            if (progress.wrongQuestions.length > 200) progress.wrongQuestions = progress.wrongQuestions.slice(-200);
+        }
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ سجل الاختبار' }); }
+});
+
+app.post('/api/progress-internal/achievements', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { achievementId } = req.body;
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        if (!progress.achievements.includes(achievementId)) progress.achievements.push(achievementId);
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ الإنجاز' }); }
+});
+
+app.post('/api/progress-internal/difficulty', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { questionId, difficulty } = req.body;
+        const userId = (req.user.id || req.user.username) + '_internal';
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        progress.difficulties.set(questionId, difficulty);
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تحديث الصعوبة' }); }
+});
+
+// ====================== الواجبات (Homework) — موديل InternalHomework منفصل ======================
+
+app.post('/api/homework-internal', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, targetGrade, questions } = req.body;
+        if (!title || !chapterId || !questionCount || !deadline || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة، ويجب اختيار الأسئلة' });
+        }
+        const newHomework = new InternalHomework({
+            title, chapterId, chapterName: chapterName || 'فصل غير معروف', questionCount,
+            categoryFilter: categoryFilter || 'all', deadline, targetGrade: targetGrade || 'first',
+            createdBy: req.user.username || 'admin', questions, isActive: true
+        });
+        await newHomework.save();
+        res.json({ success: true, message: 'تم إنشاء الواجب بنجاح', homework: newHomework });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الواجب: ' }); }
+});
+
+app.get('/api/homework-internal/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const homeworks = await InternalHomework.find().sort({ createdAt: -1 });
+        if (!homeworks || homeworks.length === 0) return res.status(200).json([]);
+        const homeworkWithStats = await Promise.all(homeworks.map(async (hw) => {
+            const submissions = await InternalHomeworkSubmission.find({ homeworkId: hw._id });
+            const totalStudents = await Student.countDocuments({ grade: hw.targetGrade || 'first' });
+            let avgScore = '0';
+            if (submissions.length > 0) {
+                const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                avgScore = (totalScore / submissions.length).toFixed(1);
+            }
+            return {
+                _id: hw._id, id: hw._id, title: hw.title, chapterId: hw.chapterId,
+                chapterName: hw.chapterName, questionCount: hw.questionCount, categoryFilter: hw.categoryFilter,
+                deadline: hw.deadline, targetGrade: hw.targetGrade, createdBy: hw.createdBy,
+                isActive: hw.isActive, questions: hw.questions || [], totalStudents, submittedCount: submissions.length,
+                avgScore, createdAt: hw.createdAt, updatedAt: hw.updatedAt
+            };
+        }));
+        res.status(200).json(homeworkWithStats);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات: ' }); }
+});
+
+app.get('/api/homework-internal/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const today = new Date().toISOString().split('T')[0];
+        const homeworks = await InternalHomework.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } }).sort({ deadline: 1 });
+        const pendingHomeworks = await Promise.all(homeworks.map(async (hw) => {
+            const submission = await InternalHomeworkSubmission.findOne({ homeworkId: hw._id, studentId: req.user.username });
+            return { ...hw._doc, id: hw._id, isSubmitted: !!submission, hasSubmission: !!submission, myScore: submission ? submission.score : null };
+        }));
+        res.status(200).json(pendingHomeworks);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجبات المعلقة: ' }); }
+});
+
+app.get('/api/homework-internal/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const homework = await InternalHomework.findById(req.params.id);
+        if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        if (student.grade !== homework.targetGrade) return res.status(403).json({ error: 'هذا الواجب ليس لصفك' });
+        const existingSubmission = await InternalHomeworkSubmission.findOne({ homeworkId: homework._id, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
+        const questionsWithoutAnswers = (homework.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
+        res.status(200).json({ ...homework._doc, id: homework._id, questions: questionsWithoutAnswers });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الواجب: ' }); }
+});
+
+app.post('/api/homework-internal/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const homeworkId = req.params.id;
+        const { answers, timeTaken, tabSwitches } = req.body;
+        const homework = await InternalHomework.findById(homeworkId);
+        if (!homework) return res.status(404).json({ error: 'الواجب غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingSubmission = await InternalHomeworkSubmission.findOne({ homeworkId, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الواجب بالفعل' });
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = homework.questions || [];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            if (question.cat === 'mcq') {
+                isCorrect = userAnswer === (question.correct || '').toString().trim();
+            } else if (question.cat === 'truefalse') {
+                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
+            } else {
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
+                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
+            }
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
+        }
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const submission = new InternalHomeworkSubmission({
+            homeworkId: homework._id, studentId: req.user.username, studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---', answers: detailedAnswers, score, totalQuestions,
+            timeTaken: timeTaken || 0, tabSwitches: tabSwitches || 0
+        });
+        await submission.save();
+        res.json({ success: true, message: 'تم تسليم الواجب بنجاح', score });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الواجب: ' }); }
+});
+
+app.get('/api/homework-internal/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const submissions = await InternalHomeworkSubmission.find({ homeworkId: req.params.id }).sort({ submittedAt: -1 });
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return { ...sub._doc, id: sub._id, studentName: student ? student.fullName : sub.studentName, studentCode: student ? student.studentCode : sub.studentCode };
+            }));
+            return res.json(detailedSubmissions);
+        }
+        const submission = await InternalHomeworkSubmission.findOne({ homeworkId: req.params.id, studentId: req.user.username });
+        if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الواجب' });
+        res.json([submission]);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
+});
+
+app.delete('/api/homework-internal/:id', verifyToken, isManager, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deletedHomework = await InternalHomework.findByIdAndDelete(req.params.id);
+        if (!deletedHomework) return res.status(404).json({ error: 'الواجب غير موجود' });
+        const deletedSubmissions = await InternalHomeworkSubmission.deleteMany({ homeworkId: req.params.id });
+        res.json({ success: true, message: 'تم حذف الواجب وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الواجب: ' }); }
+});
+
+// ====================== البطولات (Tournaments) — موديل InternalTournament منفصل ======================
+
+async function generateUniqueInternalCode() {
+    let code, exists = true, attempts = 0;
+    while (exists && attempts < 20) { code = generateTournamentCode(); exists = await InternalTournament.findOne({ code }); attempts++; }
+    if (exists) throw new Error('فشل توليد كود فريد بعد عدة محاولات');
+    return code;
+}
+
+app.post('/api/tournaments-internal', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, timeLimitMinutes, startDate, endDate, questions } = req.body;
+        if (!title || !chapterId || !startDate || !endDate) return res.status(400).json({ success: false, error: 'جميع الحقول المطلوبة يجب ملؤها' });
+        if (!questions || !Array.isArray(questions) || questions.length === 0) return res.status(400).json({ success: false, error: 'يجب إضافة سؤال واحد على الأقل للبطولة' });
+        if (startDate > endDate) return res.status(400).json({ success: false, error: 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية' });
+        const uniqueCode = await generateUniqueInternalCode();
+        const newTournament = new InternalTournament({
+            title: title.trim(), code: uniqueCode, chapterId, chapterName: chapterName || 'فصل غير معروف',
+            questionCount: questions.length, categoryFilter: categoryFilter || 'all',
+            timeLimitMinutes: Math.min(Math.max(timeLimitMinutes || 10, 5), 120), startDate, endDate,
+            createdBy: req.user.username || 'admin', questions, isActive: true
+        });
+        await newTournament.save();
+        res.status(201).json({ success: true, message: 'تم إنشاء البطولة بنجاح', tournament: newTournament });
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنشاء البطولة: ' }); }
+});
+
+app.get('/api/tournaments-internal/active', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const today = new Date().toISOString().split('T')[0];
+        const tournaments = await InternalTournament.find({ isActive: true, startDate: { $lte: today }, endDate: { $gte: today } })
+            .select('title code chapterName questionCount timeLimitMinutes startDate endDate participants').sort({ createdAt: -1 }).lean();
+        const result = tournaments.map(t => {
+            const participants = t.participants || [];
+            const userParticipant = participants.find(p => p.studentId === req.user.username);
+            return {
+                _id: t._id, title: t.title, code: t.code, chapterName: t.chapterName, questionCount: t.questionCount,
+                timeLimitMinutes: t.timeLimitMinutes, startDate: t.startDate, endDate: t.endDate,
+                participantsCount: participants.length, hasParticipated: !!userParticipant,
+                myScore: userParticipant ? userParticipant.score : null
+            };
+        });
+        res.json(result);
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب البطولات النشطة: ' }); }
+});
+
+app.post('/api/tournaments-internal/join-by-code', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { code } = req.body;
+        if (!code) return res.status(400).json({ success: false, error: 'يرجى إدخال كود البطولة' });
+        const cleanCode = code.toUpperCase().trim();
+        const tournament = await InternalTournament.findOne({ code: cleanCode, isActive: true });
+        if (!tournament) return res.status(404).json({ success: false, error: 'كود البطولة غير صحيح أو البطولة غير متاحة' });
+        const today = new Date().toISOString().split('T')[0];
+        if (tournament.startDate > today) return res.status(400).json({ success: false, error: `البطولة لم تبدأ بعد. ستبدأ في ${tournament.startDate}` });
+        if (tournament.endDate < today) return res.status(400).json({ success: false, error: 'انتهت مدة البطولة' });
+        const alreadyJoined = tournament.participants.find(p => p.studentId === req.user.username);
+        if (alreadyJoined) return res.status(400).json({ success: false, error: 'لقد شاركت في هذه البطولة مسبقاً', alreadyParticipated: true, score: alreadyJoined.score });
+        const questionsWithoutAnswers = tournament.questions.map(q => ({ text: q.text || '', translation: q.translation || '', cat: q.cat || 'mcq', options: q.options || [] }));
+        res.json({ success: true, tournamentId: tournament._id, title: tournament.title, chapterName: tournament.chapterName, timeLimitMinutes: tournament.timeLimitMinutes || 10, endDate: tournament.endDate, questions: questionsWithoutAnswers, message: 'تم التحقق بنجاح. ابدأ الحل الآن!' });
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في الانضمام للبطولة: ' }); }
+});
+
+app.post('/api/tournaments-internal/:id/participate', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { answers, timeTaken } = req.body;
+        const tournament = await InternalTournament.findById(req.params.id);
+        if (!tournament) return res.status(404).json({ success: false, error: 'البطولة غير موجودة' });
+        if (!tournament.isActive) return res.status(400).json({ success: false, error: 'البطولة مغلقة وغير متاحة للمشاركة' });
+        const existingParticipant = tournament.participants.find(p => p.studentId === req.user.username);
+        if (existingParticipant) return res.status(400).json({ success: false, error: 'لقد شاركت بالفعل في هذه البطولة' });
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        for (const answer of answers || []) {
+            const question = tournament.questions[answer.questionIndex];
+            if (!question) { detailedAnswers.push({ questionIndex: answer.questionIndex, answer: answer.answer || '', isCorrect: false }); continue; }
+            const isCorrect = correctAnswer(question, answer.answer || '');
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: answer.answer || '', isCorrect });
+        }
+        const totalQuestions = tournament.questions.length;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const wrongCount = totalQuestions - correctCount;
+        let studentName = req.user.username;
+        const student = await Student.findOne({ username: req.user.username });
+        if (student) studentName = student.fullName || student.username;
+
+        tournament.participants.push({ studentId: req.user.username, studentName, score, correctCount, wrongCount, timeTaken: timeTaken || 0, answers: detailedAnswers, submittedAt: new Date() });
+        tournament.participants.sort((a, b) => b.score !== a.score ? b.score - a.score : a.timeTaken - b.timeTaken);
+        await tournament.save();
+
+        const userRank = tournament.participants.findIndex(p => p.studentId === req.user.username) + 1;
+        const xpRewards = { 1: 50, 2: 30, 3: 20 };
+        const xpReward = xpRewards[userRank] || 10;
+        await Progress.findOneAndUpdate({ userId: (req.user.username) + '_internal' }, { $inc: { xp: xpReward } }, { upsert: true, new: true });
+
+        res.json({ success: true, score, rank: userRank, correctCount, wrongCount, totalQuestions, xpEarned: xpReward, message: `أحسنت! حصلت على ${score}%` });
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في معالجة المشاركة: ' }); }
+});
+
+app.get('/api/tournaments-internal/:id/results', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const tournament = await InternalTournament.findById(req.params.id).select('title chapterName participants winner1 winner2 winner3').lean();
+        if (!tournament) return res.status(404).json({ success: false, error: 'البطولة غير موجودة' });
+        if (req.user.type !== 'admin') {
+            const isParticipant = (tournament.participants || []).some(p => p.studentId === req.user.username);
+            if (!isParticipant) return res.status(403).json({ success: false, error: 'يجب المشاركة في البطولة أولاً لعرض النتائج' });
+        }
+        const participants = (tournament.participants || []).map((p, index) => ({ rank: index + 1, studentName: p.studentName, score: p.score, correctCount: p.correctCount || 0, wrongCount: p.wrongCount || 0, timeTaken: p.timeTaken, submittedAt: p.submittedAt }));
+        res.json({ success: true, title: tournament.title, chapterName: tournament.chapterName, participants, top3: participants.slice(0, 3), totalParticipants: participants.length });
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب نتائج البطولة: ' }); }
+});
+
+app.post('/api/tournaments-internal/:id/finish', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const tournament = await InternalTournament.findById(req.params.id);
+        if (!tournament) return res.status(404).json({ success: false, error: 'البطولة غير موجودة' });
+        if (!tournament.isActive) return res.status(400).json({ success: false, error: 'البطولة منتهية بالفعل' });
+        tournament.isActive = false;
+        const participants = tournament.participants || [];
+        if (participants[0]) tournament.winner1 = participants[0].studentId;
+        if (participants[1]) tournament.winner2 = participants[1].studentId;
+        if (participants[2]) tournament.winner3 = participants[2].studentId;
+        const winnerRewards = [{ id: tournament.winner1, xp: 100 }, { id: tournament.winner2, xp: 60 }, { id: tournament.winner3, xp: 30 }];
+        for (const reward of winnerRewards) {
+            if (reward.id) await Progress.findOneAndUpdate({ userId: reward.id + '_internal' }, { $inc: { xp: reward.xp } }, { upsert: true });
+        }
+        await tournament.save();
+        res.json({ success: true, message: 'تم إنهاء البطولة وتوزيع المكافآت بنجاح', winners: { first: participants[0]?.studentName || 'لا يوجد', second: participants[1]?.studentName || 'لا يوجد', third: participants[2]?.studentName || 'لا يوجد' } });
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في إنهاء البطولة: ' }); }
+});
+
+// ====================== المراجعة الذكية (Smart Review) — خاصة بالباطنة (Internal Medicine) ======================
+
+app.post('/api/smart-review-internal', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = (req.user.username || req.user.id) + '_internal';
+        const { questions: allQuestions, chapterId } = req.body;
+        if (!allQuestions || allQuestions.length === 0) return res.status(400).json({ success: false, error: 'لا توجد أسئلة مرسلة من الواجهة' });
+
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        if (!progress._id) await progress.save();
+
+        const wrongQuestions = progress.wrongQuestions || [];
+        const difficulties = progress.difficulties || {};
+        const hardQuestionIds = Object.entries(difficulties).filter(([k, v]) => v === 'hard').map(([k]) => k);
+        const quizHistory = progress.quizHistory || [];
+        const now = new Date();
+        const oneWeekAgoStr = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const recentlySolved = new Set(quizHistory.filter(h => h.date && h.date > oneWeekAgoStr && h.questionId).map(h => h.questionId));
+        const solvedQuestions = new Set(quizHistory.filter(h => h.questionId).map(h => h.questionId));
+
+        const reviewQuestions = [];
+        for (const q of allQuestions) {
+            if (wrongQuestions.some(w => w.questionId === q.questionId)) { reviewQuestions.push({ ...q, reason: '❌ أجبت عليها خطأ' }); continue; }
+            if (hardQuestionIds.includes(q.questionId)) { reviewQuestions.push({ ...q, reason: '🔴 صنفتها صعبة' }); continue; }
+            if (!recentlySolved.has(q.questionId) && solvedQuestions.has(q.questionId)) { reviewQuestions.push({ ...q, reason: '⏰ مر أكثر من أسبوع' }); continue; }
+            if (!solvedQuestions.has(q.questionId) && reviewQuestions.length < 30) reviewQuestions.push({ ...q, reason: '🆕 لم تحل من قبل' });
+        }
+
+        const shuffled = reviewQuestions.sort(() => Math.random() - 0.5);
+        const selected = shuffled.slice(0, Math.min(20, Math.max(10, shuffled.length)));
+        const reasons = selected.map(q => q.reason);
+        const questionsWithoutAnswers = selected.map(q => { const n = { ...q }; delete n.correct; delete n.correctAnswer; delete n.completion; delete n.answer; delete n.reason; return n; });
+
+        let chapterName = 'جميع الفصول';
+        if (chapterId && chapterId !== 'all') { const firstQ = allQuestions.find(q => q.chapterId === chapterId); if (firstQ) chapterName = firstQ.chapterName || chapterId; }
+
+        res.json({ success: true, questions: questionsWithoutAnswers, total: selected.length, reasons, chapterName, message: `تم اختيار ${selected.length} سؤال للمراجعة الذكية من ${chapterName}` });
+    } catch (error) { res.status(500).json({ success: false, error: 'خطأ في جلب أسئلة المراجعة: ' }); }
+});
+
+app.post('/api/smart-review-internal/save-progress', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const userId = (req.user.username || req.user.id) + '_internal';
+        const { questionId, isCorrect, chapterId } = req.body;
+        if (!questionId) return res.status(400).json({ error: 'معرف السؤال مطلوب' });
+        let progress = await Progress.findOne({ userId }) || new Progress({ userId });
+        progress.quizHistory.push({ date: new Date().toISOString(), questionId, correct: isCorrect, type: 'smart_review', chapterId: chapterId || 'all' });
+        if (!isCorrect) {
+            if (!progress.wrongQuestions.some(w => w.questionId === questionId)) progress.wrongQuestions.push({ questionId, date: new Date().toISOString(), source: 'smart_review' });
+        } else {
+            progress.wrongQuestions = progress.wrongQuestions.filter(w => w.questionId !== questionId);
+        }
+        await progress.save();
+        res.json({ success: true });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حفظ التقدم: ' }); }
+});
+
+// ==========================================================================
+// ملاحظات:
+// - verifyToken و isAdmin و connectToDatabase و hashPassword و Progress و Student
+//   و Admin و generateTournamentCode و correctAnswer كلها معرّفة بالفعل فوق في
+//   ملفك، وهنا بس بنعيد استخدامها — من غير ما نلمسها أو نكررها.
+// - الموديلات الجديدة (InternalHomework, InternalHomeworkSubmission, InternalTournament) منفصلة
+//   100% عن موديلات باقي البنوك (Homework, Tournament) — صفر تعارض بيانات.
+// - تسجيل الدخول (/api/login, /api/verify-session, /api/logout) فضل مشترك
+//   عمدًا، لأن الطالب/الأدمن نفسه بيدخل بنفس الحساب على كل البنوك.
+// ==========================================================================
+
+
 
 
 // ====================== الكابتشا ======================
