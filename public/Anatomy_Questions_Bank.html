@@ -230,9 +230,49 @@
     font-weight: 700 !important;
 }
 
+        /* ====================== إشعارات بنمط الآيفون ====================== */
+        #iosToastStack {
+            position: fixed; top: max(12px, env(safe-area-inset-top)); left: 50%;
+            transform: translateX(-50%); z-index: 999999;
+            display: flex; flex-direction: column; gap: 8px;
+            width: 92%; max-width: 380px; pointer-events: none;
+        }
+        .ios-toast {
+            pointer-events: auto; display: flex; align-items: flex-start; gap: 11px;
+            background: rgba(248, 248, 250, 0.78);
+            backdrop-filter: blur(24px) saturate(1.8); -webkit-backdrop-filter: blur(24px) saturate(1.8);
+            border-radius: 18px; padding: 12px 14px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.05);
+            animation: iosToastIn 0.5s cubic-bezier(0.19, 1.6, 0.4, 1) forwards;
+            cursor: pointer; direction: rtl; touch-action: pan-y;
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+        .ios-toast.hiding { animation: iosToastOut 0.3s ease forwards; }
+        .ios-toast-icon {
+            width: 30px; height: 30px; border-radius: 8.5px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: white; margin-top: 1px;
+        }
+        .ios-toast-body { flex: 1; min-width: 0; }
+        .ios-toast-title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .ios-toast-title { font-weight: 700; font-size: 0.78rem; color: #0b0b0c; }
+        .ios-toast-time { font-size: 0.68rem; color: #8e8e93; flex-shrink: 0; }
+        .ios-toast-message {
+            font-size: 0.83rem; color: #3c3c43; line-height: 1.4; margin-top: 1px;
+            overflow: hidden; text-overflow: ellipsis;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+        }
+        @keyframes iosToastIn { from { opacity: 0; transform: translateY(-45px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes iosToastOut { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-30px) scale(0.92); } }
+        body.dark-mode .ios-toast { background: rgba(28, 28, 30, 0.78); box-shadow: 0 10px 35px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(255,255,255,0.08); }
+        body.dark-mode .ios-toast-title { color: #f2f2f7; }
+        body.dark-mode .ios-toast-time { color: #98989f; }
+        body.dark-mode .ios-toast-message { color: #d1d1d6; }
+
     </style>
 </head>
 <body>
+<div id="iosToastStack"></div>
 <div class="animated-bg"><div class="orb"></div><div class="orb"></div><div class="orb"></div></div>
 <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
 <div class="sync-indicator" id="syncIndicator"><i class="fas fa-cloud"></i> <span>جاهز</span></div>
@@ -552,7 +592,51 @@ function getStudyStreak() { var dates = quizHistory.map(function(h) { return h.d
 function checkAchievements() { var newAchievements = []; for (var i = 0; i < allAchievements.length; i++) { var a = allAchievements[i]; if (a.condition() && !achievements.includes(a.id)) { achievements.push(a.id); newAchievements.push(a); if (isOnlineMode) saveProgress('/api/progress-an1/achievements', {achievementId: a.id}); spawnConfetti(); } } if (newAchievements.length > 0) { localStorage.setItem('an1_nb_achievements', JSON.stringify(achievements)); showAchievementNotification(newAchievements); } }
 function showAchievementNotification(newAchievements) { var msg = '🏆 تم تحقيق إنجاز جديد!\n\n'; for (var i = 0; i < newAchievements.length; i++) { msg += newAchievements[i].name + ': ' + newAchievements[i].desc + '\n'; } showToast(msg, 'success'); }
 function spawnConfetti() { var colors = ['#d4af5a', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']; for (var i = 0; i < 60; i++) { var p = document.createElement('div'); p.className = 'confetti-piece'; p.style.left = Math.random() * 100 + '%'; p.style.animationDelay = Math.random() * 2 + 's'; p.style.animationDuration = (2 + Math.random() * 3) + 's'; p.style.width = (7 + Math.random() * 9) + 'px'; p.style.height = (7 + Math.random() * 9) + 'px'; p.style.background = colors[Math.floor(Math.random() * colors.length)]; p.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px'; document.body.appendChild(p); setTimeout(function() { p.remove(); }, 5000); } }
-function showToast(message, type) { type = type || 'info'; var colors = { success: '#2d6a4f', error: '#dc3545', info: '#e8b84a', warning: '#ffc107' }; if (typeof Toastify !== 'undefined') { Toastify({ text: message, duration: 4000, gravity: 'top', position: 'center', style: { background: colors[type] || colors.info, fontFamily: 'Tajawal, sans-serif', borderRadius: '50px', padding: '12px 24px', direction: 'rtl', fontWeight: '600' } }).showToast(); } else { alert(message); } }
+var _iosToastTimers = new WeakMap();
+function showToast(message, type) {
+    type = type || 'info';
+    var stack = document.getElementById('iosToastStack');
+    if (!stack) { stack = document.createElement('div'); stack.id = 'iosToastStack'; document.body.appendChild(stack); }
+
+    var icons = { success: 'fa-check', error: 'fa-xmark', warning: 'fa-exclamation', info: 'fa-bell' };
+    var colors = { success: '#34c759', error: '#ff3b30', warning: '#ff9500', info: '#0a84ff' };
+    var icon = icons[type] || icons.info;
+    var color = colors[type] || colors.info;
+
+    var toast = document.createElement('div');
+    toast.className = 'ios-toast';
+    toast.innerHTML =
+        '<div class="ios-toast-icon" style="background:' + color + '"><i class="fas ' + icon + '"></i></div>' +
+        '<div class="ios-toast-body">' +
+            '<div class="ios-toast-title-row"><span class="ios-toast-title">بنك الأسئلة</span><span class="ios-toast-time">الآن</span></div>' +
+            '<div class="ios-toast-message"></div>' +
+        '</div>';
+    toast.querySelector('.ios-toast-message').textContent = message;
+
+    var dismiss = function() {
+        if (toast.classList.contains('hiding')) return;
+        var t = _iosToastTimers.get(toast); if (t) clearTimeout(t);
+        toast.classList.add('hiding');
+        setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 320);
+    };
+    toast.addEventListener('click', dismiss);
+
+    // سحب لأعلى للإغلاق (زي الآيفون بالظبط)
+    var startY = null;
+    toast.addEventListener('touchstart', function(e) { startY = e.touches[0].clientY; }, { passive: true });
+    toast.addEventListener('touchmove', function(e) {
+        if (startY === null) return;
+        var dy = e.touches[0].clientY - startY;
+        if (dy < 0) toast.style.transform = 'translateY(' + dy + 'px)';
+        if (dy < -40) dismiss();
+    }, { passive: true });
+    toast.addEventListener('touchend', function() { startY = null; toast.style.transform = ''; });
+
+    stack.appendChild(toast);
+    while (stack.children.length > 3) { var old = stack.firstChild; if (old) old.parentNode.removeChild(old); }
+
+    _iosToastTimers.set(toast, setTimeout(dismiss, 4000));
+}
 function openModal(id, content) { var modal = document.getElementById(id); if (!modal) { modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = id; document.body.appendChild(modal); } modal.innerHTML = '<div class="modal-content">' + content + '</div>'; modal.classList.add('active'); }
 function closeModal(id) { var modal = document.getElementById(id); if (modal) { modal.classList.remove('active'); setTimeout(function() { modal.remove(); }, 300); } }
 
@@ -4059,6 +4143,12 @@ function injectTournamentStyles() {
         .quiz-question-status.answered { color: #10b981; }
         
         .quiz-footer { text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); }
+        
+        /* عناصر كانت بدون تنسيق */
+        .timer-display { font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+        .option-text { flex: 1; text-align: right; line-height: 1.5; }
+        .quiz-answer-area { margin-top: 5px; }
+        .join-code-inner { max-width: 400px; margin: 0 auto; }
         
         /* حوار التأكيد */
         .confirm-dialog-overlay {
