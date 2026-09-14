@@ -3276,6 +3276,8 @@ function getCategoryLabel(cat) {
 
 // ====================== فتح قائمة البطولات ======================
 function openTournaments() {
+    injectTournamentStyles();
+
     const isAdmin = typeof currentUser !== 'undefined' && 
                     currentUser && currentUser.type === 'admin';
 
@@ -3563,6 +3565,32 @@ async function startTournamentById(id, code) {
             }, 300);
         } else {
             showToast('❌ ' + (result.error || 'فشل بدء البطولة'), 'error');
+        }
+    } catch (error) {
+        handleTournamentError(error);
+    }
+}
+
+// ====================== إنهاء البطولة (أدمن) ======================
+async function finishTournament(id) {
+    const confirmed = await showConfirmDialog(
+        '🏁 إنهاء البطولة',
+        'هل أنت متأكد من إنهاء هذه البطولة؟\nسيتم توزيع مكافآت XP على أفضل 3 متسابقين ولن يمكن التراجع عن هذا الإجراء.',
+        'إنهاء البطولة',
+        'إلغاء'
+    );
+
+    if (!confirmed) return;
+
+    try {
+        const result = await smartFetch(`/api/tournaments-an1/${id}/finish`, { method: 'POST' });
+
+        if (result.success) {
+            const w = result.winners || {};
+            showToast('🏆 تم إنهاء البطولة! الفائز الأول: ' + (w.first || 'لا يوجد'), 'success');
+            fetchActiveTournaments();
+        } else {
+            showToast('❌ ' + (result.error || 'فشل إنهاء البطولة'), 'error');
         }
     } catch (error) {
         handleTournamentError(error);
