@@ -38,12 +38,102 @@
   --shadow-soft: 0 10px 24px -12px rgba(11, 74, 68, 0.18);
 }
 
+body[data-theme="dark"] {
+  --bg-start: #0e2420;
+  --bg-end: #091815;
+  --surface: #123632;
+  --surface-soft: #16413b;
+  --primary: #35c4b1;
+  --primary-dark: #1e9186;
+  --primary-light: #35c4b1;
+  --accent: #e0ab55;
+  --accent-dark: #f0c47a;
+  --text: #eaf6f4;
+  --text-muted: #9fc8c1;
+  --text-faint: #729891;
+  --border: #1f4c46;
+  --border-strong: #2c6059;
+  --shadow-float: 0 30px 60px -20px rgba(0, 0, 0, 0.55),
+                   0 10px 20px -8px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 10px 24px -12px rgba(0, 0, 0, 0.4);
+}
+
+body[data-theme="dark"] .login-form-container {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+body[data-theme="dark"] .toast-error { background: linear-gradient(135deg, #e2695d, #b23a30) !important; }
+
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   padding: 0;
   min-height: 100%;
+}
+
+/* =========================================================
+   زر الوضع الليلي
+   ========================================================= */
+
+.theme-toggle {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  z-index: 20;
+  transition: transform 0.2s ease, background 0.3s ease, color 0.3s ease, border-color 0.2s ease, top 0.3s ease;
+}
+
+.theme-toggle:hover {
+  transform: rotate(-14deg) scale(1.05);
+  border-color: var(--primary-light);
+}
+
+body.offline-banner-active .theme-toggle {
+  top: 74px;
+}
+
+/* =========================================================
+   شريط انقطاع الاتصال بالإنترنت
+   ========================================================= */
+
+.offline-banner {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #c74a3f, #9e352b);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+  z-index: 30;
+}
+
+.offline-banner.show {
+  transform: translateY(0);
+}
+
+body.offline-banner-active {
+  padding-top: 88px;
 }
 
 body {
@@ -57,6 +147,12 @@ body {
   align-items: center;
   justify-content: flex-start;
   padding: 48px 20px 24px;
+  transition: background 0.3s ease, color 0.3s ease, padding 0.3s ease;
+}
+
+body[data-theme="dark"] {
+  background: radial-gradient(1200px 800px at 20% -10%, #143631 0%, transparent 55%),
+              linear-gradient(160deg, var(--bg-start) 0%, var(--bg-end) 100%);
 }
 
 /* =========================================================
@@ -219,6 +315,32 @@ form { text-align: right; }
   box-shadow: 0 0 0 4px rgba(30, 145, 134, 0.14);
 }
 
+.input-group input.input-error {
+  border-color: var(--danger);
+  background: #fdf3f2;
+}
+
+body[data-theme="dark"] .input-group input.input-error {
+  background: #3a1f1c;
+}
+
+.input-group input.input-error:focus {
+  box-shadow: 0 0 0 4px rgba(199, 74, 63, 0.18);
+}
+
+@keyframes shake-error {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(3px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60% { transform: translateX(6px); }
+}
+
+form.shake { animation: shake-error 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  form.shake { animation: none; }
+}
+
 .password-wrapper {
   position: relative;
 }
@@ -261,6 +383,67 @@ form { text-align: right; }
 }
 
 .capslock-hint.show { display: flex; }
+
+/* مؤشر التحقق الصامت أثناء الكتابة */
+.silent-status {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--info);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.silent-status.show {
+  display: flex;
+  opacity: 1;
+}
+
+/* تذكر اسم المستخدم */
+.remember-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: -6px 0 16px;
+}
+
+.remember-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-check input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* رسالة القفل المؤقت بعد تجاوز عدد المحاولات */
+.lock-message {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--danger);
+  text-align: center;
+  min-height: 0;
+}
+
+/* حالة عدم تشفير الاتصال */
+.secure-note.insecure {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.secure-note.insecure i { color: var(--warning); }
 
 /* =========================================================
    زر الدخول
@@ -517,6 +700,14 @@ body.show-signup .signup-link a {
   padding: 26px 28px 22px;
   text-align: center;
   box-shadow: var(--shadow-soft);
+}
+
+.reg-choice-section.reg-fade-in {
+  animation: card-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reg-choice-section.reg-fade-in { animation: none; }
 }
 
 .reg-icon {

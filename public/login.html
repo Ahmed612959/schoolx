@@ -15,6 +15,15 @@
     <link rel="icon" type="image/png" href="/logo.png">
 </head>
 <body>
+    <div class="offline-banner" id="offlineBanner" role="status" aria-live="assertive">
+        <i class="fas fa-wifi"></i>
+        <span>لا يوجد اتصال بالإنترنت حاليًا</span>
+    </div>
+
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="تبديل الوضع الليلي">
+        <i class="fas fa-moon"></i>
+    </button>
+
     <div class="main-container">
         <div class="page-stack">
 
@@ -27,7 +36,7 @@
                 <h2>معهد رعاية الضبعية<br>الفني للتمريض</h2>
                 <p class="login-subtitle">سجّل الدخول للمتابعة إلى حسابك</p>
 
-                <div id="message-container"></div>
+                <div id="message-container" role="status" aria-live="polite"></div>
 
                 <form id="login-form" autocomplete="on">
                     <div class="input-group">
@@ -47,13 +56,26 @@
                             <i class="fas fa-triangle-exclamation"></i>
                             <span>مفتاح Caps Lock مفعّل</span>
                         </div>
+                        <div class="silent-status" id="silentLoginStatus" aria-live="polite">
+                            <i class="fas fa-circle-notch fa-spin"></i>
+                            <span>جارٍ التحقق من البيانات...</span>
+                        </div>
                     </div>
 
-                    <button type="submit" class="submit-btn">
+                    <div class="remember-row">
+                        <label class="remember-check">
+                            <input type="checkbox" id="rememberMe">
+                            <span>تذكر اسم المستخدم</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="submitBtn">
                         <i class="fas fa-sign-in-alt"></i> تسجيل الدخول
                     </button>
 
-                    <p class="secure-note"><i class="fas fa-shield-halved"></i> اتصال آمن ومشفّر</p>
+                    <p class="lock-message" id="lockMessage" aria-live="polite"></p>
+
+                    <p class="secure-note" id="secureNote"><i class="fas fa-shield-halved"></i> اتصال آمن ومشفّر</p>
 
                     <!-- ====================== 🔐 تسجيل الدخول بالبصمة ====================== -->
                     <div class="biometric-section">
@@ -198,19 +220,23 @@
             const savedChoice = localStorage.getItem('regChoice');
             if (savedChoice === 'no') body.classList.add('show-signup');
 
-            if (section) section.style.display = 'block';
+            if (section) {
+                section.style.display = 'block';
+                section.classList.add('reg-fade-in');
+            }
 
             btnYes.onclick = function () {
                 localStorage.setItem('regChoice', 'yes');
                 body.classList.remove('show-signup');
-                if (section) section.style.display = 'none';
+                (window.collapseRegChoiceSection || function (s) { if (s) s.style.display = 'none'; })(section);
             };
             btnNo.onclick = function () {
                 localStorage.setItem('regChoice', 'no');
                 body.classList.add('show-signup');
-                if (section) section.style.display = 'none';
+                (window.collapseRegChoiceSection || function (s) { if (s) s.style.display = 'none'; })(section);
             };
         });
+
 
         // ====================== ⌨️ تنبيه Caps Lock ======================
         const passwordInputEl = document.getElementById('password');
@@ -284,6 +310,7 @@
         let silentLoginDebounce = null;
 
         async function completeLogin(data, username) {
+            if (typeof registerLoginSuccess === 'function') registerLoginSuccess();
             if (data.csrfToken) saveCsrfToken(data.csrfToken);
             if (data.user) saveUserData(data.user);
 
@@ -344,6 +371,8 @@
 
         document.getElementById('login-form')?.addEventListener('submit', async function (e) {
             e.preventDefault();
+            const messageContainer = document.getElementById('message-container');
+            if (messageContainer) messageContainer.innerHTML = '';
             const username = document.getElementById('username')?.value.trim();
             const password = document.getElementById('password')?.value.trim();
             const submitBtn = this.querySelector('button[type="submit"]');
@@ -358,7 +387,10 @@
             try {
                 if (silentLoginPromise) {
                     const success = await silentLoginPromise;
-                    if (!success) showToastMessage('اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
+                    if (!success) {
+                        showToastMessage('اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
+                        if (typeof registerLoginFailure === 'function') registerLoginFailure();
+                    }
                     return;
                 }
                 const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
@@ -373,9 +405,11 @@
                     await completeLogin(data, username);
                 } else {
                     showToastMessage(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
+                    if (typeof registerLoginFailure === 'function') registerLoginFailure();
                 }
             } catch (error) {
                 showToastMessage('تعذّر الاتصال بالخادم، تأكد من تشغيل السيرفر', 'error');
+                if (typeof showPersistentConnectionError === 'function') showPersistentConnectionError();
             } finally {
                 if (submitBtn) { submitBtn.innerHTML = originalText; submitBtn.disabled = false; }
             }
@@ -485,6 +519,215 @@
                 }
             }
         }
+    </script>
+
+    <!-- ====================== ✨ تحسينات إضافية: الوضع الليلي، تذكر الاسم، حالة الاتصال، حد المحاولات ====================== -->
+    <script>
+        // ---------- 🌙 الوضع الليلي ----------
+        (function () {
+            const toggleBtn = document.getElementById('themeToggle');
+            const icon = toggleBtn?.querySelector('i');
+
+            function applyTheme(theme) {
+                document.body.setAttribute('data-theme', theme);
+                if (icon) icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+                if (toggleBtn) toggleBtn.setAttribute('aria-label', theme === 'dark' ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي');
+            }
+
+            const savedTheme = localStorage.getItem('theme') ||
+                (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            applyTheme(savedTheme);
+
+            toggleBtn?.addEventListener('click', () => {
+                const next = document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                localStorage.setItem('theme', next);
+                applyTheme(next);
+            });
+        })();
+
+        // ---------- 📶 حالة الاتصال بالإنترنت ----------
+        (function () {
+            const banner = document.getElementById('offlineBanner');
+            function updateOnlineStatus() {
+                if (!banner) return;
+                const offline = !navigator.onLine;
+                banner.classList.toggle('show', offline);
+                document.body.classList.toggle('offline-banner-active', offline);
+            }
+            window.addEventListener('online', updateOnlineStatus);
+            window.addEventListener('offline', updateOnlineStatus);
+            updateOnlineStatus();
+        })();
+
+        // ---------- 🔒 مؤشر تشفير الاتصال ----------
+        (function () {
+            const noteEl = document.getElementById('secureNote');
+            if (!noteEl) return;
+            const isSecure = window.location.protocol === 'https:' ||
+                window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1';
+            if (!isSecure) {
+                noteEl.classList.add('insecure');
+                noteEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> الاتصال الحالي غير مشفّر (HTTP)';
+            }
+        })();
+
+        // ---------- 👁️ نطق حالة إظهار/إخفاء كلمة المرور لقارئ الشاشة ----------
+        (function () {
+            const toggleBtn = document.querySelector('.toggle-password');
+            const pwInput = document.getElementById('password');
+            if (!toggleBtn || !pwInput) return;
+            toggleBtn.setAttribute('aria-label', 'إظهار كلمة المرور');
+            toggleBtn.addEventListener('click', () => {
+                setTimeout(() => {
+                    const visible = pwInput.type === 'text';
+                    toggleBtn.setAttribute('aria-label', visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+                    toggleBtn.setAttribute('aria-pressed', String(visible));
+                }, 0);
+            });
+        })();
+
+        // ---------- 💾 تذكر اسم المستخدم ----------
+        (function () {
+            const usernameEl = document.getElementById('username');
+            const passwordEl = document.getElementById('password');
+            const rememberEl = document.getElementById('rememberMe');
+            if (!usernameEl || !rememberEl) return;
+
+            const saved = localStorage.getItem('rememberedUsername');
+            if (saved) {
+                usernameEl.value = saved;
+                rememberEl.checked = true;
+            }
+
+            // ---------- 🎯 التركيز التلقائي عند فتح الصفحة ----------
+            requestAnimationFrame(() => {
+                if (saved) passwordEl?.focus(); else usernameEl.focus();
+            });
+
+            document.getElementById('login-form')?.addEventListener('submit', () => {
+                if (rememberEl.checked) {
+                    localStorage.setItem('rememberedUsername', usernameEl.value.trim());
+                } else {
+                    localStorage.removeItem('rememberedUsername');
+                }
+            });
+        })();
+
+        // ---------- ⏳ مؤشر التحقق الصامت أثناء الكتابة ----------
+        (function () {
+            const passwordEl = document.getElementById('password');
+            const statusEl = document.getElementById('silentLoginStatus');
+            if (!passwordEl || !statusEl) return;
+
+            let hideTimer = null;
+            passwordEl.addEventListener('input', () => {
+                clearTimeout(hideTimer);
+                const username = document.getElementById('username')?.value.trim();
+                const password = passwordEl.value.trim();
+                if (username && password.length >= 4) {
+                    hideTimer = setTimeout(() => statusEl.classList.add('show'), 700);
+                } else {
+                    statusEl.classList.remove('show');
+                }
+            });
+
+            // إخفاء المؤشر بمجرد ظهور أي رسالة نجاح/خطأ
+            const observer = new MutationObserver(() => statusEl.classList.remove('show'));
+            const messageContainer = document.getElementById('message-container');
+            if (messageContainer) observer.observe(messageContainer, { childList: true });
+            document.getElementById('successOverlay')?.classList && new MutationObserver(() => {
+                if (document.getElementById('successOverlay').classList.contains('show')) statusEl.classList.remove('show');
+            }).observe(document.getElementById('successOverlay'), { attributes: true, attributeFilter: ['class'] });
+        })();
+
+        // ---------- 🚫 حد المحاولات الفاشلة + تأثير الاهتزاز عند الخطأ ----------
+        (function () {
+            const form = document.getElementById('login-form');
+            const submitBtn = document.getElementById('submitBtn');
+            const lockMessageEl = document.getElementById('lockMessage');
+            const usernameEl = document.getElementById('username');
+            const passwordEl = document.getElementById('password');
+            if (!form || !submitBtn) return;
+
+            const MAX_ATTEMPTS = 5;
+            const LOCK_SECONDS = 30;
+            let failedAttempts = 0;
+            let countdownTimer = null;
+
+            function clearFieldErrors() {
+                usernameEl?.classList.remove('input-error');
+                passwordEl?.classList.remove('input-error');
+            }
+
+            function shakeForm() {
+                form.classList.remove('shake');
+                void form.offsetWidth; // إعادة تشغيل الأنيميشن
+                form.classList.add('shake');
+                usernameEl?.classList.add('input-error');
+                passwordEl?.classList.add('input-error');
+                setTimeout(() => form.classList.remove('shake'), 500);
+            }
+
+            function startLockCountdown(seconds) {
+                let remaining = seconds;
+                submitBtn.disabled = true;
+                const update = () => {
+                    if (lockMessageEl) lockMessageEl.textContent = `تم تجاوز الحد المسموح للمحاولات، حاول مرة أخرى بعد ${remaining} ثانية`;
+                };
+                update();
+                countdownTimer = setInterval(() => {
+                    remaining -= 1;
+                    if (remaining <= 0) {
+                        clearInterval(countdownTimer);
+                        countdownTimer = null;
+                        submitBtn.disabled = false;
+                        if (lockMessageEl) lockMessageEl.textContent = '';
+                        failedAttempts = 0;
+                    } else {
+                        update();
+                    }
+                }, 1000);
+            }
+
+            usernameEl?.addEventListener('input', clearFieldErrors);
+            passwordEl?.addEventListener('input', clearFieldErrors);
+
+            window.registerLoginFailure = function () {
+                if (countdownTimer) return; // مقفول بالفعل، منستناش زيادة
+                failedAttempts += 1;
+                shakeForm();
+                if (failedAttempts >= MAX_ATTEMPTS) startLockCountdown(LOCK_SECONDS);
+            };
+
+            window.registerLoginSuccess = function () {
+                failedAttempts = 0;
+                if (lockMessageEl) lockMessageEl.textContent = '';
+            };
+        })();
+
+        // ---------- 🌐 رسالة ثابتة عند تعذّر الاتصال بالخادم ----------
+        function showPersistentConnectionError() {
+            const container = document.getElementById('message-container');
+            if (!container) return;
+            container.innerHTML = '<i class="fas fa-plug-circle-xmark"></i> تعذّر الاتصال بالخادم، تحقّق من اتصالك بالإنترنت وحاول مرة أخرى';
+        }
+
+        // ---------- 🎬 إخفاء متحرك لقسم "هل سبق لك التسجيل؟" ----------
+        function collapseRegChoiceSection(section) {
+            if (!section) return;
+            const startHeight = section.scrollHeight;
+            section.style.maxHeight = startHeight + 'px';
+            section.style.overflow = 'hidden';
+            requestAnimationFrame(() => {
+                section.style.transition = 'max-height 0.35s ease, opacity 0.3s ease, margin 0.35s ease';
+                section.style.maxHeight = '0px';
+                section.style.opacity = '0';
+                section.style.marginTop = '0px';
+            });
+            setTimeout(() => { section.style.display = 'none'; }, 380);
+        }
+        window.collapseRegChoiceSection = collapseRegChoiceSection;
     </script>
 </body>
 </html>
