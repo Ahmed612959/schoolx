@@ -12,6 +12,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <!-- مكتبة pdf.js لمعاينة ملفات PDF بشكل صحيح (رسم حقيقي للصفحات بدل الاعتماد على عارض المتصفح) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
     <link rel="icon" type="image/png" href="/logo.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -25,7 +32,11 @@
             --header-bg: linear-gradient(135deg, #1a2a3a, #0d1c28);
             --gold: #e8b84a;
             --gold-dark: #d4a43a;
+            --darker: #1a2a3a;
+            --radius-lg: 22px;
             --shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.08);
+            --transition: all 0.3s ease;
         }
         body.dark-mode {
             --bg-primary: #1a1a2e;
@@ -235,9 +246,74 @@
         .image-preview-wrap { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
         .preview-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--text-secondary); }
         .preview-loading i { font-size: 2rem; color: var(--gold); }
+
+        /* ====================== بنوك الأسئلة - كارت لكل بنك بستايل خاص ====================== */
+        .banks-section { margin-bottom: 10px; }
+        .banks-heading { color: var(--text-primary); font-size: 1.25rem; margin: 22px 0 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .banks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .bank-card { position: relative; display: flex; flex-direction: column; gap: 14px; background: var(--card-bg); border-radius: var(--radius-lg); padding: 22px; text-decoration: none; box-shadow: var(--shadow-md); border: 2px solid var(--border-color); overflow: hidden; transition: var(--transition); }
+        .bank-card::before { content: ''; position: absolute; inset: 0; opacity: .07; background: var(--bank-grad); pointer-events: none; }
+        .bank-card:hover { transform: translateY(-6px); box-shadow: 0 18px 32px rgba(0, 0, 0, 0.14); border-color: var(--bank-c1); }
+        .bank-card-icon { position: relative; width: 56px; height: 56px; border-radius: 16px; background: var(--bank-grad); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #fff; box-shadow: 0 6px 16px var(--bank-shadow); flex-shrink: 0; }
+        .bank-card-body { position: relative; flex: 1; }
+        .bank-card-body h3 { font-size: 1rem; color: var(--text-primary); margin-bottom: 6px; font-weight: 800; }
+        .bank-card-body p { font-size: .82rem; color: var(--text-secondary); margin: 0; line-height: 1.55; }
+        .bank-card-cta { position: relative; align-self: flex-start; margin-top: auto; background: var(--bank-grad); color: #fff; padding: 10px 22px; border-radius: 50px; font-weight: 700; font-size: .82rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px var(--bank-shadow); white-space: nowrap; transition: var(--transition); }
+        .bank-card:hover .bank-card-cta { transform: translateX(-4px); }
+        .bank-card--anatomy   { --bank-c1: #b5814a; --bank-c2: #7a4e22; --bank-grad: linear-gradient(135deg, #c69256, #7a4e22); --bank-shadow: rgba(122, 78, 34, .35); }
+        .bank-card--community { --bank-c1: #14b8a6; --bank-c2: #0f766e; --bank-grad: linear-gradient(135deg, #2dd4bf, #0f766e); --bank-shadow: rgba(15, 118, 110, .35); }
+        .bank-card--medsurg   { --bank-c1: #3b82f6; --bank-c2: #1d4ed8; --bank-grad: linear-gradient(135deg, #60a5fa, #1d4ed8); --bank-shadow: rgba(29, 78, 216, .35); }
+        .bank-card--gensurg   { --bank-c1: #ef4444; --bank-c2: #b91c1c; --bank-grad: linear-gradient(135deg, #f87171, #b91c1c); --bank-shadow: rgba(185, 28, 28, .35); }
+        .bank-card--internal  { --bank-c1: #f43f5e; --bank-c2: #be123c; --bank-grad: linear-gradient(135deg, #fb7185, #be123c); --bank-shadow: rgba(190, 18, 60, .35); }
+        @media (max-width: 480px) {
+            .banks-grid { grid-template-columns: 1fr; }
+            .bank-card { padding: 18px; }
+        }
+
+        /* ====================== إشعارات بستايل الأيفون (iOS-style) ====================== */
+        .ios-notif-center { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 0; right: 0; z-index: 5000; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; padding: 0 12px; }
+        .ios-notification { pointer-events: auto; width: 100%; max-width: 380px; background: rgba(248, 248, 250, 0.82); backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); border-radius: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(0, 0, 0, 0.06); padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; direction: rtl; cursor: pointer; border-inline-start: 4px solid var(--gold); transform: translateY(-140%) scale(0.96); opacity: 0; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
+        .ios-notification.show { transform: translateY(0) scale(1); opacity: 1; }
+        .ios-notification.hide { transform: translateY(-140%) scale(0.96); opacity: 0; }
+        body.dark-mode .ios-notification { background: rgba(28, 28, 42, 0.78); }
+        .ios-notification.type-success { border-inline-start-color: #34c759; }
+        .ios-notification.type-error   { border-inline-start-color: #ff3b30; }
+        .ios-notification.type-warning { border-inline-start-color: #ff9500; }
+        .ios-notification.type-info    { border-inline-start-color: #0a84ff; }
+        .ios-notif-icon { position: relative; width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; overflow: hidden; background: var(--header-bg); display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: .95rem; }
+        .ios-notif-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .ios-notif-body { flex: 1; min-width: 0; }
+        .ios-notif-toprow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+        .ios-notif-appname { font-size: .68rem; font-weight: 800; color: #3a3a3c; text-transform: uppercase; letter-spacing: .4px; opacity: .75; }
+        body.dark-mode .ios-notif-appname { color: #e5e5ea; }
+        .ios-notif-time { font-size: .66rem; color: #8e8e93; flex-shrink: 0; }
+        .ios-notif-msg { font-size: .85rem; color: #1c1c1e; font-weight: 600; line-height: 1.4; word-break: break-word; }
+        body.dark-mode .ios-notif-msg { color: #f2f2f7; }
+
+        /* ====================== معاينة PDF حقيقية عبر pdf.js ====================== */
+        .pdfjs-viewer { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .pdfjs-toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--bg-primary); border-radius: 50px; padding: 8px 16px; box-shadow: var(--shadow); flex-wrap: wrap; }
+        .pdfjs-toolbar button { background: var(--header-bg); color: var(--gold); border: none; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); font-size: .85rem; }
+        .pdfjs-toolbar button:hover:not(:disabled) { background: var(--gold); color: #1a2a3a; transform: translateY(-2px); }
+        .pdfjs-toolbar button:disabled { opacity: .35; cursor: not-allowed; }
+        .pdfjs-toolbar span { font-size: .78rem; font-weight: 700; color: var(--text-primary); min-width: 62px; text-align: center; }
+        .pdfjs-canvas-wrap { width: 100%; max-height: 60vh; overflow: auto; display: flex; justify-content: center; background: #525659; border-radius: 12px; padding: 12px; }
+        .pdfjs-canvas-wrap canvas { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); max-width: 100%; height: auto; }
+        @media (max-width: 480px) {
+            .pdfjs-toolbar { gap: 6px; padding: 6px 10px; }
+            .pdfjs-toolbar button { width: 30px; height: 30px; }
+        }
+
+        /* ====================== صور مصغّرة لمحتوى الملفات (Thumbnails) ====================== */
+        .file-thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; opacity: 0; transition: opacity 0.35s ease; }
+        .file-thumb-img.loaded { opacity: 1; }
+        .file-preview.has-thumb i.file-type-icon { opacity: 0; }
+        .file-preview .file-type-badge, .file-preview .file-size-badge, .file-preview .view-overlay { z-index: 2; }
     </style>
 </head>
 <body>
+
+<div class="ios-notif-center" id="iosNotifCenter"></div>
 
 <header class="header">
     <div class="header-logo">
@@ -257,82 +333,60 @@
         <h2>📚 مكتبة الملفات التعليمية</h2>
         <p>مذكرات، كتب، وأسئلة امتحانات - تحميل وعرض الملفات</p>
     </div>
-<!-- ====== رابط بنك الأسئلة ====== -->
+<!-- ====== روابط بنوك الأسئلة - كل بنك بستايله الخاص ====== -->
+<div class="banks-section">
 
-<h2 style="color: var(--text-primary); font-size: 1.3rem; margin: 10px 0 15px;">🎓 بنوك الصف الأول</h2>
-
-<div class="library-link-card" style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
-    <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
-            <i class="fas fa-bone"></i>
-        </div>
-        <div>
-            <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">🦴 بنك الأسئلة - Anatomy</h3>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">تشريح - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
-        </div>
+    <h2 class="banks-heading">🎓 بنوك الصف الأول</h2>
+    <div class="banks-grid">
+        <a href="Anatomy_Questions_Bank.html" class="bank-card bank-card--anatomy">
+            <div class="bank-card-icon"><i class="fas fa-bone"></i></div>
+            <div class="bank-card-body">
+                <h3>🦴 بنك الأسئلة - Anatomy</h3>
+                <p>تشريح - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
+            </div>
+            <span class="bank-card-cta"><i class="fas fa-arrow-left"></i> الذهاب إلى البنك</span>
+        </a>
     </div>
-    <a href="Anatomy_Questions_Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--darker); padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: var(--transition); display: flex; align-items: center; gap: 8px; white-space: nowrap;">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى البنك
-    </a>
 
-</div>
+    <h2 class="banks-heading">📚 بنوك الصف الثاني</h2>
+    <div class="banks-grid">
+        <a href="Community_Health_Nursing_Bank.html" class="bank-card bank-card--community">
+            <div class="bank-card-icon"><i class="fas fa-users"></i></div>
+            <div class="bank-card-body">
+                <h3>👥 بنك الأسئلة - Community Health Nursing</h3>
+                <p>صحة المجتمع - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
+            </div>
+            <span class="bank-card-cta"><i class="fas fa-arrow-left"></i> الذهاب إلى البنك</span>
+        </a>
 
-<h2 style="color: var(--text-primary); font-size: 1.3rem; margin: 30px 0 15px;">📚 بنوك الصف الثاني</h2>
+        <a href="Medical Surgical Nursing Bank.html" class="bank-card bank-card--medsurg">
+            <div class="bank-card-icon"><i class="fas fa-book-medical"></i></div>
+            <div class="bank-card-body">
+                <h3>📚 بنك الأسئلة - Medical Surgical Nursing</h3>
+                <p>تمريض جراحي وباطني - أكثر من 1000 سؤال مع الترجمة والحلول</p>
+            </div>
+            <span class="bank-card-cta"><i class="fas fa-arrow-left"></i> الذهاب إلى البنك</span>
+        </a>
 
-<div class="library-link-card" style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
-    <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
-            <i class="fas fa-users"></i>
-        </div>
-        <div>
-            <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">👥 بنك الأسئلة - Community Health Nursing</h3>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">صحة المجتمع - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
-        </div>
+        <a href="General Surgery Questions Bank.html" class="bank-card bank-card--gensurg">
+            <div class="bank-card-icon"><i class="fas fa-syringe"></i></div>
+            <div class="bank-card-body">
+                <h3>🔬 بنك الأسئلة - General Surgery</h3>
+                <p>جراحة عامة - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
+            </div>
+            <span class="bank-card-cta"><i class="fas fa-arrow-left"></i> الذهاب إلى بنك الجراحة</span>
+        </a>
+
+        <a href="internal-medicine.html" class="bank-card bank-card--internal">
+            <div class="bank-card-icon"><i class="fas fa-heartbeat"></i></div>
+            <div class="bank-card-body">
+                <h3>🩺 بنك الأسئلة - Internal Medicine</h3>
+                <p>طب باطنة - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
+            </div>
+            <span class="bank-card-cta"><i class="fas fa-heartbeat"></i> الذهاب إلى بنك طب باطنة</span>
+        </a>
     </div>
-    <a href="Community_Health_Nursing_Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--darker); padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: var(--transition); display: flex; align-items: center; gap: 8px; white-space: nowrap;">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى البنك
-    </a>
-
 </div>
-
-<div class="library-link-card" style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
-    <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
-            <i class="fas fa-book-medical"></i>
-        </div>
-        <div>
-            <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">📚 بنك الأسئلة - Medical Surgical Nursing</h3>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">تمريض جراحي وباطني - أكثر من 1000 سؤال مع الترجمة والحلول</p>
-        </div>
-    </div>
-    <a href="Medical Surgical Nursing Bank.html" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--darker); padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: var(--transition); display: flex; align-items: center; gap: 8px; white-space: nowrap;">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى البنك
-    </a>
-
-</div>
-
-   <div style="background: var(--card-bg); border-radius: var(--radius-lg); padding: 25px; margin-bottom: 30px; box-shadow: var(--shadow-md); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; transition: var(--transition);">
-    <div style="display: flex; align-items: center; gap: 15px;">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--darker);">
-            <i class="fas fa-syringe"></i>
-        </div>
-        <div>
-            <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">🔬 بنك الأسئلة - General Surgery</h3>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">جراحة عامة - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
-        </div>
-    </div>
-    <a href="General Surgery Questions Bank.html" style="background: linear-gradient(135deg, #1a2a3a, #0d1c28); color: #d4af5a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap; border: 2px solid #d4af5a; box-shadow: 0 2px 10px rgba(212,175,90,0.1);">
-        <i class="fas fa-arrow-left"></i> الذهاب إلى بنك الجراحة
-    </a>
-   </div> 
-   <div>
-    <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 4px;">🩺 بنك الأسئلة - Internal Medicine</h3>
-    <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">طب باطنة - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
-</div>
-<a href="internal-medicine.html" style="background: linear-gradient(135deg, #1a2a3a, #0d1c28); color: #d4af5a; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; white-space: nowrap; border: 2px solid #d4af5a; box-shadow: 0 2px 10px rgba(212,175,90,0.1);">
-    <i class="fas fa-heartbeat" style="font-size:1.1rem;"></i> 
-    <span>❤️ الذهاب إلى بنك طب باطنة</span>
-</a>
 
 
     <div class="stats-grid">
@@ -493,26 +547,45 @@ function canUploadFiles() {
     return currentUser && (currentUser.type === 'admin' || currentUser.role === 'admin');
 }
 
+// ====================== إشعارات بستايل الأيفون ======================
+let iosNotifCounter = 0;
+const IOS_NOTIF_ICONS = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+
 function showToast(message, type = 'success') {
-    const colors = { success: '#2d6a4f', error: '#dc3545', info: '#e8b84a', warning: '#ffc107' };
-    if (typeof Toastify !== 'undefined') {
-        Toastify({
-            text: message,
-            duration: 3000,
-            gravity: 'top',
-            position: 'center',
-            style: {
-                background: colors[type] || colors.success,
-                fontFamily: 'Tajawal, sans-serif',
-                borderRadius: '50px',
-                padding: '12px 24px',
-                direction: 'rtl',
-                fontWeight: '600'
-            }
-        }).showToast();
-    } else {
-        alert(message);
-    }
+    const center = document.getElementById('iosNotifCenter');
+    if (!center) { alert(message); return; }
+
+    const id = 'ios-notif-' + (++iosNotifCounter);
+    const icon = IOS_NOTIF_ICONS[type] || IOS_NOTIF_ICONS.success;
+
+    const el = document.createElement('div');
+    el.className = `ios-notification type-${type}`;
+    el.id = id;
+    el.innerHTML = `
+        <div class="ios-notif-icon">
+            <i class="fas ${icon}"></i>
+            <img src="logo.png" alt="" onerror="this.remove()">
+        </div>
+        <div class="ios-notif-body">
+            <div class="ios-notif-toprow">
+                <span class="ios-notif-appname">مكتبة الملفات</span>
+                <span class="ios-notif-time">الآن</span>
+            </div>
+            <div class="ios-notif-msg">${escapeHtml(message)}</div>
+        </div>`;
+    el.addEventListener('click', () => dismissIosNotification(id));
+    center.appendChild(el);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+    setTimeout(() => dismissIosNotification(id), 3400);
+}
+
+function dismissIosNotification(id) {
+    const el = document.getElementById(id);
+    if (!el || el.classList.contains('hide')) return;
+    el.classList.remove('show');
+    el.classList.add('hide');
+    setTimeout(() => el.remove(), 400);
 }
 
 async function apiRequest(endpoint, options = {}) {
@@ -646,15 +719,19 @@ function renderFiles() {
         </div>
     `;
     }).join('');
+
+    setupThumbObserver();
 }
 
 function renderFileCard(file) {
     const gradeNames = { first: '🎓 الصف الأول', second: '📚 الصف الثاني', third: '📖 الصف الثالث' };
     const isAdmin = canUploadFiles();
+    const type = (file.type || '').toLowerCase();
+    const needsThumb = type === 'pdf' || IMAGE_PREVIEW_TYPES.includes(type);
     return `
         <div class="file-card">
-            <div class="file-preview" onclick="previewFile('${file._id}')">
-                <i class="${getFileIcon(file.type)}"></i>
+            <div class="file-preview" data-file-id="${file._id}" ${needsThumb ? 'data-need-thumb="1"' : ''} onclick="previewFile('${file._id}')">
+                <i class="file-type-icon ${getFileIcon(file.type)}"></i>
                 <div class="view-overlay"><i class="fas fa-eye"></i></div>
                 <span class="file-type-badge">${file.type?.toUpperCase() || 'ملف'}</span>
                 ${file.size ? `<span class="file-size-badge">${formatFileSize(file.size)}</span>` : ''}
@@ -678,6 +755,89 @@ function renderFileCard(file) {
             </div>
         </div>
     `;
+}
+
+// ====================== توليد صور مصغّرة لمحتوى الملفات (Thumbnails) ======================
+const fileThumbCache = new Map(); // fileId -> src (dataURL أو رابط مباشر للصور)
+let thumbObserver = null;
+
+function setupThumbObserver() {
+    if (thumbObserver) thumbObserver.disconnect();
+    const targets = document.querySelectorAll('.file-preview[data-need-thumb="1"]');
+    if (!targets.length) return;
+
+    if (!('IntersectionObserver' in window)) {
+        targets.forEach(el => loadThumbnailFor(el));
+        return;
+    }
+
+    thumbObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                thumbObserver.unobserve(entry.target);
+                loadThumbnailFor(entry.target);
+            }
+        });
+    }, { rootMargin: '250px 0px' });
+
+    targets.forEach(el => thumbObserver.observe(el));
+}
+
+function applyThumb(previewEl, src) {
+    if (!previewEl || previewEl.querySelector('.file-thumb-img')) return;
+    const img = document.createElement('img');
+    img.className = 'file-thumb-img';
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onload = () => img.classList.add('loaded');
+    img.onerror = () => img.remove();
+    img.src = src;
+    previewEl.classList.add('has-thumb');
+    previewEl.appendChild(img);
+}
+
+async function loadThumbnailFor(previewEl) {
+    const fileId = previewEl.dataset.fileId;
+    const file = allFiles.find(f => f._id === fileId);
+    if (!file || !file.url) return;
+    const type = (file.type || '').toLowerCase();
+
+    if (fileThumbCache.has(fileId)) {
+        applyThumb(previewEl, fileThumbCache.get(fileId));
+        return;
+    }
+
+    if (IMAGE_PREVIEW_TYPES.includes(type) && type !== 'svg') {
+        fileThumbCache.set(fileId, file.url);
+        applyThumb(previewEl, file.url);
+        return;
+    }
+
+    if (type === 'pdf') {
+        if (!window.pdfjsLib) return; // نكتفي بالأيقونة الافتراضية لو المكتبة ما اتحمّلتش
+        try {
+            const loadingTask = pdfjsLib.getDocument({ url: file.url, withCredentials: false });
+            const pdf = await loadingTask.promise;
+            const page = await pdf.getPage(1);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const targetWidth = 360;
+            const scale = targetWidth / baseViewport.width;
+            const viewport = page.getViewport({ scale });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext('2d');
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+            fileThumbCache.set(fileId, dataUrl);
+            applyThumb(previewEl, dataUrl);
+            pdf.destroy();
+        } catch (err) {
+            console.warn('تعذّر توليد معاينة مصغّرة لملف PDF:', fileId, err);
+        }
+    }
 }
 
 function updateSubjectFilter() {
@@ -762,19 +922,21 @@ async function previewFile(fileId) {
     };
 
     if (type === 'pdf') {
-        try {
-            // نجيب الملف كـ Blob بدل ما نحط الرابط مباشرة في iframe،
-            // عشان نتفادى إن المتصفح "ينزّل" الملف بسبب هيدر Content-Disposition
-            const resp = await fetch(file.url, { credentials: 'omit' });
-            if (!resp.ok) throw new Error('تعذر تحميل الملف');
-            const blob = await resp.blob();
-            const pdfBlob = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
-            currentPreviewBlobUrl = URL.createObjectURL(pdfBlob);
-            body.innerHTML = `<iframe class="pdf-preview" src="${currentPreviewBlobUrl}#toolbar=1" title="معاينة PDF"></iframe>`;
-        } catch (err) {
-            console.warn('فشل جلب PDF كـ Blob، جرب التحميل المباشر:', err);
-            // كحل احتياطي: جرّب تحميله مباشرة (لو مسموح CORS ومفيش هيدر تحميل إجباري)
-            body.innerHTML = `<iframe class="pdf-preview" src="${file.url}#toolbar=1" title="معاينة PDF"></iframe>`;
+        if (window.pdfjsLib) {
+            await renderPdfInModal(file, body);
+        } else {
+            // احتياطي في حالة فشل تحميل مكتبة pdf.js من الـ CDN
+            try {
+                const resp = await fetch(file.url, { credentials: 'omit' });
+                if (!resp.ok) throw new Error('تعذر تحميل الملف');
+                const blob = await resp.blob();
+                const pdfBlob = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
+                currentPreviewBlobUrl = URL.createObjectURL(pdfBlob);
+                body.innerHTML = `<iframe class="pdf-preview" src="${currentPreviewBlobUrl}#toolbar=1" title="معاينة PDF"></iframe>`;
+            } catch (err) {
+                console.warn('فشل جلب PDF كـ Blob، جرب التحميل المباشر:', err);
+                body.innerHTML = `<iframe class="pdf-preview" src="${file.url}#toolbar=1" title="معاينة PDF"></iframe>`;
+            }
         }
     } else if (IMAGE_PREVIEW_TYPES.includes(type)) {
         body.innerHTML = `<div class="image-preview-wrap"><img class="image-preview" src="${file.url}" alt="${escapeHtml(decodeFileName(file.name))}" onerror="this.closest('.preview-body').innerHTML = '<div class=\\'unsupported-preview\\'><i class=\\'fas fa-image\\'></i><h4>تعذّرت معاينة الصورة</h4></div>'"></div>`;
@@ -796,6 +958,85 @@ async function previewFile(fileId) {
     } else {
         showDownloadFallback('لا تتوفر معاينة لهذا النوع من الملفات');
     }
+}
+
+// ====================== معاينة PDF حقيقية عبر مكتبة pdf.js ======================
+// بنستخدم pdf.js عشان نرسم صفحات الـ PDF فعليًا على canvas بدل ما نعتمد
+// على عارض PDF المدمج في المتصفح (اللي بيختلف سلوكه بين الأجهزة والمتصفحات
+// وبيفشل أحيانًا جوه iframe، خصوصًا على الموبايل).
+let pdfCurrentDoc = null;
+let pdfCurrentPage = 1;
+let pdfCurrentScale = 1.2;
+
+async function renderPdfInModal(file, body) {
+    body.innerHTML = `
+        <div class="pdfjs-viewer">
+            <div class="pdfjs-toolbar">
+                <button id="pdfPrevBtn" title="الصفحة السابقة"><i class="fas fa-chevron-right"></i></button>
+                <span id="pdfPageIndicator">-- / --</span>
+                <button id="pdfNextBtn" title="الصفحة التالية"><i class="fas fa-chevron-left"></i></button>
+                <button id="pdfZoomOutBtn" title="تصغير"><i class="fas fa-search-minus"></i></button>
+                <button id="pdfZoomInBtn" title="تكبير"><i class="fas fa-search-plus"></i></button>
+                <button id="pdfDownloadBtn" title="تحميل"><i class="fas fa-download"></i></button>
+            </div>
+            <div class="pdfjs-canvas-wrap" id="pdfCanvasWrap">
+                <div class="preview-loading"><i class="fas fa-spinner fa-spin"></i><p>جاري تحميل صفحات الملف...</p></div>
+            </div>
+        </div>`;
+
+    try {
+        if (pdfCurrentDoc) { try { pdfCurrentDoc.destroy(); } catch(e) {} }
+        const loadingTask = pdfjsLib.getDocument({ url: file.url, withCredentials: false });
+        pdfCurrentDoc = await loadingTask.promise;
+        pdfCurrentPage = 1;
+        pdfCurrentScale = 1.2;
+        await renderPdfPage();
+
+        document.getElementById('pdfPrevBtn').onclick = () => changePdfPage(-1);
+        document.getElementById('pdfNextBtn').onclick = () => changePdfPage(1);
+        document.getElementById('pdfZoomOutBtn').onclick = () => zoomPdf(-0.2);
+        document.getElementById('pdfZoomInBtn').onclick = () => zoomPdf(0.2);
+        document.getElementById('pdfDownloadBtn').onclick = () => downloadFile(file._id, file.name);
+    } catch (err) {
+        console.warn('فشل تحميل PDF عبر pdf.js، جرب iframe كحل احتياطي:', err);
+        body.innerHTML = `<iframe class="pdf-preview" src="${file.url}#toolbar=1" title="معاينة PDF"></iframe>`;
+    }
+}
+
+async function renderPdfPage() {
+    if (!pdfCurrentDoc) return;
+    const wrap = document.getElementById('pdfCanvasWrap');
+    if (!wrap) return;
+
+    const page = await pdfCurrentDoc.getPage(pdfCurrentPage);
+    const viewport = page.getViewport({ scale: pdfCurrentScale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    wrap.innerHTML = '';
+    wrap.appendChild(canvas);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const indicator = document.getElementById('pdfPageIndicator');
+    const prevBtn = document.getElementById('pdfPrevBtn');
+    const nextBtn = document.getElementById('pdfNextBtn');
+    if (indicator) indicator.textContent = `${pdfCurrentPage} / ${pdfCurrentDoc.numPages}`;
+    if (prevBtn) prevBtn.disabled = pdfCurrentPage <= 1;
+    if (nextBtn) nextBtn.disabled = pdfCurrentPage >= pdfCurrentDoc.numPages;
+}
+
+function changePdfPage(delta) {
+    if (!pdfCurrentDoc) return;
+    const newPage = pdfCurrentPage + delta;
+    if (newPage < 1 || newPage > pdfCurrentDoc.numPages) return;
+    pdfCurrentPage = newPage;
+    renderPdfPage();
+}
+
+function zoomPdf(delta) {
+    pdfCurrentScale = Math.min(3, Math.max(0.5, pdfCurrentScale + delta));
+    renderPdfPage();
 }
 
 // ====================== تحميل الملف ======================
@@ -1141,6 +1382,10 @@ function closePreviewModal() {
     const modal = document.getElementById('previewModal');
     if (modal) modal.classList.remove('active');
     revokeCurrentPreviewBlobUrl();
+    if (pdfCurrentDoc) {
+        try { pdfCurrentDoc.destroy(); } catch (e) {}
+        pdfCurrentDoc = null;
+    }
 }
 
 // ====================== Bottom Navigation ======================
