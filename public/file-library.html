@@ -543,6 +543,39 @@ function getFileIcon(type) {
     return icons[type?.toLowerCase()] || icons.default;
 }
 
+// ====================== تطبيع نوع الملف (بعض الملفات مخزّنة بنوع MIME كامل زي
+// "application/pdf" بدل الامتداد القصير "pdf")، فبنحوّله لامتداد قصير موحّد
+// نقدر نقارن بيه في كل حِتّة في الكود (الفلتر، الأيقونة، المعاينة، الصورة المصغّرة) ======================
+const MIME_TO_EXT = {
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg',
+    'text/plain': 'txt'
+};
+
+function getFileExt(file) {
+    if (!file) return '';
+    const raw = (file.type || '').toLowerCase().trim();
+    if (raw) {
+        if (MIME_TO_EXT[raw]) return MIME_TO_EXT[raw];
+        if (!raw.includes('/')) return raw; // امتداد قصير أصلاً زي "pdf"
+        const guess = raw.split('/').pop().split('.').pop();
+        if (guess && guess.length <= 5) return guess;
+    }
+    const nameExt = (file.name || '').split('.').pop();
+    return (nameExt || '').toLowerCase();
+}
+
 function canUploadFiles() {
     return currentUser && (currentUser.type === 'admin' || currentUser.role === 'admin');
 }
@@ -679,7 +712,7 @@ function renderFiles() {
     }
     if (gradeFilter !== 'all') filtered = filtered.filter(f => f.grade === gradeFilter);
     if (subjectFilter !== 'all') filtered = filtered.filter(f => f.subject === subjectFilter);
-    if (typeFilter !== 'all') filtered = filtered.filter(f => f.type === typeFilter);
+    if (typeFilter !== 'all') filtered = filtered.filter(f => getFileExt(f) === typeFilter);
 
     filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -726,14 +759,14 @@ function renderFiles() {
 function renderFileCard(file) {
     const gradeNames = { first: '🎓 الصف الأول', second: '📚 الصف الثاني', third: '📖 الصف الثالث' };
     const isAdmin = canUploadFiles();
-    const type = (file.type || '').toLowerCase();
+    const type = getFileExt(file);
     const needsThumb = type === 'pdf' || IMAGE_PREVIEW_TYPES.includes(type);
     return `
         <div class="file-card">
             <div class="file-preview" data-file-id="${file._id}" ${needsThumb ? 'data-need-thumb="1"' : ''} onclick="previewFile('${file._id}')">
-                <i class="file-type-icon ${getFileIcon(file.type)}"></i>
+                <i class="file-type-icon ${getFileIcon(type)}"></i>
                 <div class="view-overlay"><i class="fas fa-eye"></i></div>
-                <span class="file-type-badge">${file.type?.toUpperCase() || 'ملف'}</span>
+                <span class="file-type-badge">${type ? type.toUpperCase() : 'ملف'}</span>
                 ${file.size ? `<span class="file-size-badge">${formatFileSize(file.size)}</span>` : ''}
             </div>
             <div class="file-info">
@@ -800,7 +833,7 @@ async function loadThumbnailFor(previewEl) {
     const fileId = previewEl.dataset.fileId;
     const file = allFiles.find(f => f._id === fileId);
     if (!file || !file.url) return;
-    const type = (file.type || '').toLowerCase();
+    const type = getFileExt(file);
 
     if (fileThumbCache.has(fileId)) {
         applyThumb(previewEl, fileThumbCache.get(fileId));
@@ -909,7 +942,7 @@ async function previewFile(fileId) {
     const modal = document.getElementById('previewModal');
     const title = document.getElementById('previewTitle');
     const body = document.getElementById('previewBody');
-    const type = (file.type || '').toLowerCase();
+    const type = getFileExt(file);
 
     revokeCurrentPreviewBlobUrl();
     title.textContent = `📄 ${decodeFileName(file.name)}`;
@@ -1192,7 +1225,7 @@ function uploadOneFile(file, grade, subject, onProgress) {
                     url: urlData.publicUrl,
                     publicId: urlData.path,
                     size: file.size,
-                    type: file.type || file.name.split('.').pop().toLowerCase(),
+                    type: file.name.split('.').pop().toLowerCase(),
                     grade,
                     subject
                 })
