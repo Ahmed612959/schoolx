@@ -164,10 +164,9 @@
         .list-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .list-head, .student-row {
             display: grid !important;
-            grid-template-columns: 34px 1fr 190px 44px 46px;
+            grid-template-columns: 34px 1fr auto;
             align-items: center;
             gap: 10px;
-            min-width: 560px;
         }
         .list-head {
             padding: 12px 18px;
@@ -179,6 +178,32 @@
             position: sticky; top: 0;
         }
         .list-head input[type="checkbox"], .row-check { width: 18px; height: 18px; accent-color: var(--navy); cursor: pointer; }
+        .row-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+
+        /* ================= Gender classification (filter chips + section headers) ================= */
+        .gender-filter { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .gender-chip {
+            display: flex; align-items: center; gap: 7px;
+            padding: 9px 18px; border-radius: 30px; border: 1.5px solid var(--line);
+            background: white; color: var(--navy); font-weight: 700; font-size: 13.5px;
+            cursor: pointer; font-family: 'Tajawal', sans-serif; transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
+        }
+        .gender-chip:hover { border-color: var(--gold); }
+        .gender-chip.active { background: linear-gradient(135deg, var(--navy), var(--navy-deep)); color: var(--gold-soft); border-color: var(--navy-deep); }
+        .gender-chip .chip-count {
+            background: rgba(0,0,0,0.06); border-radius: 20px; padding: 1px 8px; font-size: 12px; font-weight: 800;
+        }
+        .gender-chip.active .chip-count { background: rgba(255,255,255,0.18); color: white; }
+        .gender-section-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 18px; background: #f4f7fa; border-bottom: 1px solid var(--line);
+            font-weight: 800; font-size: 13px; color: var(--navy); position: sticky; top: 0; z-index: 1;
+        }
+        .gender-section-header .count { color: var(--muted); font-weight: 600; }
+        .gender-section-header.boys i { color: #2f7fb0; }
+        .gender-section-header.girls i { color: #c46fa0; }
+        .gender-section-header.unknown i { color: var(--muted); }
         .student-row {
             padding: 10px 18px;
             border-bottom: 1px solid var(--line);
@@ -295,11 +320,24 @@
             .stat-box { min-width: 130px; padding: 10px 14px; }
             .stat-number { font-size: 19px; }
         }
+        /* No horizontal scrollbars on phones: rows wrap onto a second line instead of scrolling */
         @media (max-width: 640px) {
-            .list-head, .student-row { grid-template-columns: 30px 1fr 154px 40px 42px; gap: 8px; padding-inline: 12px; }
+            .list-scroll { overflow-x: visible; }
+            .list-head { display: none; }
+            .student-row {
+                display: flex !important;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px 10px;
+                padding: 12px 14px;
+            }
+            .student-row .student-identity { flex: 1 1 auto; min-width: 0; }
+            .student-row .row-actions { flex: 1 1 100%; justify-content: space-between; padding-inline-start: 42px; }
+            .row-note { flex: 1 1 100%; }
             .student-name { font-size: 13.5px; }
             .avatar { width: 32px; height: 32px; font-size: 13px; }
             .seg-btn { width: 30px; height: 27px; font-size: 12px; }
+            .gender-chip { padding: 8px 14px; font-size: 13px; }
         }
     </style>
 </head>
@@ -342,6 +380,11 @@
     </div>
 
     <div class="control-bar">
+        <div class="gender-filter" id="genderFilter" style="display: none;">
+            <button type="button" class="gender-chip active" data-gender="all" onclick="setGenderFilter('all')">👥 الكل <span class="chip-count" id="countAll">0</span></button>
+            <button type="button" class="gender-chip" data-gender="male" onclick="setGenderFilter('male')">👦 أولاد <span class="chip-count" id="countMale">0</span></button>
+            <button type="button" class="gender-chip" data-gender="female" onclick="setGenderFilter('female')">👧 بنات <span class="chip-count" id="countFemale">0</span></button>
+        </div>
         <div class="search-section" id="searchSection" style="display: none;">
             <div class="search-wrap">
                 <i class="fas fa-magnifying-glass"></i>
@@ -375,6 +418,7 @@ const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:30
 const GRADE = 'third';
 let students = [], filteredStudents = [], attendanceRecords = {};
 let currentDate = new Date().toISOString().split('T')[0];
+let genderFilter = 'all'; // 'all' | 'male' | 'female'
 
 function getCsrfToken() { return sessionStorage.getItem('csrfToken'); }
 function getLoggedInUser() { const u = sessionStorage.getItem('userData'); return u ? JSON.parse(u) : null; }
@@ -510,6 +554,7 @@ function showEmptyState() {
     document.getElementById('selectionToolbar').style.display = 'none';
     document.getElementById('datePicker').style.display = 'none';
     document.getElementById('searchSection').style.display = 'none';
+    document.getElementById('genderFilter').style.display = 'none';
 
     document.getElementById('totalCount').textContent = '0';
     document.getElementById('presentCount').textContent = '0';
@@ -522,6 +567,7 @@ function showAttendanceTable() {
     document.getElementById('selectionToolbar').style.display = 'flex';
     document.getElementById('datePicker').style.display = 'block';
     document.getElementById('searchSection').style.display = 'block';
+    document.getElementById('genderFilter').style.display = 'flex';
 }
 
 async function loadStudents() {
@@ -541,6 +587,7 @@ async function loadStudents() {
         filteredStudents = [...students];
         document.getElementById('attendance-date').value = currentDate;
         showAttendanceTable();
+        updateGenderCounts();
         await loadAttendance();
         updateSearchInfo();
         updateSummary();
@@ -576,12 +623,33 @@ async function loadAttendance() {
 
 function filterStudents() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
-    filteredStudents = searchTerm === '' ? [...students] : students.filter(s =>
+    let base = genderFilter === 'all' ? students : students.filter(s => s.gender === genderFilter);
+    filteredStudents = searchTerm === '' ? [...base] : base.filter(s =>
         s.fullName?.toLowerCase().includes(searchTerm) ||
         s.studentCode?.toLowerCase().includes(searchTerm)
     );
     renderAttendanceTable();
     updateSearchInfo();
+}
+
+// ====================== تصنيف الأولاد والبنات ======================
+window.setGenderFilter = function(value) {
+    genderFilter = value;
+    document.querySelectorAll('.gender-chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.gender === value);
+    });
+    filterStudents();
+};
+
+function updateGenderCounts() {
+    const male = students.filter(s => s.gender === 'male').length;
+    const female = students.filter(s => s.gender === 'female').length;
+    const countAll = document.getElementById('countAll');
+    const countMale = document.getElementById('countMale');
+    const countFemale = document.getElementById('countFemale');
+    if (countAll) countAll.textContent = students.length;
+    if (countMale) countMale.textContent = male;
+    if (countFemale) countFemale.textContent = female;
 }
 
 function updateSearchInfo() {
@@ -618,15 +686,14 @@ function renderAttendanceTable() {
         return;
     }
 
-    let rowsHtml = '';
-    filteredStudents.forEach((student) => {
+    function buildRowHtml(student) {
         const record = attendanceRecords[student.studentCode];
         const status = record ? record.status : 'present';
         const note = record ? (record.note || '') : '';
         const code = escapeHtml(student.studentCode);
         const name = escapeHtml(student.fullName);
 
-        rowsHtml += `
+        return `
             <div class="student-row" data-code="${code}" data-status="${status}">
                 <input type="checkbox" class="row-check" onchange="onRowCheckChange(this)">
                 <div class="student-identity">
@@ -636,19 +703,39 @@ function renderAttendanceTable() {
                         <div class="student-code">كود: ${code}</div>
                     </div>
                 </div>
-                <div class="status-seg">
-                    <button type="button" class="seg-btn ${status === 'present' ? 'active-present' : ''}" title="حاضر" onclick="setRowStatus(this, 'present')"><i class="fas fa-check"></i></button>
-                    <button type="button" class="seg-btn ${status === 'absent' ? 'active-absent' : ''}" title="غائب" onclick="setRowStatus(this, 'absent')"><i class="fas fa-xmark"></i></button>
-                    <button type="button" class="seg-btn ${status === 'late' ? 'active-late' : ''}" title="متأخر" onclick="setRowStatus(this, 'late')"><i class="fas fa-clock"></i></button>
+                <div class="row-actions">
+                    <div class="status-seg">
+                        <button type="button" class="seg-btn ${status === 'present' ? 'active-present' : ''}" title="حاضر" onclick="setRowStatus(this, 'present')"><i class="fas fa-check"></i></button>
+                        <button type="button" class="seg-btn ${status === 'absent' ? 'active-absent' : ''}" title="غائب" onclick="setRowStatus(this, 'absent')"><i class="fas fa-xmark"></i></button>
+                        <button type="button" class="seg-btn ${status === 'late' ? 'active-late' : ''}" title="متأخر" onclick="setRowStatus(this, 'late')"><i class="fas fa-clock"></i></button>
+                    </div>
+                    <button type="button" class="note-toggle ${note ? 'has-note' : ''}" title="ملاحظة" onclick="toggleNote(this)"><i class="fas fa-note-sticky"></i></button>
+                    <button type="button" class="save-icon-btn" title="حفظ" onclick="updateSingle('${code}')"><i class="fas fa-floppy-disk"></i></button>
                 </div>
-                <button type="button" class="note-toggle ${note ? 'has-note' : ''}" title="ملاحظة" onclick="toggleNote(this)"><i class="fas fa-note-sticky"></i></button>
-                <button type="button" class="save-icon-btn" title="حفظ" onclick="updateSingle('${code}')"><i class="fas fa-floppy-disk"></i></button>
                 <div class="row-note">
                     <input type="text" class="note-input" data-code="${code}" value="${escapeHtml(note)}" placeholder="أضف ملاحظة...">
                 </div>
             </div>
         `;
-    });
+    }
+
+    let rowsHtml = '';
+    if (genderFilter === 'all') {
+        // مجمّعين تحت عناوين فرعية (أولاد / بنات / غير محدد) لسهولة التعامل مع الأسماء
+        const groups = [
+            { key: 'male', label: 'الأولاد', icon: 'fa-person', cls: 'boys' },
+            { key: 'female', label: 'البنات', icon: 'fa-person-dress', cls: 'girls' },
+            { key: 'unknown', label: 'غير محدد النوع', icon: 'fa-circle-question', cls: 'unknown' }
+        ];
+        groups.forEach(group => {
+            const members = filteredStudents.filter(s => group.key === 'unknown' ? !s.gender : s.gender === group.key);
+            if (members.length === 0) return;
+            rowsHtml += `<div class="gender-section-header ${group.cls}"><i class="fas ${group.icon}"></i> ${group.label} <span class="count">(${members.length})</span></div>`;
+            members.forEach(student => { rowsHtml += buildRowHtml(student); });
+        });
+    } else {
+        filteredStudents.forEach(student => { rowsHtml += buildRowHtml(student); });
+    }
 
     container.innerHTML = `
         <div class="students-panel">
@@ -656,9 +743,7 @@ function renderAttendanceTable() {
                 <div class="list-head">
                     <span></span>
                     <span>الطالب</span>
-                    <span style="text-align:center;">الحالة</span>
-                    <span></span>
-                    <span></span>
+                    <span style="text-align:left; padding-inline-end: 90px;">الحالة</span>
                 </div>
                 <div id="attendance-rows">${rowsHtml}</div>
             </div>
