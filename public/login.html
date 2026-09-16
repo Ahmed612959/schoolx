@@ -6,7 +6,7 @@
     <title>تسجيل الدخول - معهد رعاية الضبعية</title>
     <link rel="stylesheet" href="login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <!-- ✅ مكتبة WebAuthn - ملف محلي على سيرفرك بدل CDN خارجي (نفس الملف يُستخدم في Home.html و admin.html) -->
@@ -20,14 +20,43 @@
         <span>لا يوجد اتصال بالإنترنت حاليًا</span>
     </div>
 
-    <button type="button" class="theme-toggle" id="themeToggle" aria-label="تبديل الوضع الليلي">
-        <i class="fas fa-moon"></i>
-    </button>
+    <a href="https://chatx-wheat.vercel.app/" target="_blank" rel="noopener noreferrer" class="chatx-fab" aria-label="افتح منصة ChatX">
+        <i class="fas fa-wand-magic-sparkles"></i>
+        <span>ChatX</span>
+    </a>
 
     <div class="main-container">
         <div class="page-stack">
 
+            <!-- ====================== "هل سبق لك التسجيل؟" — أول ما تفتح الصفحة ====================== -->
+            <div id="regChoiceSection" class="reg-choice-section" style="display:none;">
+                <div class="reg-icon"><i class="far fa-circle-question"></i></div>
+                <h3>هل سبق لك التسجيل في المنصة؟</h3>
+                <p class="reg-choice-desc">لكي لا يتم إنشاء أكثر من حساب بالخطأ</p>
+
+                <div class="reg-choice-options">
+                    <button id="btnYes" class="reg-choice-card yes" type="button">
+                        <i class="fas fa-circle-check"></i>
+                        <span>نعم، سبق لي التسجيل</span>
+                    </button>
+                    <button id="btnNo" class="reg-choice-card no" type="button">
+                        <i class="fas fa-user-plus"></i>
+                        <span>لا، حساب جديد</span>
+                    </button>
+                </div>
+
+                <div class="reg-choice-help">
+                    <p>محتاج مساعدة في حسابك أو أي معلومة؟</p>
+                    <p class="contact-name"><i class="fas fa-headset"></i> تواصل مع أحمد موسى</p>
+                    <a href="https://wa.me/201124963765" target="_blank"><i class="fab fa-whatsapp"></i> 01124963765</a>
+                </div>
+            </div>
+
             <div class="login-form-container">
+                <button type="button" class="theme-toggle" id="themeToggle" aria-label="تبديل الوضع الليلي">
+                    <i class="fas fa-moon"></i>
+                </button>
+
                 <div class="login-logo">
                     <img src="logo.png" alt="شعار معهد رعاية الضبعية"
                          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -75,8 +104,6 @@
 
                     <p class="lock-message" id="lockMessage" aria-live="polite"></p>
 
-                    <p class="secure-note" id="secureNote"><i class="fas fa-shield-halved"></i> اتصال آمن ومشفّر</p>
-
                     <!-- ====================== 🔐 تسجيل الدخول بالبصمة ====================== -->
                     <div class="biometric-section">
                         <button type="button" class="biometric-btn" id="biometricLoginBtn" onclick="startBiometricLogin()" style="display:none;">
@@ -92,62 +119,32 @@
 
                     <div class="divider">أو</div>
 
-                    <div class="links-box">
-                        <div class="signup-link">
-                            <a href="signup.html">
-                                <i class="fas fa-user-plus"></i>
-                                <span>إنشاء حساب جديد</span>
-                                <i class="fas fa-chevron-left link-arrow"></i>
-                            </a>
-                        </div>
+                    <div class="quick-links">
+                        <a href="signup.html" class="quick-link quick-link--primary">
+                            <i class="fas fa-user-plus"></i>
+                            <span>إنشاء حساب</span>
+                        </a>
 
-                        <div class="parent-link">
-                            <a href="Parent.html">
-                                <i class="fas fa-user-friends"></i>
-                                <span>تسجيل دخول ولي الأمر</span>
-                                <i class="fas fa-chevron-left link-arrow"></i>
-                            </a>
-                        </div>
+                        <a href="Parent.html" class="quick-link quick-link--accent">
+                            <i class="fas fa-user-friends"></i>
+                            <span>ولي الأمر</span>
+                        </a>
                     </div>
                 </form>
-            </div>
-
-            <!-- ====================== "هل سبق لك التسجيل؟" — مربعات تحت بطاقة الدخول ====================== -->
-            <div id="regChoiceSection" class="reg-choice-section" style="display:none;">
-                <div class="reg-icon">🤔</div>
-                <h3>هل سبق لك التسجيل في المنصة؟</h3>
-                <p class="reg-choice-desc">لكي لا يتم إنشاء أكثر من حساب بالخطأ</p>
-
-                <div class="reg-choice-options">
-                    <button id="btnYes" class="reg-choice-card yes" type="button">
-                        <i class="fas fa-circle-check"></i>
-                        <span>نعم، سبق لي التسجيل</span>
-                    </button>
-                    <button id="btnNo" class="reg-choice-card no" type="button">
-                        <i class="fas fa-user-plus"></i>
-                        <span>لا، حساب جديد</span>
-                    </button>
-                </div>
-
-                <div class="reg-choice-help">
-                    <p>محتاج مساعدة في حسابك أو أي معلومة؟</p>
-                    <p class="contact-name"><i class="fas fa-headset"></i> تواصل مع أحمد موسى</p>
-                    <a href="https://wa.me/201124963765" target="_blank"><i class="fab fa-whatsapp"></i> 01124963765</a>
-                </div>
             </div>
 
         </div>
     </div>
 
     <footer>
-        <p>Developed by Ahmed Moussa <span class="heart">❤</span></p>
+        <p>Developed by Ahmed Moussa <i class="fas fa-heart heart"></i></p>
     </footer>
 
     <!-- ====================== شاشة نجاح تسجيل الدخول ====================== -->
     <div id="successOverlay" class="success-overlay">
         <svg viewBox="0 0 130 130" width="110" height="110">
-            <circle class="success-circle" cx="65" cy="65" r="58" fill="none" stroke="#1E9186" stroke-width="6" stroke-linecap="round"/>
-            <path class="success-check" d="M40 67 L58 85 L92 45" fill="none" stroke="#1E9186" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle class="success-circle" cx="65" cy="65" r="58" fill="none" stroke="#d8bd7c" stroke-width="6" stroke-linecap="round"/>
+            <path class="success-check" d="M40 67 L58 85 L92 45" fill="none" stroke="#d8bd7c" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <p class="success-text" id="successText">تم تسجيل الدخول بنجاح</p>
     </div>
@@ -557,19 +554,6 @@
             window.addEventListener('online', updateOnlineStatus);
             window.addEventListener('offline', updateOnlineStatus);
             updateOnlineStatus();
-        })();
-
-        // ---------- 🔒 مؤشر تشفير الاتصال ----------
-        (function () {
-            const noteEl = document.getElementById('secureNote');
-            if (!noteEl) return;
-            const isSecure = window.location.protocol === 'https:' ||
-                window.location.hostname === 'localhost' ||
-                window.location.hostname === '127.0.0.1';
-            if (!isSecure) {
-                noteEl.classList.add('insecure');
-                noteEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> الاتصال الحالي غير مشفّر (HTTP)';
-            }
         })();
 
         // ---------- 👁️ نطق حالة إظهار/إخفاء كلمة المرور لقارئ الشاشة ----------
