@@ -150,7 +150,10 @@ const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || '';
 // احتياطي (fallback) لفيتشرز نصية زي "تحسين وصف الصورة" — Cerebras وOneHop
 // (النسخة القديمة، claude-opus) مستبعدين عمدًا لأنهم مخصصين لميزة premium_ai.
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || '';
+// مفتاح CometAPI مخصّص لموديل النص gpt-oss-20b-free بس — مقصود إنه يكون منفصل
+// عن COMETAPI_KEY المستخدم لصور Grok/Flux (تحت) عشان يبقى ليه Quota خاص بيه،
+// مش مشارك مع فيتشرز تانية. كان هنا موديل Mistral (MISTRAL_API_KEY) واتشال خالص.
+const COMETAPI_CHAT_API_KEY = process.env.COMETAPI_CHAT_API_KEY || '';
 const SAMBANOVA_API_KEY = process.env.SAMBANOVA_API_KEY || '';
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 // ONEHOP_API_KEY في مشروع chatx بقى فعليًا مفتاح OpenRouter (بنفس الاسم القديم
@@ -5997,12 +6000,12 @@ async function extractTextViaPython(url) {
 // Google نفسها) بدل ما نثبّت اسم نسخة معينة زي "gemini-2.5-flash"، عشان
 // النسخة القديمة بتتقاعد بمرور الوقت والـ alias ده بيتحدّث تلقائي لأحدث
 // نسخة فلاش من غير ما نحتاج نعدّل الكود تاني.
-async function callGeminiJSON(systemPrompt, userPrompt, maxTokens = 1500) {
+async function callGeminiJSON(systemPrompt, userPrompt, maxTokens = 1500, apiKey = GEMINI_API_KEY) {
     const response = await fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
         {
             method: 'POST',
-            headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+            headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
@@ -6013,6 +6016,7 @@ async function callGeminiJSON(systemPrompt, userPrompt, maxTokens = 1500) {
     if (!response.ok) {
         const err = new Error('فشل استدعاء Gemini');
         err.code = 'ai_call_failed';
+        err.status = response.status;
         throw err;
     }
     const data = await response.json();
@@ -6028,10 +6032,10 @@ async function callGeminiJSON(systemPrompt, userPrompt, maxTokens = 1500) {
 
 // بتنادي DeepSeek وبتحاول تضمن إن الرد JSON صالح — بتشيل أي ```json fences لو
 // الموديل حطها رغم التعليمات، وبترمي خطأ واضح لو فشل الـ parsing.
-async function callDeepSeekJSON(systemPrompt, userPrompt, maxTokens = 1500) {
+async function callDeepSeekJSON(systemPrompt, userPrompt, maxTokens = 1500, apiKey = DEEPSEEK_API_KEY) {
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: 'deepseek-chat',
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
@@ -6042,6 +6046,7 @@ async function callDeepSeekJSON(systemPrompt, userPrompt, maxTokens = 1500) {
     if (!response.ok) {
         const err = new Error('فشل استدعاء نموذج الذكاء الاصطناعي');
         err.code = 'ai_call_failed';
+        err.status = response.status;
         throw err;
     }
     const data = await response.json();
@@ -6071,9 +6076,10 @@ async function callAIJSON(systemPrompt, userPrompt, maxTokens = 1500) {
 // (مش بس مش مضبوط)، بتلف تلقائيًا على DeepSeek قبل ما ترمي خطأ نهائي. مفيدة
 // للفيتشرز اللي محتاجة أعلى نسبة نجاح ممكنة (زي تحسين وصف الصورة) بدل ما تقف
 // عند أول مزوّد يفشل.
-// نداء عام لأي مزوّد متوافق مع OpenAI Chat Completions API (Groq وMistral
-// وSambaNova وQwen (النصي) وOpenRouter كلهم بنفس الشكل بالظبط) — بيرجّع رد
-// JSON بعد تنضيف أي ```json fences لو الموديل حطها رغم التعليمات.
+// نداء عام لأي مزوّد متوافق مع OpenAI Chat Completions API (Groq وGPT-OSS عبر
+// CometAPI وSambaNova وQwen (النصي) وOpenRouter وأي مزوّد "مخصّص" يضيفه الأدمن
+// كلهم بنفس الشكل بالظبط) — بيرجّع رد JSON بعد تنضيف أي ```json fences لو
+// الموديل حطها رغم التعليمات.
 async function callOpenAICompatJSON(url, apiKey, model, systemPrompt, userPrompt, maxTokens, extraHeaders = {}) {
     const response = await fetch(url, {
         method: 'POST',
@@ -6090,6 +6096,7 @@ async function callOpenAICompatJSON(url, apiKey, model, systemPrompt, userPrompt
         const errBody = await response.text().catch(() => '');
         const err = new Error(`فشل استدعاء الموديل (status ${response.status})`);
         err.code = 'ai_call_failed';
+        err.status = response.status;
         err.detail = errBody.slice(0, 300);
         throw err;
     }
@@ -6105,36 +6112,91 @@ async function callOpenAICompatJSON(url, apiKey, model, systemPrompt, userPrompt
     }
 }
 
+// بتحوّل نداء "بيرمي استثناء لو فشل" لشكل { ok: true/false, ... } اللي
+// withKeyRotation محتاجه — عشان تقدر تجرب أكتر من مفتاح لنفس المزوّد.
+async function toRotationResult(fn) {
+    try {
+        const result = await fn();
+        return { ok: true, result };
+    } catch (error) {
+        return { ok: false, reason: error.code || 'error', detail: error.detail || error.message, status: error.status };
+    }
+}
+
+// المزوّدين "الجاهزين في الكود" — عشان أي مزوّد مخصّص يضيفه الأدمن بنفس الاسم
+// ميتكررش في السلسلة الديناميكية (getCustomTextProviders تحت).
+const BUILTIN_TEXT_PROVIDERS = new Set(['gemini', 'deepseek', 'groq', 'cometapi-chat', 'sambanova', 'qwen-chat', 'openrouter', 'onehop']);
+
 // سلسلة الـ failover الكاملة على كل الموديلات "العادية" (المجانية/الأساسية)
 // المتاحة — Gemini وDeepSeek الأول (الأعلى جودة عادةً)، وبعدين كل الموديلات
 // المجانية المستخدمة في شات chatx بنفس الترتيب. Cerebras وclaude-opus/OneHop
-// (النسخة القديمة) مستبعدين عمدًا لأنهم موديلات premium_ai. أي مفتاح مش مضبوط
-// بيتخطّى تلقائيًا (enabled: false) من غير ما يوقف السلسلة.
+// (النسخة القديمة) مستبعدين عمدًا لأنهم موديلات premium_ai.
+// كل مزوّد هنا بيدار من لوحة الأدمن (/api/admin/api-keys) زي qwen/grok/flux
+// بالظبط — تقدر تضيف أكتر من مفتاح ليه وهيتبدّل بينهم تلقائيًا لو واحد فشل
+// (شوف withKeyRotation)، وenvFallback بيتستخدم بس لو مفيش ولا مفتاح واحد
+// مضبوط من اللوحة أصلاً.
 const TEXT_AI_FAILOVER_CHAIN = [
-    { key: 'gemini', label: 'Gemini', enabled: () => !!GEMINI_API_KEY, run: (sys, user, max) => callGeminiJSON(sys, user, max) },
-    { key: 'deepseek', label: 'DeepSeek', enabled: () => !!DEEPSEEK_API_KEY, run: (sys, user, max) => callDeepSeekJSON(sys, user, max) },
-    { key: 'groq', label: 'Groq', enabled: () => !!GROQ_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://api.groq.com/openai/v1/chat/completions', GROQ_API_KEY, 'openai/gpt-oss-20b', sys, user, max) },
-    { key: 'mistral', label: 'Mistral', enabled: () => !!MISTRAL_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://api.mistral.ai/v1/chat/completions', MISTRAL_API_KEY, 'mistral-small-latest', sys, user, max) },
-    { key: 'sambanova', label: 'SambaNova', enabled: () => !!SAMBANOVA_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://api.sambanova.ai/v1/chat/completions', SAMBANOVA_API_KEY, 'Meta-Llama-3.3-70B-Instruct', sys, user, max) },
-    { key: 'qwen-chat', label: 'Qwen', enabled: () => !!QWEN_CHAT_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', QWEN_CHAT_API_KEY, 'qwen-plus', sys, user, max) },
-    { key: 'openrouter', label: 'OpenRouter', enabled: () => !!OPENROUTER_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://openrouter.ai/api/v1/chat/completions', OPENROUTER_API_KEY, 'openrouter/free', sys, user, max, { 'HTTP-Referer': 'https://school-x.vercel.app', 'X-Title': 'School X' }) },
-    { key: 'onehop', label: 'OneHop', enabled: () => !!ONEHOP_API_KEY, run: (sys, user, max) => callOpenAICompatJSON('https://openrouter.ai/api/v1/chat/completions', ONEHOP_API_KEY, 'dots-studio/dots-3-note-preview:free', sys, user, max) }
+    { key: 'gemini', label: 'Gemini', envFallback: GEMINI_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callGeminiJSON(sys, user, max, apiKey)) },
+    { key: 'deepseek', label: 'DeepSeek', envFallback: DEEPSEEK_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callDeepSeekJSON(sys, user, max, apiKey)) },
+    { key: 'groq', label: 'Groq', envFallback: GROQ_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callOpenAICompatJSON('https://api.groq.com/openai/v1/chat/completions', apiKey, 'openai/gpt-oss-20b', sys, user, max)) },
+    { key: 'cometapi-chat', label: 'GPT-OSS (CometAPI)', envFallback: COMETAPI_CHAT_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callOpenAICompatJSON('https://api.cometapi.com/v1/chat/completions', apiKey, 'gpt-oss-20b-free', sys, user, max)) },
+    { key: 'sambanova', label: 'SambaNova', envFallback: SAMBANOVA_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callOpenAICompatJSON('https://api.sambanova.ai/v1/chat/completions', apiKey, 'Meta-Llama-3.3-70B-Instruct', sys, user, max)) },
+    { key: 'qwen-chat', label: 'Qwen', envFallback: QWEN_CHAT_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callOpenAICompatJSON('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', apiKey, 'qwen-plus', sys, user, max)) },
+    { key: 'openrouter', label: 'OpenRouter', envFallback: OPENROUTER_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callOpenAICompatJSON('https://openrouter.ai/api/v1/chat/completions', apiKey, 'openrouter/free', sys, user, max, { 'HTTP-Referer': 'https://school-x.vercel.app', 'X-Title': 'School X' })) },
+    { key: 'onehop', label: 'OneHop', envFallback: ONEHOP_API_KEY,
+        call: (apiKey, sys, user, max) => toRotationResult(() => callOpenAICompatJSON('https://openrouter.ai/api/v1/chat/completions', apiKey, 'dots-studio/dots-3-note-preview:free', sys, user, max)) }
 ];
 
-// بتلف على TEXT_AI_FAILOVER_CHAIN بالترتيب وترجع أول رد ناجح — مستخدمة
-// للفيتشرز اللي محتاجة أعلى نسبة نجاح ممكنة (زي تحسين وصف الصورة) بدل ما تقف
-// عند أول موديل يفشل أو ميكونش مضبوط.
+// أي مزوّد "مخصّص" ضافه الأدمن من فورم "إضافة موديل جديد" في admin-premium.html
+// (لازم يكون معاه baseUrl وmodel محفوظين، وإلا بيتجاهل — يبقى مجرد مفتاح
+// متخزّن من غير ما يتستخدم فعليًا). بيتعامل معاه كمزوّد OpenAI-compatible عادي،
+// وبيدخل في نفس نظام التبديل بين المفاتيح.
+async function getCustomTextProviders() {
+    try {
+        await connectToDatabase();
+        const docs = await ApiKeySetting.find({ baseUrl: { $nin: [null, ''] }, model: { $nin: [null, ''] } });
+        return docs
+            .filter(d => !BUILTIN_TEXT_PROVIDERS.has(d.provider))
+            .map(d => ({
+                key: d.provider,
+                label: d.provider,
+                envFallback: '',
+                call: (apiKey, sys, user, max) => toRotationResult(() => callOpenAICompatJSON(d.baseUrl, apiKey, d.model, sys, user, max))
+            }));
+    } catch (error) {
+        console.error('⚠️ تعذر تحميل المزوّدين المخصّصين للنص:', error.message);
+        return [];
+    }
+}
+
+// بتلف على TEXT_AI_FAILOVER_CHAIN (زائد أي مزوّد مخصّص) بالترتيب وترجع أول رد
+// ناجح — مستخدمة للفيتشرز اللي محتاجة أعلى نسبة نجاح ممكنة (زي تحسين وصف
+// الصورة) بدل ما تقف عند أول موديل يفشل. لكل مزوّد، بتجرب كل مفاتيحه
+// المحفوظة في لوحة الأدمن واحد ورا التاني قبل ما تنتقل للمزوّد اللي بعده.
 async function callAIJSONWithFailover(systemPrompt, userPrompt, maxTokens = 1500) {
     const errors = [];
-    for (const provider of TEXT_AI_FAILOVER_CHAIN) {
-        if (!provider.enabled()) continue;
-        try {
-            const result = await provider.run(systemPrompt, userPrompt, maxTokens);
-            return { result, usedModel: provider.key };
-        } catch (error) {
-            console.error(`⚠️ ${provider.label} فشل${error.detail ? ' — ' + error.detail : ''}:`, error.message);
-            errors.push({ model: provider.key, detail: error.message });
+    const customProviders = await getCustomTextProviders();
+    const chain = [...TEXT_AI_FAILOVER_CHAIN, ...customProviders];
+    for (const provider of chain) {
+        const rotationResult = await withKeyRotation(
+            provider.key,
+            provider.envFallback,
+            (apiKey) => provider.call(apiKey, systemPrompt, userPrompt, maxTokens)
+        );
+        if (rotationResult.ok) {
+            return { result: rotationResult.result, usedModel: provider.key };
         }
+        if (rotationResult.reason === 'no_api_key') continue; // مزوّد مش مضبوط خالص، تخطاه بصمت
+        const lastAttemptDetail = rotationResult.keyAttempts?.[rotationResult.keyAttempts.length - 1]?.detail;
+        console.error(`⚠️ ${provider.label} فشل${lastAttemptDetail ? ' — ' + lastAttemptDetail : ''}`);
+        errors.push({ model: provider.key, detail: lastAttemptDetail || rotationResult.reason });
     }
     const err = new Error(errors.length ? 'كل موديلات الذكاء الاصطناعي المتاحة فشلت' : 'مفيش أي موديل ذكاء اصطناعي مضبوط حاليًا');
     err.code = errors.length ? 'ai_all_failed' : 'ai_unavailable';
@@ -6157,6 +6219,7 @@ app.get('/api/admin/env-check', verifyToken, isAdmin, (req, res) => {
         // بس fallback احتياطي لو محدش ضاف مفتاح من لوحة الأدمن.
         DASHSCOPE_API_KEY_env_fallback: Boolean(DASHSCOPE_API_KEY),
         COMETAPI_KEY_env_fallback: Boolean(process.env.COMETAPI_KEY),
+        COMETAPI_CHAT_API_KEY_env_fallback: Boolean(COMETAPI_CHAT_API_KEY),
         vercelEnv: process.env.VERCEL_ENV || null,       // production / preview / development
         deploymentUrl: process.env.VERCEL_URL || null    // الدومين الفعلي بتاع الـ deployment ده
     });
@@ -6189,6 +6252,8 @@ app.get('/api/admin/api-keys', verifyToken, isAdmin, async (req, res) => {
                 provider: d.provider,
                 updatedBy: d.updatedBy,
                 updatedAt: d.updatedAt,
+                baseUrl: d.baseUrl || '',
+                model: d.model || '',
                 keys: keys.map(k => ({
                     id: k._id ? String(k._id) : 'legacy',
                     maskedKey: maskApiKey(k.key),
@@ -6226,20 +6291,35 @@ app.get('/api/admin/api-keys/:provider/:keyId/reveal', verifyToken, isAdmin, asy
 
 // إضافة مفتاح جديد لمزوّد (من غير ما يمسح المفاتيح الموجودة قبل كده — بيتضاف
 // جنبهم في القايمة عشان يشتغل نظام التبديل التلقائي بينهم).
+// baseUrl/model: اختياريين، بس لازمين عشان أي مزوّد "مخصّص" (مش مكتوب في
+// الكود) ينضم فعليًا لسلسلة التبديل التلقائي (شوف getCustomProviderChain تحت)
+// — لازم يكون متوافق مع OpenAI Chat Completions API (Authorization: Bearer
+// <key> + body فيه model). مزوّدين الكود الجاهزين (gemini/grok/qwen/...)
+// بيتجاهلوا الحقلين دول لأن الرابط والموديل مكتوبين في الكود نفسه.
 app.post('/api/admin/api-keys', verifyToken, isAdmin, async (req, res) => {
     try {
-        const { provider, apiKey, label } = req.body || {};
+        const { provider, apiKey, label, baseUrl, model } = req.body || {};
         const cleanProvider = String(provider || '').trim().toLowerCase();
         const cleanKey = String(apiKey || '').trim();
         const cleanLabel = String(label || '').trim().slice(0, 60);
+        const cleanBaseUrl = String(baseUrl || '').trim().slice(0, 300);
+        const cleanModel = String(model || '').trim().slice(0, 120);
         if (!cleanProvider) return res.status(400).json({ error: 'اسم المزوّد مطلوب' });
         if (!cleanKey) return res.status(400).json({ error: 'المفتاح مطلوب' });
+        if (cleanBaseUrl && !/^https:\/\//i.test(cleanBaseUrl)) {
+            return res.status(400).json({ error: 'رابط الـ API لازم يبدأ بـ https://' });
+        }
         await connectToDatabase();
+        const setFields = { updatedBy: req.user.username };
+        // بنحدّث baseUrl/model بس لو اتبعتوا فعلاً (عشان إضافة مفتاح تاني لمزوّد
+        // موجود من غير ما تبعتهم متمسحهمش القيم القديمة).
+        if (cleanBaseUrl) setFields.baseUrl = cleanBaseUrl;
+        if (cleanModel) setFields.model = cleanModel;
         const doc = await ApiKeySetting.findOneAndUpdate(
             { provider: cleanProvider },
             {
                 $setOnInsert: { provider: cleanProvider },
-                $set: { updatedBy: req.user.username },
+                $set: setFields,
                 $push: { keys: { key: cleanKey, label: cleanLabel, failCount: 0, disabled: false } }
             },
             { upsert: true, new: true }
@@ -6298,12 +6378,12 @@ async function fetchGeminiWithRetry(url, options, retries = 1, delayMs = 1500) {
 // عن طريق موديل deepseek-v4-flash-vision-exp التجريبي، بعدين Qwen عن طريق
 // qwen3-vl-plus) — أول واحد يرد بنجاح بناخد رده، ولو فشل بنعدّي للي بعده.
 
-async function analyzeImageWithGemini(systemPrompt, userText, imageBase64, mimeType) {
+async function analyzeImageWithGemini(systemPrompt, userText, imageBase64, mimeType, apiKey = GEMINI_API_KEY) {
     const response = await fetchGeminiWithRetry(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
         {
             method: 'POST',
-            headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+            headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{
@@ -6322,6 +6402,7 @@ async function analyzeImageWithGemini(systemPrompt, userText, imageBase64, mimeT
         try { const d = await response.json(); if (d?.error?.message) detail = d.error.message; } catch (_) {}
         const err = new Error(detail);
         err.code = 'ai_call_failed';
+        err.status = response.status;
         throw err;
     }
     const data = await response.json();
@@ -6332,10 +6413,10 @@ async function analyzeImageWithGemini(systemPrompt, userText, imageBase64, mimeT
 
 // deepseek-v4-flash-vision-exp — موديل DeepSeek التجريبي للرؤية، بنفس صيغة
 // OpenAI Chat Completions (image_url بـ data URL base64).
-async function analyzeImageWithDeepSeek(systemPrompt, userText, imageBase64, mimeType) {
+async function analyzeImageWithDeepSeek(systemPrompt, userText, imageBase64, mimeType, apiKey = DEEPSEEK_API_KEY) {
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: 'deepseek-v4-flash-vision-exp',
             messages: [
@@ -6353,6 +6434,7 @@ async function analyzeImageWithDeepSeek(systemPrompt, userText, imageBase64, mim
         const errBody = await response.text().catch(() => '');
         const err = new Error(`فشل استدعاء DeepSeek Vision (status ${response.status})`);
         err.code = 'ai_call_failed';
+        err.status = response.status;
         err.detail = errBody.slice(0, 300);
         throw err;
     }
@@ -6363,11 +6445,12 @@ async function analyzeImageWithDeepSeek(systemPrompt, userText, imageBase64, mim
 }
 
 // qwen3-vl-plus عن طريق DashScope compatible-mode — نفس مفتاح الشات النصي
-// (QWEN_CHAT_API_KEY)، بنفس صيغة OpenAI Chat Completions.
-async function analyzeImageWithQwen(systemPrompt, userText, imageBase64, mimeType) {
+// (مزوّد 'qwen-chat' في لوحة الأدمن، مش 'qwen' بتاع توليد الصور)، بنفس صيغة
+// OpenAI Chat Completions.
+async function analyzeImageWithQwen(systemPrompt, userText, imageBase64, mimeType, apiKey = QWEN_CHAT_API_KEY) {
     const response = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${QWEN_CHAT_API_KEY}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: 'qwen3-vl-plus',
             messages: [
@@ -6385,6 +6468,7 @@ async function analyzeImageWithQwen(systemPrompt, userText, imageBase64, mimeTyp
         const errBody = await response.text().catch(() => '');
         const err = new Error(`فشل استدعاء Qwen Vision (status ${response.status})`);
         err.code = 'ai_call_failed';
+        err.status = response.status;
         err.detail = errBody.slice(0, 300);
         throw err;
     }
@@ -6394,25 +6478,37 @@ async function analyzeImageWithQwen(systemPrompt, userText, imageBase64, mimeTyp
     return analysis;
 }
 
+// نفس مفاتيح gemini/deepseek/qwen-chat المحفوظة في لوحة الأدمن لموديلات النص
+// (TEXT_AI_FAILOVER_CHAIN فوق) — بيشتغلوا هنا كمان من غير أي إعداد إضافي، لأنه
+// نفس الحساب/المفتاح غالبًا. أي مفتاح تضيفه لـ Gemini مثلًا هيشتغل للشات
+// وللتحليل البصري مع بعض تلقائيًا.
 const VISION_AI_FAILOVER_CHAIN = [
-    { key: 'gemini', label: 'Gemini', enabled: () => !!GEMINI_API_KEY, run: analyzeImageWithGemini },
-    { key: 'deepseek', label: 'DeepSeek', enabled: () => !!DEEPSEEK_API_KEY, run: analyzeImageWithDeepSeek },
-    { key: 'qwen', label: 'Qwen', enabled: () => !!QWEN_CHAT_API_KEY, run: analyzeImageWithQwen }
+    { key: 'gemini', label: 'Gemini', envFallback: GEMINI_API_KEY,
+        call: (apiKey, sys, text, img, mime) => toRotationResult(() => analyzeImageWithGemini(sys, text, img, mime, apiKey)) },
+    { key: 'deepseek', label: 'DeepSeek', envFallback: DEEPSEEK_API_KEY,
+        call: (apiKey, sys, text, img, mime) => toRotationResult(() => analyzeImageWithDeepSeek(sys, text, img, mime, apiKey)) },
+    { key: 'qwen-chat', label: 'Qwen', envFallback: QWEN_CHAT_API_KEY,
+        call: (apiKey, sys, text, img, mime) => toRotationResult(() => analyzeImageWithQwen(sys, text, img, mime, apiKey)) }
 ];
 
 // بتلف على VISION_AI_FAILOVER_CHAIN بالترتيب وترجع أول تحليل ناجح — بالظبط زي
-// callAIJSONWithFailover بتاعة تحسين الوصف، بس هنا للتحليل النصي الحر (مش JSON).
+// callAIJSONWithFailover بتاعة تحسين الوصف، بس هنا للتحليل النصي الحر (مش
+// JSON). لكل موديل، بتجرب كل مفاتيحه المحفوظة في لوحة الأدمن واحد ورا التاني.
 async function analyzeImageWithFailover(systemPrompt, userText, imageBase64, mimeType) {
     const errors = [];
     for (const provider of VISION_AI_FAILOVER_CHAIN) {
-        if (!provider.enabled()) continue;
-        try {
-            const analysis = await provider.run(systemPrompt, userText, imageBase64, mimeType);
-            return { analysis, usedModel: provider.key };
-        } catch (error) {
-            console.error(`⚠️ ${provider.label} فشل في تحليل الصورة${error.detail ? ' — ' + error.detail : ''}:`, error.message);
-            errors.push({ model: provider.key, detail: error.message });
+        const rotationResult = await withKeyRotation(
+            provider.key,
+            provider.envFallback,
+            (apiKey) => provider.call(apiKey, systemPrompt, userText, imageBase64, mimeType)
+        );
+        if (rotationResult.ok) {
+            return { analysis: rotationResult.result, usedModel: provider.key };
         }
+        if (rotationResult.reason === 'no_api_key') continue;
+        const lastAttemptDetail = rotationResult.keyAttempts?.[rotationResult.keyAttempts.length - 1]?.detail;
+        console.error(`⚠️ ${provider.label} فشل في تحليل الصورة${lastAttemptDetail ? ' — ' + lastAttemptDetail : ''}`);
+        errors.push({ model: provider.key, detail: lastAttemptDetail || rotationResult.reason });
     }
     const err = new Error(errors.length ? 'كل موديلات تحليل الصور فشلت' : 'خدمة تحليل الصور مش مفعّلة حاليًا');
     err.code = errors.length ? 'ai_all_failed' : 'ai_unavailable';
@@ -8705,7 +8801,14 @@ const apiKeySchema = new mongoose.Schema({
     provider: { type: String, required: true, unique: true, index: true }, // 'qwen' / 'grok' / 'flux' / ...
     apiKey: { type: String }, // الشكل القديم (مفتاح واحد بس) — لسه موجود للتوافق مع بيانات قديمة
     keys: { type: [apiKeySubSchema], default: [] }, // الشكل الجديد — أكتر من مفتاح لكل مزوّد
-    updatedBy: { type: String, default: '' }
+    updatedBy: { type: String, default: '' },
+    // baseUrl و model: بس للمزوّدين "المخصّصين" اللي الأدمن ضافهم بنفسه من فورم
+    // "إضافة موديل جديد" في admin-premium.html (أي موديل متوافق مع OpenAI Chat
+    // Completions API — Authorization: Bearer <key> + body فيه model). مزوّدين
+    // الكود الجاهزين (qwen/grok/flux/gemini/...) مش محتاجين الحقلين دول لأن
+    // الرابط والموديل مكتوبين في الكود نفسه.
+    baseUrl: { type: String, default: '' },
+    model: { type: String, default: '' }
 }, { timestamps: true });
 const ApiKeySetting = mongoose.models.ApiKeySetting || mongoose.model('ApiKeySetting', apiKeySchema);
 
@@ -11766,7 +11869,7 @@ const API_PRICING = {
   'cerebras':            { label: 'GPT-OSS-120B عبر Cerebras (premium_ai)', inputPerM: 0.35, outputPerM: 0.75, avgOutputTokens: 500 },
   'claude-opus':         { label: 'gpt-5.6-sol عبر OneHop (premium_ai)', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
   'groq':                { label: 'gpt-oss-20b عبر Groq', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
-  'mistral':             { label: 'mistral-small-latest', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
+  'mistral':             { label: 'gpt-oss-20b-free عبر CometAPI (مشروع chatx)', inputPerM: 0, outputPerM: 0, avgOutputTokens: 500 },
   'sambanova':           { label: 'Llama-3.3-70B عبر SambaNova', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
   'qwen':                { label: 'qwen-plus', inputPerM: null, outputPerM: null, avgOutputTokens: 500 },
   'onehop':              { label: 'موديل مجاني عبر OneHop (:free)', inputPerM: 0, outputPerM: 0, avgOutputTokens: 500 },
