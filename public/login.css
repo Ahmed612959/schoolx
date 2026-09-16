@@ -1,14 +1,14 @@
 /* =========================================================
    معهد رعاية الضبعية — صفحة تسجيل الدخول
-   نظام ألوان: أخضر طبي هادئ (نفس لون علامة النجاح #1E9186)
+   نظام ألوان: أبيض/محايد أساسي + لمسة أخضر طبي كلون تمييز فقط
    ========================================================= */
 
 :root {
-  --bg-start: #eaf6f4;
-  --bg-end: #d9edea;
+  --bg-start: #fbfcfd;
+  --bg-end: #eef1f2;
 
   --surface: #ffffff;
-  --surface-soft: #f3faf8;
+  --surface-soft: #f6f8f9;
 
   --primary: #146c64;
   --primary-dark: #0b4a44;
@@ -17,12 +17,12 @@
   --accent: #c9932f;
   --accent-dark: #a5761f;
 
-  --text: #17302c;
-  --text-muted: #5c7a75;
-  --text-faint: #8aa39e;
+  --text: #1b2023;
+  --text-muted: #667077;
+  --text-faint: #98a1a7;
 
-  --border: #dbeae6;
-  --border-strong: #c3ddd7;
+  --border: #e6eaec;
+  --border-strong: #d5dbde;
 
   --danger: #c74a3f;
   --warning: #c9932f;
@@ -33,36 +33,52 @@
   --radius-field: 16px;
   --radius-pill: 999px;
 
-  --shadow-float: 0 30px 60px -20px rgba(11, 74, 68, 0.28),
-                   0 10px 20px -8px rgba(11, 74, 68, 0.12);
-  --shadow-soft: 0 10px 24px -12px rgba(11, 74, 68, 0.18);
+  --shadow-float: 0 30px 60px -20px rgba(20, 26, 30, 0.18),
+                   0 10px 20px -8px rgba(20, 26, 30, 0.08);
+  --shadow-soft: 0 10px 24px -12px rgba(20, 26, 30, 0.12);
+
+  color-scheme: light;
 }
 
 body[data-theme="dark"] {
-  --bg-start: #0e2420;
-  --bg-end: #091815;
-  --surface: #123632;
-  --surface-soft: #16413b;
+  --bg-start: #17181b;
+  --bg-end: #0e0f11;
+
+  --surface: #1e1f23;
+  --surface-soft: #26282d;
+
   --primary: #35c4b1;
   --primary-dark: #1e9186;
   --primary-light: #35c4b1;
+
   --accent: #e0ab55;
   --accent-dark: #f0c47a;
-  --text: #eaf6f4;
-  --text-muted: #9fc8c1;
-  --text-faint: #729891;
-  --border: #1f4c46;
-  --border-strong: #2c6059;
+
+  --text: #eef1f2;
+  --text-muted: #a2a9ae;
+  --text-faint: #72787d;
+
+  --border: #303236;
+  --border-strong: #3d4045;
+
   --shadow-float: 0 30px 60px -20px rgba(0, 0, 0, 0.55),
                    0 10px 20px -8px rgba(0, 0, 0, 0.35);
   --shadow-soft: 0 10px 24px -12px rgba(0, 0, 0, 0.4);
-}
 
-body[data-theme="dark"] .login-form-container {
-  border-color: rgba(255, 255, 255, 0.06);
+  color-scheme: dark;
 }
 
 body[data-theme="dark"] .toast-error { background: linear-gradient(135deg, #e2695d, #b23a30) !important; }
+
+/* شريط تمرير محايد يتماشى مع الوضعين */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+html { scrollbar-color: var(--border-strong) transparent; }
 
 * { box-sizing: border-box; }
 
@@ -139,7 +155,7 @@ body.offline-banner-active {
 body {
   font-family: 'Tajawal', sans-serif;
   color: var(--text);
-  background: radial-gradient(1200px 800px at 20% -10%, #f2fbf9 0%, transparent 55%),
+  background: radial-gradient(1200px 800px at 20% -10%, #ffffff 0%, transparent 55%),
               linear-gradient(160deg, var(--bg-start) 0%, var(--bg-end) 100%);
   min-height: 100vh;
   display: flex;
@@ -151,7 +167,7 @@ body {
 }
 
 body[data-theme="dark"] {
-  background: radial-gradient(1200px 800px at 20% -10%, #143631 0%, transparent 55%),
+  background: radial-gradient(1200px 800px at 20% -10%, #202226 0%, transparent 55%),
               linear-gradient(160deg, var(--bg-start) 0%, var(--bg-end) 100%);
 }
 
@@ -182,11 +198,22 @@ body[data-theme="dark"] {
   background: var(--surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-float);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border);
   padding: 44px 36px 36px;
   position: relative;
   text-align: center;
+  overflow: hidden;
   animation: card-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-form-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--primary-light), var(--primary-dark) 55%, var(--accent));
 }
 
 @keyframes card-rise {
@@ -212,6 +239,11 @@ body[data-theme="dark"] {
   box-shadow: 0 10px 22px -10px rgba(20, 108, 100, 0.35),
               inset 0 1px 0 rgba(255, 255, 255, 0.8);
   padding: 12px;
+}
+
+body[data-theme="dark"] .login-logo {
+  box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .login-logo img {
@@ -251,7 +283,7 @@ body[data-theme="dark"] {
   margin-bottom: 18px;
   padding: 12px 16px;
   border-radius: var(--radius-field);
-  background: #fbeceb;
+  background: rgba(199, 74, 63, 0.1);
   color: var(--danger);
   font-size: 14px;
   font-weight: 600;
@@ -549,7 +581,7 @@ form.shake { animation: shake-error 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 .biometric-btn:hover,
 .biometric-register-btn:hover {
   border-color: var(--primary-light);
-  background: #eaf7f5;
+  background: rgba(30, 145, 134, 0.1);
   transform: translateY(-1px);
 }
 
@@ -562,7 +594,7 @@ form.shake { animation: shake-error 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 
 .biometric-register-btn:hover {
   border-color: var(--accent);
-  background: #fbf3e6;
+  background: rgba(201, 147, 47, 0.14);
 }
 
 @keyframes fingerprint-pulse {
@@ -672,7 +704,7 @@ form.shake { animation: shake-error 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 .signup-link a:hover,
 .parent-link a:hover {
   border-color: var(--primary-light);
-  background: #eef9f7;
+  background: rgba(30, 145, 134, 0.08);
   transform: translateY(-1px);
 }
 
@@ -685,7 +717,7 @@ form.shake { animation: shake-error 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 /* لو المستخدم اختار "لا، حساب جديد" في القسم اللي تحت، نلفت النظر لرابط إنشاء الحساب */
 body.show-signup .signup-link a {
   border-color: var(--primary-light);
-  background: #eef9f7;
+  background: rgba(30, 145, 134, 0.08);
   box-shadow: 0 0 0 4px rgba(30, 145, 134, 0.12);
 }
 
@@ -764,12 +796,12 @@ body.show-signup .signup-link a {
 
 .reg-choice-card.yes:hover {
   border-color: var(--success);
-  background: #eaf7f5;
+  background: rgba(30, 145, 134, 0.1);
 }
 
 .reg-choice-card.no:hover {
   border-color: var(--primary-light);
-  background: #eef7fb;
+  background: rgba(45, 125, 148, 0.1);
 }
 
 .reg-choice-help {
@@ -799,14 +831,19 @@ body.show-signup .signup-link a {
   margin-top: 4px;
   padding: 8px 16px;
   border-radius: var(--radius-pill);
-  background: #e8f8f0;
-  color: #1c8a4b;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  color: var(--primary-dark);
   font-weight: 700;
   font-size: 13px;
   text-decoration: none;
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
 
-.reg-choice-help a:hover { background: #dcf3e5; }
+.reg-choice-help a:hover {
+  background: rgba(30, 145, 134, 0.08);
+  border-color: var(--primary-light);
+}
 
 /* =========================================================
    التذييل
