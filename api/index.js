@@ -608,6 +608,13 @@ const studentSchema = new mongoose.Schema({
     activeSessionId: { type: String, default: null },
     sessionLastSeenAt: { type: Date, default: null },
     activeSessionFingerprint: { type: String, default: null },
+    // ====== تسجيل خروج إجباري (حاليًا: بيتفعّل لما الأدمن يلغي مميزة Premium كانت مفعّلة) ======
+    // بيتقرا في /api/heartbeat عشان يكتشف إن الجلسة الحالية بقت لاغية حتى لو التوكن
+    // نفسه (JWT) لسه صالح تقنيًا، ويورّي للطالب سبب واضح بدل ما يلاقي نفسه مسجّل
+    // خروج من غير تفسير. بيتصفّر تلقائيًا أول ما الطالب يسجّل دخول تاني.
+    forceLogoutReason: { type: String, default: null },
+    forceLogoutMessage: { type: String, default: null },
+    forceLogoutAt: { type: Date, default: null },
     // ====== ربط حساب Telegram (نفس الفكرة والاستخدام الموضّح في adminSchema فوق) ======
     telegramChatId: { type: String, default: null },
     telegramLinkCode: { type: String, default: null },
@@ -3849,6 +3856,13 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         user.activeSessionId = sessionId;
         user.sessionLastSeenAt = now;
         user.activeSessionFingerprint = deviceFingerprint || null;
+        // جلسة جديدة (= جهاز اتربط من جديد) بتلغي أي إشعار "تسجيل خروج إجباري" قديم
+        // كان مستني يتقرا في heartbeat.
+        if (userType === 'student') {
+            user.forceLogoutReason = null;
+            user.forceLogoutMessage = null;
+            user.forceLogoutAt = null;
+        }
         await user.save();
         logSessionEvent({ username: user.username, userType, event: 'login', fingerprint: deviceFingerprint, req });
         const token = jwt.sign(
@@ -3874,15 +3888,27 @@ app.post('/api/heartbeat', verifyToken, async (req, res) => {
         await connectToDatabase();
         const { deviceFingerprint } = req.body || {};
         const Model = req.user.type === 'admin' ? Admin : Student;
-        const userDoc = await Model.findOne({ _id: req.user.id, activeSessionId: req.user.sid }).select('activeSessionFingerprint username');
-        if (userDoc) {
-            // نفس الـ sid (التوكن) بس بصمة الجهاز اختلفت — ده مش سيناريو "جهاز تاني
-            // حاول يدخل" (ده اتمنع أصلاً من /api/login)، ده سيناريو أخطر: نفس
-            // التوكن بالظبط بيتستخدم من جهاز مختلف — يعني التوكن نفسه (مش مجرد
-            // اسم مستخدم وباسورد) اتشارك أو اتنسخ حرفيًا بين جهازين.
-            if (deviceFingerprint && userDoc.activeSessionFingerprint && deviceFingerprint !== userDoc.activeSessionFingerprint) {
-                logSessionEvent({ username: userDoc.username, userType: req.user.type, event: 'heartbeat_mismatch', fingerprint: deviceFingerprint, req });
-            }
+        const userDoc = await Model.findOne({ _id: req.user.id })
+            .select('activeSessionId activeSessionFingerprint username forceLogoutReason forceLogoutMessage');
+        if (!userDoc) return res.status(401).json({ error: 'المستخدم غير موجود', code: 'USER_NOT_FOUND' });
+
+        // الـ sid المسجّل في التوكن مبقاش هو نفسه الـ activeSessionId المحفوظ —
+        // يعني الجلسة اتقفلت من تحت الطالب (الأدمن ألغى مميزة Premium كانت
+        // مفعّلة، أو حصل logout/دخول من مكان تاني). التوكن (JWT) نفسه لسه
+        // صالح تقنيًا لحد ما ينتهي، فده الفحص الوحيد اللي بيكتشف الحالة دي.
+        if (userDoc.activeSessionId !== req.user.sid) {
+            return res.status(401).json({
+                error: userDoc.forceLogoutMessage || 'انتهت صلاحية الجلسة، برجاء تسجيل الدخول مرة أخرى',
+                code: userDoc.forceLogoutReason || 'SESSION_INVALID'
+            });
+        }
+
+        // نفس الـ sid (التوكن) بس بصمة الجهاز اختلفت — ده مش سيناريو "جهاز تاني
+        // حاول يدخل" (ده اتمنع أصلاً من /api/login)، ده سيناريو أخطر: نفس
+        // التوكن بالظبط بيتستخدم من جهاز مختلف — يعني التوكن نفسه (مش مجرد
+        // اسم مستخدم وباسورد) اتشارك أو اتنسخ حرفيًا بين جهازين.
+        if (deviceFingerprint && userDoc.activeSessionFingerprint && deviceFingerprint !== userDoc.activeSessionFingerprint) {
+            logSessionEvent({ username: userDoc.username, userType: req.user.type, event: 'heartbeat_mismatch', fingerprint: deviceFingerprint, req });
         }
         await Model.updateOne(
             { _id: req.user.id, activeSessionId: req.user.sid },
@@ -5312,14 +5338,37 @@ app.patch('/api/admin/students/:studentCode/premium', verifyToken, isAdmin, asyn
             return res.status(400).json({ error: 'premiumFeatures لازم تكون مصفوفة' });
         }
         const cleaned = [...new Set(premiumFeatures.filter(f => typeof f === 'string'))].slice(0, 20);
+
+        const existing = await Student.findOne({ studentCode: req.params.studentCode }).select('premiumFeatures username');
+        if (!existing) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+        const before = existing.premiumFeatures || [];
+        const removedFeatures = before.filter(f => !cleaned.includes(f));
+        const isRevocation = removedFeatures.length > 0;
+
+        const updateData = { premiumFeatures: cleaned };
+        if (isRevocation) {
+            // إلغاء مميزة كانت مفعّلة = لازم نقفل الجلسة الشغالة للطالب ده فورًا (لو
+            // فيه واحدة أصلًا)، عشان يضطر يسجّل دخول تاني ويربط جهازه من جديد —
+            // ده اللي بيمنعه يفضل مستخدم الميزة الملغية من نفس الجلسة القديمة.
+            // /api/heartbeat هو اللي هيكتشف القفل ده خلال دقيقتين على الأكتر
+            // (نفس دورة الـ heartbeat العادية) ويوري الرسالة دي للطالب.
+            updateData.activeSessionId = null;
+            updateData.sessionLastSeenAt = null;
+            updateData.activeSessionFingerprint = null;
+            updateData.forceLogoutReason = 'premium_revoked';
+            updateData.forceLogoutMessage = 'تم إلغاء تفعيل بعض مميزات Premium الخاصة بحسابك من قِبل الإدارة، لذلك تم تسجيل خروجك تلقائيًا. برجاء تسجيل الدخول وربط جهازك مرة أخرى.';
+            updateData.forceLogoutAt = new Date();
+        }
+
         const updated = await Student.findOneAndUpdate(
             { studentCode: req.params.studentCode },
-            { $set: { premiumFeatures: cleaned } },
+            { $set: updateData },
             { new: true }
         ).select('username fullName studentCode premiumFeatures');
-        if (!updated) return res.status(404).json({ error: 'الطالب غير موجود' });
-        logAdminAction(req, 'update_premium_features', { studentCode: req.params.studentCode, studentUsername: updated.username, premiumFeatures: cleaned });
-        res.json({ success: true, student: updated });
+
+        logAdminAction(req, 'update_premium_features', { studentCode: req.params.studentCode, studentUsername: updated.username, premiumFeatures: cleaned, removedFeatures });
+        res.json({ success: true, student: updated, removedFeatures, forcedLogout: isRevocation });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في تحديث مميزات Premium: ' });
     }
@@ -11176,6 +11225,11 @@ app.post('/api/biometric/login-finish', async (req, res) => {
         user.activeSessionId = bioSessionId;
         user.sessionLastSeenAt = nowBio;
         user.activeSessionFingerprint = deviceFingerprint || null;
+        if (userType === 'student') {
+            user.forceLogoutReason = null;
+            user.forceLogoutMessage = null;
+            user.forceLogoutAt = null;
+        }
         await user.save();
         logSessionEvent({ username: user.username, userType, event: 'login', fingerprint: deviceFingerprint, req });
 
