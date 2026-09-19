@@ -7213,10 +7213,10 @@ app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_s
     }
 });
 
-// ====================== تعديل صورة مرفوعة من الطالب (Grok / Grok Imagine 2 / Flux) ======================
-// الطالب بيرفع صورة من جهازه (base64 بعد ما الفرونت إند يصغّرها) + وصف التعديل.
-// المزوّدين بيحتاجوا رابط عام للصورة، فبنرفعها مؤقتًا على R2 ونديهم الرابط، وبعد
-// ما التعديل يخلص (نجح أو فشل) بنمسح النسخة المؤقتة. النتيجة بتتحفظ في مكتبة الطالب.
+// ====================== تعديل صورة مرفوعة (استوديو الصور + الشات) — Grok / Grok Imagine 2 / Flux ======================
+// الطالب بيرفع صورة (base64 بعد ما الفرونت إند يصغّرها) + وصف التعديل. المزوّدين
+// بيحتاجوا رابط عام للصورة، فبنرفعها مؤقتًا على R2 ونديهم الرابط، وبعد ما التعديل
+// يخلص (نجح أو فشل) بنمسح النسخة المؤقتة. النتيجة بتتحفظ في مكتبة الطالب.
 const UPLOAD_EDIT_MAX_BYTES = 3.5 * 1024 * 1024; // أقل من حد جسم الطلب في Vercel (4.5MB) بعد الـ base64
 function detectImageMime(buf) {
     if (buf.length > 12 && buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return { mime: 'image/jpeg', ext: 'jpg' };
@@ -7225,8 +7225,50 @@ function detectImageMime(buf) {
     return null;
 }
 
-app.post('/api/premium/edit-uploaded-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+// بتتحقق من الصورة المرفوعة (base64) وبترجّع { buffer, detected } أو { error, status }.
+function parseUploadedImage(imageBase64) {
+    if (!imageBase64 || typeof imageBase64 !== 'string') return { status: 400, error: 'الصورة مطلوبة' };
+    const buffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    if (!buffer.length) return { status: 400, error: 'الصورة غير صالحة' };
+    if (buffer.length > UPLOAD_EDIT_MAX_BYTES) return { status: 413, error: 'الصورة كبيرة جدًا — جرّب صورة أصغر' };
+    const detected = detectImageMime(buffer);
+    if (!detected) return { status: 400, error: 'نوع الصورة غير مدعوم (المسموح: JPG وPNG وWebP)' };
+    return { buffer, detected };
+}
+
+function imageEditFailureText(result, entry) {
+    return result.reason === 'no_api_key' ? `مفتاح ${entry.label} غير مضبوط`
+        : result.status === 429 || result.status === 403 ? `انتهى الرصيد المتاح لـ ${entry.label}`
+        : 'تعذر تعديل الصورة';
+}
+
+// الجزء المشترك: رفع مؤقت → استدعاء المزوّد → حفظ النتيجة في المكتبة → مسح المؤقت.
+// الحصة (الحد اليومي / المحاولة التجريبية) بتتدار برّه، عند اللي بينادي على الدالة دي.
+async function runUploadedImageEdit({ username, parsed, providerPrompt, libraryPrompt, provider, entry, width, height }) {
     let tempKey = null;
+    try {
+        let uploaded;
+        try {
+            uploaded = await uploadToCloudinary(parsed.buffer, `edit-uploads/${username}`, `source.${parsed.detected.ext}`, parsed.detected.mime);
+            tempKey = uploaded.public_id;
+        } catch (uploadError) {
+            console.error('❌ فشل رفع الصورة المؤقتة للتعديل:', uploadError.message);
+            return { ok: false, status: 500, body: { error: 'تعذر رفع الصورة، حاول تاني' } };
+        }
+        const result = await entry.fn(uploaded.secure_url, providerPrompt, { width, height });
+        if (!result.ok) return { ok: false, status: 502, result };
+        const saved = await saveGeneratedImageToLibrary({
+            username, prompt: libraryPrompt, provider, source: 'edit',
+            imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType
+        });
+        return { ok: true, result, saved };
+    } finally {
+        // نمسح النسخة المؤقتة بعد ما المزوّد يخلص (نجح أو فشل)
+        if (tempKey) deleteFromSupabase(tempKey).catch(() => {});
+    }
+}
+
+app.post('/api/premium/edit-uploaded-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
     let quotaReserved = false;
     const isAdminReq = req.user?.type === 'admin';
     try {
@@ -7236,13 +7278,8 @@ app.post('/api/premium/edit-uploaded-image', verifyToken, requirePremium('premiu
         if (!trimmedPrompt) return res.status(400).json({ error: 'وصف التعديل مطلوب' });
         const entry = EDIT_PROVIDERS[cleanProvider];
         if (!entry) return res.status(400).json({ error: 'تعديل الصور مش متاح للمزوّد ده' });
-        if (!imageBase64 || typeof imageBase64 !== 'string') return res.status(400).json({ error: 'الصورة مطلوبة' });
-
-        const buffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-        if (!buffer.length) return res.status(400).json({ error: 'الصورة غير صالحة' });
-        if (buffer.length > UPLOAD_EDIT_MAX_BYTES) return res.status(413).json({ error: 'الصورة كبيرة جدًا — جرّب صورة أصغر' });
-        const detected = detectImageMime(buffer);
-        if (!detected) return res.status(400).json({ error: 'نوع الصورة غير مدعوم (المسموح: JPG وPNG وWebP)' });
+        const parsed = parseUploadedImage(imageBase64);
+        if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
 
         let quota = { used: 0, remaining: DAILY_IMAGE_LIMIT, limit: DAILY_IMAGE_LIMIT };
         if (!isAdminReq) {
@@ -7256,44 +7293,154 @@ app.post('/api/premium/edit-uploaded-image', verifyToken, requirePremium('premiu
             quotaReserved = true;
         }
 
-        // رفع مؤقت عشان نجيب رابط عام للمزوّد
-        let uploaded;
-        try {
-            uploaded = await uploadToCloudinary(buffer, `edit-uploads/${req.user.username}`, `source.${detected.ext}`, detected.mime);
-            tempKey = uploaded.public_id;
-        } catch (uploadError) {
-            console.error('❌ فشل رفع الصورة المؤقتة للتعديل:', uploadError.message);
-            if (quotaReserved) await releaseImageQuota(req.user.username);
-            return res.status(500).json({ error: 'تعذر رفع الصورة، حاول تاني' });
-        }
-
-        const result = await entry.fn(uploaded.secure_url, trimmedPrompt, { width, height });
-        if (result.ok) {
-            const saved = await saveGeneratedImageToLibrary({
-                username: req.user?.username, prompt: trimmedPrompt, provider: cleanProvider, source: 'edit',
-                imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType
-            });
+        const out = await runUploadedImageEdit({
+            username: req.user.username, parsed, providerPrompt: trimmedPrompt, libraryPrompt: trimmedPrompt,
+            provider: cleanProvider, entry, width, height
+        });
+        if (out.ok) {
             return res.json({
-                imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, usedProvider: cleanProvider,
-                savedToLibrary: !!saved, quotaRemaining: quota.remaining, quotaLimit: quota.limit
+                imageUrl: out.result.imageUrl, imageBase64: out.result.imageBase64, mimeType: out.result.mimeType, usedProvider: cleanProvider,
+                savedToLibrary: !!out.saved, quotaRemaining: quota.remaining, quotaLimit: quota.limit
             });
         }
-
         if (quotaReserved) await releaseImageQuota(req.user.username);
-        const reasonText = result.reason === 'no_api_key' ? `مفتاح ${entry.label} غير مضبوط`
-            : result.status === 429 || result.status === 403 ? `انتهى الرصيد المتاح لـ ${entry.label}`
-            : 'تعذر تعديل الصورة';
+        if (out.body) return res.status(out.status).json(out.body);
         res.status(502).json({
-            error: reasonText,
-            ...(isAdminReq ? { debugAttempts: [{ provider: `${cleanProvider}_edit`, ...result }] } : {})
+            error: imageEditFailureText(out.result, entry),
+            ...(isAdminReq ? { debugAttempts: [{ provider: `${cleanProvider}_edit`, ...out.result }] } : {})
         });
     } catch (error) {
         console.error('❌ خطأ في تعديل الصورة المرفوعة:', error.message);
         if (quotaReserved) await releaseImageQuota(req.user.username).catch(() => {});
         res.status(500).json({ error: 'خطأ في تعديل الصورة' });
-    } finally {
-        // نمسح النسخة المؤقتة بعد ما المزوّد يخلص (نجح أو فشل)
-        if (tempKey) deleteFromSupabase(tempKey).catch(() => {});
+    }
+});
+
+// ====================== الشات: تعديل/إنشاء صورة مشابهة من صورة الطالب المرفقة ======================
+// الطالب بيبعت صورة في الشات + طلب تعديل/إنشاء (الفرونت إند بيكشف النية ويسأله على
+// الموديل). القواعد:
+//  • الطالب اللي استوديو الوسائط الذكي (premium_image_studio) مفعّل له: بيتحسب من
+//    الحد اليومي العادي (DAILY_IMAGE_LIMIT) — نفس حصة الاستوديو بالظبط.
+//  • الطالب اللي مش مفعّل له: محاولة تجريبية واحدة بس في العمر، ومن الشات بس (الاستوديو
+//    نفسه لسه محتاج التفعيل). لو المحاولة فشلت بيتردّ له حقّها ومبتتحسبش.
+//  • الأدمن: من غير حد.
+const chatImageTrialSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true, index: true }
+}, { timestamps: true });
+const ChatImageTrial = mongoose.models.ChatImageTrial || mongoose.model('ChatImageTrial', chatImageTrialSchema);
+
+async function claimChatImageTrial(username) {
+    await connectToDatabase();
+    try {
+        await ChatImageTrial.create({ username });
+        return true;
+    } catch (error) {
+        if (error && error.code === 11000) return false; // اتستخدمت قبل كده
+        throw error;
+    }
+}
+async function releaseChatImageTrial(username) {
+    try { await connectToDatabase(); await ChatImageTrial.deleteOne({ username }); } catch (e) { /* best effort */ }
+}
+async function studentHasImageStudio(user) {
+    if (user?.type === 'admin') return true;
+    await connectToDatabase();
+    const student = await Student.findOne({ username: user.username }).select('premiumFeatures');
+    return !!(student && (student.premiumFeatures || []).includes('premium_image_studio'));
+}
+
+app.get('/api/chat/image-edit/status', verifyToken, async (req, res) => {
+    try {
+        if (req.user?.type === 'admin') {
+            return res.json({ hasStudio: true, unlimited: true, remaining: DAILY_IMAGE_LIMIT, limit: DAILY_IMAGE_LIMIT });
+        }
+        if (req.user?.type !== 'student') return res.status(403).json({ error: 'غير مصرح' });
+        if (await studentHasImageStudio(req.user)) {
+            const quota = await getImageQuotaStatus(req.user.username);
+            return res.json({ hasStudio: true, ...quota });
+        }
+        await connectToDatabase();
+        const used = !!(await ChatImageTrial.exists({ username: req.user.username }));
+        res.json({ hasStudio: false, trialAvailable: !used, limit: DAILY_IMAGE_LIMIT });
+    } catch (error) {
+        console.error('❌ خطأ في حالة تعديل صور الشات:', error.message);
+        res.status(500).json({ error: 'خطأ في جلب الحالة' });
+    }
+});
+
+app.post('/api/chat/image-edit', verifyToken, async (req, res) => {
+    const isAdminReq = req.user?.type === 'admin';
+    let reserved = null; // 'quota' | 'trial' | null
+    const release = async () => {
+        if (reserved === 'quota') await releaseImageQuota(req.user.username).catch(() => {});
+        else if (reserved === 'trial') await releaseChatImageTrial(req.user.username);
+        reserved = null;
+    };
+    try {
+        if (!isAdminReq && req.user?.type !== 'student') return res.status(403).json({ error: 'غير مصرح' });
+        const { imageBase64, prompt, provider, mode, width, height } = req.body || {};
+        const trimmedPrompt = String(prompt || '').trim().slice(0, 900);
+        const cleanProvider = String(provider || '').trim().toLowerCase();
+        const cleanMode = mode === 'similar' ? 'similar' : 'edit';
+        if (!trimmedPrompt) return res.status(400).json({ error: 'وصف الطلب مطلوب' });
+        const entry = EDIT_PROVIDERS[cleanProvider];
+        if (!entry) return res.status(400).json({ error: 'الموديل ده مش متاح' });
+        const parsed = parseUploadedImage(imageBase64);
+        if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
+
+        const hasStudio = await studentHasImageStudio(req.user);
+        let quota = { remaining: DAILY_IMAGE_LIMIT, limit: DAILY_IMAGE_LIMIT };
+        if (!isAdminReq) {
+            if (hasStudio) {
+                const q = await reserveImageQuota(req.user.username);
+                if (!q.allowed) {
+                    return res.status(429).json({
+                        error: `وصلت للحد الأقصى من إنشاء/تعديل الصور اليوم (${DAILY_IMAGE_LIMIT} صور) — هيتجدد بكرة`,
+                        code: 'quota_empty', quotaRemaining: 0, quotaLimit: DAILY_IMAGE_LIMIT
+                    });
+                }
+                reserved = 'quota';
+                quota = q;
+            } else {
+                const claimed = await claimChatImageTrial(req.user.username);
+                if (!claimed) {
+                    return res.status(403).json({
+                        error: 'استخدمت محاولتك التجريبية الوحيدة — لازم يتفعّل لك استوديو الوسائط الذكي عشان تكمّل',
+                        code: 'trial_used'
+                    });
+                }
+                reserved = 'trial';
+            }
+        }
+
+        const providerPrompt = cleanMode === 'similar'
+            ? `Create a new image similar to the provided reference image (same subject, style, composition and color mood). Additional instructions from the user: ${trimmedPrompt}`
+            : trimmedPrompt;
+        const out = await runUploadedImageEdit({
+            username: req.user.username, parsed, providerPrompt, libraryPrompt: trimmedPrompt,
+            provider: cleanProvider, entry, width, height
+        });
+        if (out.ok) {
+            const permanentUrl = out.saved?.imageUrl || out.result.imageUrl || null;
+            return res.json({
+                imageUrl: permanentUrl,
+                // لو مفيش رابط أصلًا (المزوّد رجّع بايتس وحفظ المكتبة فشل) نرجّع البايتس للعرض بس
+                ...(permanentUrl ? {} : { imageBase64: out.result.imageBase64, mimeType: out.result.mimeType }),
+                usedProvider: cleanProvider, mode: cleanMode, savedToLibrary: !!out.saved,
+                hasStudio, trial: reserved === 'trial',
+                quotaRemaining: reserved === 'quota' ? quota.remaining : null, quotaLimit: quota.limit
+            });
+        }
+        await release();
+        if (out.body) return res.status(out.status).json(out.body);
+        res.status(502).json({
+            error: imageEditFailureText(out.result, entry),
+            ...(isAdminReq ? { debugAttempts: [{ provider: `${cleanProvider}_edit`, ...out.result }] } : {})
+        });
+    } catch (error) {
+        console.error('❌ خطأ في تعديل صورة الشات:', error.message);
+        await release();
+        res.status(500).json({ error: 'خطأ في تعديل الصورة' });
     }
 });
 
