@@ -6718,6 +6718,48 @@ async function genEdit_grok(imageUrl, editPrompt) {
     });
 }
 
+// ====================== Grok Imagine 2 (مزوّد منفصل — مفاتيحه مستقلة عن "grok") ======================
+// نفس موديل grok-imagine-image-2.0 عن طريق CometAPI، بس بمفاتيح خاصة بيه بتتدار من
+// لوحة الأدمن تحت اسم 'grok2'. عشان كده الرصيد والتبديل التلقائي بين المفاتيح
+// منفصلين تمامًا عن مزوّد "grok" الأصلي.
+function makeCometGrokImageFns(providerKey, label) {
+    const run = (endpoint, buildBody, tag) => withKeyRotation(providerKey, process.env.COMETAPI_KEY || '', async (apiKey) => {
+        try {
+            const response = await fetch(`${COMETAPI_BASE_URL}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(buildBody())
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const img = extractCometImage(data);
+                if (img) {
+                    if (typeof img === 'string' && /^https?:\/\//.test(img)) return { ok: true, imageUrl: img };
+                    return { ok: true, imageBase64: img.replace(/^data:image\/\w+;base64,/, ''), mimeType: 'image/png' };
+                }
+                console.error(`⚠️ ${label} ${tag}: رد 200 لكن مقدرناش نستخرج صورة منه:`, JSON.stringify(data).slice(0, 1000));
+                return { ok: false, reason: 'no_image_in_response', detail: JSON.stringify(data).slice(0, 300) };
+            }
+            const errBody = await response.text().catch(() => '');
+            console.error(`❌ ${label} ${tag} فشل — status ${response.status}:`, errBody.slice(0, 800));
+            return { ok: false, status: response.status, detail: errBody.slice(0, 300) };
+        } catch (error) {
+            console.error(`❌ ${label} ${tag} exception:`, error.message);
+            return { ok: false, reason: 'exception', detail: error.message };
+        }
+    });
+    return {
+        generate: (trimmed) => run('/v1/images/generations',
+            () => ({ model: GROK_IMAGE_MODEL, prompt: trimmed }), 'generate'),
+        // imageUrl لازم يكون رابط عام يقدر CometAPI يوصله (مش data: URI محلي).
+        edit: (imageUrl, editPrompt) => run('/v1/images/edits',
+            () => ({ model: GROK_IMAGE_MODEL, prompt: editPrompt, image: { type: 'image_url', url: imageUrl } }), 'edit')
+    };
+}
+const grok2Fns = makeCometGrokImageFns('grok2', 'Grok Imagine 2 (CometAPI)');
+const genImage_grok2 = grok2Fns.generate;
+const genEdit_grok2 = grok2Fns.edit;
+
 // Flux 2 Max (عن طريق CometAPI /flux/v1/flux-2-max) — نفس فكرة Grok، بس الـ
 // endpoint ده غير متزامن (async): أول طلب POST بيرجّع id (وأحيانًا polling_url
 // جاهز)، وبعدين لازم نستعلم على /flux/v1/get_result لحد ما تجهز الصورة أو
@@ -7011,11 +7053,13 @@ async function generateGrokVideo(prompt, imageUrl, aspectRatio) {
 const IMAGE_PROVIDERS = {
     qwen: { fn: genImage_qwen, label: 'Qwen' },
     grok: { fn: genImage_grok, label: 'Grok' },
+    grok2: { fn: genImage_grok2, label: 'Grok Imagine 2' },
     flux: { fn: genImage_flux, label: 'Flux' }
 };
 // مزوّدين بيدعموا تعديل صورة موجودة بوصف نصي (مش كل المزوّدين بيدعموا ده — Qwen مثلًا لأ).
 const EDIT_PROVIDERS = {
     grok: { fn: genEdit_grok, label: 'Grok' },
+    grok2: { fn: genEdit_grok2, label: 'Grok Imagine 2' },
     flux: { fn: genEdit_flux, label: 'Flux' }
 };
 // الترتيب التلقائي — Qwen (الرسمي) الأول، ولو فشل أو خلص رصيده نروح على Grok،
