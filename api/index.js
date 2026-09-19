@@ -7213,6 +7213,90 @@ app.post('/api/premium/edit-image', verifyToken, requirePremium('premium_image_s
     }
 });
 
+// ====================== تعديل صورة مرفوعة من الطالب (Grok / Grok Imagine 2 / Flux) ======================
+// الطالب بيرفع صورة من جهازه (base64 بعد ما الفرونت إند يصغّرها) + وصف التعديل.
+// المزوّدين بيحتاجوا رابط عام للصورة، فبنرفعها مؤقتًا على R2 ونديهم الرابط، وبعد
+// ما التعديل يخلص (نجح أو فشل) بنمسح النسخة المؤقتة. النتيجة بتتحفظ في مكتبة الطالب.
+const UPLOAD_EDIT_MAX_BYTES = 3.5 * 1024 * 1024; // أقل من حد جسم الطلب في Vercel (4.5MB) بعد الـ base64
+function detectImageMime(buf) {
+    if (buf.length > 12 && buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return { mime: 'image/jpeg', ext: 'jpg' };
+    if (buf.length > 12 && buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) return { mime: 'image/png', ext: 'png' };
+    if (buf.length > 12 && buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') return { mime: 'image/webp', ext: 'webp' };
+    return null;
+}
+
+app.post('/api/premium/edit-uploaded-image', verifyToken, requirePremium('premium_image_studio'), async (req, res) => {
+    let tempKey = null;
+    let quotaReserved = false;
+    const isAdminReq = req.user?.type === 'admin';
+    try {
+        const { imageBase64, prompt, provider, width, height } = req.body || {};
+        const trimmedPrompt = String(prompt || '').trim().slice(0, 1000);
+        const cleanProvider = String(provider || '').trim().toLowerCase();
+        if (!trimmedPrompt) return res.status(400).json({ error: 'وصف التعديل مطلوب' });
+        const entry = EDIT_PROVIDERS[cleanProvider];
+        if (!entry) return res.status(400).json({ error: 'تعديل الصور مش متاح للمزوّد ده' });
+        if (!imageBase64 || typeof imageBase64 !== 'string') return res.status(400).json({ error: 'الصورة مطلوبة' });
+
+        const buffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        if (!buffer.length) return res.status(400).json({ error: 'الصورة غير صالحة' });
+        if (buffer.length > UPLOAD_EDIT_MAX_BYTES) return res.status(413).json({ error: 'الصورة كبيرة جدًا — جرّب صورة أصغر' });
+        const detected = detectImageMime(buffer);
+        if (!detected) return res.status(400).json({ error: 'نوع الصورة غير مدعوم (المسموح: JPG وPNG وWebP)' });
+
+        let quota = { used: 0, remaining: DAILY_IMAGE_LIMIT, limit: DAILY_IMAGE_LIMIT };
+        if (!isAdminReq) {
+            quota = await reserveImageQuota(req.user.username);
+            if (!quota.allowed) {
+                return res.status(429).json({
+                    error: `وصلت للحد الأقصى من إنشاء/تعديل الصور اليوم (${DAILY_IMAGE_LIMIT} صور) — هيتجدد بكرة`,
+                    quotaRemaining: 0, quotaLimit: DAILY_IMAGE_LIMIT
+                });
+            }
+            quotaReserved = true;
+        }
+
+        // رفع مؤقت عشان نجيب رابط عام للمزوّد
+        let uploaded;
+        try {
+            uploaded = await uploadToCloudinary(buffer, `edit-uploads/${req.user.username}`, `source.${detected.ext}`, detected.mime);
+            tempKey = uploaded.public_id;
+        } catch (uploadError) {
+            console.error('❌ فشل رفع الصورة المؤقتة للتعديل:', uploadError.message);
+            if (quotaReserved) await releaseImageQuota(req.user.username);
+            return res.status(500).json({ error: 'تعذر رفع الصورة، حاول تاني' });
+        }
+
+        const result = await entry.fn(uploaded.secure_url, trimmedPrompt, { width, height });
+        if (result.ok) {
+            const saved = await saveGeneratedImageToLibrary({
+                username: req.user?.username, prompt: trimmedPrompt, provider: cleanProvider, source: 'edit',
+                imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType
+            });
+            return res.json({
+                imageUrl: result.imageUrl, imageBase64: result.imageBase64, mimeType: result.mimeType, usedProvider: cleanProvider,
+                savedToLibrary: !!saved, quotaRemaining: quota.remaining, quotaLimit: quota.limit
+            });
+        }
+
+        if (quotaReserved) await releaseImageQuota(req.user.username);
+        const reasonText = result.reason === 'no_api_key' ? `مفتاح ${entry.label} غير مضبوط`
+            : result.status === 429 || result.status === 403 ? `انتهى الرصيد المتاح لـ ${entry.label}`
+            : 'تعذر تعديل الصورة';
+        res.status(502).json({
+            error: reasonText,
+            ...(isAdminReq ? { debugAttempts: [{ provider: `${cleanProvider}_edit`, ...result }] } : {})
+        });
+    } catch (error) {
+        console.error('❌ خطأ في تعديل الصورة المرفوعة:', error.message);
+        if (quotaReserved) await releaseImageQuota(req.user.username).catch(() => {});
+        res.status(500).json({ error: 'خطأ في تعديل الصورة' });
+    } finally {
+        // نمسح النسخة المؤقتة بعد ما المزوّد يخلص (نجح أو فشل)
+        if (tempKey) deleteFromSupabase(tempKey).catch(() => {});
+    }
+});
+
 // ====================== مكتبة صور استوديو الصور (Premium) ======================
 // بترجع كل الصور اللي الطالب (أو الأدمن) حفظها من استوديو الصور، الأحدث الأول.
 // كل طالب بيشوف صوره هو بس (فلترة بـ username من التوكن، مش بارامتر من الطلب).
