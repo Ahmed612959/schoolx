@@ -6129,16 +6129,17 @@ async function callAIJSON(systemPrompt, userPrompt, maxTokens = 1500) {
 // CometAPI وSambaNova وQwen (النصي) وOpenRouter وأي مزوّد "مخصّص" يضيفه الأدمن
 // كلهم بنفس الشكل بالظبط) — بيرجّع رد JSON بعد تنضيف أي ```json fences لو
 // الموديل حطها رغم التعليمات.
-async function callOpenAICompatJSON(url, apiKey, model, systemPrompt, userPrompt, maxTokens, extraHeaders = {}) {
+async function callOpenAICompatJSON(url, apiKey, model, systemPrompt, userPrompt, maxTokens, extraHeaders = {}, options = {}) {
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...extraHeaders },
         body: JSON.stringify({
             model,
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-            temperature: 0.4,
+            temperature: options.temperature ?? 0.4,
             max_tokens: maxTokens,
-            stream: false
+            stream: false,
+            ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {})
         })
     });
     if (!response.ok) {
@@ -7348,6 +7349,107 @@ async function studentHasImageStudio(user) {
     const student = await Student.findOne({ username: user.username }).select('premiumFeatures');
     return !!(student && (student.premiumFeatures || []).includes('premium_image_studio'));
 }
+
+// ====================== الشات: فهم نية الطالب (تعديل/إنشاء صورة؟) بذكاء اصطناعي سريع ======================
+// بدل الكلمات المفتاحية: موديل صغير وسريع (Groq llama 8b) بيقرأ رسالة الطالب (عربي/إنجليزي/مخلوط،
+// أي صياغة أو برومبت كامل) ويحدّد: edit / similar / none. ردّه كلمة واحدة تقريبًا (max_tokens صغير)
+// فبيخلص في أجزاء من الثانية. لو فشل أو اتأخر بنجرّب سلسلة الـ failover العامة، ولو فشلت كمان
+// الفرونت إند بيرجع لكشف احتياطي محلي. مفيش أي رصيد صور بيتخصم هنا — ده تصنيف نصي بس.
+const IMAGE_INTENT_MODEL = process.env.IMAGE_INTENT_MODEL || 'llama-3.1-8b-instant';
+const IMAGE_INTENT_SYSTEM_PROMPT = `You classify a chat message that a student sent TOGETHER WITH an attached image. The message may be Arabic (any dialect, including Egyptian), English, or mixed, and may be a short request or a full image-generation prompt.
+Decide what the student wants done with the attached image and reply ONLY with JSON: {"intent":"EDIT"|"SIMILAR"|"NONE"}
+- EDIT: wants the attached image itself changed, improved, enhanced, retouched, restyled, recolored, cleaned, upscaled, or transformed (e.g. change background, remove/add something, make it look like a painting/cartoon/anime, fix quality). Also EDIT when the message is just a visual description/prompt of how the picture should look, with no question.
+- SIMILAR: wants a NEW image created that is similar to / inspired by / another version of the attached one (e.g. "make one like this", "another logo in this style", "اعملي واحدة زي دي").
+- NONE: anything else — asking to explain, analyze, read, translate, summarize, identify, solve, diagnose, or answer questions about the image or its text, or general chat. Editing or rewriting TEXT (a sentence, an answer) is NONE. If unsure, answer NONE.
+Examples:
+"خلي الخلفية زرقا" -> EDIT
+"حسّن جودة الصورة" -> EDIT
+"turn this into a watercolor painting" -> EDIT
+"cyberpunk city at night, neon lights, 4k" -> EDIT
+"شيل الراجل اللي ورا" -> EDIT
+"اعملي صورة زي دي بس بألوان تانية" -> SIMILAR
+"generate a similar logo for my clinic" -> SIMILAR
+"ايه اللي في الصورة دي؟" -> NONE
+"اشرحلي الرسم ده" -> NONE
+"what does this lab result mean" -> NONE
+"الصورة دي غير واضحة، اقرا النص اللي فيها" -> NONE
+"عدّل لي الجملة دي" -> NONE`;
+
+const imageIntentCache = new Map();          // نص مطبّع → { intent, at }
+const IMAGE_INTENT_CACHE_TTL_MS = 10 * 60 * 1000;
+const IMAGE_INTENT_CACHE_MAX = 500;
+const imageIntentRate = new Map();           // username → [timestamps]
+let imageIntentKeyCache = { at: 0, keys: [] };
+
+function checkImageIntentRate(username) {
+    const now = Date.now();
+    const list = (imageIntentRate.get(username) || []).filter(t => now - t < 60000);
+    if (list.length >= 30) { imageIntentRate.set(username, list); return false; }
+    list.push(now);
+    imageIntentRate.set(username, list);
+    return true;
+}
+function parseImageIntentAnswer(obj) {
+    const raw = String(obj?.intent ?? '').toUpperCase();
+    if (raw.includes('SIMILAR')) return 'similar';
+    if (raw.includes('EDIT')) return 'edit';
+    return null;
+}
+function withTimeoutValue(promise, ms, fallback) {
+    let timer;
+    const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(fallback), ms); });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+// مفاتيح Groq بتتخزّن في الذاكرة دقيقة عشان منروحش الداتابيز في كل رسالة. مقصود منستخدمش
+// withKeyRotation هنا عشان فشل موديل التصنيف ميتسجّلش كفشل على مفتاح Groq بتاع الشات.
+async function getGroqKeysCached() {
+    if (Date.now() - imageIntentKeyCache.at < 60000 && imageIntentKeyCache.keys.length) return imageIntentKeyCache.keys;
+    const list = await getProviderApiKeys('groq', GROQ_API_KEY);
+    imageIntentKeyCache = { at: Date.now(), keys: list.map(k => k.key) };
+    return imageIntentKeyCache.keys;
+}
+async function classifyImageIntentAI(text) {
+    const userPrompt = `Message: """${text.replace(/"""/g, '"')}"""`;
+    // 1) الأسرع: Groq بموديل صغير
+    try {
+        const keys = await getGroqKeysCached();
+        for (const apiKey of keys.slice(0, 2)) {
+            const r = await withTimeoutValue(
+                callOpenAICompatJSON('https://api.groq.com/openai/v1/chat/completions', apiKey, IMAGE_INTENT_MODEL,
+                    IMAGE_INTENT_SYSTEM_PROMPT, userPrompt, 30, {}, { temperature: 0, jsonMode: true }).catch(() => null),
+                2000, null);
+            if (r) return { intent: parseImageIntentAnswer(r), via: 'groq-fast' };
+        }
+    } catch (e) { /* ننتقل للاحتياطي */ }
+    // 2) احتياطي: سلسلة الـ failover العامة (بحد زمني)
+    try {
+        const out = await withTimeoutValue(callAIJSONWithFailover(IMAGE_INTENT_SYSTEM_PROMPT, userPrompt, 200).catch(() => null), 2500, null);
+        if (out && out.result) return { intent: parseImageIntentAnswer(out.result), via: out.usedModel };
+    } catch (e) { /* مفيش تصنيف */ }
+    return null;
+}
+
+app.post('/api/chat/image-intent', verifyToken, async (req, res) => {
+    try {
+        if (req.user?.type !== 'student' && req.user?.type !== 'admin') return res.status(403).json({ error: 'غير مصرح' });
+        const text = String(req.body?.text || '').trim().slice(0, 600);
+        if (!text) return res.json({ intent: null });
+        if (!checkImageIntentRate(req.user.username)) return res.status(429).json({ error: 'طلبات كتير، استنى شوية' });
+
+        const cacheKey = text.toLowerCase().replace(/\s+/g, ' ');
+        const cached = imageIntentCache.get(cacheKey);
+        if (cached && Date.now() - cached.at < IMAGE_INTENT_CACHE_TTL_MS) return res.json({ intent: cached.intent, cached: true });
+
+        const out = await classifyImageIntentAI(text);
+        if (!out) return res.status(503).json({ error: 'تعذر فهم الطلب حاليًا' });
+        if (imageIntentCache.size >= IMAGE_INTENT_CACHE_MAX) imageIntentCache.delete(imageIntentCache.keys().next().value);
+        imageIntentCache.set(cacheKey, { intent: out.intent, at: Date.now() });
+        res.json({ intent: out.intent, via: out.via });
+    } catch (error) {
+        console.error('❌ خطأ في فهم نية صورة الشات:', error.message);
+        res.status(500).json({ error: 'خطأ في التصنيف' });
+    }
+});
 
 app.get('/api/chat/image-edit/status', verifyToken, async (req, res) => {
     try {
