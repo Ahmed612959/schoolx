@@ -3714,6 +3714,8 @@ app.get('/api/admin/account-sharing', verifyToken, isAdmin, async (req, res) => 
 // ====================== German Pro (تعلّم الألمانية الاحترافي - تمريض) ======================
 // راوت مستقل في ملف german-pro-routes.js (لازم يكون جنب الملف ده في نفس الفولدر).
 require('./german-pro-routes')(app, { verifyToken, isAdmin, connectToDatabase, Student });
+// منهج German Pro (الخطة والدروس بيبنيها الذكاء الاصطناعي على قواعد كل مستوى) — ملفين جنب index.js: german-pro-curriculum-routes.js و german-syllabus.js
+require('./german-pro-curriculum-routes')(app, { verifyToken, isAdmin, connectToDatabase, Student, callAIJSONWithFailover });
 
 // ====================== English Pro (تعلّم الإنجليزية الاحترافي - تمريض) ======================
 // راوت مستقل في ملف english-pro-routes.js (لازم يكون جنب الملف ده في نفس الفولدر).
