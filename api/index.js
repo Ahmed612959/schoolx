@@ -12532,7 +12532,10 @@ app.get('/api/leaderboard/live', verifyToken, async (req, res) => {
     const me = req.user.username;
 
     const [onlineDocs, weeklyTop, myWeek, allForLikes] = await Promise.all([
-      Presence.find({ lastSeen: { $gte: onlineSince } })
+      // username: { $ne: me } — القايمة دي المفروض تعرض "زمايلك" اللي فاتحين، مش إنت
+      // نفسك. من غير الاستبعاد ده، أي طالب بيفتح اللوحة كان بيلاقي نفسه ضمن النتايج
+      // (وأي محاولة يعمل لايك لنفسه كانت بترفض من السيرفر ويظهرله إنه "متعذر").
+      Presence.find({ lastSeen: { $gte: onlineSince }, username: { $ne: me } })
         .select('username fullName lastSeen questionsToday messagesToday timeTodaySeconds likedBy')
         .sort({ lastSeen: -1 }).limit(50).lean(),
       WeeklyStats.find({ weekStart })
@@ -12541,7 +12544,8 @@ app.get('/api/leaderboard/live', verifyToken, async (req, res) => {
       WeeklyStats.findOne({ username: req.user.username, weekStart }).lean(),
       // بنحتاج كل الطلاب (مش بس المتصلين دلوقتي) عشان نلاقي "الأكتر لايكات" حتى لو
       // قافل التطبيق دلوقتي — الطالب ده المفروض يفضل ظاهر الأول في "مين فاتح دلوقتي".
-      Presence.find({ likedBy: { $exists: true, $ne: [] } })
+      // بره نفسي برضه (نفس سبب استبعاد الـ online فوق).
+      Presence.find({ likedBy: { $exists: true, $ne: [] }, username: { $ne: me } })
         .select('username fullName lastSeen likedBy').lean()
     ]);
 
