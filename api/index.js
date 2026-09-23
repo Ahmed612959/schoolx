@@ -12118,7 +12118,12 @@ const presenceSchema = new mongoose.Schema({
   timeTodaySeconds: { type: Number, default: 0 },
   // عدّاد إجمالي — من غير تصفير يومي، لعرضه في لوحة الأدمن ("عدد الأسئلة اللي سألها" إجمالًا)
   totalQuestions: { type: Number, default: 0 },
-  totalMessages: { type: Number, default: 0 }
+  totalMessages: { type: Number, default: 0 },
+  // ---------- لايكات "مين فاتح دلوقتي" ----------
+  // likedBy: قائمة usernames اللي عملوا لايك للطالب ده. بنخزن اليوزرنيمز نفسها (مش عدّاد
+  // بسيط) عشان نقدر: (أ) نمنع نفس الشخص يزوّد العداد أكتر من مرة، (ب) نعمل toggle
+  // (لايك/إلغاء لايك) لو دس تاني، (ج) نعرف هل أنا شخصيًا عامل لايك للشخص ده ولا لأ.
+  likedBy: { type: [String], default: [] }
 }, { timestamps: true });
 presenceSchema.index({ lastSeen: 1 });
 const Presence = mongoose.models.Presence || mongoose.model('Presence', presenceSchema);
@@ -12524,15 +12529,20 @@ app.get('/api/leaderboard/live', verifyToken, async (req, res) => {
     await connectToDatabase();
     const weekStart = getWeekStart();
     const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+    const me = req.user.username;
 
-    const [online, weeklyTop, myWeek] = await Promise.all([
+    const [onlineDocs, weeklyTop, myWeek, allForLikes] = await Promise.all([
       Presence.find({ lastSeen: { $gte: onlineSince } })
-        .select('username fullName lastSeen questionsToday messagesToday timeTodaySeconds')
+        .select('username fullName lastSeen questionsToday messagesToday timeTodaySeconds likedBy')
         .sort({ lastSeen: -1 }).limit(50).lean(),
       WeeklyStats.find({ weekStart })
         .sort({ timeSpentSeconds: -1, questionsCount: -1, messagesCount: -1 })
         .limit(10).lean(),
-      WeeklyStats.findOne({ username: req.user.username, weekStart }).lean()
+      WeeklyStats.findOne({ username: req.user.username, weekStart }).lean(),
+      // بنحتاج كل الطلاب (مش بس المتصلين دلوقتي) عشان نلاقي "الأكتر لايكات" حتى لو
+      // قافل التطبيق دلوقتي — الطالب ده المفروض يفضل ظاهر الأول في "مين فاتح دلوقتي".
+      Presence.find({ likedBy: { $exists: true, $ne: [] } })
+        .select('username fullName lastSeen likedBy').lean()
     ]);
 
     let myRank = 0;
@@ -12547,10 +12557,67 @@ app.get('/api/leaderboard/live', verifyToken, async (req, res) => {
       });
     }
 
-    res.json({ success: true, weekStart, online, weeklyTop, me: { username: req.user.username, rank: myRank, stats: myWeek } });
+    const onlineUsernameSet = new Set(onlineDocs.map(p => p.username));
+    const online = onlineDocs.map(p => ({
+      username: p.username,
+      fullName: p.fullName,
+      lastSeen: p.lastSeen,
+      questionsToday: p.questionsToday,
+      messagesToday: p.messagesToday,
+      timeTodaySeconds: p.timeTodaySeconds,
+      totalLikes: (p.likedBy || []).length,
+      likedByMe: (p.likedBy || []).includes(me)
+    }));
+
+    // أكتر طالب عليه لايكات — بيتصدّر "مين فاتح دلوقتي" حتى لو قافل فعليًا دلوقتي.
+    let mostLiked = null;
+    allForLikes.forEach(p => {
+      const totalLikes = (p.likedBy || []).length;
+      if (totalLikes > 0 && (!mostLiked || totalLikes > mostLiked.totalLikes)) {
+        mostLiked = {
+          username: p.username,
+          fullName: p.fullName,
+          totalLikes,
+          likedByMe: (p.likedBy || []).includes(me),
+          online: onlineUsernameSet.has(p.username),
+          lastSeen: p.lastSeen
+        };
+      }
+    });
+
+    res.json({ success: true, weekStart, online, mostLiked, weeklyTop, me: { username: req.user.username, rank: myRank, stats: myWeek } });
   } catch (error) {
     console.error('❌ leaderboard error:', error.message);
     res.status(500).json({ error: 'خطأ في جلب لوحة الصدارة' });
+  }
+});
+
+// ---------- 2.5) لايك لطالب في "مين فاتح دلوقتي" ----------
+// toggle: لو أنا عملتلوش لايك قبل كده بيتسجل، لو كنت عامل بيتشال (زي أي زرار لايك
+// عادي). العداد نفسه = طول مصفوفة likedBy، وده اللي بيحدد "الأكتر فتحًا" فوق.
+app.post('/api/presence/like/:username', verifyToken, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const targetUsername = String(req.params.username || '').trim();
+    const liker = req.user.username;
+    if (!targetUsername) return res.status(400).json({ error: 'يوزرنيم غير صالح' });
+    if (targetUsername === liker) return res.status(400).json({ error: 'مينفعش تعمل لايك لنفسك' });
+
+    const p = await Presence.findOne({ username: targetUsername });
+    if (!p) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+    const already = (p.likedBy || []).includes(liker);
+    if (already) {
+      p.likedBy = p.likedBy.filter(u => u !== liker);
+    } else {
+      p.likedBy = [...(p.likedBy || []), liker];
+    }
+    await p.save();
+
+    res.json({ success: true, liked: !already, totalLikes: p.likedBy.length });
+  } catch (error) {
+    console.error('❌ presence/like error:', error.message);
+    res.status(500).json({ error: 'خطأ في تسجيل اللايك' });
   }
 });
 
