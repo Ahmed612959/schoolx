@@ -13155,6 +13155,1310 @@ app.delete('/api/group-chats/:id/messages', verifyToken, async (req, res) => {
     }
 });
 
+
+// ====================== نظام الاختبارات المؤقتة (Timed Exams) — كل البنوك ======================
+
+// ====================== الاختبارات المؤقتة (Timed Exams) — الباطنة (Internal Medicine) ======================
+// نفس فكرة نظام الواجبات (__PREFIX__Homework) تمامًا، لكن بمدة زمنية محددة لحل الاختبار.
+// وقت البداية بيتسجل في السيرفر (startedAttempts) وقت أول ما الطالب يفتح الاختبار، فمينفعش
+// يلف الصفحة أو يقفلها ويفتحها تاني عشان "يرجّع" التايمر من الأول.
+
+const internalExamSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true },
+    questionCount: { type: Number, required: true },
+    categoryFilter: { type: String, default: 'all' },
+    deadline: { type: String, required: true },
+    durationMinutes: { type: Number, required: true, min: 1, max: 300 },
+    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: { type: Array, default: [] },
+    startedAttempts: {
+        type: [{
+            studentId: { type: String, required: true },
+            startedAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    }
+}, { timestamps: true });
+
+const InternalExam = mongoose.models.InternalExam || mongoose.model('InternalExam', internalExamSchema);
+
+const internalExamSubmissionSchema = new mongoose.Schema({
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: 'InternalExam', required: true },
+    studentId: { type: String, required: true },
+    studentName: { type: String, required: true },
+    studentCode: { type: String, required: true },
+    answers: { type: Array, default: [] },
+    score: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    timeTaken: { type: Number, default: 0 },
+    tabSwitches: { type: Number, default: 0 },
+    autoSubmitted: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: Date.now }
+});
+
+const InternalExamSubmission = mongoose.models.InternalExamSubmission ||
+    mongoose.model('InternalExamSubmission', internalExamSubmissionSchema);
+
+// 1. إنشاء اختبار جديد (للأدمن)
+app.post('/api/exam-internal', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, durationMinutes, targetGrade, questions } = req.body;
+        if (!title || !chapterId || !questionCount || !deadline || !durationMinutes || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة (بما فيها مدة الاختبار)، ويجب اختيار الأسئلة' });
+        }
+        const newExam = new InternalExam({
+            title, chapterId, chapterName: chapterName || 'فصل غير معروف', questionCount,
+            categoryFilter: categoryFilter || 'all', deadline, durationMinutes,
+            targetGrade: targetGrade || 'first', createdBy: req.user.username || 'admin',
+            questions, isActive: true
+        });
+        await newExam.save();
+        res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' }); }
+});
+
+// 2. جلب كل الاختبارات (للأدمن)
+app.get('/api/exam-internal/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exams = await InternalExam.find().sort({ createdAt: -1 });
+        if (!exams || exams.length === 0) return res.status(200).json([]);
+        const examsWithStats = await Promise.all(exams.map(async (ex) => {
+            const submissions = await InternalExamSubmission.find({ examId: ex._id });
+            const totalStudents = await Student.countDocuments({ grade: ex.targetGrade || 'first' });
+            let avgScore = '0';
+            if (submissions.length > 0) {
+                const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                avgScore = (totalScore / submissions.length).toFixed(1);
+            }
+            return {
+                _id: ex._id, id: ex._id, title: ex.title, chapterId: ex.chapterId,
+                chapterName: ex.chapterName, questionCount: ex.questionCount, categoryFilter: ex.categoryFilter,
+                deadline: ex.deadline, durationMinutes: ex.durationMinutes, targetGrade: ex.targetGrade,
+                createdBy: ex.createdBy, isActive: ex.isActive, questions: ex.questions || [],
+                totalStudents, submittedCount: submissions.length, avgScore,
+                createdAt: ex.createdAt, updatedAt: ex.updatedAt
+            };
+        }));
+        res.status(200).json(examsWithStats);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات: ' }); }
+});
+
+// 3. جلب الاختبارات المعلقة للطالب
+app.get('/api/exam-internal/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const today = new Date().toISOString().split('T')[0];
+        const exams = await InternalExam.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } }).sort({ deadline: 1 });
+        const pendingExams = await Promise.all(exams.map(async (ex) => {
+            const submission = await InternalExamSubmission.findOne({ examId: ex._id, studentId: req.user.username });
+            const myAttempt = (ex.startedAttempts || []).find(a => a.studentId === req.user.username);
+            return {
+                ...ex._doc, id: ex._id, isSubmitted: !!submission, hasSubmission: !!submission,
+                myScore: submission ? submission.score : null,
+                isStarted: !!myAttempt, startedAt: myAttempt ? myAttempt.startedAt : null
+            };
+        }));
+        res.status(200).json(pendingExams);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات المعلقة: ' }); }
+});
+
+// 4. جلب اختبار معين لحله (للطالب) — بيسجل وقت البداية في السيرفر أول مرة يفتحه
+app.get('/api/exam-internal/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exam = await InternalExam.findById(req.params.id);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        if (student.grade !== exam.targetGrade) return res.status(403).json({ error: 'هذا الاختبار ليس لصفك' });
+        const existingSubmission = await InternalExamSubmission.findOne({ examId: exam._id, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        let attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        if (!attempt) {
+            exam.startedAttempts.push({ studentId: req.user.username, startedAt: new Date() });
+            await exam.save();
+            attempt = exam.startedAttempts[exam.startedAttempts.length - 1];
+        }
+
+        const questionsWithoutAnswers = (exam.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
+        res.status(200).json({
+            ...exam._doc, id: exam._id, questions: questionsWithoutAnswers,
+            startedAt: attempt.startedAt, serverNow: new Date()
+        });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبار: ' }); }
+});
+
+// 5. تسليم الاختبار (للطالب)
+app.post('/api/exam-internal/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const examId = req.params.id;
+        const { answers, tabSwitches, autoSubmitted } = req.body;
+        const exam = await InternalExam.findById(examId);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingSubmission = await InternalExamSubmission.findOne({ examId, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        const attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        const timeTaken = attempt ? Math.max(0, Math.round((Date.now() - new Date(attempt.startedAt).getTime()) / 1000)) : 0;
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = exam.questions || [];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            if (question.cat === 'mcq') {
+                isCorrect = userAnswer === (question.correct || '').toString().trim();
+            } else if (question.cat === 'truefalse') {
+                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
+            } else {
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
+                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
+            }
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
+        }
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const submission = new InternalExamSubmission({
+            examId: exam._id, studentId: req.user.username, studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---', answers: detailedAnswers, score, totalQuestions,
+            timeTaken, tabSwitches: tabSwitches || 0, autoSubmitted: !!autoSubmitted
+        });
+        await submission.save();
+        res.json({ success: true, message: 'تم تسليم الاختبار بنجاح', score });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الاختبار: ' }); }
+});
+
+// 6. جلب تسليمات اختبار (أدمن: كل التسليمات، طالب: تسليمه هو بس)
+app.get('/api/exam-internal/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const submissions = await InternalExamSubmission.find({ examId: req.params.id }).sort({ submittedAt: -1 });
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return { ...sub._doc, id: sub._id, studentName: student ? student.fullName : sub.studentName, studentCode: student ? student.studentCode : sub.studentCode };
+            }));
+            return res.json(detailedSubmissions);
+        }
+        const submission = await InternalExamSubmission.findOne({ examId: req.params.id, studentId: req.user.username });
+        if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الاختبار' });
+        res.json([submission]);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
+});
+
+// 7. حذف اختبار (للأدمن)
+app.delete('/api/exam-internal/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deletedExam = await InternalExam.findByIdAndDelete(req.params.id);
+        if (!deletedExam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const deletedSubmissions = await InternalExamSubmission.deleteMany({ examId: req.params.id });
+        res.json({ success: true, message: 'تم حذف الاختبار وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار: ' }); }
+});
+
+
+// ====================== الاختبارات المؤقتة (Timed Exams) — مبادئ وأسس التمريض (Fundamentals of Nursing) ======================
+// نفس فكرة نظام الواجبات (__PREFIX__Homework) تمامًا، لكن بمدة زمنية محددة لحل الاختبار.
+// وقت البداية بيتسجل في السيرفر (startedAttempts) وقت أول ما الطالب يفتح الاختبار، فمينفعش
+// يلف الصفحة أو يقفلها ويفتحها تاني عشان "يرجّع" التايمر من الأول.
+
+const fonExamSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true },
+    questionCount: { type: Number, required: true },
+    categoryFilter: { type: String, default: 'all' },
+    deadline: { type: String, required: true },
+    durationMinutes: { type: Number, required: true, min: 1, max: 300 },
+    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: { type: Array, default: [] },
+    startedAttempts: {
+        type: [{
+            studentId: { type: String, required: true },
+            startedAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    }
+}, { timestamps: true });
+
+const FonExam = mongoose.models.FonExam || mongoose.model('FonExam', fonExamSchema);
+
+const fonExamSubmissionSchema = new mongoose.Schema({
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: 'FonExam', required: true },
+    studentId: { type: String, required: true },
+    studentName: { type: String, required: true },
+    studentCode: { type: String, required: true },
+    answers: { type: Array, default: [] },
+    score: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    timeTaken: { type: Number, default: 0 },
+    tabSwitches: { type: Number, default: 0 },
+    autoSubmitted: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: Date.now }
+});
+
+const FonExamSubmission = mongoose.models.FonExamSubmission ||
+    mongoose.model('FonExamSubmission', fonExamSubmissionSchema);
+
+// 1. إنشاء اختبار جديد (للأدمن)
+app.post('/api/exam-fon', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, durationMinutes, targetGrade, questions } = req.body;
+        if (!title || !chapterId || !questionCount || !deadline || !durationMinutes || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة (بما فيها مدة الاختبار)، ويجب اختيار الأسئلة' });
+        }
+        const newExam = new FonExam({
+            title, chapterId, chapterName: chapterName || 'فصل غير معروف', questionCount,
+            categoryFilter: categoryFilter || 'all', deadline, durationMinutes,
+            targetGrade: targetGrade || 'first', createdBy: req.user.username || 'admin',
+            questions, isActive: true
+        });
+        await newExam.save();
+        res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' }); }
+});
+
+// 2. جلب كل الاختبارات (للأدمن)
+app.get('/api/exam-fon/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exams = await FonExam.find().sort({ createdAt: -1 });
+        if (!exams || exams.length === 0) return res.status(200).json([]);
+        const examsWithStats = await Promise.all(exams.map(async (ex) => {
+            const submissions = await FonExamSubmission.find({ examId: ex._id });
+            const totalStudents = await Student.countDocuments({ grade: ex.targetGrade || 'first' });
+            let avgScore = '0';
+            if (submissions.length > 0) {
+                const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                avgScore = (totalScore / submissions.length).toFixed(1);
+            }
+            return {
+                _id: ex._id, id: ex._id, title: ex.title, chapterId: ex.chapterId,
+                chapterName: ex.chapterName, questionCount: ex.questionCount, categoryFilter: ex.categoryFilter,
+                deadline: ex.deadline, durationMinutes: ex.durationMinutes, targetGrade: ex.targetGrade,
+                createdBy: ex.createdBy, isActive: ex.isActive, questions: ex.questions || [],
+                totalStudents, submittedCount: submissions.length, avgScore,
+                createdAt: ex.createdAt, updatedAt: ex.updatedAt
+            };
+        }));
+        res.status(200).json(examsWithStats);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات: ' }); }
+});
+
+// 3. جلب الاختبارات المعلقة للطالب
+app.get('/api/exam-fon/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const today = new Date().toISOString().split('T')[0];
+        const exams = await FonExam.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } }).sort({ deadline: 1 });
+        const pendingExams = await Promise.all(exams.map(async (ex) => {
+            const submission = await FonExamSubmission.findOne({ examId: ex._id, studentId: req.user.username });
+            const myAttempt = (ex.startedAttempts || []).find(a => a.studentId === req.user.username);
+            return {
+                ...ex._doc, id: ex._id, isSubmitted: !!submission, hasSubmission: !!submission,
+                myScore: submission ? submission.score : null,
+                isStarted: !!myAttempt, startedAt: myAttempt ? myAttempt.startedAt : null
+            };
+        }));
+        res.status(200).json(pendingExams);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات المعلقة: ' }); }
+});
+
+// 4. جلب اختبار معين لحله (للطالب) — بيسجل وقت البداية في السيرفر أول مرة يفتحه
+app.get('/api/exam-fon/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exam = await FonExam.findById(req.params.id);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        if (student.grade !== exam.targetGrade) return res.status(403).json({ error: 'هذا الاختبار ليس لصفك' });
+        const existingSubmission = await FonExamSubmission.findOne({ examId: exam._id, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        let attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        if (!attempt) {
+            exam.startedAttempts.push({ studentId: req.user.username, startedAt: new Date() });
+            await exam.save();
+            attempt = exam.startedAttempts[exam.startedAttempts.length - 1];
+        }
+
+        const questionsWithoutAnswers = (exam.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
+        res.status(200).json({
+            ...exam._doc, id: exam._id, questions: questionsWithoutAnswers,
+            startedAt: attempt.startedAt, serverNow: new Date()
+        });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبار: ' }); }
+});
+
+// 5. تسليم الاختبار (للطالب)
+app.post('/api/exam-fon/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const examId = req.params.id;
+        const { answers, tabSwitches, autoSubmitted } = req.body;
+        const exam = await FonExam.findById(examId);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingSubmission = await FonExamSubmission.findOne({ examId, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        const attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        const timeTaken = attempt ? Math.max(0, Math.round((Date.now() - new Date(attempt.startedAt).getTime()) / 1000)) : 0;
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = exam.questions || [];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            if (question.cat === 'mcq') {
+                isCorrect = userAnswer === (question.correct || '').toString().trim();
+            } else if (question.cat === 'truefalse') {
+                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
+            } else {
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
+                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
+            }
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
+        }
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const submission = new FonExamSubmission({
+            examId: exam._id, studentId: req.user.username, studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---', answers: detailedAnswers, score, totalQuestions,
+            timeTaken, tabSwitches: tabSwitches || 0, autoSubmitted: !!autoSubmitted
+        });
+        await submission.save();
+        res.json({ success: true, message: 'تم تسليم الاختبار بنجاح', score });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الاختبار: ' }); }
+});
+
+// 6. جلب تسليمات اختبار (أدمن: كل التسليمات، طالب: تسليمه هو بس)
+app.get('/api/exam-fon/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const submissions = await FonExamSubmission.find({ examId: req.params.id }).sort({ submittedAt: -1 });
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return { ...sub._doc, id: sub._id, studentName: student ? student.fullName : sub.studentName, studentCode: student ? student.studentCode : sub.studentCode };
+            }));
+            return res.json(detailedSubmissions);
+        }
+        const submission = await FonExamSubmission.findOne({ examId: req.params.id, studentId: req.user.username });
+        if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الاختبار' });
+        res.json([submission]);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
+});
+
+// 7. حذف اختبار (للأدمن)
+app.delete('/api/exam-fon/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deletedExam = await FonExam.findByIdAndDelete(req.params.id);
+        if (!deletedExam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const deletedSubmissions = await FonExamSubmission.deleteMany({ examId: req.params.id });
+        res.json({ success: true, message: 'تم حذف الاختبار وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار: ' }); }
+});
+
+
+// ====================== الاختبارات المؤقتة (Timed Exams) — الجراحة العامة (General Surgery) ======================
+// نفس فكرة نظام الواجبات (__PREFIX__Homework) تمامًا، لكن بمدة زمنية محددة لحل الاختبار.
+// وقت البداية بيتسجل في السيرفر (startedAttempts) وقت أول ما الطالب يفتح الاختبار، فمينفعش
+// يلف الصفحة أو يقفلها ويفتحها تاني عشان "يرجّع" التايمر من الأول.
+
+const gsExamSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true },
+    questionCount: { type: Number, required: true },
+    categoryFilter: { type: String, default: 'all' },
+    deadline: { type: String, required: true },
+    durationMinutes: { type: Number, required: true, min: 1, max: 300 },
+    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: { type: Array, default: [] },
+    startedAttempts: {
+        type: [{
+            studentId: { type: String, required: true },
+            startedAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    }
+}, { timestamps: true });
+
+const GsExam = mongoose.models.GsExam || mongoose.model('GsExam', gsExamSchema);
+
+const gsExamSubmissionSchema = new mongoose.Schema({
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: 'GsExam', required: true },
+    studentId: { type: String, required: true },
+    studentName: { type: String, required: true },
+    studentCode: { type: String, required: true },
+    answers: { type: Array, default: [] },
+    score: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    timeTaken: { type: Number, default: 0 },
+    tabSwitches: { type: Number, default: 0 },
+    autoSubmitted: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: Date.now }
+});
+
+const GsExamSubmission = mongoose.models.GsExamSubmission ||
+    mongoose.model('GsExamSubmission', gsExamSubmissionSchema);
+
+// 1. إنشاء اختبار جديد (للأدمن)
+app.post('/api/exam-gs', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, durationMinutes, targetGrade, questions } = req.body;
+        if (!title || !chapterId || !questionCount || !deadline || !durationMinutes || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة (بما فيها مدة الاختبار)، ويجب اختيار الأسئلة' });
+        }
+        const newExam = new GsExam({
+            title, chapterId, chapterName: chapterName || 'فصل غير معروف', questionCount,
+            categoryFilter: categoryFilter || 'all', deadline, durationMinutes,
+            targetGrade: targetGrade || 'first', createdBy: req.user.username || 'admin',
+            questions, isActive: true
+        });
+        await newExam.save();
+        res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' }); }
+});
+
+// 2. جلب كل الاختبارات (للأدمن)
+app.get('/api/exam-gs/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exams = await GsExam.find().sort({ createdAt: -1 });
+        if (!exams || exams.length === 0) return res.status(200).json([]);
+        const examsWithStats = await Promise.all(exams.map(async (ex) => {
+            const submissions = await GsExamSubmission.find({ examId: ex._id });
+            const totalStudents = await Student.countDocuments({ grade: ex.targetGrade || 'first' });
+            let avgScore = '0';
+            if (submissions.length > 0) {
+                const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                avgScore = (totalScore / submissions.length).toFixed(1);
+            }
+            return {
+                _id: ex._id, id: ex._id, title: ex.title, chapterId: ex.chapterId,
+                chapterName: ex.chapterName, questionCount: ex.questionCount, categoryFilter: ex.categoryFilter,
+                deadline: ex.deadline, durationMinutes: ex.durationMinutes, targetGrade: ex.targetGrade,
+                createdBy: ex.createdBy, isActive: ex.isActive, questions: ex.questions || [],
+                totalStudents, submittedCount: submissions.length, avgScore,
+                createdAt: ex.createdAt, updatedAt: ex.updatedAt
+            };
+        }));
+        res.status(200).json(examsWithStats);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات: ' }); }
+});
+
+// 3. جلب الاختبارات المعلقة للطالب
+app.get('/api/exam-gs/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const today = new Date().toISOString().split('T')[0];
+        const exams = await GsExam.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } }).sort({ deadline: 1 });
+        const pendingExams = await Promise.all(exams.map(async (ex) => {
+            const submission = await GsExamSubmission.findOne({ examId: ex._id, studentId: req.user.username });
+            const myAttempt = (ex.startedAttempts || []).find(a => a.studentId === req.user.username);
+            return {
+                ...ex._doc, id: ex._id, isSubmitted: !!submission, hasSubmission: !!submission,
+                myScore: submission ? submission.score : null,
+                isStarted: !!myAttempt, startedAt: myAttempt ? myAttempt.startedAt : null
+            };
+        }));
+        res.status(200).json(pendingExams);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات المعلقة: ' }); }
+});
+
+// 4. جلب اختبار معين لحله (للطالب) — بيسجل وقت البداية في السيرفر أول مرة يفتحه
+app.get('/api/exam-gs/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exam = await GsExam.findById(req.params.id);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        if (student.grade !== exam.targetGrade) return res.status(403).json({ error: 'هذا الاختبار ليس لصفك' });
+        const existingSubmission = await GsExamSubmission.findOne({ examId: exam._id, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        let attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        if (!attempt) {
+            exam.startedAttempts.push({ studentId: req.user.username, startedAt: new Date() });
+            await exam.save();
+            attempt = exam.startedAttempts[exam.startedAttempts.length - 1];
+        }
+
+        const questionsWithoutAnswers = (exam.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
+        res.status(200).json({
+            ...exam._doc, id: exam._id, questions: questionsWithoutAnswers,
+            startedAt: attempt.startedAt, serverNow: new Date()
+        });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبار: ' }); }
+});
+
+// 5. تسليم الاختبار (للطالب)
+app.post('/api/exam-gs/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const examId = req.params.id;
+        const { answers, tabSwitches, autoSubmitted } = req.body;
+        const exam = await GsExam.findById(examId);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingSubmission = await GsExamSubmission.findOne({ examId, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        const attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        const timeTaken = attempt ? Math.max(0, Math.round((Date.now() - new Date(attempt.startedAt).getTime()) / 1000)) : 0;
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = exam.questions || [];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            if (question.cat === 'mcq') {
+                isCorrect = userAnswer === (question.correct || '').toString().trim();
+            } else if (question.cat === 'truefalse') {
+                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
+            } else {
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
+                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
+            }
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
+        }
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const submission = new GsExamSubmission({
+            examId: exam._id, studentId: req.user.username, studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---', answers: detailedAnswers, score, totalQuestions,
+            timeTaken, tabSwitches: tabSwitches || 0, autoSubmitted: !!autoSubmitted
+        });
+        await submission.save();
+        res.json({ success: true, message: 'تم تسليم الاختبار بنجاح', score });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الاختبار: ' }); }
+});
+
+// 6. جلب تسليمات اختبار (أدمن: كل التسليمات، طالب: تسليمه هو بس)
+app.get('/api/exam-gs/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const submissions = await GsExamSubmission.find({ examId: req.params.id }).sort({ submittedAt: -1 });
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return { ...sub._doc, id: sub._id, studentName: student ? student.fullName : sub.studentName, studentCode: student ? student.studentCode : sub.studentCode };
+            }));
+            return res.json(detailedSubmissions);
+        }
+        const submission = await GsExamSubmission.findOne({ examId: req.params.id, studentId: req.user.username });
+        if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الاختبار' });
+        res.json([submission]);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
+});
+
+// 7. حذف اختبار (للأدمن)
+app.delete('/api/exam-gs/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deletedExam = await GsExam.findByIdAndDelete(req.params.id);
+        if (!deletedExam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const deletedSubmissions = await GsExamSubmission.deleteMany({ examId: req.params.id });
+        res.json({ success: true, message: 'تم حذف الاختبار وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار: ' }); }
+});
+
+
+// ====================== الاختبارات المؤقتة (Timed Exams) — التشريح (Anatomy) ======================
+// نفس فكرة نظام الواجبات (__PREFIX__Homework) تمامًا، لكن بمدة زمنية محددة لحل الاختبار.
+// وقت البداية بيتسجل في السيرفر (startedAttempts) وقت أول ما الطالب يفتح الاختبار، فمينفعش
+// يلف الصفحة أو يقفلها ويفتحها تاني عشان "يرجّع" التايمر من الأول.
+
+const an1ExamSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true },
+    questionCount: { type: Number, required: true },
+    categoryFilter: { type: String, default: 'all' },
+    deadline: { type: String, required: true },
+    durationMinutes: { type: Number, required: true, min: 1, max: 300 },
+    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: { type: Array, default: [] },
+    startedAttempts: {
+        type: [{
+            studentId: { type: String, required: true },
+            startedAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    }
+}, { timestamps: true });
+
+const An1Exam = mongoose.models.An1Exam || mongoose.model('An1Exam', an1ExamSchema);
+
+const an1ExamSubmissionSchema = new mongoose.Schema({
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: 'An1Exam', required: true },
+    studentId: { type: String, required: true },
+    studentName: { type: String, required: true },
+    studentCode: { type: String, required: true },
+    answers: { type: Array, default: [] },
+    score: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    timeTaken: { type: Number, default: 0 },
+    tabSwitches: { type: Number, default: 0 },
+    autoSubmitted: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: Date.now }
+});
+
+const An1ExamSubmission = mongoose.models.An1ExamSubmission ||
+    mongoose.model('An1ExamSubmission', an1ExamSubmissionSchema);
+
+// 1. إنشاء اختبار جديد (للأدمن)
+app.post('/api/exam-an1', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, durationMinutes, targetGrade, questions } = req.body;
+        if (!title || !chapterId || !questionCount || !deadline || !durationMinutes || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة (بما فيها مدة الاختبار)، ويجب اختيار الأسئلة' });
+        }
+        const newExam = new An1Exam({
+            title, chapterId, chapterName: chapterName || 'فصل غير معروف', questionCount,
+            categoryFilter: categoryFilter || 'all', deadline, durationMinutes,
+            targetGrade: targetGrade || 'first', createdBy: req.user.username || 'admin',
+            questions, isActive: true
+        });
+        await newExam.save();
+        res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' }); }
+});
+
+// 2. جلب كل الاختبارات (للأدمن)
+app.get('/api/exam-an1/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exams = await An1Exam.find().sort({ createdAt: -1 });
+        if (!exams || exams.length === 0) return res.status(200).json([]);
+        const examsWithStats = await Promise.all(exams.map(async (ex) => {
+            const submissions = await An1ExamSubmission.find({ examId: ex._id });
+            const totalStudents = await Student.countDocuments({ grade: ex.targetGrade || 'first' });
+            let avgScore = '0';
+            if (submissions.length > 0) {
+                const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                avgScore = (totalScore / submissions.length).toFixed(1);
+            }
+            return {
+                _id: ex._id, id: ex._id, title: ex.title, chapterId: ex.chapterId,
+                chapterName: ex.chapterName, questionCount: ex.questionCount, categoryFilter: ex.categoryFilter,
+                deadline: ex.deadline, durationMinutes: ex.durationMinutes, targetGrade: ex.targetGrade,
+                createdBy: ex.createdBy, isActive: ex.isActive, questions: ex.questions || [],
+                totalStudents, submittedCount: submissions.length, avgScore,
+                createdAt: ex.createdAt, updatedAt: ex.updatedAt
+            };
+        }));
+        res.status(200).json(examsWithStats);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات: ' }); }
+});
+
+// 3. جلب الاختبارات المعلقة للطالب
+app.get('/api/exam-an1/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const today = new Date().toISOString().split('T')[0];
+        const exams = await An1Exam.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } }).sort({ deadline: 1 });
+        const pendingExams = await Promise.all(exams.map(async (ex) => {
+            const submission = await An1ExamSubmission.findOne({ examId: ex._id, studentId: req.user.username });
+            const myAttempt = (ex.startedAttempts || []).find(a => a.studentId === req.user.username);
+            return {
+                ...ex._doc, id: ex._id, isSubmitted: !!submission, hasSubmission: !!submission,
+                myScore: submission ? submission.score : null,
+                isStarted: !!myAttempt, startedAt: myAttempt ? myAttempt.startedAt : null
+            };
+        }));
+        res.status(200).json(pendingExams);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات المعلقة: ' }); }
+});
+
+// 4. جلب اختبار معين لحله (للطالب) — بيسجل وقت البداية في السيرفر أول مرة يفتحه
+app.get('/api/exam-an1/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exam = await An1Exam.findById(req.params.id);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        if (student.grade !== exam.targetGrade) return res.status(403).json({ error: 'هذا الاختبار ليس لصفك' });
+        const existingSubmission = await An1ExamSubmission.findOne({ examId: exam._id, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        let attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        if (!attempt) {
+            exam.startedAttempts.push({ studentId: req.user.username, startedAt: new Date() });
+            await exam.save();
+            attempt = exam.startedAttempts[exam.startedAttempts.length - 1];
+        }
+
+        const questionsWithoutAnswers = (exam.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
+        res.status(200).json({
+            ...exam._doc, id: exam._id, questions: questionsWithoutAnswers,
+            startedAt: attempt.startedAt, serverNow: new Date()
+        });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبار: ' }); }
+});
+
+// 5. تسليم الاختبار (للطالب)
+app.post('/api/exam-an1/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const examId = req.params.id;
+        const { answers, tabSwitches, autoSubmitted } = req.body;
+        const exam = await An1Exam.findById(examId);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingSubmission = await An1ExamSubmission.findOne({ examId, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        const attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        const timeTaken = attempt ? Math.max(0, Math.round((Date.now() - new Date(attempt.startedAt).getTime()) / 1000)) : 0;
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = exam.questions || [];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            if (question.cat === 'mcq') {
+                isCorrect = userAnswer === (question.correct || '').toString().trim();
+            } else if (question.cat === 'truefalse') {
+                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
+            } else {
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
+                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
+            }
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
+        }
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const submission = new An1ExamSubmission({
+            examId: exam._id, studentId: req.user.username, studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---', answers: detailedAnswers, score, totalQuestions,
+            timeTaken, tabSwitches: tabSwitches || 0, autoSubmitted: !!autoSubmitted
+        });
+        await submission.save();
+        res.json({ success: true, message: 'تم تسليم الاختبار بنجاح', score });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الاختبار: ' }); }
+});
+
+// 6. جلب تسليمات اختبار (أدمن: كل التسليمات، طالب: تسليمه هو بس)
+app.get('/api/exam-an1/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const submissions = await An1ExamSubmission.find({ examId: req.params.id }).sort({ submittedAt: -1 });
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return { ...sub._doc, id: sub._id, studentName: student ? student.fullName : sub.studentName, studentCode: student ? student.studentCode : sub.studentCode };
+            }));
+            return res.json(detailedSubmissions);
+        }
+        const submission = await An1ExamSubmission.findOne({ examId: req.params.id, studentId: req.user.username });
+        if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الاختبار' });
+        res.json([submission]);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
+});
+
+// 7. حذف اختبار (للأدمن)
+app.delete('/api/exam-an1/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deletedExam = await An1Exam.findByIdAndDelete(req.params.id);
+        if (!deletedExam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const deletedSubmissions = await An1ExamSubmission.deleteMany({ examId: req.params.id });
+        res.json({ success: true, message: 'تم حذف الاختبار وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار: ' }); }
+});
+
+
+// ====================== الاختبارات المؤقتة (Timed Exams) — تمريض صحة المجتمع (Community Health Nursing) ======================
+// نفس فكرة نظام الواجبات (__PREFIX__Homework) تمامًا، لكن بمدة زمنية محددة لحل الاختبار.
+// وقت البداية بيتسجل في السيرفر (startedAttempts) وقت أول ما الطالب يفتح الاختبار، فمينفعش
+// يلف الصفحة أو يقفلها ويفتحها تاني عشان "يرجّع" التايمر من الأول.
+
+const comm1ExamSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true },
+    questionCount: { type: Number, required: true },
+    categoryFilter: { type: String, default: 'all' },
+    deadline: { type: String, required: true },
+    durationMinutes: { type: Number, required: true, min: 1, max: 300 },
+    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: { type: Array, default: [] },
+    startedAttempts: {
+        type: [{
+            studentId: { type: String, required: true },
+            startedAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    }
+}, { timestamps: true });
+
+const Comm1Exam = mongoose.models.Comm1Exam || mongoose.model('Comm1Exam', comm1ExamSchema);
+
+const comm1ExamSubmissionSchema = new mongoose.Schema({
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comm1Exam', required: true },
+    studentId: { type: String, required: true },
+    studentName: { type: String, required: true },
+    studentCode: { type: String, required: true },
+    answers: { type: Array, default: [] },
+    score: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    timeTaken: { type: Number, default: 0 },
+    tabSwitches: { type: Number, default: 0 },
+    autoSubmitted: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: Date.now }
+});
+
+const Comm1ExamSubmission = mongoose.models.Comm1ExamSubmission ||
+    mongoose.model('Comm1ExamSubmission', comm1ExamSubmissionSchema);
+
+// 1. إنشاء اختبار جديد (للأدمن)
+app.post('/api/exam-comm1', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, durationMinutes, targetGrade, questions } = req.body;
+        if (!title || !chapterId || !questionCount || !deadline || !durationMinutes || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة (بما فيها مدة الاختبار)، ويجب اختيار الأسئلة' });
+        }
+        const newExam = new Comm1Exam({
+            title, chapterId, chapterName: chapterName || 'فصل غير معروف', questionCount,
+            categoryFilter: categoryFilter || 'all', deadline, durationMinutes,
+            targetGrade: targetGrade || 'first', createdBy: req.user.username || 'admin',
+            questions, isActive: true
+        });
+        await newExam.save();
+        res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' }); }
+});
+
+// 2. جلب كل الاختبارات (للأدمن)
+app.get('/api/exam-comm1/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exams = await Comm1Exam.find().sort({ createdAt: -1 });
+        if (!exams || exams.length === 0) return res.status(200).json([]);
+        const examsWithStats = await Promise.all(exams.map(async (ex) => {
+            const submissions = await Comm1ExamSubmission.find({ examId: ex._id });
+            const totalStudents = await Student.countDocuments({ grade: ex.targetGrade || 'first' });
+            let avgScore = '0';
+            if (submissions.length > 0) {
+                const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                avgScore = (totalScore / submissions.length).toFixed(1);
+            }
+            return {
+                _id: ex._id, id: ex._id, title: ex.title, chapterId: ex.chapterId,
+                chapterName: ex.chapterName, questionCount: ex.questionCount, categoryFilter: ex.categoryFilter,
+                deadline: ex.deadline, durationMinutes: ex.durationMinutes, targetGrade: ex.targetGrade,
+                createdBy: ex.createdBy, isActive: ex.isActive, questions: ex.questions || [],
+                totalStudents, submittedCount: submissions.length, avgScore,
+                createdAt: ex.createdAt, updatedAt: ex.updatedAt
+            };
+        }));
+        res.status(200).json(examsWithStats);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات: ' }); }
+});
+
+// 3. جلب الاختبارات المعلقة للطالب
+app.get('/api/exam-comm1/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const today = new Date().toISOString().split('T')[0];
+        const exams = await Comm1Exam.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } }).sort({ deadline: 1 });
+        const pendingExams = await Promise.all(exams.map(async (ex) => {
+            const submission = await Comm1ExamSubmission.findOne({ examId: ex._id, studentId: req.user.username });
+            const myAttempt = (ex.startedAttempts || []).find(a => a.studentId === req.user.username);
+            return {
+                ...ex._doc, id: ex._id, isSubmitted: !!submission, hasSubmission: !!submission,
+                myScore: submission ? submission.score : null,
+                isStarted: !!myAttempt, startedAt: myAttempt ? myAttempt.startedAt : null
+            };
+        }));
+        res.status(200).json(pendingExams);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات المعلقة: ' }); }
+});
+
+// 4. جلب اختبار معين لحله (للطالب) — بيسجل وقت البداية في السيرفر أول مرة يفتحه
+app.get('/api/exam-comm1/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exam = await Comm1Exam.findById(req.params.id);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        if (student.grade !== exam.targetGrade) return res.status(403).json({ error: 'هذا الاختبار ليس لصفك' });
+        const existingSubmission = await Comm1ExamSubmission.findOne({ examId: exam._id, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        let attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        if (!attempt) {
+            exam.startedAttempts.push({ studentId: req.user.username, startedAt: new Date() });
+            await exam.save();
+            attempt = exam.startedAttempts[exam.startedAttempts.length - 1];
+        }
+
+        const questionsWithoutAnswers = (exam.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
+        res.status(200).json({
+            ...exam._doc, id: exam._id, questions: questionsWithoutAnswers,
+            startedAt: attempt.startedAt, serverNow: new Date()
+        });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبار: ' }); }
+});
+
+// 5. تسليم الاختبار (للطالب)
+app.post('/api/exam-comm1/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const examId = req.params.id;
+        const { answers, tabSwitches, autoSubmitted } = req.body;
+        const exam = await Comm1Exam.findById(examId);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingSubmission = await Comm1ExamSubmission.findOne({ examId, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        const attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        const timeTaken = attempt ? Math.max(0, Math.round((Date.now() - new Date(attempt.startedAt).getTime()) / 1000)) : 0;
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = exam.questions || [];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            if (question.cat === 'mcq') {
+                isCorrect = userAnswer === (question.correct || '').toString().trim();
+            } else if (question.cat === 'truefalse') {
+                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
+            } else {
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
+                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
+            }
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
+        }
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const submission = new Comm1ExamSubmission({
+            examId: exam._id, studentId: req.user.username, studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---', answers: detailedAnswers, score, totalQuestions,
+            timeTaken, tabSwitches: tabSwitches || 0, autoSubmitted: !!autoSubmitted
+        });
+        await submission.save();
+        res.json({ success: true, message: 'تم تسليم الاختبار بنجاح', score });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الاختبار: ' }); }
+});
+
+// 6. جلب تسليمات اختبار (أدمن: كل التسليمات، طالب: تسليمه هو بس)
+app.get('/api/exam-comm1/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const submissions = await Comm1ExamSubmission.find({ examId: req.params.id }).sort({ submittedAt: -1 });
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return { ...sub._doc, id: sub._id, studentName: student ? student.fullName : sub.studentName, studentCode: student ? student.studentCode : sub.studentCode };
+            }));
+            return res.json(detailedSubmissions);
+        }
+        const submission = await Comm1ExamSubmission.findOne({ examId: req.params.id, studentId: req.user.username });
+        if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الاختبار' });
+        res.json([submission]);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
+});
+
+// 7. حذف اختبار (للأدمن)
+app.delete('/api/exam-comm1/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deletedExam = await Comm1Exam.findByIdAndDelete(req.params.id);
+        if (!deletedExam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const deletedSubmissions = await Comm1ExamSubmission.deleteMany({ examId: req.params.id });
+        res.json({ success: true, message: 'تم حذف الاختبار وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار: ' }); }
+});
+
+
+// ====================== الاختبارات المؤقتة (Timed Exams) — تمريض الحالات الطبية والجراحية (Medical Surgical Nursing) ======================
+// نفس فكرة نظام الواجبات (__PREFIX__Homework) تمامًا، لكن بمدة زمنية محددة لحل الاختبار.
+// وقت البداية بيتسجل في السيرفر (startedAttempts) وقت أول ما الطالب يفتح الاختبار، فمينفعش
+// يلف الصفحة أو يقفلها ويفتحها تاني عشان "يرجّع" التايمر من الأول.
+
+const msnExamSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    chapterId: { type: String, required: true },
+    chapterName: { type: String, required: true },
+    questionCount: { type: Number, required: true },
+    categoryFilter: { type: String, default: 'all' },
+    deadline: { type: String, required: true },
+    durationMinutes: { type: Number, required: true, min: 1, max: 300 },
+    targetGrade: { type: String, enum: ['first', 'second', 'third'], default: 'first' },
+    createdBy: { type: String, default: 'admin' },
+    isActive: { type: Boolean, default: true },
+    questions: { type: Array, default: [] },
+    startedAttempts: {
+        type: [{
+            studentId: { type: String, required: true },
+            startedAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    }
+}, { timestamps: true });
+
+const MsnExam = mongoose.models.MsnExam || mongoose.model('MsnExam', msnExamSchema);
+
+const msnExamSubmissionSchema = new mongoose.Schema({
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: 'MsnExam', required: true },
+    studentId: { type: String, required: true },
+    studentName: { type: String, required: true },
+    studentCode: { type: String, required: true },
+    answers: { type: Array, default: [] },
+    score: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    timeTaken: { type: Number, default: 0 },
+    tabSwitches: { type: Number, default: 0 },
+    autoSubmitted: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: Date.now }
+});
+
+const MsnExamSubmission = mongoose.models.MsnExamSubmission ||
+    mongoose.model('MsnExamSubmission', msnExamSubmissionSchema);
+
+// 1. إنشاء اختبار جديد (للأدمن)
+app.post('/api/exam-msn', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { title, chapterId, chapterName, questionCount, categoryFilter, deadline, durationMinutes, targetGrade, questions } = req.body;
+        if (!title || !chapterId || !questionCount || !deadline || !durationMinutes || !questions || questions.length === 0) {
+            return res.status(400).json({ error: 'جميع الحقول مطلوبة (بما فيها مدة الاختبار)، ويجب اختيار الأسئلة' });
+        }
+        const newExam = new MsnExam({
+            title, chapterId, chapterName: chapterName || 'فصل غير معروف', questionCount,
+            categoryFilter: categoryFilter || 'all', deadline, durationMinutes,
+            targetGrade: targetGrade || 'first', createdBy: req.user.username || 'admin',
+            questions, isActive: true
+        });
+        await newExam.save();
+        res.json({ success: true, message: 'تم إنشاء الاختبار بنجاح', exam: newExam });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في إنشاء الاختبار: ' }); }
+});
+
+// 2. جلب كل الاختبارات (للأدمن)
+app.get('/api/exam-msn/all', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exams = await MsnExam.find().sort({ createdAt: -1 });
+        if (!exams || exams.length === 0) return res.status(200).json([]);
+        const examsWithStats = await Promise.all(exams.map(async (ex) => {
+            const submissions = await MsnExamSubmission.find({ examId: ex._id });
+            const totalStudents = await Student.countDocuments({ grade: ex.targetGrade || 'first' });
+            let avgScore = '0';
+            if (submissions.length > 0) {
+                const totalScore = submissions.reduce((sum, s) => sum + (s.score || 0), 0);
+                avgScore = (totalScore / submissions.length).toFixed(1);
+            }
+            return {
+                _id: ex._id, id: ex._id, title: ex.title, chapterId: ex.chapterId,
+                chapterName: ex.chapterName, questionCount: ex.questionCount, categoryFilter: ex.categoryFilter,
+                deadline: ex.deadline, durationMinutes: ex.durationMinutes, targetGrade: ex.targetGrade,
+                createdBy: ex.createdBy, isActive: ex.isActive, questions: ex.questions || [],
+                totalStudents, submittedCount: submissions.length, avgScore,
+                createdAt: ex.createdAt, updatedAt: ex.updatedAt
+            };
+        }));
+        res.status(200).json(examsWithStats);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات: ' }); }
+});
+
+// 3. جلب الاختبارات المعلقة للطالب
+app.get('/api/exam-msn/pending', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const today = new Date().toISOString().split('T')[0];
+        const exams = await MsnExam.find({ targetGrade: student.grade, isActive: true, deadline: { $gte: today } }).sort({ deadline: 1 });
+        const pendingExams = await Promise.all(exams.map(async (ex) => {
+            const submission = await MsnExamSubmission.findOne({ examId: ex._id, studentId: req.user.username });
+            const myAttempt = (ex.startedAttempts || []).find(a => a.studentId === req.user.username);
+            return {
+                ...ex._doc, id: ex._id, isSubmitted: !!submission, hasSubmission: !!submission,
+                myScore: submission ? submission.score : null,
+                isStarted: !!myAttempt, startedAt: myAttempt ? myAttempt.startedAt : null
+            };
+        }));
+        res.status(200).json(pendingExams);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبارات المعلقة: ' }); }
+});
+
+// 4. جلب اختبار معين لحله (للطالب) — بيسجل وقت البداية في السيرفر أول مرة يفتحه
+app.get('/api/exam-msn/:id', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const exam = await MsnExam.findById(req.params.id);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        if (student.grade !== exam.targetGrade) return res.status(403).json({ error: 'هذا الاختبار ليس لصفك' });
+        const existingSubmission = await MsnExamSubmission.findOne({ examId: exam._id, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        let attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        if (!attempt) {
+            exam.startedAttempts.push({ studentId: req.user.username, startedAt: new Date() });
+            await exam.save();
+            attempt = exam.startedAttempts[exam.startedAttempts.length - 1];
+        }
+
+        const questionsWithoutAnswers = (exam.questions || []).map(q => ({ ...q, correct: undefined, correctAnswer: undefined, completion: undefined, answer: undefined }));
+        res.status(200).json({
+            ...exam._doc, id: exam._id, questions: questionsWithoutAnswers,
+            startedAt: attempt.startedAt, serverNow: new Date()
+        });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب الاختبار: ' }); }
+});
+
+// 5. تسليم الاختبار (للطالب)
+app.post('/api/exam-msn/:id/submit', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const examId = req.params.id;
+        const { answers, tabSwitches, autoSubmitted } = req.body;
+        const exam = await MsnExam.findById(examId);
+        if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const student = await Student.findOne({ username: req.user.username });
+        if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+        const existingSubmission = await MsnExamSubmission.findOne({ examId, studentId: req.user.username });
+        if (existingSubmission) return res.status(400).json({ error: 'لقد قمت بتسليم هذا الاختبار بالفعل' });
+
+        const attempt = (exam.startedAttempts || []).find(a => a.studentId === req.user.username);
+        const timeTaken = attempt ? Math.max(0, Math.round((Date.now() - new Date(attempt.startedAt).getTime()) / 1000)) : 0;
+
+        let correctCount = 0;
+        const detailedAnswers = [];
+        const questions = exam.questions || [];
+        for (const answer of answers || []) {
+            const question = questions[answer.questionIndex];
+            if (!question) continue;
+            let isCorrect = false;
+            const userAnswer = (answer.answer || '').toString().trim();
+            if (question.cat === 'mcq') {
+                isCorrect = userAnswer === (question.correct || '').toString().trim();
+            } else if (question.cat === 'truefalse') {
+                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
+            } else {
+                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
+                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
+                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
+            }
+            if (isCorrect) correctCount++;
+            detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
+        }
+        const totalQuestions = questions.length || 1;
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const submission = new MsnExamSubmission({
+            examId: exam._id, studentId: req.user.username, studentName: student.fullName || 'طالب',
+            studentCode: student.studentCode || '---', answers: detailedAnswers, score, totalQuestions,
+            timeTaken, tabSwitches: tabSwitches || 0, autoSubmitted: !!autoSubmitted
+        });
+        await submission.save();
+        res.json({ success: true, message: 'تم تسليم الاختبار بنجاح', score });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في تسليم الاختبار: ' }); }
+});
+
+// 6. جلب تسليمات اختبار (أدمن: كل التسليمات، طالب: تسليمه هو بس)
+app.get('/api/exam-msn/:id/submissions', verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        if (req.user.type === 'admin') {
+            const submissions = await MsnExamSubmission.find({ examId: req.params.id }).sort({ submittedAt: -1 });
+            const detailedSubmissions = await Promise.all(submissions.map(async (sub) => {
+                const student = await Student.findOne({ username: sub.studentId }).select('fullName studentCode');
+                return { ...sub._doc, id: sub._id, studentName: student ? student.fullName : sub.studentName, studentCode: student ? student.studentCode : sub.studentCode };
+            }));
+            return res.json(detailedSubmissions);
+        }
+        const submission = await MsnExamSubmission.findOne({ examId: req.params.id, studentId: req.user.username });
+        if (!submission) return res.status(404).json({ error: 'لم تجد تسليم لهذا الاختبار' });
+        res.json([submission]);
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في جلب التسليمات: ' }); }
+});
+
+// 7. حذف اختبار (للأدمن)
+app.delete('/api/exam-msn/:id', verifyToken, isAdmin, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const deletedExam = await MsnExam.findByIdAndDelete(req.params.id);
+        if (!deletedExam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+        const deletedSubmissions = await MsnExamSubmission.deleteMany({ examId: req.params.id });
+        res.json({ success: true, message: 'تم حذف الاختبار وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
+    } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار: ' }); }
+});
+
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
     res.json({ 
