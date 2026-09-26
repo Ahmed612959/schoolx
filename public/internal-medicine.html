@@ -298,6 +298,8 @@
             <button class="flashcard-btn" onclick="openAIFlashcards()"><i class="fas fa-robot"></i> AI بطاقات</button>
             <button class="exam-btn" onclick="openHomeworkDashboard()" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="fas fa-tasks"></i> الواجبات</button>
 <button class="exam-btn" onclick="openMyHomework()" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="fas fa-book"></i> واجباتي</button>
+<button class="exam-btn" onclick="openExamDashboard()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);"><i class="fas fa-hourglass-half"></i> الاختبارات</button>
+<button class="exam-btn" onclick="openMyExams()" style="background:linear-gradient(135deg,#ef4444,#b91c1c);"><i class="fas fa-stopwatch"></i> اختباراتي</button>
             <button class="exam-btn" onclick="openTournaments()" style="background:linear-gradient(135deg,#f97316,#ea580c);"><i class="fas fa-trophy"></i> البطولات</button>
             <button class="control-btn" onclick="openPrintOptions()" style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
     <i class="fas fa-print"></i> طباعة ذكية
@@ -2347,6 +2349,844 @@ async function viewMyHomeworkResult(homeworkId) {
         showToast('❌ خطأ في جلب نتيجتك: ' + error.message, 'error');
     }
 }
+
+// ====================== نظام الاختبارات المؤقتة (Timed Exams) ======================
+// نفس فكرة نظام الواجبات، لكن بمدة زمنية محددة للحل مع عد تنازلي وتسليم تلقائي.
+
+// ---------- لوحة تحكم الأدمن ----------
+function openExamDashboard() {
+    const userType = currentUser?.type || 'student';
+    if (userType !== 'admin') {
+        showToast('❌ هذه الصفحة مخصصة للأدمن فقط', 'error');
+        return;
+    }
+
+    const h = `
+        <h2>⏱️ لوحة تحكم الاختبارات</h2>
+        <div style="margin-bottom:15px;">
+            <button class="modal-btn btn-success" onclick="showCreateExamForm()"><i class="fas fa-plus"></i> إنشاء اختبار جديد</button>
+            <button class="modal-btn btn-info" onclick="fetchExamsForAdmin()" style="background:var(--blue);"><i class="fas fa-sync"></i> تحديث</button>
+        </div>
+        <div id="examListAdmin" style="max-height:55vh;overflow-y:auto;">
+            <p style="color:var(--text-secondary);text-align:center;">⏳ جاري تحميل الاختبارات...</p>
+        </div>
+        <button class="modal-btn btn-close" onclick="closeModal('examDashboardModal')">إغلاق</button>
+    `;
+    openModal('examDashboardModal', h);
+    fetchExamsForAdmin();
+}
+
+async function fetchExamsForAdmin() {
+    const container = document.getElementById('examListAdmin');
+    if (!container) return;
+    container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">⏳ جاري التحميل...</p>';
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/all', { credentials: 'include' });
+        if (!response.ok) throw new Error('فشل في جلب الاختبارات');
+        const exams = await response.json();
+        window._examPrintCache = window._examPrintCache || {};
+        for (const ex of exams) { window._examPrintCache[ex._id || ex.id] = ex; }
+        renderExamListAdmin(exams);
+    } catch (error) {
+        console.error('❌ خطأ في جلب الاختبارات:', error);
+        container.innerHTML = `
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;text-align:center;margin:10px 0;">
+                <p style="color:#dc2626;font-weight:700;">❌ فشل في تحميل الاختبارات</p>
+                <button class="modal-btn btn-primary" onclick="fetchExamsForAdmin()" style="margin-top:10px;">🔄 إعادة المحاولة</button>
+            </div>
+        `;
+    }
+}
+
+function renderExamListAdmin(exams) {
+    const container = document.getElementById('examListAdmin');
+    if (!container) return;
+    if (!exams || exams.length === 0) {
+        container.innerHTML = `<p style="color:var(--text-secondary);text-align:center;">لا توجد اختبارات حتى الآن</p>`;
+        return;
+    }
+    let html = '';
+    for (const ex of exams) {
+        const exId = ex._id || ex.id;
+        html += `
+            <div style="background:var(--card-bg);border-radius:14px;padding:12px;margin-bottom:10px;border:1px solid var(--border-color);">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+                    <div>
+                        <strong style="font-size:0.9rem;">⏱️ ${ex.title}</strong>
+                        <div style="font-size:0.72rem;color:var(--text-secondary);">
+                            📚 ${ex.chapterName || 'فصل غير معروف'} | ⏳ ${ex.durationMinutes} دقيقة | 📅 حتى ${ex.deadline}
+                        </div>
+                        <div style="font-size:0.72rem;color:var(--text-secondary);">
+                            👥 ${ex.submittedCount || 0}/${ex.totalStudents || 0} سلّموا | 📊 متوسط: ${ex.avgScore || 0}%
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                        <button class="modal-btn btn-info" style="padding:4px 12px;font-size:0.7rem;background:var(--blue);" onclick="viewExamSubmissions('${exId}')">👀 النتائج</button>
+                        <button class="modal-btn btn-primary" style="padding:4px 12px;font-size:0.7rem;" onclick="printExamQuestionsSheet('${exId}')">🖨️ طباعة الاختبار</button>
+                        <button class="modal-btn btn-primary" style="padding:4px 12px;font-size:0.7rem;background:#0891b2;" onclick="printExamResultsSheet('${exId}')">🖨️ طباعة النتائج</button>
+                        <button class="modal-btn btn-danger" style="padding:4px 12px;font-size:0.7rem;" onclick="deleteExam('${exId}')">🗑️ حذف</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+function showCreateExamForm() {
+    let chapterOptions = '';
+    for (const id in chaptersData) {
+        if (chaptersData.hasOwnProperty(id)) {
+            chapterOptions += `<option value="${id}">${chaptersData[id].name}</option>`;
+        }
+    }
+    let categoryOptions = '';
+    for (const cat of categoryMeta) {
+        if (cat.id !== 'definitions') {
+            categoryOptions += `<option value="${cat.id}">${cat.label}</option>`;
+        }
+    }
+
+    const h = `
+        <h2>⏱️ إنشاء اختبار جديد</h2>
+        <div style="text-align:right;max-height:55vh;overflow-y:auto;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;">عنوان الاختبار</label>
+                    <input type="text" id="exTitle" placeholder="مثال: اختبار الفصل الأول" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;">الفصل</label>
+                    <select id="exChapter" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                        ${chapterOptions}
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;">نوع الأسئلة</label>
+                    <select id="exCategory" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                        <option value="all">جميع الأنواع</option>
+                        ${categoryOptions}
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;">عدد الأسئلة</label>
+                    <input type="number" id="exCount" value="10" min="1" max="50" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;">⏳ مدة الاختبار (بالدقائق)</label>
+                    <input type="number" id="exDuration" value="20" min="1" max="300" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;">آخر موعد لإتاحة الاختبار</label>
+                    <input type="date" id="exDeadline" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;">الصف المستهدف</label>
+                    <select id="exGrade" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                        <option value="first">الأول</option>
+                        <option value="second">الثاني</option>
+                        <option value="third">الثالث</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin:15px 0;">
+                <button class="modal-btn btn-primary" onclick="generateExamQuestions()">🔄 اختيار الأسئلة</button>
+                <span id="exQuestionsStatus" style="font-size:0.8rem;color:var(--text-secondary);margin-right:10px;">لم يتم اختيار أسئلة بعد</span>
+            </div>
+            <div id="exQuestionsPreview" style="max-height:200px;overflow-y:auto;background:var(--light-bg);border-radius:10px;padding:10px;"></div>
+            <button class="modal-btn btn-success" onclick="createExam()" style="width:100%;margin-top:10px;">📤 إنشاء الاختبار</button>
+        </div>
+        <button class="modal-btn btn-close" onclick="closeModal('createExamModal')">إلغاء</button>
+    `;
+    openModal('createExamModal', h);
+
+    const defaultDate = new Date();
+    defaultDate.setDate(defaultDate.getDate() + 7);
+    const deadlineInput = document.getElementById('exDeadline');
+    if (deadlineInput) deadlineInput.value = defaultDate.toISOString().split('T')[0];
+}
+
+let selectedExamQuestions = [];
+
+function generateExamQuestions() {
+    const chapterId = document.getElementById('exChapter').value;
+    const category = document.getElementById('exCategory').value;
+    const count = parseInt(document.getElementById('exCount').value) || 10;
+
+    const allQ = getAllQuestions(chapterId, category);
+    const shuffled = allQ.sort(() => Math.random() - 0.5);
+    selectedExamQuestions = shuffled.slice(0, Math.min(count, shuffled.length));
+
+    const statusEl = document.getElementById('exQuestionsStatus');
+    if (statusEl) statusEl.textContent = `✅ تم اختيار ${selectedExamQuestions.length} سؤال`;
+
+    let preview = '';
+    for (let i = 0; i < selectedExamQuestions.length; i++) {
+        const q = selectedExamQuestions[i];
+        preview += `<div style="padding:4px 0;font-size:0.75rem;border-bottom:1px solid var(--border-color);">
+            <strong>${i+1}.</strong> ${q.text.substring(0, 60)}${q.text.length > 60 ? '...' : ''}
+            <span style="color:var(--text-secondary);font-size:0.65rem;"> (${q.cat})</span>
+        </div>`;
+    }
+    document.getElementById('exQuestionsPreview').innerHTML = preview || '⚠️ لا توجد أسئلة متاحة';
+}
+
+async function createExam() {
+    if (selectedExamQuestions.length === 0) {
+        showToast('⚠️ يرجى اختيار الأسئلة أولاً', 'warning');
+        return;
+    }
+    const title = document.getElementById('exTitle').value.trim();
+    const chapterId = document.getElementById('exChapter').value;
+    const category = document.getElementById('exCategory').value;
+    const deadline = document.getElementById('exDeadline').value;
+    const targetGrade = document.getElementById('exGrade').value;
+    const durationMinutes = parseInt(document.getElementById('exDuration').value) || 20;
+
+    if (!title) { showToast('⚠️ يرجى إدخال عنوان للاختبار', 'warning'); return; }
+    if (!deadline) { showToast('⚠️ يرجى تحديد آخر موعد لإتاحة الاختبار', 'warning'); return; }
+
+    const chapterName = chaptersData[chapterId]?.name || 'فصل غير معروف';
+    const data = { title, chapterId, chapterName, questionCount: selectedExamQuestions.length, categoryFilter: category, deadline, durationMinutes, targetGrade, questions: selectedExamQuestions };
+
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (result.success) {
+            showToast('✅ تم إنشاء الاختبار بنجاح!', 'success');
+            closeModal('createExamModal');
+            fetchExamsForAdmin();
+        } else {
+            showToast('❌ ' + (result.error || 'فشل في إنشاء الاختبار'), 'error');
+        }
+    } catch (error) {
+        console.error('❌ خطأ في إنشاء الاختبار:', error);
+        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+
+async function viewExamSubmissions(examId) {
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/' + examId + '/submissions', { credentials: 'include' });
+        if (!response.ok) throw new Error('فشل في جلب التسليمات');
+        const submissions = await response.json();
+
+        let html = `<h2>📊 نتائج الاختبار</h2>`;
+        if (submissions.length === 0) {
+            html += `<p style="color:var(--text-secondary);text-align:center;">لا توجد تسليمات حتى الآن</p>`;
+        } else {
+            html += `
+                <div style="max-height:50vh;overflow-y:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.8rem;text-align:center;">
+                    <tr style="background:var(--gold);color:var(--darker);">
+                        <th style="padding:8px;">#</th>
+                        <th style="padding:8px;">👤 الطالب</th>
+                        <th style="padding:8px;">📝 الكود</th>
+                        <th style="padding:8px;">📊 الدرجة</th>
+                        <th style="padding:8px;">⏱️ الوقت</th>
+                        <th style="padding:8px;">🔄 التبويبات</th>
+                        <th style="padding:8px;">⏰ تلقائي؟</th>
+                        <th style="padding:8px;">التفاصيل</th>
+                    </tr>`;
+            for (let i = 0; i < submissions.length; i++) {
+                const s = submissions[i];
+                const timeMinutes = Math.floor((s.timeTaken || 0) / 60);
+                const timeSeconds = (s.timeTaken || 0) % 60;
+                const scoreColor = s.score >= 70 ? 'var(--green)' : s.score >= 40 ? 'var(--orange)' : 'var(--red)';
+                html += `
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:6px;">${i+1}</td>
+                        <td style="padding:6px;font-weight:600;">${s.studentName || 'غير معروف'}</td>
+                        <td style="padding:6px;font-size:0.7rem;color:var(--text-secondary);">${s.studentCode || '---'}</td>
+                        <td style="padding:6px;font-weight:700;color:${scoreColor};">${s.score || 0}%</td>
+                        <td style="padding:6px;font-size:0.7rem;">${String(timeMinutes).padStart(2, '0')}:${String(timeSeconds).padStart(2, '0')}</td>
+                        <td style="padding:6px;font-size:0.7rem;color:${(s.tabSwitches || 0) > 3 ? 'var(--red)' : 'var(--text-secondary)'};">${s.tabSwitches || 0}</td>
+                        <td style="padding:6px;font-size:0.7rem;">${s.autoSubmitted ? '⏰ نعم' : '—'}</td>
+                        <td style="padding:6px;">
+                            <button class="modal-btn btn-info" style="padding:2px 8px;font-size:0.65rem;" onclick="viewStudentExamSubmission('${examId}','${s._id}')">📖 تفاصيل</button>
+                        </td>
+                    </tr>
+                `;
+            }
+            html += `</table></div>`;
+        }
+        html += `<button class="modal-btn btn-close" onclick="closeModal('examSubmissionsModal')">إغلاق</button>`;
+        openModal('examSubmissionsModal', html);
+    } catch (error) {
+        console.error('❌ خطأ في جلب التسليمات:', error);
+        showToast('❌ خطأ في جلب التسليمات', 'error');
+    }
+}
+
+async function viewStudentExamSubmission(examId, submissionId) {
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/' + examId + '/submissions', { credentials: 'include' });
+        const submissions = await response.json();
+        const submission = submissions.find(s => s._id === submissionId);
+        if (!submission) { showToast('⚠️ لم يتم العثور على التسليم', 'error'); return; }
+
+        let html = `<h2>📖 تفاصيل تسليم الطالب</h2>`;
+        html += `<p style="font-size:0.85rem;"><strong>👤 ${submission.studentName || 'غير معروف'}</strong> | كود: ${submission.studentCode || '---'} | الدرجة: <strong style="color:${submission.score >= 70 ? 'var(--green)' : 'var(--red)'};">${submission.score || 0}%</strong></p>`;
+        html += `<div style="max-height:40vh;overflow-y:auto;text-align:right;">`;
+        const answers = submission.answers || [];
+        if (answers.length === 0) {
+            html += `<p style="color:var(--text-secondary);">لا توجد إجابات مسجلة</p>`;
+        } else {
+            for (const ans of answers) {
+                const isCorrect = ans.isCorrect;
+                html += `
+                    <div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
+                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};">${isCorrect ? '✅' : '❌'}</span>
+                        السؤال ${(ans.questionIndex || 0) + 1}:
+                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};font-weight:${isCorrect ? '700' : '400'};">
+                            ${isCorrect ? 'إجابة صحيحة' : 'إجابة خاطئة'}
+                        </span>
+                        <span style="color:var(--text-secondary);font-size:0.7rem;display:block;margin-top:2px;">
+                            إجابة الطالب: "${ans.answer || '(فارغ)'}"
+                        </span>
+                    </div>
+                `;
+            }
+        }
+        html += `</div>`;
+        html += `<button class="modal-btn btn-close" onclick="closeModal('studentExamSubmissionModal')">إغلاق</button>`;
+        openModal('studentExamSubmissionModal', html);
+    } catch (error) {
+        console.error('❌ خطأ في جلب تفاصيل التسليم:', error);
+        showToast('❌ خطأ في جلب تفاصيل التسليم', 'error');
+    }
+}
+
+async function deleteExam(examId) {
+    if (!confirm('⚠️ هل أنت متأكد من حذف هذا الاختبار وجميع تسليماته؟')) return;
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/' + examId, { method: 'DELETE', credentials: 'include' });
+        const result = await response.json();
+        if (result.success) {
+            showToast('✅ تم حذف الاختبار بنجاح', 'success');
+            fetchExamsForAdmin();
+        } else {
+            showToast('❌ ' + (result.error || 'فشل في حذف الاختبار'), 'error');
+        }
+    } catch (error) {
+        console.error('❌ خطأ في حذف الاختبار:', error);
+        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+
+// ---------- واجهة الطالب: عرض وحل الاختبارات ----------
+function openMyExams() {
+    const h = `
+        <h2>⏱️ اختباراتي</h2>
+        <div style="margin-bottom:10px;">
+            <button class="modal-btn btn-info" onclick="fetchPendingExams()" style="background:var(--blue);padding:4px 12px;font-size:0.7rem;"><i class="fas fa-sync"></i> تحديث</button>
+        </div>
+        <div id="pendingExamList" style="max-height:55vh;overflow-y:auto;">
+            <p style="color:var(--text-secondary);text-align:center;">⏳ جاري تحميل الاختبارات...</p>
+        </div>
+        <button class="modal-btn btn-close" onclick="closeModal('myExamsModal')">إغلاق</button>
+    `;
+    openModal('myExamsModal', h);
+    fetchPendingExams();
+}
+
+async function fetchPendingExams() {
+    const container = document.getElementById('pendingExamList');
+    if (!container) return;
+    container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">⏳ جاري التحميل...</p>';
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/pending', {
+            credentials: 'include', headers: { 'Cache-Control': 'no-cache', 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) { const errorText = await response.text(); throw new Error(`HTTP ${response.status}: ${errorText}`); }
+        const exams = await response.json();
+        renderPendingExams(exams);
+    } catch (error) {
+        console.error('❌ خطأ في جلب الاختبارات المعلقة:', error);
+        container.innerHTML = `
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;text-align:center;margin:10px 0;">
+                <p style="color:#dc2626;font-weight:700;">❌ فشل في تحميل الاختبارات</p>
+                <button class="modal-btn btn-primary" onclick="fetchPendingExams()" style="margin-top:10px;">🔄 إعادة المحاولة</button>
+            </div>
+        `;
+    }
+}
+
+function renderPendingExams(exams) {
+    const container = document.getElementById('pendingExamList');
+    if (!container) return;
+    if (!exams || exams.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="margin:20px 0;">
+                <i class="fas fa-check-circle" style="font-size:2.5rem;color:var(--green);"></i>
+                <h3 style="margin-top:10px;">🎉 لا توجد اختبارات معلقة</h3>
+                <p style="color:var(--text-secondary);">مفيش اختبارات متاحة دلوقتي ✅</p>
+            </div>
+        `;
+        return;
+    }
+    let html = '';
+    for (const ex of exams) {
+        const isPastDeadline = new Date(ex.deadline) < new Date();
+        const isSubmitted = ex.isSubmitted || ex.hasSubmission || false;
+        const myScore = ex.myScore || 0;
+        const exId = ex._id || ex.id;
+        html += `
+            <div style="background:var(--card-bg);border-radius:16px;padding:15px;margin-bottom:12px;border:1px solid var(--border-color);">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <div style="flex:1;">
+                        <h4 style="color:var(--dark);font-size:0.95rem;margin-bottom:4px;">⏱️ ${ex.title}</h4>
+                        <div style="font-size:0.75rem;color:var(--text-secondary);">
+                            📚 ${ex.chapterName || 'فصل غير معروف'}
+                            | ⏳ ${ex.durationMinutes} دقيقة | 📅 حتى ${ex.deadline}
+                            ${isPastDeadline ? ' <span style="color:var(--red);">⏰ انتهى الوقت</span>' : ' <span style="color:var(--green);">⏳ متاح</span>'}
+                            ${isSubmitted ? ' <span style="color:var(--green);">✅ تم التسليم</span>' : ''}
+                            ${(!isSubmitted && ex.isStarted) ? ' <span style="color:var(--orange);">▶️ بدأته بالفعل - كمّل</span>' : ''}
+                        </div>
+                    </div>
+                    ${isSubmitted ? `<span style="font-size:1.2rem;font-weight:700;color:${myScore >= 70 ? 'var(--green)' : 'var(--red)'};">${myScore}%</span>` : ''}
+                </div>
+                ${!isSubmitted && !isPastDeadline ? `<button class="modal-btn btn-primary" onclick="startExam('${exId}')" style="margin-top:8px;">${ex.isStarted ? '▶️ استكمال الاختبار' : '📝 بدء الاختبار'}</button>` : ''}
+                ${isSubmitted ? `<button class="modal-btn btn-info" style="margin-top:8px;background:var(--blue);" onclick="viewMyExamResult('${exId}')">👀 عرض نتيجتي</button>` : ''}
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+// ---------- حل الاختبار (مع تايمر وتسليم تلقائي ومنع الغش) ----------
+let currentExamData = null;
+let examTabSwitchCount = 0;
+let examServerStartedAt = null;
+let examServerNowOffset = 0; // فرق ساعة الجهاز عن ساعة السيرفر
+let examDurationSeconds = 0;
+let examTimerInterval = null;
+let examAutoSubmitTriggered = false;
+
+function startExam(examId) {
+    examTabSwitchCount = 0;
+    examAutoSubmitTriggered = false;
+
+    if (window._examVisibilityHandler) document.removeEventListener('visibilitychange', window._examVisibilityHandler);
+    window._examVisibilityHandler = function() {
+        if (document.hidden) {
+            examTabSwitchCount++;
+            showToast(`⚠️ تم تبديل التبويب ${examTabSwitchCount} مرة. التبديل المتكرر قد يؤدي إلى إلغاء الاختبار.`, 'warning');
+        }
+    };
+    document.addEventListener('visibilitychange', window._examVisibilityHandler);
+
+    fetchExamData(examId);
+}
+
+async function fetchExamData(examId) {
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/' + examId, { credentials: 'include', headers: { 'Cache-Control': 'no-cache' } });
+        if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'فشل في جلب الاختبار'); }
+        const data = await response.json();
+        currentExamData = data;
+        examServerStartedAt = new Date(data.startedAt).getTime();
+        const serverNow = new Date(data.serverNow).getTime();
+        examServerNowOffset = serverNow - Date.now(); // موجب لو ساعة السيرفر قدام
+        examDurationSeconds = (data.durationMinutes || 20) * 60;
+        renderExamForStudent(data);
+        startExamTimer();
+    } catch (error) {
+        console.error('❌ خطأ في جلب الاختبار:', error);
+        showToast('❌ ' + error.message, 'error');
+    }
+}
+
+function startExamTimer() {
+    if (examTimerInterval) clearInterval(examTimerInterval);
+    updateExamTimerDisplay();
+    examTimerInterval = setInterval(updateExamTimerDisplay, 1000);
+}
+
+function updateExamTimerDisplay() {
+    const el = document.getElementById('examTimerDisplay');
+    const nowAdjusted = Date.now() + examServerNowOffset;
+    const elapsedSeconds = Math.max(0, Math.floor((nowAdjusted - examServerStartedAt) / 1000));
+    const remaining = examDurationSeconds - elapsedSeconds;
+
+    if (el) {
+        if (remaining <= 0) {
+            el.textContent = '⏰ 00:00';
+            el.style.color = 'var(--red)';
+        } else {
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            el.textContent = `⏳ ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            el.style.color = remaining <= 60 ? 'var(--red)' : (remaining <= 180 ? 'var(--orange)' : 'var(--text-primary)');
+        }
+    }
+
+    if (remaining <= 0 && !examAutoSubmitTriggered) {
+        examAutoSubmitTriggered = true;
+        if (examTimerInterval) clearInterval(examTimerInterval);
+        showToast('⏰ انتهى وقت الاختبار! جاري التسليم التلقائي...', 'warning');
+        submitExam(true);
+    }
+}
+
+function renderExamForStudent(exam) {
+    const h = `
+        <h2>⏱️ ${exam.title}</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+            <div style="font-size:0.8rem;color:var(--text-secondary);">📚 ${exam.chapterName} | ${exam.questionCount} سؤال</div>
+            <div id="examTimerDisplay" style="font-size:1.1rem;font-weight:800;padding:4px 12px;border-radius:10px;background:var(--light-bg);"></div>
+        </div>
+        <div style="font-size:0.85rem;color:var(--red);margin-bottom:10px;">
+            ⚠️ تحذير: الاختبار مؤقت وهيتسلّم تلقائيًا لما الوقت يخلص. لا يمكنك تبديل التبويب أثناء الحل.
+        </div>
+        <div id="examQuestions" style="max-height:50vh;overflow-y:auto;text-align:right;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:15px;flex-wrap:wrap;">
+            <button class="modal-btn btn-success" onclick="submitExam(false)">📤 تسليم الاختبار</button>
+            <button class="modal-btn btn-close" onclick="cancelExamSolving()">إلغاء</button>
+        </div>
+    `;
+    openModal('solveExamModal', h);
+
+    let qHTML = '';
+    const questions = exam.questions || [];
+    for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        qHTML += `<div style="margin:10px 0;padding:12px;background:var(--light-bg);border-radius:12px;">`;
+        qHTML += `<strong>${i+1}. ${q.text || 'سؤال غير معروف'}</strong>`;
+        if (q.translation) qHTML += `<div style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0;">🌐 ${q.translation}</div>`;
+        qHTML += `<div style="margin-top:6px;">`;
+        if (q.cat === 'mcq' && q.options && q.options.length > 0) {
+            for (const opt of q.options) {
+                const escapedOpt = opt.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                qHTML += `
+                    <label style="display:block;padding:6px 12px;margin:3px 0;background:var(--card-bg);border-radius:8px;border:1px solid var(--border-color);cursor:pointer;">
+                        <input type="radio" name="ex_q_${i}" value="${escapedOpt}"> ${opt}
+                    </label>
+                `;
+            }
+        } else if (q.cat === 'truefalse') {
+            qHTML += `
+                <label style="display:inline-block;padding:6px 15px;margin:3px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border-color);cursor:pointer;">
+                    <input type="radio" name="ex_q_${i}" value="true"> ✅ صواب
+                </label>
+                <label style="display:inline-block;padding:6px 15px;margin:3px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border-color);cursor:pointer;">
+                    <input type="radio" name="ex_q_${i}" value="false"> ❌ خطأ
+                </label>
+            `;
+        } else {
+            qHTML += `<textarea id="ex_text_${i}" placeholder="اكتب إجابتك هنا..." style="width:100%;min-height:60px;padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);"></textarea>`;
+        }
+        qHTML += `</div></div>`;
+    }
+    document.getElementById('examQuestions').innerHTML = qHTML;
+}
+
+function clearExamListeners() {
+    if (window._examVisibilityHandler) {
+        document.removeEventListener('visibilitychange', window._examVisibilityHandler);
+        window._examVisibilityHandler = null;
+    }
+    if (examTimerInterval) { clearInterval(examTimerInterval); examTimerInterval = null; }
+}
+
+function cancelExamSolving() {
+    if (!confirm('⚠️ لو خرجت دلوقتي المؤقت هيفضل شغال وممكن تفتح الاختبار تاني وتكمل، بس الوقت مش هيتوقف. متأكد؟')) return;
+    clearExamListeners();
+    closeModal('solveExamModal');
+}
+
+async function submitExam(auto) {
+    if (!currentExamData) { showToast('❌ لا توجد بيانات اختبار', 'error'); return; }
+
+    const answers = [];
+    const questions = currentExamData.questions || [];
+    for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        let answer = '';
+        if (q.cat === 'mcq' || q.cat === 'truefalse') {
+            const selected = document.querySelector(`input[name="ex_q_${i}"]:checked`);
+            if (selected) answer = selected.value;
+        } else {
+            const textarea = document.getElementById(`ex_text_${i}`);
+            if (textarea) answer = textarea.value.trim();
+        }
+        answers.push({ questionIndex: i, answer: answer || '' });
+    }
+
+    if (!auto) {
+        const unanswered = answers.filter(a => !a.answer || a.answer === '');
+        if (unanswered.length > 0) {
+            if (!confirm(`⚠️ هناك ${unanswered.length} سؤال(أسئلة) لم يتم الإجابة عليها. هل تريد التسليم على أي حال؟`)) return;
+        }
+    }
+
+    const data = { answers, tabSwitches: examTabSwitchCount || 0, autoSubmitted: !!auto };
+
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/' + currentExamData._id + '/submit', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (result.success) {
+            showToast(`✅ ${auto ? 'تم التسليم التلقائي! ' : 'تم تسليم الاختبار بنجاح! '}نتيجتك: ${result.score}%`, 'success');
+            clearExamListeners();
+            closeModal('solveExamModal');
+            fetchPendingExams();
+            if (result.score >= 80) spawnConfetti();
+        } else {
+            showToast('❌ ' + (result.error || 'فشل في تسليم الاختبار'), 'error');
+        }
+    } catch (error) {
+        console.error('❌ خطأ في تسليم الاختبار:', error);
+        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+
+async function viewMyExamResult(examId) {
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/' + examId + '/submissions', { credentials: 'include' });
+        if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'فشل في جلب النتيجة'); }
+        const submissions = await response.json();
+        if (!Array.isArray(submissions)) throw new Error('البيانات المستلمة ليست مصفوفة');
+        const mySubmission = submissions.find(s => s.studentId === currentUser?.username);
+        if (!mySubmission) { showToast('⚠️ لم يتم العثور على تسليمك', 'error'); return; }
+
+        let html = `<h2>📊 نتيجتي في الاختبار</h2>`;
+        html += `<p style="font-size:1.2rem;font-weight:700;color:${mySubmission.score >= 70 ? 'var(--green)' : 'var(--red)'};">الدرجة: ${mySubmission.score || 0}%</p>`;
+        html += `<div style="max-height:40vh;overflow-y:auto;text-align:right;">`;
+        const answers = mySubmission.answers || [];
+        if (answers.length === 0) {
+            html += `<p style="color:var(--text-secondary);">لا توجد إجابات مسجلة</p>`;
+        } else {
+            for (const ans of answers) {
+                const isCorrect = ans.isCorrect;
+                html += `
+                    <div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
+                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};">${isCorrect ? '✅' : '❌'}</span>
+                        السؤال ${(ans.questionIndex || 0) + 1}:
+                        <span style="color:${isCorrect ? 'var(--green)' : 'var(--red)'};font-weight:${isCorrect ? '700' : '400'};">
+                            ${isCorrect ? 'صحيح' : 'خطأ'}
+                        </span>
+                        <span style="color:var(--text-secondary);font-size:0.7rem;display:block;margin-top:2px;">
+                            إجابتك: "${ans.answer || '(فارغ)'}"
+                        </span>
+                    </div>
+                `;
+            }
+        }
+        html += `</div>`;
+        html += `<button class="modal-btn btn-close" onclick="closeModal('myExamResultModal')">إغلاق</button>`;
+        openModal('myExamResultModal', html);
+    } catch (error) {
+        console.error('❌ خطأ في جلب نتيجتي:', error);
+        showToast('❌ خطأ في جلب نتيجتك: ' + error.message, 'error');
+    }
+}
+
+// ---------- طباعة ورقة الاختبار (للأدمن) ----------
+function printExamQuestionsSheet(examId) {
+    const exam = (window._examPrintCache || {})[examId];
+    if (!exam) { showToast('❌ الاختبار غير موجود في الذاكرة، اضغط تحديث وجرب تاني', 'error'); return; }
+    const h = `
+        <h2>🖨️ طباعة ورقة الاختبار</h2>
+        <p style="font-size:0.85rem;color:var(--text-secondary);">${exam.title} — ${exam.questionCount} سؤال — ${exam.chapterName || ''}</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+            <button class="modal-btn btn-primary" onclick="doPrintExamQuestions('${examId}','withoutAnswers')">📋 ورقة أسئلة (بدون إجابات) — للطلاب</button>
+            <button class="modal-btn btn-info" style="background:var(--blue);" onclick="doPrintExamQuestions('${examId}','withSpaces')">✏️ ورقة أسئلة مع مساحات للإجابة</button>
+            <button class="modal-btn btn-success" onclick="doPrintExamQuestions('${examId}','withAnswers')">📖 ورقة أسئلة مع الإجابات — نسخة المُصحّح</button>
+        </div>
+        <button class="modal-btn btn-close" onclick="closeModal('printExamModeModal')" style="margin-top:14px;">إلغاء</button>
+    `;
+    openModal('printExamModeModal', h);
+}
+
+function doPrintExamQuestions(examId, printMode) {
+    const exam = (window._examPrintCache || {})[examId];
+    if (!exam) return;
+    closeModal('printExamModeModal');
+    const questions = exam.questions || [];
+    const gradeLabels = { first: 'الأول', second: 'الثاني', third: 'الثالث' };
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    let html = `
+        <!DOCTYPE html>
+        <html dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>ورقة اختبار - ${exam.title}</title>
+            <style>
+                @page { margin: 2cm; }
+                body { font-family: 'Tajawal', Arial, sans-serif; font-size: 14px; line-height: 1.8; padding: 20px; }
+                .print-header { text-align: center; border-bottom: 2px solid #d4af5a; padding-bottom: 15px; margin-bottom: 20px; }
+                .print-header h1 { color: #1a3a48; font-size: 24px; margin: 0; }
+                .print-header p { color: #64748b; font-size: 14px; margin: 5px 0; }
+                .print-meta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; background:#f8fafc; padding:10px 15px; border-radius:8px; margin-bottom:15px; font-size:13px; }
+                .print-question { margin: 15px 0; padding: 10px 15px; border: 1px solid #edf2f7; border-radius: 8px; }
+                .print-question .q-number { font-weight: 700; color: #d4af5a; }
+                .print-question .q-text { font-weight: 600; margin: 5px 0; }
+                .print-question .q-translation { color: #64748b; font-size: 13px; margin: 3px 0; padding: 5px 10px; background: #f8fafc; border-radius: 5px; }
+                .print-options { margin: 5px 0; padding-right: 20px; }
+                .print-options li { list-style: none; padding: 3px 0; }
+                .print-options li:before { content: "○ "; }
+                .print-answer { color: #059669; font-weight: 600; margin: 5px 0; padding: 5px 10px; background: #f0fdf4; border-radius: 5px; border-right: 3px solid #10b981; }
+                .print-space { min-height: 60px; border-bottom: 1px dashed #94a3b8; margin: 5px 0; }
+                .print-answer-space { min-height: 100px; border-bottom: 2px dashed #94a3b8; margin: 5px 0; }
+                .print-footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #edf2f7; color: #94a3b8; font-size: 12px; }
+                @media print { body { padding: 0; } .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="print-header">
+                <h1>⏱️ ${exam.title}</h1>
+                <p>📚 ${exam.chapterName || ''}</p>
+            </div>
+            <div class="print-meta">
+                <span>⏳ المدة: ${exam.durationMinutes} دقيقة</span>
+                <span>📅 آخر موعد: ${exam.deadline}</span>
+                <span>🎓 الصف: ${gradeLabels[exam.targetGrade] || exam.targetGrade}</span>
+                <span>📝 عدد الأسئلة: ${questions.length}</span>
+            </div>
+    `;
+
+    for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        html += `<div class="print-question">`;
+        html += `<div><span class="q-number">${i + 1}.</span> <span class="q-text">${q.text || ''}</span></div>`;
+        if (q.translation) html += `<div class="q-translation">🌐 ${q.translation}</div>`;
+
+        if (q.cat === 'mcq' && q.options) {
+            html += `<div class="print-options">`;
+            for (const opt of q.options) {
+                const isCorrect = opt === q.correct;
+                const highlight = printMode === 'withAnswers' && isCorrect;
+                html += `<li style="${highlight ? 'color:#059669;font-weight:700;' : ''}">${opt}${highlight ? ' ✅' : ''}</li>`;
+            }
+            html += `</div>`;
+        } else if (q.cat === 'truefalse') {
+            const isTrue = q.correct === true || q.correct === 'true';
+            html += `<div class="print-options">`;
+            html += `<li>🔘 صواب${printMode === 'withAnswers' && isTrue ? ' ✅' : ''}</li>`;
+            html += `<li>🔘 خطأ${printMode === 'withAnswers' && !isTrue ? ' ✅' : ''}</li>`;
+            html += `</div>`;
+        }
+
+        if (printMode === 'withAnswers') {
+            const answer = q.correct || q.completion || q.answer || '';
+            if (answer) html += `<div class="print-answer">✅ الإجابة: ${answer}</div>`;
+        }
+
+        if (printMode === 'withSpaces') {
+            if (q.cat === 'mcq' || q.cat === 'truefalse') {
+                html += `<div class="print-space">الإجابة: ____________________</div>`;
+            } else {
+                html += `<div class="print-answer-space"></div>`;
+            }
+        }
+        html += `</div>`;
+    }
+
+    html += `
+            <div class="print-footer">
+                <p>تم إنشاؤه بواسطة نظام الاختبارات المؤقتة</p>
+                <p>${new Date().toLocaleString('ar-EG')}</p>
+            </div>
+            <div class="no-print" style="text-align:center;margin:20px 0;">
+                <button onclick="window.print()" style="padding:10px 30px;background:#d4af5a;color:#0e2a35;border:none;border-radius:8px;font-size:16px;cursor:pointer;">🖨️ طباعة</button>
+                <button onclick="window.close()" style="padding:10px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:16px;cursor:pointer;margin-right:10px;">إغلاق</button>
+            </div>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+}
+
+// ---------- طباعة نتائج الطلاب في اختبار معين (للأدمن) ----------
+async function printExamResultsSheet(examId) {
+    try {
+        const response = await fetch(API_BASE + '/api/exam-internal/' + examId + '/submissions', { credentials: 'include' });
+        if (!response.ok) throw new Error('فشل في جلب النتائج');
+        const submissions = await response.json();
+        const exam = (window._examPrintCache || {})[examId];
+        const title = exam ? exam.title : 'الاختبار';
+
+        const sorted = [...submissions].sort((a, b) => (b.score || 0) - (a.score || 0));
+        const avg = sorted.length ? (sorted.reduce((s, x) => s + (x.score || 0), 0) / sorted.length).toFixed(1) : '0';
+        const highest = sorted.length ? sorted[0].score : 0;
+        const lowest = sorted.length ? sorted[sorted.length - 1].score : 0;
+
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        let html = `
+            <!DOCTYPE html>
+            <html dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>نتائج اختبار - ${title}</title>
+                <style>
+                    @page { margin: 2cm; }
+                    body { font-family: 'Tajawal', Arial, sans-serif; font-size: 14px; padding: 20px; }
+                    .print-header { text-align: center; border-bottom: 2px solid #d4af5a; padding-bottom: 15px; margin-bottom: 20px; }
+                    .print-header h1 { color: #1a3a48; font-size: 22px; margin: 0; }
+                    .stats-row { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:10px; margin-bottom:20px; font-size:13px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+                    th { background: #d4af5a; color: #0e2a35; padding: 8px; }
+                    td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; }
+                    tr:nth-child(even) { background: #f8fafc; }
+                    .print-footer { text-align: center; margin-top: 25px; padding-top: 12px; border-top: 1px solid #edf2f7; color: #94a3b8; font-size: 12px; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="print-header">
+                    <h1>📊 نتائج اختبار: ${title}</h1>
+                    <p style="color:#64748b;">${new Date().toLocaleDateString('ar-EG')}</p>
+                </div>
+                <div class="stats-row">
+                    <span>👥 عدد المسلّمين: ${sorted.length}</span>
+                    <span>📊 المتوسط: ${avg}%</span>
+                    <span>🏆 الأعلى: ${highest}%</span>
+                    <span>📉 الأقل: ${lowest}%</span>
+                </div>
+                <table>
+                    <tr><th>#</th><th>الطالب</th><th>الكود</th><th>الدرجة</th><th>الوقت المستغرق</th><th>تبديل التبويب</th><th>تسليم تلقائي؟</th></tr>
+        `;
+        for (let i = 0; i < sorted.length; i++) {
+            const s = sorted[i];
+            const timeMinutes = Math.floor((s.timeTaken || 0) / 60);
+            const timeSeconds = (s.timeTaken || 0) % 60;
+            html += `<tr>
+                <td>${i + 1}</td>
+                <td>${s.studentName || 'غير معروف'}</td>
+                <td>${s.studentCode || '---'}</td>
+                <td style="font-weight:700;">${s.score || 0}%</td>
+                <td>${String(timeMinutes).padStart(2, '0')}:${String(timeSeconds).padStart(2, '0')}</td>
+                <td>${s.tabSwitches || 0}</td>
+                <td>${s.autoSubmitted ? '⏰ نعم' : '—'}</td>
+            </tr>`;
+        }
+        html += `
+                </table>
+                <div class="print-footer"><p>تم إنشاؤه بواسطة نظام الاختبارات المؤقتة</p></div>
+                <div class="no-print" style="text-align:center;margin:20px 0;">
+                    <button onclick="window.print()" style="padding:10px 30px;background:#d4af5a;color:#0e2a35;border:none;border-radius:8px;font-size:16px;cursor:pointer;">🖨️ طباعة</button>
+                    <button onclick="window.close()" style="padding:10px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:16px;cursor:pointer;margin-right:10px;">إغلاق</button>
+                </div>
+            </body>
+            </html>
+        `;
+        printWindow.document.write(html);
+        printWindow.document.close();
+    } catch (error) {
+        console.error('❌ خطأ في طباعة النتائج:', error);
+        showToast('❌ خطأ في طباعة النتائج', 'error');
+    }
+}
+
 
     // ====================== وضع الطباعة الذكي ======================
 function openPrintOptions() {
