@@ -220,7 +220,7 @@
         .challenge-complete-overlay .complete-card .participants-list .p-item { padding: 5px 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
-        @media print{.animated-bg,.progress-container,.back-to-top,.sidebar,.sidebar-toggle,.sidebar-overlay,.chapter-section,.category-tabs,.control-bar,.header-badge,.favorites-bar,.card-actions,.note-box,.footer,.stats-grid{display:none!important}body{background:white!important;color:black!important}.question-card{break-inside:avoid;border:1px solid #ccc!important;box-shadow:none!important}.container{max-width:100%!important;padding:0!important}.header{background:white!important;color:black!important;padding:10px!important;box-shadow:none!important}.header h1{color:black!important}}
+        @media print{.animated-bg,.progress-container,.back-to-top,.sidebar,.sidebar-toggle,.sidebar-overlay,.chapter-section,.category-tabs,.control-bar,.header-badge,.favorites-bar,.card-actions,.note-box,.footer,.stats-grid{display:none!important}body{background:white!important;color:black!important;font-size:15px!important}.question-card{break-inside:avoid;border:1px solid #ccc!important;box-shadow:none!important;padding:16px!important;margin-bottom:14px!important;font-size:15px!important;border-radius:10px!important}.container{max-width:100%!important;padding:0!important}.header{background:white!important;color:black!important;padding:14px!important;box-shadow:none!important;border-radius:0!important;margin:0!important}.header h1{color:black!important;font-size:22px!important}}
         @media(max-width:768px){.header h1{font-size:1.3rem}.header{padding:15px 12px}.container{padding:0 10px}.chapter-btn{padding:6px 10px;font-size:.68rem}.category-btn{padding:6px 9px;font-size:.65rem}.back-to-top{bottom:18px;left:18px;width:40px;height:40px}.sidebar{width:260px}}
 
 .quiz-opt.tour-selected {
@@ -304,6 +304,35 @@ body.dark-mode .ios-notif-title{color:#f1f5f9}
 /* تحسين بسيط لأيقونة الهيدر والشارات */
 .header-badge { transition: transform .25s ease; }
 .header-badge:hover { transform: translateY(-2px); }
+
+/* ====================== 🟦 رأس الصفحة وشريط الأدوات كصندوق منحني الأطراف ====================== */
+.header {
+    max-width: 1400px !important;
+    margin: 18px auto 0 !important;
+    border-radius: var(--radius-lg) !important;
+    overflow: hidden;
+}
+@media (max-width: 900px) {
+    .header { margin: 10px 10px 0 !important; border-radius: var(--radius-md) !important; }
+}
+.control-bar {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: var(--radius-lg);
+    padding: 12px 14px !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.18) inset;
+}
+.header-content { position: relative; z-index: 1; }
+
+/* تحسين شكل شريط التقدم العلوي ليبقى منحني وعائم شوية */
+.progress-container { border-radius: 0 0 12px 12px; overflow: hidden; }
+
+/* ====================== 🎞️ ظهور تدريجي للبطاقات عند التمرير ====================== */
+.question-card.reveal-init { opacity: 0; transform: translateY(18px); }
+.question-card.reveal-visible { animation: revealCard .55s cubic-bezier(.22,1,.36,1) forwards; }
+@keyframes revealCard { to { opacity: 1; transform: translateY(0); } }
 
     </style>
 </head>
@@ -3026,59 +3055,37 @@ function doPrintExamQuestions(examId, printMode) {
         <head>
             <meta charset="UTF-8">
             <title>ورقة اختبار - ${exam.title}</title>
-            <style>
-                @page { margin: 2cm; }
-                body { font-family: 'Tajawal', Arial, sans-serif; font-size: 14px; line-height: 1.8; padding: 20px; }
-                .print-header { text-align: center; border-bottom: 2px solid #d4af5a; padding-bottom: 15px; margin-bottom: 20px; }
-                .print-header h1 { color: #1a3a48; font-size: 24px; margin: 0; }
-                .print-header p { color: #64748b; font-size: 14px; margin: 5px 0; }
-                .print-meta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; background:#f8fafc; padding:10px 15px; border-radius:8px; margin-bottom:15px; font-size:13px; }
-                .print-question { margin: 15px 0; padding: 10px 15px; border: 1px solid #edf2f7; border-radius: 8px; }
-                .print-question .q-number { font-weight: 700; color: #d4af5a; }
-                .print-question .q-text { font-weight: 600; margin: 5px 0; }
-                .print-question .q-translation { color: #64748b; font-size: 13px; margin: 3px 0; padding: 5px 10px; background: #f8fafc; border-radius: 5px; }
-                .print-options { margin: 5px 0; padding-right: 20px; }
-                .print-options li { list-style: none; padding: 3px 0; }
-                .print-options li:before { content: "○ "; }
-                .print-answer { color: #059669; font-weight: 600; margin: 5px 0; padding: 5px 10px; background: #f0fdf4; border-radius: 5px; border-right: 3px solid #10b981; }
-                .print-space { min-height: 60px; border-bottom: 1px dashed #94a3b8; margin: 5px 0; }
-                .print-answer-space { min-height: 100px; border-bottom: 2px dashed #94a3b8; margin: 5px 0; }
-                .print-footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #edf2f7; color: #94a3b8; font-size: 12px; }
-                @media print { body { padding: 0; } .no-print { display: none; } }
-            </style>
+            <style>@page { margin: 1.4cm; }body { font-family: 'Tajawal', Arial, sans-serif; font-size: 16px; line-height: 1.7; padding: 0; color: #1e293b; }.print-header { text-align: center; border-bottom: 3px solid #d4af5a; padding-bottom: 14px; margin-bottom: 18px; }.print-header h1 { color: #1a3a48; font-size: 26px; margin: 0; font-weight: 800; }.print-header p { color: #64748b; font-size: 14px; margin: 4px 0; }.print-meta-line { font-weight: 600; color: #b8943a !important; }.print-chapter { background: linear-gradient(135deg,#1a3a48,#0e2a35); padding: 10px 16px; margin: 18px 0 12px; border-radius: 10px; page-break-inside: avoid; page-break-after: avoid; }.print-chapter h3 { color: #f5edd6; margin: 0; font-size: 18px; font-weight: 700; }.print-question { margin: 0 0 14px; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; page-break-inside: avoid; break-inside: avoid; }.q-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }.q-number { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #d4af5a; color: #1a3a48; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }.q-text { font-weight: 700; font-size: 17px; flex: 1; min-width: 200px; color: #16222a; }.q-translation { color: #64748b; font-size: 14px; margin: 6px 0 0 32px; padding: 6px 12px; background: #f8fafc; border-radius: 6px; }.print-options { margin: 8px 0 0 32px; }.print-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }.print-opt { padding: 5px 10px; font-size: 15px; border-radius: 6px; }.print-opt:before { content: "○ "; color: #94a3b8; }.opt-correct { color: #059669 !important; font-weight: 700; background: #f0fdf4; }.opt-correct:before { content: "● "; color: #059669; }.print-answer { color: #059669; font-weight: 700; font-size: 15px; margin: 8px 0 0 32px; padding: 7px 12px; background: #f0fdf4; border-radius: 6px; border-right: 4px solid #10b981; }.print-space { min-height: 22px; border-bottom: 1.5px dashed #94a3b8; margin: 10px 0 0 32px; }.print-answer-space { min-height: 60px; border: 1.5px dashed #cbd5e1; border-radius: 8px; margin: 10px 0 0 32px; }.print-footer { text-align: center; margin-top: 26px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }.print-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; margin-right: auto; flex-shrink: 0; }.badge-mcq { background: #ecfdf5; color: #059669; }.badge-truefalse { background: #fffbeb; color: #d97706; }.badge-complete { background: #faf5ff; color: #7c3aed; }.badge-explain { background: #ecfeff; color: #0891b2; }.badge-list { background: #fff1f2; color: #e11d48; }.badge-situations { background: #eef2ff; color: #4f46e5; }@media print { body { padding: 0; } .no-print { display: none; } .print-question { break-inside: avoid; } }</style>
         </head>
         <body>
             <div class="print-header">
                 <h1>⏱️ ${exam.title}</h1>
                 <p>📚 ${exam.chapterName || ''}</p>
-            </div>
-            <div class="print-meta">
-                <span>⏳ المدة: ${exam.durationMinutes} دقيقة</span>
-                <span>📅 آخر موعد: ${exam.deadline}</span>
-                <span>🎓 الصف: ${gradeLabels[exam.targetGrade] || exam.targetGrade}</span>
-                <span>📝 عدد الأسئلة: ${questions.length}</span>
+                <p class="print-meta-line">⏳ ${exam.durationMinutes} دقيقة | 📅 حتى ${exam.deadline} | 🎓 الصف ${gradeLabels[exam.targetGrade] || exam.targetGrade} | 📊 ${questions.length} سؤال</p>
             </div>
     `;
 
     for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
         html += `<div class="print-question">`;
-        html += `<div><span class="q-number">${i + 1}.</span> <span class="q-text">${q.text || ''}</span></div>`;
+        html += `<div class="q-head"><span class="q-number">${i + 1}</span><span class="q-text">${q.text || ''}</span></div>`;
         if (q.translation) html += `<div class="q-translation">🌐 ${q.translation}</div>`;
 
         if (q.cat === 'mcq' && q.options) {
-            html += `<div class="print-options">`;
+            const avgLen = q.options.reduce((s, o) => s + o.length, 0) / q.options.length;
+            const useGrid = q.options.length >= 3 && avgLen < 34;
+            html += `<div class="print-options${useGrid ? ' print-options-grid' : ''}">`;
             for (const opt of q.options) {
                 const isCorrect = opt === q.correct;
                 const highlight = printMode === 'withAnswers' && isCorrect;
-                html += `<li style="${highlight ? 'color:#059669;font-weight:700;' : ''}">${opt}${highlight ? ' ✅' : ''}</li>`;
+                html += `<div class="print-opt${highlight ? ' opt-correct' : ''}">${opt}${highlight ? ' ✅' : ''}</div>`;
             }
             html += `</div>`;
         } else if (q.cat === 'truefalse') {
             const isTrue = q.correct === true || q.correct === 'true';
-            html += `<div class="print-options">`;
-            html += `<li>🔘 صواب${printMode === 'withAnswers' && isTrue ? ' ✅' : ''}</li>`;
-            html += `<li>🔘 خطأ${printMode === 'withAnswers' && !isTrue ? ' ✅' : ''}</li>`;
+            html += `<div class="print-options print-options-grid">`;
+            html += `<div class="print-opt${printMode === 'withAnswers' && isTrue ? ' opt-correct' : ''}">🔘 صواب${printMode === 'withAnswers' && isTrue ? ' ✅' : ''}</div>`;
+            html += `<div class="print-opt${printMode === 'withAnswers' && !isTrue ? ' opt-correct' : ''}">🔘 خطأ${printMode === 'withAnswers' && !isTrue ? ' ✅' : ''}</div>`;
             html += `</div>`;
         }
 
@@ -3229,11 +3236,46 @@ window.showToast = function (message, type, title) {
     }
 };
 
+// ====================== 🎞️ ظهور تدريجي أنيق لبطاقات الأسئلة عند التمرير ======================
+(function () {
+    if (typeof IntersectionObserver === 'undefined') return;
+    var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('reveal-visible');
+                io.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.08 });
+
+    function observeCard(card) {
+        if (card.classList.contains('reveal-init') || card.classList.contains('reveal-visible')) return;
+        card.classList.add('reveal-init');
+        io.observe(card);
+    }
+
+    function scanNode(node) {
+        if (node.nodeType !== 1) return;
+        if (node.classList && node.classList.contains('question-card')) observeCard(node);
+        if (node.querySelectorAll) {
+            node.querySelectorAll('.question-card').forEach(observeCard);
+        }
+    }
+
+    var mo = new MutationObserver(function (mutations) {
+        mutations.forEach(function (m) { m.addedNodes.forEach(scanNode); });
+    });
+    if (document.body) {
+        mo.observe(document.body, { childList: true, subtree: true });
+        document.querySelectorAll('.question-card').forEach(observeCard);
+    }
+})();
+
 
     // ====================== وضع الطباعة الذكي ======================
 function openPrintOptions() {
     const h = `
-        <h2>🖨️ خيارات الطباعة الذكية</h2>
+        <h2>🖨️ نظام الطباعة الذكي</h2>
         <div style="text-align:right;max-height:55vh;overflow-y:auto;">
             <div style="margin:10px 0;">
                 <label style="font-weight:600;">📚 اختيار الفصول:</label>
@@ -3241,7 +3283,7 @@ function openPrintOptions() {
                     <label><input type="checkbox" id="printAllChapters" checked onclick="toggleAllChapters()"> جميع الفصول</label>
                 </div>
             </div>
-            
+
             <div style="margin:10px 0;">
                 <label style="font-weight:600;">📝 اختيار أنواع الأسئلة:</label>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:5px 0;">
@@ -3253,7 +3295,7 @@ function openPrintOptions() {
                     <label><input type="checkbox" class="print-category" value="situations" checked> مواقف</label>
                 </div>
             </div>
-            
+
             <div style="margin:10px 0;">
                 <label style="font-weight:600;">📄 خيارات الطباعة:</label>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -3262,19 +3304,24 @@ function openPrintOptions() {
                     <label><input type="radio" name="printMode" value="withSpaces"> مع مساحات فارغة</label>
                 </div>
             </div>
-            
+
             <div style="margin:10px 0;">
                 <label><input type="checkbox" id="printQuestionNumbers" checked> عرض أرقام الأسئلة</label>
                 <label style="margin-right:15px;"><input type="checkbox" id="printChapterNames" checked> عرض أسماء الفصول</label>
+                <label style="margin-right:15px;"><input type="checkbox" id="printCompactLayout" checked> ترتيب موفّر للورق (عمودين للاختيارات)</label>
             </div>
-            
+
+            <div id="printEstimateBox" style="background:linear-gradient(135deg,rgba(212,175,90,0.12),rgba(212,175,90,0.03));border:1px solid rgba(212,175,90,0.3);border-radius:14px;padding:10px 14px;margin:12px 0;font-size:0.82rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+                <span>📊 عدد الأسئلة المختارة: <strong id="estQCount">0</strong></span>
+                <span>📄 تقدير عدد الصفحات: <strong id="estPageCount">0</strong> صفحة تقريبًا</span>
+            </div>
+
             <button class="modal-btn btn-success" onclick="generatePrintPreview()" style="width:100%;margin-top:10px;">📄 معاينة الطباعة</button>
         </div>
         <button class="modal-btn btn-close" onclick="closeModal('printOptionsModal')">إغلاق</button>
     `;
     openModal('printOptionsModal', h);
 
-    // إضافة الفصول إلى القائمة
     const container = document.getElementById('printChaptersList');
     for (const id in chaptersData) {
         if (chaptersData.hasOwnProperty(id)) {
@@ -3284,21 +3331,81 @@ function openPrintOptions() {
             container.appendChild(label);
         }
     }
+
+    const modalEl = document.getElementById('printOptionsModal');
+    if (modalEl) {
+        modalEl.addEventListener('change', updatePrintEstimate);
+        modalEl.addEventListener('click', function (e) { if (e.target && e.target.tagName === 'INPUT') setTimeout(updatePrintEstimate, 0); });
+    }
+    updatePrintEstimate();
 }
 
 function toggleAllChapters() {
     const checked = document.getElementById('printAllChapters').checked;
     document.querySelectorAll('.print-chapter').forEach(cb => cb.checked = checked);
+    updatePrintEstimate();
+}
+
+// تقدير سريع لعدد الأسئلة وعدد الصفحات المتوقع بناءً على نوع كل سؤال ووضع الطباعة المختار
+function estimateQuestionHeightMM(q, printMode, compact) {
+    let h = 20; // نص السؤال + هوامش
+    if (q.translation) h += 9;
+    if (q.cat === 'mcq') {
+        const optCount = (q.options || []).length || 4;
+        const rows = compact ? Math.ceil(optCount / 2) : optCount;
+        h += rows * 7;
+    } else if (q.cat === 'truefalse') {
+        h += compact ? 7 : 14;
+    } else {
+        h += 8;
+    }
+    if (printMode === 'withAnswers') h += 9;
+    if (printMode === 'withSpaces') h += (q.cat === 'mcq' || q.cat === 'truefalse') ? 10 : 26;
+    return h;
+}
+
+function updatePrintEstimate() {
+    const qCountEl = document.getElementById('estQCount');
+    const pageCountEl = document.getElementById('estPageCount');
+    if (!qCountEl || !pageCountEl) return;
+
+    const selectedChapters = [];
+    document.querySelectorAll('.print-chapter:checked').forEach(cb => selectedChapters.push(cb.value));
+    const selectedCategories = [];
+    document.querySelectorAll('.print-category:checked').forEach(cb => selectedCategories.push(cb.value));
+    const printModeInput = document.querySelector('input[name="printMode"]:checked');
+    const printMode = printModeInput ? printModeInput.value : 'withoutAnswers';
+    const compactEl = document.getElementById('printCompactLayout');
+    const compact = compactEl ? compactEl.checked : true;
+
+    let totalHeight = 0;
+    let count = 0;
+    let lastChapter = null;
+    for (const chId of selectedChapters) {
+        if (!chaptersData[chId]) continue;
+        const ch = chaptersData[chId];
+        for (const cat of selectedCategories) {
+            if (ch[cat] && Array.isArray(ch[cat])) {
+                for (const q of ch[cat]) {
+                    count++;
+                    if (lastChapter !== chId) { totalHeight += 14; lastChapter = chId; }
+                    totalHeight += estimateQuestionHeightMM({ ...q, cat }, printMode, compact);
+                }
+            }
+        }
+    }
+    const usablePageHeightMM = 257; // A4 تقريبًا بعد الهوامش
+    const pages = count === 0 ? 0 : Math.max(1, Math.ceil(totalHeight / usablePageHeightMM));
+    qCountEl.textContent = count;
+    pageCountEl.textContent = pages;
 }
 
 function generatePrintPreview() {
-    // جلب الفصول المختارة
     const selectedChapters = [];
     document.querySelectorAll('.print-chapter:checked').forEach(cb => {
         selectedChapters.push(cb.value);
     });
 
-    // جلب أنواع الأسئلة المختارة
     const selectedCategories = [];
     document.querySelectorAll('.print-category:checked').forEach(cb => {
         selectedCategories.push(cb.value);
@@ -3307,8 +3414,9 @@ function generatePrintPreview() {
     const printMode = document.querySelector('input[name="printMode"]:checked').value;
     const showNumbers = document.getElementById('printQuestionNumbers').checked;
     const showChapterNames = document.getElementById('printChapterNames').checked;
+    const compactEl = document.getElementById('printCompactLayout');
+    const compact = compactEl ? compactEl.checked : true;
 
-    // جمع الأسئلة
     let questions = [];
     const chapters = selectedChapters.includes('all') ? Object.keys(chaptersData) : selectedChapters;
 
@@ -3318,12 +3426,7 @@ function generatePrintPreview() {
         for (const cat of selectedCategories) {
             if (ch[cat] && Array.isArray(ch[cat])) {
                 for (const q of ch[cat]) {
-                    questions.push({
-                        ...q,
-                        cat: cat,
-                        chapterName: ch.name,
-                        chapterId: chId
-                    });
+                    questions.push({ ...q, cat: cat, chapterName: ch.name, chapterId: chId });
                 }
             }
         }
@@ -3334,7 +3437,6 @@ function generatePrintPreview() {
         return;
     }
 
-    // إنشاء صفحة الطباعة
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     let html = `
         <!DOCTYPE html>
@@ -3342,43 +3444,13 @@ function generatePrintPreview() {
         <head>
             <meta charset="UTF-8">
             <title>ورقة أسئلة - Surgery Questions Bank</title>
-            <style>
-                @page { margin: 2cm; }
-                body { font-family: 'Tajawal', Arial, sans-serif; font-size: 14px; line-height: 1.8; padding: 20px; }
-                .print-header { text-align: center; border-bottom: 2px solid #d4af5a; padding-bottom: 15px; margin-bottom: 20px; }
-                .print-header h1 { color: #1a3a48; font-size: 24px; margin: 0; }
-                .print-header p { color: #64748b; font-size: 14px; margin: 5px 0; }
-                .print-chapter { background: #f8fafc; padding: 10px 15px; margin: 10px 0; border-radius: 8px; border-right: 4px solid #d4af5a; }
-                .print-chapter h3 { color: #1a3a48; margin: 0 0 5px 0; font-size: 18px; }
-                .print-question { margin: 15px 0; padding: 10px 15px; border: 1px solid #edf2f7; border-radius: 8px; }
-                .print-question .q-number { font-weight: 700; color: #d4af5a; }
-                .print-question .q-text { font-weight: 600; margin: 5px 0; }
-                .print-question .q-translation { color: #64748b; font-size: 13px; margin: 3px 0; padding: 5px 10px; background: #f8fafc; border-radius: 5px; }
-                .print-options { margin: 5px 0; padding-right: 20px; }
-                .print-options li { list-style: none; padding: 3px 0; }
-                .print-options li:before { content: "○ "; }
-                .print-answer { color: #059669; font-weight: 600; margin: 5px 0; padding: 5px 10px; background: #f0fdf4; border-radius: 5px; border-right: 3px solid #10b981; }
-                .print-space { min-height: 80px; border-bottom: 1px dashed #94a3b8; margin: 5px 0; }
-                .print-answer-space { min-height: 120px; border-bottom: 2px dashed #94a3b8; margin: 5px 0; }
-                .print-footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #edf2f7; color: #94a3b8; font-size: 12px; }
-                .print-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-                .badge-mcq { background: #ecfdf5; color: #059669; }
-                .badge-tf { background: #fffbeb; color: #d97706; }
-                .badge-complete { background: #faf5ff; color: #7c3aed; }
-                .badge-explain { background: #ecfeff; color: #0891b2; }
-                .badge-list { background: #fff1f2; color: #e11d48; }
-                .badge-situation { background: #eef2ff; color: #4f46e5; }
-                @media print {
-                    body { padding: 0; }
-                    .no-print { display: none; }
-                }
-            </style>
+            <style>@page { margin: 1.4cm; }body { font-family: 'Tajawal', Arial, sans-serif; font-size: 16px; line-height: 1.7; padding: 0; color: #1e293b; }.print-header { text-align: center; border-bottom: 3px solid #d4af5a; padding-bottom: 14px; margin-bottom: 18px; }.print-header h1 { color: #1a3a48; font-size: 26px; margin: 0; font-weight: 800; }.print-header p { color: #64748b; font-size: 14px; margin: 4px 0; }.print-meta-line { font-weight: 600; color: #b8943a !important; }.print-chapter { background: linear-gradient(135deg,#1a3a48,#0e2a35); padding: 10px 16px; margin: 18px 0 12px; border-radius: 10px; page-break-inside: avoid; page-break-after: avoid; }.print-chapter h3 { color: #f5edd6; margin: 0; font-size: 18px; font-weight: 700; }.print-question { margin: 0 0 14px; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; page-break-inside: avoid; break-inside: avoid; }.q-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }.q-number { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #d4af5a; color: #1a3a48; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }.q-text { font-weight: 700; font-size: 17px; flex: 1; min-width: 200px; color: #16222a; }.q-translation { color: #64748b; font-size: 14px; margin: 6px 0 0 32px; padding: 6px 12px; background: #f8fafc; border-radius: 6px; }.print-options { margin: 8px 0 0 32px; }.print-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }.print-opt { padding: 5px 10px; font-size: 15px; border-radius: 6px; }.print-opt:before { content: "○ "; color: #94a3b8; }.opt-correct { color: #059669 !important; font-weight: 700; background: #f0fdf4; }.opt-correct:before { content: "● "; color: #059669; }.print-answer { color: #059669; font-weight: 700; font-size: 15px; margin: 8px 0 0 32px; padding: 7px 12px; background: #f0fdf4; border-radius: 6px; border-right: 4px solid #10b981; }.print-space { min-height: 22px; border-bottom: 1.5px dashed #94a3b8; margin: 10px 0 0 32px; }.print-answer-space { min-height: 60px; border: 1.5px dashed #cbd5e1; border-radius: 8px; margin: 10px 0 0 32px; }.print-footer { text-align: center; margin-top: 26px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }.print-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; margin-right: auto; flex-shrink: 0; }.badge-mcq { background: #ecfdf5; color: #059669; }.badge-truefalse { background: #fffbeb; color: #d97706; }.badge-complete { background: #faf5ff; color: #7c3aed; }.badge-explain { background: #ecfeff; color: #0891b2; }.badge-list { background: #fff1f2; color: #e11d48; }.badge-situations { background: #eef2ff; color: #4f46e5; }@media print { body { padding: 0; } .no-print { display: none; } .print-question { break-inside: avoid; } }</style>
         </head>
         <body>
             <div class="print-header">
                 <h1>📝 Surgery Questions Bank</h1>
                 <p>معهد رعاية الضبعية الفني للتمريض</p>
-                <p style="font-size:12px;">${new Date().toLocaleDateString('ar-EG')} | ${printMode === 'withoutAnswers' ? '📋 ورقة أسئلة (بدون إجابات)' : printMode === 'withAnswers' ? '📖 ورقة أسئلة مع الإجابات' : '✏️ ورقة أسئلة مع مساحات للإجابة'}</p>
+                <p class="print-meta-line">${new Date().toLocaleDateString('ar-EG')} | ${printMode === 'withoutAnswers' ? '📋 ورقة أسئلة (بدون إجابات)' : printMode === 'withAnswers' ? '📖 ورقة أسئلة مع الإجابات' : '✏️ ورقة أسئلة مع مساحات للإجابة'} | 📊 ${questions.length} سؤال</p>
             </div>
     `;
 
@@ -3396,43 +3468,37 @@ function generatePrintPreview() {
         const catLabel = getCategoryLabel(q.cat);
 
         html += `<div class="print-question">`;
-        html += `<div><span class="q-number">${showNumbers ? qIndex + '.' : ''}</span> <span class="q-text">${q.text}</span>`;
-        html += ` <span class="print-badge ${badgeClass}">${catLabel}</span></div>`;
+        html += `<div class="q-head">${showNumbers ? `<span class="q-number">${qIndex}</span>` : ''}<span class="q-text">${q.text}</span><span class="print-badge ${badgeClass}">${catLabel}</span></div>`;
 
         if (q.translation) {
             html += `<div class="q-translation">🌐 ${q.translation}</div>`;
         }
 
-        // عرض الخيارات
         if (q.cat === 'mcq' && q.options) {
-            html += `<div class="print-options">`;
+            const avgLen = q.options.reduce((s, o) => s + o.length, 0) / q.options.length;
+            const useGrid = compact && q.options.length >= 3 && avgLen < 34;
+            html += `<div class="print-options${useGrid ? ' print-options-grid' : ''}">`;
             for (const opt of q.options) {
                 const isCorrect = opt === q.correct;
                 const highlight = printMode === 'withAnswers' && isCorrect;
-                html += `<li style="${highlight ? 'color:#059669;font-weight:700;' : ''}">${opt}${highlight ? ' ✅' : ''}</li>`;
+                html += `<div class="print-opt${highlight ? ' opt-correct' : ''}">${opt}${highlight ? ' ✅' : ''}</div>`;
             }
             html += `</div>`;
         } else if (q.cat === 'truefalse') {
             const isTrue = q.correct === true || q.correct === 'true';
-            html += `<div class="print-options">`;
-            html += `<li>🔘 صواب${printMode === 'withAnswers' && isTrue ? ' ✅' : ''}</li>`;
-            html += `<li>🔘 خطأ${printMode === 'withAnswers' && !isTrue ? ' ✅' : ''}</li>`;
+            html += `<div class="print-options print-options-grid">`;
+            html += `<div class="print-opt${printMode === 'withAnswers' && isTrue ? ' opt-correct' : ''}">🔘 صواب${printMode === 'withAnswers' && isTrue ? ' ✅' : ''}</div>`;
+            html += `<div class="print-opt${printMode === 'withAnswers' && !isTrue ? ' opt-correct' : ''}">🔘 خطأ${printMode === 'withAnswers' && !isTrue ? ' ✅' : ''}</div>`;
             html += `</div>`;
         }
 
-        // عرض الإجابة
         if (printMode === 'withAnswers') {
             const answer = getFullAnswer(q);
-            if (answer) {
-                html += `<div class="print-answer">✅ الإجابة: ${answer}</div>`;
-            }
+            if (answer) html += `<div class="print-answer">✅ الإجابة: ${answer}</div>`;
         }
 
-        // عرض مساحة للإجابة
         if (printMode === 'withSpaces') {
-            if (q.cat === 'mcq') {
-                html += `<div class="print-space">الإجابة: ____________________</div>`;
-            } else if (q.cat === 'truefalse') {
+            if (q.cat === 'mcq' || q.cat === 'truefalse') {
                 html += `<div class="print-space">الإجابة: ____________________</div>`;
             } else {
                 html += `<div class="print-answer-space"></div>`;
@@ -3444,7 +3510,7 @@ function generatePrintPreview() {
 
     html += `
             <div class="print-footer">
-                <p>تم إنشاء هذه الورقة بواسطة بنك الأسئلة - Medical Surgical Nursing</p>
+                <p>تم إنشاء هذه الورقة بواسطة بنك أسئلة Surgery Questions Bank</p>
                 <p>عدد الأسئلة: ${questions.length} | ${new Date().toLocaleString('ar-EG')}</p>
             </div>
             <div class="no-print" style="text-align:center;margin:20px 0;">
@@ -3458,8 +3524,6 @@ function generatePrintPreview() {
     printWindow.document.write(html);
     printWindow.document.close();
 }
-
-
 
 // ====================== نظام المراجعة الذكية (Smart Review) ======================
 
