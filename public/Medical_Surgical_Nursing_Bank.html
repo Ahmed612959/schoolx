@@ -230,12 +230,88 @@
     font-weight: 700 !important;
 }
 
+    
+/* ====================== 🔔 إشعارات بستايل الآيفون (iOS-style notifications) ====================== */
+#iosNotifStack{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(94vw,420px);z-index:5000;display:flex;flex-direction:column;gap:10px;pointer-events:none;direction:rtl}
+.ios-notif{pointer-events:auto;display:flex;align-items:flex-start;gap:11px;padding:13px 14px;border-radius:20px;background:rgba(255,255,255,0.72);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);box-shadow:0 12px 34px rgba(0,0,0,0.16),0 1px 0 rgba(255,255,255,0.6) inset;border:1px solid rgba(255,255,255,0.5);transform:translateY(-130%);opacity:0;transition:transform .45s cubic-bezier(.34,1.56,.64,1),opacity .3s ease;cursor:pointer}
+.ios-notif.show{transform:translateY(0);opacity:1}
+.ios-notif.hide{transform:translateY(-130%) scale(.96);opacity:0}
+body.dark-mode .ios-notif{background:rgba(30,41,59,0.72);border-color:rgba(255,255,255,0.08)}
+.ios-notif-icon{flex-shrink:0;width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;box-shadow:0 3px 8px rgba(0,0,0,0.15)}
+.ios-notif-icon.n-success{background:linear-gradient(135deg,#10b981,#059669)}
+.ios-notif-icon.n-error{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.ios-notif-icon.n-warning{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.ios-notif-icon.n-info{background:linear-gradient(135deg,var(--gold),var(--gold-dark))}
+.ios-notif-body{flex:1;min-width:0}
+.ios-notif-toprow{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.ios-notif-title{font-family:'Tajawal',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.dark-mode .ios-notif-title{color:#f1f5f9}
+.ios-notif-time{margin-right:auto;font-size:.66rem;color:#94a3b8;font-weight:600;flex-shrink:0}
+.ios-notif-msg{font-family:'Tajawal',sans-serif;font-size:.76rem;color:var(--text-secondary);line-height:1.5;white-space:pre-line;word-break:break-word}
+.ios-notif-bar{position:absolute;bottom:0;right:0;height:2.5px;background:linear-gradient(90deg,var(--gold),var(--gold-dark));border-radius:0 0 20px 20px;animation:iosNotifBar linear forwards}
+@keyframes iosNotifBar{from{width:100%}to{width:0%}}
+@media(max-width:500px){#iosNotifStack{top:8px;width:96vw}.ios-notif{padding:11px 12px;border-radius:17px}}
+
+/* ====================== ✨ تحسينات الشكل العامة (أزرار، أيقونات، مودالز، سكرول) ====================== */
+.control-bar button, .modal-btn { position: relative; overflow: hidden; }
+.control-bar button::after, .modal-btn::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+    background: radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%);
+    opacity: 0; transform: scale(0.5); transition: opacity .35s ease, transform .45s ease; pointer-events: none;
+}
+.control-bar button:hover::after, .modal-btn:hover::after { opacity: 1; transform: scale(1.4); }
+.control-bar button, .modal-btn {
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s ease, filter .22s ease;
+}
+.control-bar button:hover, .modal-btn:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 10px 22px rgba(0,0,0,0.16); filter: brightness(1.05); }
+.control-bar button:active, .modal-btn:active { transform: translateY(-1px) scale(0.98); }
+.control-bar button i, .modal-btn i, .dashboard-btn i, .flashcard-btn i, .quiz-btn i, .leaderboard-btn i, .exam-btn i {
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+    display: inline-block;
+}
+.control-bar button:hover i, .modal-btn:hover i { transform: scale(1.18) rotate(-6deg); }
+
+.modal-overlay { backdrop-filter: blur(6px) saturate(140%); -webkit-backdrop-filter: blur(6px) saturate(140%); }
+.modal-content {
+    box-shadow: 0 25px 60px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.4) inset;
+    border: 1px solid rgba(212,175,90,0.15);
+    animation: modalPop .35s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes modalPop { from { opacity: 0; transform: scale(.92) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.modal-content h2 { position: relative; padding-bottom: 10px; }
+.modal-content h2::after {
+    content: ''; position: absolute; bottom: 0; right: 50%; transform: translateX(50%);
+    width: 46px; height: 3px; border-radius: 3px; background: linear-gradient(90deg,var(--gold),var(--gold-dark));
+}
+
+/* سكرول بار أنيق متماشي مع هوية اللون الذهبي */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--gold), var(--gold-dark)); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dark); }
+* { scrollbar-width: thin; scrollbar-color: var(--gold) transparent; }
+
+/* تحسين شكل حقول الإدخال داخل المودالز */
+.modal-content input[type="text"], .modal-content input[type="number"], .modal-content input[type="date"],
+.modal-content select, .modal-content textarea {
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+.modal-content input:focus, .modal-content select:focus, .modal-content textarea:focus {
+    outline: none; border-color: var(--gold) !important; box-shadow: 0 0 0 3px rgba(212,175,90,0.18);
+}
+
+/* تحسين بسيط لأيقونة الهيدر والشارات */
+.header-badge { transition: transform .25s ease; }
+.header-badge:hover { transform: translateY(-2px); }
+
     </style>
 </head>
 <body>
 <div class="animated-bg"><div class="orb"></div><div class="orb"></div><div class="orb"></div></div>
 <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
 <div class="sync-indicator" id="syncIndicator"><i class="fas fa-cloud"></i> <span>جاهز</span></div>
+<div id="iosNotifStack"></div>
 
 <header class="header">
     <div class="header-content">
@@ -3091,6 +3167,40 @@ async function printExamResultsSheet(examId) {
         showToast('❌ خطأ في طباعة النتائج', 'error');
     }
 }
+
+// ====================== 🔔 توحيد شكل الإشعارات لتبقى بستايل الآيفون في كل صفحات البنك ======================
+// بيستبدل أي نظام إشعارات قديم (Toastify أو نسخة مبسطة) بنفس التصميم الفاخر (ios-notif)
+// المستخدم في بنك "مبادئ وأسس التمريض"، مع بار تقدم، أيقونات ملونة، وBlur خلفي.
+window.showToast = function (message, type, title) {
+    type = type || 'info';
+    var stack = document.getElementById('iosNotifStack');
+    if (!stack) { console.warn('iosNotifStack غير موجود'); return; }
+    var icons = { success: 'fa-check', error: 'fa-xmark', warning: 'fa-triangle-exclamation', info: 'fa-bed-pulse' };
+    var titles = { success: 'تم بنجاح', error: 'حدث خطأ', warning: 'تنبيه', info: 'تمريض الحالات الطبية والجراحية' };
+    var duration = 4200;
+    var notif = document.createElement('div');
+    notif.className = 'ios-notif';
+    notif.innerHTML =
+        '<div class="ios-notif-icon n-' + type + '"><i class="fas ' + (icons[type] || icons.info) + '"></i></div>' +
+        '<div class="ios-notif-body">' +
+            '<div class="ios-notif-toprow"><span class="ios-notif-title">' + (title || titles[type] || titles.info) + '</span><span class="ios-notif-time">الآن</span></div>' +
+            '<div class="ios-notif-msg"></div>' +
+        '</div>' +
+        '<div class="ios-notif-bar" style="animation-duration:' + duration + 'ms"></div>';
+    notif.querySelector('.ios-notif-msg').textContent = String(message).replace(/\\n/g, '\n');
+    notif.addEventListener('click', function () { dismissNotif(notif); });
+    stack.appendChild(notif);
+    while (stack.children.length > 3) { stack.removeChild(stack.firstChild); }
+    requestAnimationFrame(function () { requestAnimationFrame(function () { notif.classList.add('show'); }); });
+    var timer = setTimeout(function () { dismissNotif(notif); }, duration);
+    notif.addEventListener('mouseenter', function () { clearTimeout(timer); });
+    function dismissNotif(el) {
+        if (el.dataset.dismissed) return;
+        el.dataset.dismissed = '1';
+        el.classList.add('hide');
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
+    }
+};
 
 
 // ====================== 3. جلب الواجبات المعلقة للطالب ======================
