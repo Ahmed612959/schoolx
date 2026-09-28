@@ -769,6 +769,12 @@ function getFullAnswer(q) {
         if (translation) answer += ' - ' + translation;
         return answer;
     }
+    if (isDefQ(q)) {
+        answer = getDefinitionAnswerText(q);
+        var defTr = getDefinitionAnswerTrans(q);
+        if (defTr) answer += ' - ' + defTr;
+        return answer;
+    }
     if (q.answer) {
         answer = q.answer || '';
         if (translation) answer += ' - ' + translation;
@@ -967,7 +973,7 @@ function renderChapterButtons() { var html = '<button class="chapter-btn ' + (cu
 function renderCategoryTabs() { var total = 0; for (var i = 0; i < categoryMeta.length; i++) { total += getQuestionsFor(currentChapterId, categoryMeta[i].id).length; } var html = '<button class="category-btn ' + (currentCategory === 'all' ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'all\')"><i class="fas fa-border-all"></i> الكل <span class="count">' + total + '</span></button>'; for (var i = 0; i < categoryMeta.length; i++) { var c = categoryMeta[i]; var count = getQuestionsFor(currentChapterId, c.id).length; html += '<button class="category-btn ' + (currentCategory === c.id ? 'active' : '') + '" onclick="navigateSidebar(\'' + currentChapterId + '\',\'' + c.id + '\')"><i class="' + c.icon + '"></i> ' + c.label + ' <span class="count">' + count + '</span></button>'; } document.getElementById('categoryTabs').innerHTML = html; }
 
 // ====================== وظائف الأخطاء ====================
-function addWrongQuestion(q) { var wrongEntry = { questionId: q.questionId, text: q.text, correct: (q.cat === 'mcq' ? mcqCorrectDisplayText(q) : (q.completion || q.answer || _safeStr(q.correct))), chapter: q.chapterName || '', cat: q.cat || '', date: new Date().toISOString() }; var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); if (!exists) { wrongQuestions.push(wrongEntry); localStorage.setItem('ped3_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-ped3/quiz', { wrongQuestions: wrongQuestions }); } }
+function addWrongQuestion(q) { var wrongEntry = { questionId: q.questionId, text: qDisplayText(q), correct: (q.cat === 'mcq' ? mcqCorrectDisplayText(q) : (q.completion || q.answer || getDefinitionAnswerText(q) || _safeStr(q.correct))), chapter: q.chapterName || '', cat: q.cat || '', date: new Date().toISOString() }; var exists = wrongQuestions.some(function(w) { return w.questionId === q.questionId; }); if (!exists) { wrongQuestions.push(wrongEntry); localStorage.setItem('ped3_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-ped3/quiz', { wrongQuestions: wrongQuestions }); } }
 function removeWrongQuestion(questionId) { wrongQuestions = wrongQuestions.filter(function(w) { return w.questionId !== questionId; }); localStorage.setItem('ped3_nb_wrong', JSON.stringify(wrongQuestions)); updateRetryButton(); if (isOnlineMode) saveProgress('/api/progress-ped3/quiz', { wrongQuestions: wrongQuestions }); }
 function updateRetryButton() { var btn = document.getElementById('retryWrongBtn'); if (btn) { var count = wrongQuestions.length; if (count > 0) { btn.style.display = 'inline-flex'; btn.innerHTML = '<i class="fas fa-redo"></i> تحدي الأخطاء (' + count + ')'; } else { btn.style.display = 'none'; } } }
 function clearAllWrongQuestions() { if (wrongQuestions.length === 0) { showToast('🎉 لا توجد أسئلة خاطئة!', 'success'); return; } if (confirm('⚠️ هل أنت متأكد من مسح جميع الأسئلة الخاطئة؟')) { wrongQuestions = []; localStorage.setItem('ped3_nb_wrong', JSON.stringify(wrongQuestions)); if (isOnlineMode) saveProgress('/api/progress-ped3/quiz', { wrongQuestions: [] }); updateRetryButton(); renderAllQuestions(); closeModal('retryModal'); showToast('🎉 تم مسح جميع الأسئلة الخاطئة بنجاح!', 'success'); } }
@@ -1075,6 +1081,34 @@ function isAnswerCorrect(chosen, correct) {
     return false;
 }
 
+// ==================== 🎓 أسئلة التعريفات: إخفاء التعريف وعرض "Define + المصطلح" فقط ====================
+// نص التعريف في البيانات بالشكل "المصطلح: التعريف الكامل" (والترجمة بنفس الشكل بالعربي).
+// في أي وضع حل (اختبار/واجب/بطولة/بطاقات/مراجعة...) بنعرض بس "Define: المصطلح" و "عرّف: المصطلح"
+// عشان الطالب ميشوفش التعريف، والتعريف الكامل بيظهر بس كإجابة بعد الحل.
+function _splitDefText(s) {
+    var m = String(s || '').match(/^([^:\uFF1A]+)[:\uFF1A]\s*([\s\S]*)$/);
+    return m ? { term: m[1].trim(), def: m[2].trim() } : null;
+}
+function isDefQ(q) { return !!q && q.cat === 'definitions'; }
+function qDisplayText(q) {
+    if (!q) return '';
+    if (isDefQ(q)) { var p = _splitDefText(q.text); if (p) return 'Define: ' + p.term; }
+    return q.text || '';
+}
+function qDisplayTrans(q) {
+    if (!q) return '';
+    if (isDefQ(q)) {
+        var p = _splitDefText(q.translation);
+        return p ? 'عرّف: ' + p.term : ''; // لو مقدرناش نفصل الترجمة نخفيها بدل ما نسرّب التعريف
+    }
+    return q.translation || '';
+}
+function getDefinitionAnswerTrans(q) {
+    if (!isDefQ(q)) return '';
+    var p = _splitDefText(q.translation);
+    return p ? p.def : '';
+}
+
 function getDefinitionAnswerText(q) {
     if (!q) return '';
     var ref = q.completion || q.answer || '';
@@ -1099,8 +1133,8 @@ function checkDefinitionAnswer(userText, correctText) {
 function renderQuestionHTML(q, i, prefix, total) {
     var catLabel = getCategoryLabel(q.cat);
     var catIcon = getCategoryIcon(q.cat);
-    var h = '<div class="quiz-q"><strong>' + (i+1) + '. ' + q.text + '</strong> <span class="q-type-badge"><i class="fas ' + catIcon + '"></i> ' + catLabel + '</span>';
-    if (q.translation) { h += '<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ' + q.translation + '</div>'; }
+    var h = '<div class="quiz-q"><strong>' + (i+1) + '. ' + qDisplayText(q) + '</strong> <span class="q-type-badge"><i class="fas ' + catIcon + '"></i> ' + catLabel + '</span>';
+    if (qDisplayTrans(q)) { h += '<div class="translation-box" style="margin-top:5px;"><i class="fas fa-language"></i> ' + qDisplayTrans(q) + '</div>'; }
     if (q.cat === 'mcq' && q.options) {
         var mcqCorrectText = mcqCorrectDisplayText(q);
         for (var o = 0; o < q.options.length; o++) {
@@ -1285,7 +1319,7 @@ function generateExam() {
     var h = '<div style="text-align:center;margin-bottom:15px;"><h3>📝 الامتحان - Pediatric Nursing Question Bank</h3><p style="font-size:0.85rem;color:var(--text-secondary);">عدد الأسئلة: ' + examQ.length + '</p></div>';
     for (var i = 0; i < examQ.length; i++) {
         var q = examQ[i];
-        h += '<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;"><strong>' + (i+1) + '. ' + q.text + '</strong>';
+        h += '<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;"><strong>' + (i+1) + '. ' + qDisplayText(q) + '</strong>';
         if (q.cat === 'mcq' && q.options) {
             h += '<div style="margin:4px 0;padding-right:12px;">';
             for (var o = 0; o < q.options.length; o++) { h += '<div>⬜ ' + q.options[o] + '</div>'; }
@@ -1312,13 +1346,13 @@ function getFlashcardFront(q) {
     var h = '';
     h += '<div class="fc-section">';
     h += '<div class="fc-label">📝 السؤال (English)</div>';
-    h += '<div class="fc-content" style="font-size:1.1rem;">' + (q.text || '') + '</div>';
+    h += '<div class="fc-content" style="font-size:1.1rem;">' + qDisplayText(q) + '</div>';
     h += '</div>';
-    if (q.translation) {
+    if (qDisplayTrans(q)) {
         h += '<div class="fc-divider"></div>';
         h += '<div class="fc-section">';
         h += '<div class="fc-label">🌐 ترجمة السؤال</div>';
-        h += '<div class="fc-content">' + q.translation + '</div>';
+        h += '<div class="fc-content">' + qDisplayTrans(q) + '</div>';
         h += '</div>';
     }
     h += '<div style="margin-top:15px;font-size:0.75rem;color:var(--text-secondary);">👆 اضغط للكشف عن الإجابة</div>';
@@ -1336,13 +1370,13 @@ function getFlashcardBack(q) {
         var isTrue = (q.correct === true || q.correct === 'true' || q.correct === 'True');
         h += '<div class="fc-content" style="font-size:1.1rem;color:' + (isTrue ? '#059669' : '#dc2626') + ';">' + (isTrue ? 'صواب (True)' : 'خطأ (False)') + '</div>';
     } else {
-        var ans = q.completion || q.answer || '';
+        var ans = q.completion || q.answer || getDefinitionAnswerText(q) || '';
         h += '<div class="fc-content" style="font-size:1.1rem;color:#059669;">' + ans + '</div>';
     }
     h += '</div>';
 
     // ترجمة الإجابة
-    var answerTrans = q.correctTranslation || q.answerTranslation || q.completionTranslation || '';
+    var answerTrans = q.correctTranslation || q.answerTranslation || q.completionTranslation || getDefinitionAnswerTrans(q) || '';
     if (answerTrans && answerTrans !== q.translation && answerTrans.trim() !== '') {
         h += '<div class="fc-divider"></div>';
         h += '<div class="fc-section">';
@@ -1355,7 +1389,7 @@ function getFlashcardBack(q) {
     h += '<div class="fc-divider"></div>';
     h += '<div class="fc-section" style="opacity:0.7;">';
     h += '<div class="fc-label">📝 السؤال</div>';
-    h += '<div class="fc-content" style="font-size:0.85rem;">' + (q.text || '') + '</div>';
+    h += '<div class="fc-content" style="font-size:0.85rem;">' + qDisplayText(q) + '</div>';
     h += '</div>';
 
     return h; 
@@ -1924,7 +1958,7 @@ function generateHomeworkQuestions() {
     for (let i = 0; i < selectedHomeworkQuestions.length; i++) {
         const q = selectedHomeworkQuestions[i];
         preview += `<div style="padding:4px 0;font-size:0.75rem;border-bottom:1px solid var(--border-color);">
-            <strong>${i+1}.</strong> ${q.text.substring(0, 60)}${q.text.length > 60 ? '...' : ''}
+            <strong>${i+1}.</strong> ${qDisplayText(q).substring(0, 60)}${qDisplayText(q).length > 60 ? '...' : ''}
             <span style="color:var(--text-secondary);font-size:0.65rem;"> (${q.cat})</span>
         </div>`;
     }
@@ -2282,9 +2316,9 @@ function renderHomeworkForStudent(homework) {
     for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
         qHTML += `<div style="margin:10px 0;padding:12px;background:var(--light-bg);border-radius:12px;">`;
-        qHTML += `<strong>${i+1}. ${q.text || 'سؤال غير معروف'}</strong>`;
-        if (q.translation) {
-            qHTML += `<div style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0;">🌐 ${q.translation}</div>`;
+        qHTML += `<strong>${i+1}. ${qDisplayText(q) || 'سؤال غير معروف'}</strong>`;
+        if (qDisplayTrans(q)) {
+            qHTML += `<div style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0;">🌐 ${qDisplayTrans(q)}</div>`;
         }
         qHTML += `<div style="margin-top:6px;">`;
 
@@ -2635,7 +2669,7 @@ function generateExamQuestions() {
     for (let i = 0; i < selectedExamQuestions.length; i++) {
         const q = selectedExamQuestions[i];
         preview += `<div style="padding:4px 0;font-size:0.75rem;border-bottom:1px solid var(--border-color);">
-            <strong>${i+1}.</strong> ${q.text.substring(0, 60)}${q.text.length > 60 ? '...' : ''}
+            <strong>${i+1}.</strong> ${qDisplayText(q).substring(0, 60)}${qDisplayText(q).length > 60 ? '...' : ''}
             <span style="color:var(--text-secondary);font-size:0.65rem;"> (${q.cat})</span>
         </div>`;
     }
@@ -2966,8 +3000,8 @@ function renderExamForStudent(exam) {
     for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
         qHTML += `<div style="margin:10px 0;padding:12px;background:var(--light-bg);border-radius:12px;">`;
-        qHTML += `<strong>${i+1}. ${q.text || 'سؤال غير معروف'}</strong>`;
-        if (q.translation) qHTML += `<div style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0;">🌐 ${q.translation}</div>`;
+        qHTML += `<strong>${i+1}. ${qDisplayText(q) || 'سؤال غير معروف'}</strong>`;
+        if (qDisplayTrans(q)) qHTML += `<div style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0;">🌐 ${qDisplayTrans(q)}</div>`;
         qHTML += `<div style="margin-top:6px;">`;
         if (q.cat === 'mcq' && q.options && q.options.length > 0) {
             for (const opt of q.options) {
@@ -3166,8 +3200,8 @@ function doPrintExamQuestions(examId, printMode) {
     for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
         html += `<div class="print-question">`;
-        html += `<div><span class="q-number">${i + 1}.</span> <span class="q-text">${q.text || ''}</span></div>`;
-        if (q.translation) html += `<div class="q-translation">🌐 ${q.translation}</div>`;
+        html += `<div><span class="q-number">${i + 1}.</span> <span class="q-text">${qDisplayText(q)}</span></div>`;
+        if (qDisplayTrans(q)) html += `<div class="q-translation">🌐 ${qDisplayTrans(q)}</div>`;
 
         if (q.cat === 'mcq' && q.options) {
             html += `<div class="print-options">`;
@@ -3499,11 +3533,11 @@ function generatePrintPreview() {
         const catLabel = getCategoryLabel(q.cat);
 
         html += `<div class="print-question">`;
-        html += `<div><span class="q-number">${showNumbers ? qIndex + '.' : ''}</span> <span class="q-text">${q.text}</span>`;
+        html += `<div><span class="q-number">${showNumbers ? qIndex + '.' : ''}</span> <span class="q-text">${qDisplayText(q)}</span>`;
         html += ` <span class="print-badge ${badgeClass}">${catLabel}</span></div>`;
 
-        if (q.translation) {
-            html += `<div class="q-translation">🌐 ${q.translation}</div>`;
+        if (qDisplayTrans(q)) {
+            html += `<div class="q-translation">🌐 ${qDisplayTrans(q)}</div>`;
         }
 
         // عرض الخيارات
@@ -3749,16 +3783,16 @@ function renderSmartReviewQuestion(q, index) {
     let html = `
         <div class="quiz-q" id="smartReview-q-${index}" style="border:2px solid var(--border-color);border-radius:12px;margin-bottom:15px;padding:15px;background:var(--card-bg);">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-                <strong style="font-size:1rem;color:var(--dark);">${index + 1}. ${q.text}</strong>
+                <strong style="font-size:1rem;color:var(--dark);">${index + 1}. ${qDisplayText(q)}</strong>
                 <span class="q-type-badge" style="font-size:0.7rem;padding:4px 10px;border-radius:12px;background:var(--gold-light);color:var(--gold-dark);">
                     <i class="fas ${catIcon}"></i> ${catLabel}
                 </span>
             </div>
     `;
 
-    if (q.translation) {
+    if (qDisplayTrans(q)) {
         html += `<div class="translation-box" style="margin-top:5px;margin-bottom:8px;padding:8px 12px;background:#f8fafc;border-radius:8px;font-size:0.85rem;border-right:3px solid var(--gold);color:var(--text-secondary);">
-            <i class="fas fa-language"></i> ${q.translation}
+            <i class="fas fa-language"></i> ${qDisplayTrans(q)}
         </div>`;
     }
 
@@ -3950,6 +3984,12 @@ function getFullAnswerSmart(question) {
 
     if (question.cat === 'explain') {
         return question.answer || '';
+    }
+
+    if (isDefQ(question)) {
+        var dAns = getDefinitionAnswerText(question);
+        var dTr = getDefinitionAnswerTrans(question);
+        return dTr ? dAns + ' - ' + dTr : dAns;
     }
 
     return question.completion || question.answer || question.correct || getDefinitionAnswerText(question) || '';
@@ -4764,13 +4804,13 @@ function renderTournamentQuizPage() {
             </div>
             
             <div class="quiz-question-text">
-                ${escapeHtml(q.text || '')}
+                ${escapeHtml(qDisplayText(q))}
             </div>`;
 
-        if (q.translation) {
+        if (qDisplayTrans(q)) {
             html += `
             <div class="quiz-question-translation">
-                <i class="fas fa-language"></i> ${escapeHtml(q.translation)}
+                <i class="fas fa-language"></i> ${escapeHtml(qDisplayTrans(q))}
             </div>`;
         }
 
