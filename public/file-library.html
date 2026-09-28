@@ -266,6 +266,17 @@
         .bank-card--medsurg   { --bank-c1: #3b82f6; --bank-c2: #1d4ed8; --bank-grad: linear-gradient(135deg, #60a5fa, #1d4ed8); --bank-shadow: rgba(29, 78, 216, .35); }
         .bank-card--gensurg   { --bank-c1: #ef4444; --bank-c2: #b91c1c; --bank-grad: linear-gradient(135deg, #f87171, #b91c1c); --bank-shadow: rgba(185, 28, 28, .35); }
         .bank-card--internal  { --bank-c1: #f43f5e; --bank-c2: #be123c; --bank-grad: linear-gradient(135deg, #fb7185, #be123c); --bank-shadow: rgba(190, 18, 60, .35); }
+        /* ====== بنوك الصف الثالث - ستايل مميز ====== */
+        .banks-heading--third { position: relative; padding: 12px 18px; border-radius: 16px; background: linear-gradient(135deg, rgba(249, 115, 22, .14), rgba(236, 72, 153, .10)); border: 1.5px dashed #f97316; }
+        .banks-heading--third .grade-badge { margin-inline-start: auto; background: linear-gradient(135deg, #fb923c, #c2410c); color: #fff; font-size: .72rem; font-weight: 800; padding: 4px 14px; border-radius: 50px; box-shadow: 0 4px 12px rgba(194, 65, 12, .35); letter-spacing: .3px; }
+        .bank-card--pediatric { --bank-c1: #f97316; --bank-c2: #c2410c; --bank-grad: linear-gradient(135deg, #fdba74, #f97316 45%, #c2410c); --bank-shadow: rgba(194, 65, 12, .38); border-color: rgba(249, 115, 22, .45); background-image: radial-gradient(circle at 12% 18%, rgba(253, 186, 116, .28) 0, transparent 38%), radial-gradient(circle at 88% 85%, rgba(244, 114, 182, .22) 0, transparent 42%); }
+        .bank-card--pediatric::after { content: '\1F9F8'; position: absolute; left: 14px; bottom: 8px; font-size: 3.4rem; opacity: .1; transform: rotate(-12deg); pointer-events: none; }
+        .bank-card--pediatric .bank-card-icon { animation: pedFloat 3.2s ease-in-out infinite; border-radius: 50%; width: 62px; height: 62px; }
+        .bank-card--pediatric .pediatric-ribbon { position: absolute; top: 14px; left: -34px; transform: rotate(-45deg); background: linear-gradient(135deg, #ec4899, #be185d); color: #fff; font-size: .68rem; font-weight: 800; padding: 4px 38px; box-shadow: 0 3px 10px rgba(190, 24, 93, .4); z-index: 2; }
+        .bank-card--pediatric .pediatric-tags { position: relative; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .bank-card--pediatric .pediatric-tags span { font-size: .7rem; font-weight: 700; padding: 3px 10px; border-radius: 50px; background: rgba(249, 115, 22, .13); color: #c2410c; border: 1px solid rgba(249, 115, 22, .3); }
+        body.dark-mode .bank-card--pediatric .pediatric-tags span { color: #fdba74; background: rgba(249, 115, 22, .18); }
+        @keyframes pedFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
         @media (max-width: 480px) {
             .banks-grid { grid-template-columns: 1fr; }
             .bank-card { padding: 18px; }
@@ -394,6 +405,20 @@
                 <p>طب باطنة - مئات الأسئلة مع الترجمة والحلول النموذجية</p>
             </div>
             <span class="bank-card-cta"><i class="fas fa-heartbeat"></i> الذهاب إلى بنك طب باطنة</span>
+        </a>
+    </div>
+
+    <h2 class="banks-heading banks-heading--third">🏅 بنوك الصف الثالث <span class="grade-badge">الصف الثالث</span></h2>
+    <div class="banks-grid">
+        <a href="Pediatric_Theory_Committee_Question_Bank.html" class="bank-card bank-card--pediatric">
+            <span class="pediatric-ribbon">الصف الثالث</span>
+            <div class="bank-card-icon"><i class="fas fa-baby"></i></div>
+            <div class="bank-card-body">
+                <h3>👶 بنك الأسئلة - Pediatric Nursing (Theory Committee)</h3>
+                <p>تمريض الأطفال - لجنة النظري - أسئلة مع الترجمة والحلول النموذجية</p>
+                <div class="pediatric-tags"><span>🧒 تمريض أطفال</span><span>📝 لجنة نظري</span></div>
+            </div>
+            <span class="bank-card-cta"><i class="fas fa-arrow-left"></i> الذهاب إلى بنك الأطفال</span>
         </a>
     </div>
 </div>
