@@ -2942,6 +2942,110 @@ app.post('/api/smart-review-an1/save-progress', verifyToken, async (req, res) =>
 // انسخ الكتلة دي كاملة والصقها في server.js بعد تعريف الموديلات الحالية
 // (بعد سطر: const ExamResult = mongoose.models.ExamResult || ...)
 // كل حاجة هنا مستقلة تمامًا (موديلات جديدة) فمش هتلمس بيانات أي بنك تاني
+// ====================== 🎯 محرك تصحيح بنك تمريض الأطفال (Ped3) — موحّد لكل أنواع الأسئلة ======================
+// بيُستخدم في: تسليم الواجب، تسليم الاختبار المؤقت، وتصحيح البطولات الخاصة بالبنك ده.
+// القاعدة العامة للأسئلة المقالية (تعريف / أكمل / اشرح / موقف): نسبة الكلمات المفتاحية المتطابقة من الإجابة الصحيحة >= 75%.
+function ped3Norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+function ped3StripOpt(s) { return String(s || '').replace(/^\s*[A-Za-z\u0621-\u064A0-9]{1,2}\s*[).:\-]\s*/, '').trim(); }
+function ped3Words(s, minLen) {
+    return ped3Norm(s).split(/[\s/,;:()\[\]"'،؛]+/).map(function (w) { return w.replace(/[^a-z0-9\u0600-\u06FF]/g, ''); })
+        .filter(function (w) { return w.length > minLen; });
+}
+// نسبة كلمات الإجابة الصحيحة (المفتاحية) اللي ظهرت في إجابة الطالب
+function ped3KeywordRatio(ref, user) {
+    var kws = ped3Words(ref, 3);
+    if (!kws.length) return null;
+    var u = ped3Norm(user);
+    var hit = kws.filter(function (w) { return u.indexOf(w) !== -1; }).length;
+    return hit / kws.length;
+}
+// مطابقة نص إجابة (أكمل / تعريف / اشرح / موقف)
+function ped3TextMatch(ref, user) {
+    var r = ped3Norm(ref), u = ped3Norm(user);
+    if (!r || !u) return false;
+    if (u === r) return true;
+    var clean = function (s) { return s.replace(/[.,!?;:"'()\-]/g, '').replace(/\s+/g, ' ').trim(); };
+    if (clean(u) === clean(r)) return true;
+    // إجابات قصيرة جداً (رقم أو كلمة قصيرة): لازم تظهر ككلمة كاملة
+    if (r.length <= 3) return u.split(/[^a-z0-9\u0600-\u06FF.]+/).indexOf(r) !== -1;
+    if (u.indexOf(r) !== -1) return true;
+    if (u.length >= 3 && u.length >= r.length * 0.5 && r.indexOf(u) !== -1) return true;
+    var ratio = ped3KeywordRatio(r, u);
+    return ratio !== null && ratio >= 0.75;
+}
+// الاختيار من متعدد: correct ممكن يكون حرف (A) أو رقم فهرس أو نص الخيار — والطالب ممكن يبعت نص الخيار أو حرفه
+function ped3McqCorrectText(q) {
+    var opts = Array.isArray(q.options) ? q.options : [];
+    var c = q.correct;
+    if (c === undefined || c === null || String(c).trim() === '') return '';
+    var cs = String(c).trim();
+    if (/^\d+$/.test(cs) && opts[parseInt(cs, 10)] !== undefined) return opts[parseInt(cs, 10)];
+    if (/^[A-Za-z]$/.test(cs)) {
+        var li = cs.toUpperCase().charCodeAt(0) - 65;
+        if (opts[li] !== undefined) return opts[li];
+    }
+    var found = opts.find(function (o) { return ped3Norm(o) === ped3Norm(cs) || ped3Norm(ped3StripOpt(o)) === ped3Norm(ped3StripOpt(cs)); });
+    return found !== undefined ? found : cs;
+}
+function ped3McqIsCorrect(q, userAnswer) {
+    var opts = Array.isArray(q.options) ? q.options : [];
+    var correctOpt = ped3McqCorrectText(q);
+    var u = ped3Norm(userAnswer);
+    if (!correctOpt || !u) return false;
+    if (u === ped3Norm(correctOpt)) return true;
+    var us = ped3Norm(ped3StripOpt(userAnswer)), cs = ped3Norm(ped3StripOpt(correctOpt));
+    if (us && us === cs) return true;
+    if (/^[a-z]$/.test(u)) return opts.indexOf(correctOpt) === (u.charCodeAt(0) - 97);
+    if (/^\d+$/.test(u)) return opts.indexOf(correctOpt) === parseInt(u, 10);
+    return false;
+}
+function ped3TrueFalseIsCorrect(q, userAnswer) {
+    var c = ped3Norm(q.correct);
+    var correctIsTrue = q.correct === true || ['true', 'صواب', 'صح'].indexOf(c) !== -1;
+    var u = ped3Norm(userAnswer);
+    var userIsTrue = ['true', 'صواب', 'صح', 'نعم', 'yes'].indexOf(u) !== -1;
+    var userIsFalse = ['false', 'خطأ', 'غلط', 'لا', 'no'].indexOf(u) !== -1;
+    return correctIsTrue ? userIsTrue : userIsFalse;
+}
+// القوائم: العنصر يتحسب مذكور لو 75% من كلماته ظهرت، والإجابة صح لو 75% من العناصر اتغطت
+function ped3ListIsCorrect(q, userAnswer) {
+    var items = Array.isArray(q.items) ? q.items : [];
+    var u = ped3Norm(userAnswer);
+    if (!items.length || !u) return false;
+    var covered = 0;
+    items.forEach(function (it) {
+        var en = ped3Norm(String(it || '').replace(/^\s*\d+\s*[-.)]\s*/, '').split(' - ')[0]);
+        if (!en) return;
+        if (u.indexOf(en) !== -1) { covered++; return; }
+        var r = ped3KeywordRatio(en, u);
+        if (r !== null && r >= 0.75) covered++;
+    });
+    return (covered / items.length) >= 0.75;
+}
+function ped3DefinitionRef(q) {
+    var ref = String(q.answer || q.completion || '').trim();
+    if (!ref && q.text) {
+        var m = String(q.text).match(/^([^:\uFF1A]+)[:\uFF1A]\s*([\s\S]*)$/);
+        ref = m ? m[2].trim() : String(q.text);
+    }
+    return ref;
+}
+function ped3GradeAnswer(question, userAnswer) {
+    if (!question) return false;
+    var ua = (userAnswer === undefined || userAnswer === null) ? '' : String(userAnswer).trim();
+    if (!ua) return false;
+    switch (question.cat || 'mcq') {
+        case 'mcq': return ped3McqIsCorrect(question, ua);
+        case 'truefalse': return ped3TrueFalseIsCorrect(question, ua);
+        case 'complete': return ped3TextMatch(question.completion || question.answer, ua);
+        case 'definitions': return ped3TextMatch(ped3DefinitionRef(question), ua);
+        case 'list': return ped3ListIsCorrect(question, ua);
+        case 'explain':
+        case 'situations': return ped3TextMatch(question.answer || question.completion, ua);
+        default: return false;
+    }
+}
+
 // ==========================================================================
 
 // ====================== موديلات خاصة ببنك تمريض الأطفال (الصف الثالث - لجنة النظري) ======================
@@ -3216,33 +3320,7 @@ app.post('/api/homework-ped3/:id/submit', verifyToken, async (req, res) => {
             if (!question) continue;
             let isCorrect = false;
             const userAnswer = (answer.answer || '').toString().trim();
-            if (question.cat === 'mcq') {
-                isCorrect = userAnswer === (question.correct || '').toString().trim();
-            } else if (question.cat === 'truefalse') {
-                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
-            } else if (question.cat === 'definitions') {
-                // سؤال "تعريف": التصحيح يعتمد على نسبة الكلمات المفتاحية المتطابقة من
-                // الإجابة الصحيحة (answer/completion، أو الجزء اللي بعد ":" في النص لو
-                // مفيش حقل إجابة منفصل) — لازم تطابق 75% على الأقل عشان تتحسب صح.
-                let refAnswer = String(question.answer || question.completion || '').toLowerCase().trim();
-                if (!refAnswer && question.text) {
-                    const parts = String(question.text).split(':');
-                    refAnswer = (parts.length > 1 ? parts.slice(1).join(':') : parts[0]).trim().toLowerCase();
-                }
-                const userLower = userAnswer.toLowerCase();
-                const defKeywords = refAnswer.split(/\s+/).filter(w => w.replace(/[^a-zA-Z\u0600-\u06FF]/g, '').length > 2);
-                if (defKeywords.length === 0) {
-                    isCorrect = refAnswer.length > 0 && userAnswer.length > 3 &&
-                        (userLower.includes(refAnswer) || refAnswer.includes(userLower));
-                } else {
-                    const matchedKeywords = defKeywords.filter(kw => userLower.includes(kw));
-                    isCorrect = (matchedKeywords.length / defKeywords.length) >= 0.75;
-                }
-            } else {
-                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
-                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
-                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
-            }
+            isCorrect = ped3GradeAnswer(question, userAnswer);
             if (isCorrect) correctCount++;
             detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
         }
@@ -3366,7 +3444,7 @@ app.post('/api/tournaments-ped3/:id/participate', verifyToken, async (req, res) 
         for (const answer of answers || []) {
             const question = tournament.questions[answer.questionIndex];
             if (!question) { detailedAnswers.push({ questionIndex: answer.questionIndex, answer: answer.answer || '', isCorrect: false }); continue; }
-            const isCorrect = correctAnswer(question, answer.answer || '');
+            const isCorrect = ped3GradeAnswer(question, answer.answer || '');
             if (isCorrect) correctCount++;
             detailedAnswers.push({ questionIndex: answer.questionIndex, answer: answer.answer || '', isCorrect });
         }
@@ -11253,21 +11331,16 @@ function correctList(userAnsLower) {
 }
 
 function correctDefinition(question, userAnsLower) {
-    // 🆕 تصحيح سؤال "تعريف": بيعتمد على نسبة الكلمات المفتاحية المتطابقة من
-    // الإجابة الصحيحة (answer/completion، أو الجزء بعد ":" في نص السؤال لو
-    // مفيش حقل إجابة منفصل) — لازم تطابق 75% على الأقل عشان تتحسب صح.
+    // 🆕 تصحيح سؤال "تعريف" في البطولات (البنوك التانية): نسبة الكلمات المفتاحية المتطابقة >= 75%
     if (!userAnsLower || userAnsLower.length < 3) return false;
-
     let refAnswer = String(question.answer || question.completion || '').trim().toLowerCase();
     if (!refAnswer && question.text) {
         const parts = String(question.text).split(':');
         refAnswer = (parts.length > 1 ? parts.slice(1).join(':') : parts[0]).trim().toLowerCase();
     }
     if (!refAnswer) return false;
-
     if (userAnsLower === refAnswer) return true;
     if (userAnsLower.includes(refAnswer) || refAnswer.includes(userAnsLower)) return true;
-
     const keywords = refAnswer.split(/\s+/).filter(w => w.replace(/[^a-zA-Z\u0600-\u06FF]/g, '').length > 2);
     if (keywords.length === 0) return false;
     const matched = keywords.filter(kw => userAnsLower.includes(kw));
@@ -14775,33 +14848,7 @@ app.post('/api/exam-ped3/:id/submit', verifyToken, async (req, res) => {
             if (!question) continue;
             let isCorrect = false;
             const userAnswer = (answer.answer || '').toString().trim();
-            if (question.cat === 'mcq') {
-                isCorrect = userAnswer === (question.correct || '').toString().trim();
-            } else if (question.cat === 'truefalse') {
-                isCorrect = String(question.correct).toLowerCase().trim() === userAnswer.toLowerCase().trim();
-            } else if (question.cat === 'definitions') {
-                // سؤال "تعريف": التصحيح يعتمد على نسبة الكلمات المفتاحية المتطابقة من
-                // الإجابة الصحيحة (answer/completion، أو الجزء اللي بعد ":" في النص لو
-                // مفيش حقل إجابة منفصل) — لازم تطابق 75% على الأقل عشان تتحسب صح.
-                let refAnswer = String(question.answer || question.completion || '').toLowerCase().trim();
-                if (!refAnswer && question.text) {
-                    const parts = String(question.text).split(':');
-                    refAnswer = (parts.length > 1 ? parts.slice(1).join(':') : parts[0]).trim().toLowerCase();
-                }
-                const userLower = userAnswer.toLowerCase();
-                const defKeywords = refAnswer.split(/\s+/).filter(w => w.replace(/[^a-zA-Z\u0600-\u06FF]/g, '').length > 2);
-                if (defKeywords.length === 0) {
-                    isCorrect = refAnswer.length > 0 && userAnswer.length > 3 &&
-                        (userLower.includes(refAnswer) || refAnswer.includes(userLower));
-                } else {
-                    const matchedKeywords = defKeywords.filter(kw => userLower.includes(kw));
-                    isCorrect = (matchedKeywords.length / defKeywords.length) >= 0.75;
-                }
-            } else {
-                const correctStr = (question.completion || question.answer || '').toLowerCase().trim();
-                isCorrect = userAnswer.length > 3 && correctStr.length > 0 &&
-                    (userAnswer.toLowerCase().includes(correctStr) || correctStr.includes(userAnswer.toLowerCase()));
-            }
+            isCorrect = ped3GradeAnswer(question, userAnswer);
             if (isCorrect) correctCount++;
             detailedAnswers.push({ questionIndex: answer.questionIndex, answer: userAnswer, isCorrect });
         }
