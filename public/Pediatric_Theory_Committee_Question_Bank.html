@@ -1030,16 +1030,17 @@ function handleGenericAnswer(btn, chosen, correct, i, total, prefix, totalVar, s
 function handleGenericOther(i, correctText, total, prefix, totalVar, scoresVar, scoreElId) {
     var input = document.getElementById(prefix + '-other-' + i);
     if (!input || input.disabled) return;
-    var isCorrect = checkDefinitionAnswer(input.value, correctText);
+    var questionObj = window['_currentQuestions'] ? window['_currentQuestions'][i] : null;
+    var isCorrect = questionObj ? isAnswerCorrectSmart(input.value, questionObj) : checkDefinitionAnswer(input.value, correctText);
+    var shownAnswer = (questionObj ? getFullAnswerSmart(questionObj) : '') || correctText;
     input.classList.add(isCorrect ? 'correct-input' : 'wrong-input');
     input.disabled = true;
     var scoresObj = window[scoresVar];
     if (scoresObj) scoresObj[i] = isCorrect;
-    var questionObj = window['_currentQuestions'] ? window['_currentQuestions'][i] : null;
     if (!isCorrect && questionObj) { addWrongQuestion(questionObj); } else if (isCorrect && questionObj) { removeWrongQuestion(questionObj.questionId); }
     var fb = document.getElementById(prefix + '-fb-' + i);
     if (fb) { 
-        fb.textContent = isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ - الإجابة الصحيحة: ' + correctText; 
+        fb.innerHTML = isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ - الإجابة الصحيحة: ' + shownAnswer; 
         fb.style.color = isCorrect ? 'var(--green)' : 'var(--red)'; 
         fb.style.padding = '10px'; 
         fb.style.background = isCorrect ? '#f0fdf4' : '#fef2f2'; 
@@ -1258,17 +1259,18 @@ function checkTimedAnswer(btn, chosen, correct, i, total) {
 function checkTimedOther(i, correctText, total) {
     var input = document.getElementById('Timed-other-' + i);
     if (!input || input.disabled) return;
-    var isCorrect = checkDefinitionAnswer(input.value, correctText);
+    var questionObj = window._currentQuestions ? window._currentQuestions[i] : null;
+    var isCorrect = questionObj ? isAnswerCorrectSmart(input.value, questionObj) : checkDefinitionAnswer(input.value, correctText);
+    var shownAnswer = (questionObj ? getFullAnswerSmart(questionObj) : '') || correctText;
     input.classList.add(isCorrect ? 'correct-input' : 'wrong-input');
     input.disabled = true;
     var scoresObj = window._qtScores;
     if (scoresObj) scoresObj[i] = isCorrect;
-    var questionObj = window._currentQuestions ? window._currentQuestions[i] : null;
     if (!isCorrect && questionObj) addWrongQuestion(questionObj);
     else if (isCorrect && questionObj) removeWrongQuestion(questionObj.questionId);
     var fb = document.getElementById('Timed-fb-' + i);
     if (fb) { 
-        fb.textContent = isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ - الإجابة الصحيحة: ' + correctText; 
+        fb.innerHTML = isCorrect ? '✅ صحيح! أحسنت!' : '❌ خطأ - الإجابة الصحيحة: ' + shownAnswer; 
         fb.style.color = isCorrect ? 'var(--green)' : 'var(--red)'; 
         fb.style.padding = '10px'; 
         fb.style.background = isCorrect ? '#f0fdf4' : '#fef2f2'; 
@@ -3727,6 +3729,11 @@ async function startSmartReview() {
             return;
         }
 
+        // 🔧 السيرفر بيشيل حقول الإجابة (correct/completion/answer) من الأسئلة قبل ما يبعتها،
+        // فكان التصحيح بيتم على سؤال من غير إجابة صحيحة = كل حاجة بتطلع "خطأ".
+        // الحل: نرجّع بيانات السؤال الكاملة من ملفات الفصول المحلية عن طريق questionId.
+        for (let qi = 0; qi < questions.length; qi++) { questions[qi] = hydrateSmartQuestion(questions[qi]); }
+
         // تخزين الأسئلة في المتغيرات العامة
         smartReviewQuestions = questions;
         smartReviewTotal = questions.length;
@@ -3801,9 +3808,8 @@ function renderSmartReviewQuestion(q, index) {
         html += `<div style="margin-top:10px;">`;
         for (let o = 0; o < q.options.length; o++) {
             const opt = q.options[o];
-            const escapedOpt = opt.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             html += `
-                <button class="quiz-opt" onclick="checkSmartReviewAnswer(this, '${escapedOpt}', ${index})" 
+                <button class="quiz-opt" data-opt-index="${o}" onclick="checkSmartReviewAnswer(this, ${o}, ${index})" 
                         style="display:block;width:100%;text-align:right;padding:10px 15px;margin:5px 0;border:2px solid var(--border-color);border-radius:10px;background:var(--card-bg);cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.9rem;transition:all 0.3s ease;">
                     ${opt}
                 </button>
@@ -3847,6 +3853,24 @@ function renderSmartReviewQuestion(q, index) {
     return html;
 }
 
+// ====================== إعادة بناء السؤال الكامل من بيانات الفصول المحلية ======================
+function hydrateSmartQuestion(q) {
+    try {
+        var m = String(q.questionId || '').match(/^(.+)_([a-z]+)_(\d+)$/);
+        if (m && chaptersData[m[1]] && Array.isArray(chaptersData[m[1]][m[2]])) {
+            var orig = chaptersData[m[1]][m[2]][parseInt(m[3], 10)];
+            if (orig) {
+                var full = Object.assign({}, orig, q);      // بيانات السيرفر (questionId/chapterName..) فوق الأصل
+                var keep = ['correct', 'correctAnswer', 'completion', 'answer', 'correctTranslation', 'answerTranslation', 'completionTranslation', 'items', 'options', 'text', 'translation'];
+                keep.forEach(function (k) { if (orig[k] !== undefined) full[k] = orig[k]; });
+                full.cat = m[2];
+                return full;
+            }
+        }
+    } catch (e) { console.warn('hydrateSmartQuestion failed', e); }
+    return q;
+}
+
 // ====================== دالة مقارنة الإجابات المحسنة (10 مستويات) ======================
 
 function isAnswerCorrectSmart(userAnswer, question) {
@@ -3860,6 +3884,9 @@ function isAnswerCorrectSmart(userAnswer, question) {
     const user = String(userAnswer).trim();
     let correct = '';
 
+    // أسئلة القائمة (list): مفيش حقل إجابة، المرجع هو عناصر items — لازم تغطية 75% من العناصر
+    if (question.cat === 'list') return listCoverageCorrect(user, question);
+
     // الحصول على الإجابة الصحيحة حسب نوع السؤال
     if (question.cat === 'truefalse') {
         correct = _safeStr(question.correct).trim();
@@ -3871,6 +3898,13 @@ function isAnswerCorrectSmart(userAnswer, question) {
 
     // ========== 1. مقارنة مباشرة ==========
     if (user === correct) return true;
+
+    // ========== 1.5 إجابات قصيرة (أرقام أو كلمة قصيرة مثل 21 أو 1): لازم تظهر ككلمة كاملة ==========
+    if (correct.length <= 3) {
+        return user.toLowerCase().split(/[^a-z0-9\u0600-\u06FF.]+/).indexOf(correct.toLowerCase()) !== -1;
+    }
+    // ========== 1.6 إجابة الطالب بتحتوي الإجابة الصحيحة كاملة (مثال: "the answer is meninges") ==========
+    if (question.cat !== 'truefalse' && user.toLowerCase().indexOf(correct.toLowerCase()) !== -1) return true;
 
     // ========== 2. مقارنة بعد إزالة المسافات الزائدة ==========
     if (user.replace(/\s+/g, ' ') === correct.replace(/\s+/g, ' ')) return true;
@@ -3964,8 +3998,36 @@ function isAnswerCorrectSmart(userAnswer, question) {
 
 // ====================== دالة الحصول على الإجابة الصحيحة للعرض ======================
 
+// تغطية عناصر القائمة: العنصر يتحسب مذكور لو 75% من كلماته المهمة ظهرت في إجابة الطالب،
+// والإجابة صح لو 75% من العناصر اتغطت
+function _stripListItem(it) {
+    var s = String(it || '').replace(/^\s*\d+\s*[-.)]\s*/, '');
+    var parts = s.split(' - ');
+    return parts[0].trim();             // الجزء الإنجليزي قبل الترجمة العربية
+}
+function listCoverageCorrect(userText, q) {
+    var items = Array.isArray(q.items) ? q.items : [];
+    if (!items.length || !userText) return false;
+    var u = String(userText).toLowerCase();
+    var covered = 0;
+    items.forEach(function (it) {
+        var en = _stripListItem(it).toLowerCase();
+        if (!en) return;
+        if (u.indexOf(en) !== -1) { covered++; return; }
+        var words = en.split(/\s+/).map(function (w) { return w.replace(/[^a-z0-9\u0600-\u06FF]/g, ''); }).filter(function (w) { return w.length > 3; });
+        if (!words.length) { return; }
+        var hit = words.filter(function (w) { return u.indexOf(w) !== -1; }).length;
+        if (hit / words.length >= 0.75) covered++;
+    });
+    return (covered / items.length) >= 0.75;
+}
+
 function getFullAnswerSmart(question) {
     if (!question) return '';
+
+    if (question.cat === 'list' && Array.isArray(question.items)) {
+        return question.items.map(function (it) { return _stripListItem(it); }).join('<br>');
+    }
 
     if (question.cat === 'mcq') {
         return mcqCorrectDisplayText(question);
@@ -3982,7 +4044,7 @@ function getFullAnswerSmart(question) {
         return question.completion || '';
     }
 
-    if (question.cat === 'explain') {
+    if (question.cat === 'explain' || question.cat === 'situations') {
         return question.answer || '';
     }
 
@@ -4060,6 +4122,11 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     const question = smartReviewQuestions[index];
     if (!question) return;
 
+    // في الاختيار من متعدد بنستلم رقم الخيار ونحوله لنص الخيار الفعلي
+    if (question.cat === 'mcq' && typeof chosen === 'number') {
+        chosen = question.options[chosen];
+    }
+
     // تعطيل جميع الأزرار
     const parent = btn.parentElement;
     parent.querySelectorAll('.quiz-opt').forEach(b => b.disabled = true);
@@ -4073,7 +4140,8 @@ function checkSmartReviewAnswer(btn, chosen, index) {
     // إذا كانت الإجابة خاطئة، أظهر الإجابة الصحيحة باللون الأخضر
     if (!isCorrect) {
         parent.querySelectorAll('.quiz-opt').forEach(b => {
-            const optText = b.textContent.trim();
+            const oi = b.getAttribute('data-opt-index');
+            const optText = (question.cat === 'mcq' && oi !== null) ? question.options[parseInt(oi, 10)] : b.textContent.trim();
             if (isAnswerCorrectSmart(optText, question)) {
                 b.classList.add('correct');
             }
@@ -4124,15 +4192,11 @@ function checkSmartReviewText(index) {
 
     const userAnswer = input.value.trim();
 
-    // الحصول على الإجابة الصحيحة
-    const correctAnswer = question.completion || question.answer || '';
+    // الإجابة الصحيحة للعرض (بحسب نوع السؤال: تعريف/قائمة/أكمل/اشرح/موقف)
+    const correctAnswer = getFullAnswerSmart(question);
 
-    // استخدام دالة المقارنة المحسنة
-    const isCorrect = isAnswerCorrectSmart(userAnswer, {
-        ...question,
-        cat: 'text',
-        completion: correctAnswer
-    });
+    // التصحيح بنفس دالة المقارنة (نسبة تطابق كلمات 75%)
+    const isCorrect = isAnswerCorrectSmart(userAnswer, question);
 
     input.classList.add(isCorrect ? 'correct-input' : 'wrong-input');
     input.disabled = true;
@@ -5426,76 +5490,7 @@ async function submitTournamentAnswers(autoSubmit = false) {
 
 function checkAnswerLocally(question, userAnswer, type) {
     if (!userAnswer) return false;
-
-    const userAnsLower = userAnswer.trim().toLowerCase();
-
-    switch (type) {
-        case 'mcq': {
-            return isMcqOptionCorrect(userAnswer, question);
-        }
-
-        case 'truefalse': {
-            const correctIsTrue = (
-                question.correct === true || 
-                String(question.correct).toLowerCase() === 'true'
-            );
-            const userIsTrue = ['صواب', 'true', 'صح', 'نعم', 'yes'].includes(userAnsLower);
-            const userIsFalse = ['خطأ', 'false', 'غلط', 'لا', 'no'].includes(userAnsLower);
-
-            if (correctIsTrue) return userIsTrue;
-            return userIsFalse;
-        }
-
-        case 'complete': {
-            const completion = String(question.completion || '').trim().toLowerCase();
-            if (!completion || userAnsLower.length < 2) return false;
-
-            // تطابق تام
-            if (userAnsLower === completion) return true;
-            // احتواء
-            if (userAnsLower.includes(completion) || completion.includes(userAnsLower)) return true;
-
-            // تحليل الكلمات المفتاحية
-            const keywords = completion.split(/\s+/).filter(w => w.length > 3);
-            if (keywords.length > 0) {
-                const matched = keywords.filter(kw => userAnsLower.includes(kw));
-                return (matched.length / keywords.length) >= 0.75; // 75% نسبة التطابق المطلوبة
-            }
-            return false;
-        }
-
-        case 'definitions': {
-            // سؤال "تعريف": نفس فكرة "أكمل" لكن الإجابة المرجعية بتُستخرج من
-            // completion/answer أو من نص السؤال نفسه لو مفيش حقل إجابة منفصل
-            const refAnswer = getDefinitionAnswerText(question).trim().toLowerCase();
-            if (!refAnswer || userAnsLower.length < 2) return false;
-
-            if (userAnsLower === refAnswer) return true;
-            if (userAnsLower.includes(refAnswer) || refAnswer.includes(userAnsLower)) return true;
-
-            const defKeywords = refAnswer.split(/\s+/).filter(w => w.length > 2);
-            if (defKeywords.length > 0) {
-                const matched = defKeywords.filter(kw => userAnsLower.includes(kw));
-                return (matched.length / defKeywords.length) >= 0.75; // 75% نسبة التطابق المطلوبة
-            }
-            return false;
-        }
-
-        case 'list': {
-            // قائمة: تحقق من وجود 3 نقاط على الأقل
-            const lines = userAnsLower.split(/[\n,،]/).filter(l => l.trim().length > 3);
-            return lines.length >= 3;
-        }
-
-        case 'explain':
-        case 'situations': {
-            // شرح ومواقف: تحقق من طول الإجابة
-            return userAnsLower.length > 15;
-        }
-
-        default:
-            return userAnsLower.length > 3;
-    }
+    return isAnswerCorrectSmart(String(userAnswer), Object.assign({}, question, { cat: type || question.cat }));
 }
 
 function colorizeAnswers(questions, answers) {
