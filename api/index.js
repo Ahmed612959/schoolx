@@ -78,6 +78,8 @@ try {
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
+    // مزامنة بيانات الطالب ليها ليميتر خاص بيها (user-data-routes.js)
+    skip: (req) => (req.originalUrl || '').indexOf('/api/user-data') === 0,
     message: { error: 'لقد تجاوزت الحد المسموح من الطلبات' },
     trustProxy: true,
     keyGenerator: (req) => req.ip || req.headers['x-forwarded-for'] || 'unknown'
@@ -4882,6 +4884,10 @@ app.get('/api/premium-status', verifyToken, async (req, res) => {
 });
 
 // ====================== معلومات المستخدم الكاملة (لأي مشروع خارجي زي chatx) ======================
+// ====================== مزامنة بيانات الطالب (محادثات / مهارات / تقدّم) ======================
+// بتتخزن في MongoDB نفسها — راجع user-data-routes.js
+require('./user-data-routes')(app, { mongoose, verifyToken, connectToDatabase, rateLimit });
+
 app.get('/api/me', verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
