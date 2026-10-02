@@ -15333,7 +15333,7 @@ app.delete('/api/exam-msn/:id', verifyToken, isAdmin, async (req, res) => {
         res.json({ success: true, message: 'تم حذف الاختبار وجميع التسليمات المرتبطة به', deletedSubmissions: deletedSubmissions.deletedCount });
     } catch (error) { console.error(error); res.status(500).json({ error: 'خطأ في حذف الاختبار: ' }); }
 });
-
+require('./translate-routes')(app, { mongoose, rateLimit, verifyToken, isAdmin, connectToDatabase, Student });
 // ====================== مسار افتراضي ======================
 app.get('*', (req, res) => {
     res.json({ 
