@@ -20,6 +20,7 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5500',
     'https://schoolx-eta.vercel.app',
+    'https://translation-sigma-six.vercel.app',
     'https://school-system-fiv.vercel.app',
     // مشروع chatx (تطبيق الطالب) — مضاف هنا مباشرة (مش بس عن طريق
     // EXTRA_ALLOWED_ORIGINS) عشان الاعتماد عليه في env var كان بيتنسى ويسبب
