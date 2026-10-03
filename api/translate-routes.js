@@ -191,6 +191,18 @@ How to answer:
 - Never invent things the page does not say. If the student asks you to quiz them, ask ONE question at a time and wait for the answer.
 - If asked to summarize, give 4 to 6 short points.`;
 
+const SUMMARY_SYSTEM = `You are a senior nursing educator preparing a revision summary of a whole textbook chapter for an Egyptian nursing student. Use ONLY the provided content (English text with its Arabic translation). Write in clear simple Arabic. Do not invent facts.
+Return JSON only:
+{
+ "overview": "فقرة قصيرة (2 إلى 3 جمل) تشرح الفصل كله",
+ "sections": [{"title": "عنوان محور بالعربي", "points": ["نقطة مختصرة", "..."]}],
+ "mustKnow": ["أهم 6 إلى 10 معلومات لازم تتحفظ"],
+ "terms": [{"en": "Term", "ar": "المصطلح"}],
+ "pitfalls": ["لخبطة شائعة بين مفهومين أو خطأ بيقع فيه الطلبة (من 2 إلى 4)"],
+ "plan": "خطة مراجعة مقترحة في سطرين"
+}
+3 to 6 sections, 3 to 6 points each, up to 12 terms. Plain Arabic text only: no asterisks, no markdown.`;
+
 const DEFINE_SYSTEM = `You are a medical dictionary for Egyptian nursing students. For the given English medical term return JSON only: {"en":"the term","ar":"standard Arabic medical equivalent as used in Arabic medical references","def":"شرح مبسط بالعربي في جملة أو اتنين، من غير تعقيد"}.`;
 
 // تنظيف ردود الشات من علامات الماركداون (نجوم/هاشتاج/باكتيك/جداول) — الرد يوصل نص نضيف
@@ -229,6 +241,8 @@ async function fetchWithRetry(url, options, retries = 2) {
     }
 }
 
+// وضع "التفكير" في موديلات Gemini بياخد من حد التوكنز ويقدر يسيب الرد فاضي. بنقفله، ولو الموديل ما يدعمش بنرجع من غيره تلقائي.
+const THINK = { off: true };
 function geminiBody({ system, contents, maxTokens, temperature, json }) {
     return JSON.stringify({
         system_instruction: { parts: [{ text: system }] },
@@ -236,19 +250,42 @@ function geminiBody({ system, contents, maxTokens, temperature, json }) {
         safetySettings: SAFETY,
         generationConfig: Object.assign(
             { maxOutputTokens: maxTokens, temperature },
-            json ? { responseMimeType: 'application/json' } : {}
+            json ? { responseMimeType: 'application/json' } : {},
+            THINK.off ? { thinkingConfig: { thinkingBudget: 0 } } : {}
         )
     });
+}
+async function postGemini(stream, args, signal) {
+    for (let pass = 0; pass < 2; pass++) {
+        const r = await fetchWithRetry(GEN_URL(stream), {
+            method: 'POST',
+            headers: { 'x-goog-api-key': geminiKey(), 'Content-Type': 'application/json' },
+            signal, body: geminiBody(args)
+        });
+        if (!r.ok && r.status === 400 && THINK.off && pass === 0) {
+            let d = null; try { d = await r.clone().json(); } catch (_) {}
+            if (/think/i.test(JSON.stringify(d || {}))) { THINK.off = false; continue; }
+        }
+        return r;
+    }
+}
+// رسالة عربي مفهومة للطالب + التفصيل الأصلي للأدمن
+function aiErr(e) {
+    const st = e && e.status, raw = String((e && e.message) || '');
+    let msg = raw;
+    if (e && e.code === 'ai_unavailable') msg = 'خدمة الذكاء الاصطناعي مش مفعّلة على السيرفر';
+    else if (st === 429) msg = 'ضغط كبير على الذكاء الاصطناعي دلوقتي، جرب تاني بعد دقيقة';
+    else if (st === 401 || st === 403 || /api key/i.test(raw)) msg = 'مفتاح الذكاء الاصطناعي على السيرفر غير صالح أو متوقف';
+    else if (st === 404) msg = 'موديل الذكاء الاصطناعي غير موجود، راجع إعدادات السيرفر';
+    else if (st >= 500) msg = 'خدمة الذكاء الاصطناعي واقفة مؤقتًا، جرب تاني';
+    else if (e && (e.code === 'ai_bad_response' || e.code === 'ai_bad_json')) msg = raw || 'الرد مكانش مفهوم، جرب تاني';
+    else if (!/[\u0600-\u06FF]/.test(msg)) msg = 'حصلت مشكلة مع الذكاء الاصطناعي، جرب تاني';
+    return { error: msg, detail: raw.slice(0, 300) };
 }
 
 async function* streamGemini({ system, parts, contents, maxTokens, temperature, signal }) {
     if (!geminiKey()) { const e = new Error('خدمة الترجمة مش مفعّلة (GEMINI_API_KEY مش مضبوط على السيرفر)'); e.code = 'ai_unavailable'; throw e; }
-    const r = await fetchWithRetry(GEN_URL(true), {
-        method: 'POST',
-        headers: { 'x-goog-api-key': geminiKey(), 'Content-Type': 'application/json' },
-        signal,
-        body: geminiBody({ system, contents: contents || [{ role: 'user', parts }], maxTokens, temperature })
-    });
+    const r = await postGemini(true, { system, contents: contents || [{ role: 'user', parts }], maxTokens, temperature }, signal);
     if (!r.ok) { const e = new Error(await errDetail(r)); e.code = 'ai_call_failed'; e.status = r.status; throw e; }
     const reader = r.body.getReader();
     const dec = new TextDecoder();
@@ -277,11 +314,7 @@ async function* streamGemini({ system, parts, contents, maxTokens, temperature, 
 
 async function generate({ system, contents, maxTokens = 2000, temperature = 0.4, json = false }) {
     if (!geminiKey()) { const e = new Error('خدمة الذكاء الاصطناعي مش مفعّلة'); e.code = 'ai_unavailable'; throw e; }
-    const r = await fetchWithRetry(GEN_URL(false), {
-        method: 'POST',
-        headers: { 'x-goog-api-key': geminiKey(), 'Content-Type': 'application/json' },
-        body: geminiBody({ system, contents, maxTokens, temperature, json })
-    });
+    const r = await postGemini(false, { system, contents, maxTokens, temperature, json });
     if (!r.ok) { const e = new Error(await errDetail(r)); e.code = 'ai_call_failed'; e.status = r.status; throw e; }
     const d = await r.json();
     const text = ((d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts) || [])
@@ -457,6 +490,13 @@ function registerTranslateRoutes(app, deps) {
         error: `خلّصت عمليات الذكاء الاصطناعي المجانية النهاردة (${FREE_DAILY_ACTIONS}). ارجع بكرة أو فعّل الباقة.`, code: 'quota_exceeded'
     });
 
+    async function requirePremium(req, res, what) {
+        const profile = await getProfile(req.user.username);
+        if (await isUnlimited(req.user, profile)) return true;
+        res.status(403).json({ error: `${what} للمشتركين في الباقة بس`, code: 'premium_only' });
+        return false;
+    }
+
     async function quotaSnapshot(user) {
         const profile = await getProfile(user.username);
         const unlimited = await isUnlimited(user, profile);
@@ -469,7 +509,8 @@ function registerTranslateRoutes(app, deps) {
             pagesLeft: unlimited ? null : Math.max(0, FREE_DAILY_PAGES - used) + (profile.bonusPages || 0),
             actionsLeft: unlimited ? null : Math.max(0, FREE_DAILY_ACTIONS - actions),
             referralCode: profile.referralCode, referredBy: profile.referredBy || '', referralBonus: REFERRAL_BONUS,
-            plans: PLANS
+            plans: PLANS, maxBatch: unlimited ? 50 : 20,
+            daysLeft: profile.planUntil && profile.planUntil > new Date() ? Math.ceil((profile.planUntil - Date.now()) / 86400000) : null
         };
     }
 
@@ -657,8 +698,8 @@ function registerTranslateRoutes(app, deps) {
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
             const r = await generate({
-                system: EXPLAIN_SYSTEM, json: true, maxTokens: 4000, temperature: 0.5,
-                contents: [{ role: 'user', parts: [{ text: `MODE=${mode}\\n\\nEnglish passage:\\n${en}\\n\\nArabic translation:\\n${ar}` }] }]
+                system: EXPLAIN_SYSTEM, json: true, maxTokens: 8000, temperature: 0.5,
+                contents: [{ role: 'user', parts: [{ text: `MODE=${mode}\n\nEnglish passage:\n${en}\n\nArabic translation:\n${ar}` }] }]
             });
             const list = (v, n) => (Array.isArray(v) ? v.map(x => cleanChat(str(String(x || ''), 400)).replace(/^[-•]\s+/, '')).filter(Boolean).slice(0, n) : []);
             const chk = r.check && typeof r.check === 'object' ? { q: cleanChat(str(r.check.q, 300)), a: cleanChat(str(r.check.a, 500)) } : null;
@@ -668,24 +709,29 @@ function registerTranslateRoutes(app, deps) {
                 nursing: list(r.nursing, 5), mnemonic: cleanChat(str(r.mnemonic, 400)), exam: list(r.exam, 4),
                 check: chk && chk.q && chk.a ? chk : null
             });
-        } catch (e) { await refundAction(req.user, day); console.error('explain:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر الشرح' }); }
+        } catch (e) { await refundAction(req.user, day); console.error('explain:', e.message); res.status(aiStatus(e)).json(aiErr(e)); }
     });
 
     // ====================== 3) MCQs + Flashcards ======================
     app.post('/api/translate/quiz', verifyToken, apiLimiter, async (req, res) => {
         let day = null;
         try {
-            const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 80) : [];
-            const text = items.filter(i => i && i.en).map(i => str(i.en, 1500)).join('\\n').slice(0, 14000);
+            const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 400) : [];
+            const text = items.filter(i => i && i.en).map(i => str(i.en, 1500)).join('\n').slice(0, req.body && req.body.exam ? 26000 : 14000);
             if (text.length < 60) return res.status(400).json({ error: 'المحتوى قليل لتوليد أسئلة' });
-            const mcqN = Math.min(10, Math.max(3, Number(req.body.mcq) || 6));
-            const fcN = Math.min(15, Math.max(4, Number(req.body.flash) || 10));
+            const exam = !!(req.body && req.body.exam);
+            const mcqN = exam ? Math.min(25, Math.max(10, Number(req.body.mcq) || 20)) : Math.min(10, Math.max(3, Number(req.body.mcq) || 6));
+            const fcN = exam ? 0 : Math.min(15, Math.max(4, Number(req.body.flash) || 10));
             await connectToDatabase();
+            if (exam && !(await requirePremium(req, res, 'الامتحان التجريبي'))) return;
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
+            const ask = exam
+                ? `Write a mock exam of ${mcqN} MCQs covering the WHOLE content evenly (about 30% easy, 50% medium, 20% hard). Return "flashcards": [].\n\nContent:\n${text}`
+                : `Write ${mcqN} MCQs and ${fcN} flashcards from this content:\n\n${text}`;
             const r = await generate({
-                system: QUIZ_SYSTEM, json: true, maxTokens: 6000, temperature: 0.5,
-                contents: [{ role: 'user', parts: [{ text: `Write ${mcqN} MCQs and ${fcN} flashcards from this content:\\n\\n${text}` }] }]
+                system: QUIZ_SYSTEM, json: true, maxTokens: exam ? 14000 : 8000, temperature: 0.5,
+                contents: [{ role: 'user', parts: [{ text: ask }] }]
             });
             const mcqs = (Array.isArray(r.mcqs) ? r.mcqs : []).map(q => {
                 const options = Array.isArray(q.options) ? q.options.map(o => str(String(o || ''), 300)).filter(Boolean).slice(0, 4) : [];
@@ -696,7 +742,7 @@ function registerTranslateRoutes(app, deps) {
                 .map(f => ({ front: str(f.front, 300), back: cleanChat(str(f.back, 600)) })).filter(f => f.front && f.back).slice(0, fcN);
             if (!mcqs.length && !flashcards.length) { await refundAction(req.user, day); return res.status(502).json({ error: 'مقدرتش أولّد أسئلة، جرب تاني' }); }
             res.json({ mcqs, flashcards });
-        } catch (e) { await refundAction(req.user, day); console.error('quiz:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر توليد الأسئلة' }); }
+        } catch (e) { await refundAction(req.user, day); console.error('quiz:', e.message); res.status(aiStatus(e)).json(aiErr(e)); }
     });
 
     // ====================== 4) شات "اسأل عن الصفحة" (بث تدريجي اختياري) ======================
@@ -713,12 +759,12 @@ function registerTranslateRoutes(app, deps) {
             const hist = (Array.isArray(req.body.history) ? req.body.history : []).slice(-10)
                 .map(m => ({ role: m && m.role === 'model' ? 'model' : 'user', parts: [{ text: str(m && m.text, 3000) || '.' }] }));
             while (hist.length && hist[0].role !== 'user') hist.shift();
-            const contents = [{ role: 'user', parts: [{ text: `PAGE CONTENT:\\n"""\\n${context}\\n"""` }] },
+            const contents = [{ role: 'user', parts: [{ text: `PAGE CONTENT:\n"""\n${context}\n"""` }] },
                 { role: 'model', parts: [{ text: 'تمام، قريت محتوى الصفحة. اسأل.' }] }]
                 .concat(hist, [{ role: 'user', parts: [{ text: question }] }]);
 
             if (!req.body.stream) {
-                const answer = await generate({ system: CHAT_SYSTEM, contents, maxTokens: 3000, temperature: 0.4 });
+                const answer = await generate({ system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 });
                 return res.json({ answer: cleanChat(answer).slice(0, 8000) });
             }
 
@@ -728,20 +774,29 @@ function registerTranslateRoutes(app, deps) {
             res.setHeader('Connection', 'keep-alive');
             res.setHeader('X-Accel-Buffering', 'no');
             if (res.flushHeaders) res.flushHeaders();
-            const send = (o) => { res.write('data: ' + JSON.stringify(o) + '\\n\\n'); if (res.flush) res.flush(); };
+            const send = (o) => { res.write('data: ' + JSON.stringify(o) + '\n\n'); if (res.flush) res.flush(); };
             const controller = new AbortController();
             res.on('close', () => { if (!res.writableEnded) controller.abort(); });
             let got = false, finish = null, failed = null;
             try {
-                for await (const ev of streamGemini({ system: CHAT_SYSTEM, contents, maxTokens: 3000, temperature: 0.4, signal: controller.signal })) {
+                for await (const ev of streamGemini({ system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4, signal: controller.signal })) {
                     if (ev.text) { got = true; send({ t: 'delta', text: ev.text }); }
                     if (ev.finish) finish = ev.finish;
                 }
             } catch (e) { if (!controller.signal.aborted) failed = e; }
             if (controller.signal.aborted) return;
             if (!got) {
+                // لو البث فشل أو رجع فاضي، نجرب نفس الطلب كرد كامل مرة واحدة
+                try {
+                    const full = cleanChat(await generate({ system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 }));
+                    if (full) { got = true; failed = null; send({ t: 'delta', text: full }); }
+                } catch (e2) { failed = e2; }
+            }
+            if (!got) {
                 await refundAction(req.user, day);
-                send({ t: 'fatal', msg: failed ? 'حصلت مشكلة في الاتصال بالذكاء الاصطناعي، جرب تاني' : 'مفيش رد، جرب تاني' });
+                console.error('chat stream failed:', failed && failed.message);
+                const ae = failed ? aiErr(failed) : { error: 'الذكاء الاصطناعي مرجّعش رد، جرب تاني', detail: '' };
+                send({ t: 'fatal', msg: ae.error, detail: ae.detail });
             } else {
                 send({ t: 'done', truncated: finish === 'MAX_TOKENS' || !!failed });
             }
@@ -749,9 +804,30 @@ function registerTranslateRoutes(app, deps) {
         } catch (e) {
             await refundAction(req.user, day);
             console.error('chat:', e.message);
-            if (res.headersSent) { try { res.write('data: ' + JSON.stringify({ t: 'fatal', msg: 'حصل خطأ في السيرفر' }) + '\\n\\n'); } catch (_) {} return res.end(); }
-            res.status(aiStatus(e)).json({ error: e.message || 'تعذر الرد' });
+            if (res.headersSent) { try { res.write('data: ' + JSON.stringify({ t: 'fatal', msg: 'حصل خطأ في السيرفر' }) + '\n\n'); } catch (_) {} return res.end(); }
+            res.status(aiStatus(e)).json(aiErr(e));
         }
+    });
+
+    // ====================== 4-ب) ملخص الفصل (للمشتركين) ======================
+    app.post('/api/translate/summary', verifyToken, apiLimiter, async (req, res) => {
+        let day = null;
+        try {
+            const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 500) : [];
+            const text = items.filter(i => i && i.en).map(i => str(i.en, 1500) + (i.ar ? '\n' + str(i.ar, 1800) : '')).join('\n\n').slice(0, 26000);
+            if (text.length < 120) return res.status(400).json({ error: 'المحتوى قليل لعمل ملخص' });
+            await connectToDatabase();
+            if (!(await requirePremium(req, res, 'ملخص الفصل'))) return;
+            day = await reserveAction(req.user);
+            if (!day) return actionDenied(res);
+            const r = await generate({ system: SUMMARY_SYSTEM, json: true, maxTokens: 9000, temperature: 0.3, contents: [{ role: 'user', parts: [{ text }] }] });
+            const arr = (v, n, m) => (Array.isArray(v) ? v.map(x => cleanChat(str(String(x || ''), m)).replace(/^[-•]\s+/, '')).filter(Boolean).slice(0, n) : []);
+            const sections = (Array.isArray(r.sections) ? r.sections : []).map(sc => ({ title: cleanChat(str(sc && sc.title, 140)), points: arr(sc && sc.points, 8, 400) })).filter(sc => sc.title && sc.points.length).slice(0, 8);
+            const terms = (Array.isArray(r.terms) ? r.terms : []).map(t => ({ en: str(t && t.en, 100), ar: str(t && t.ar, 140) })).filter(t => t.en && t.ar).slice(0, 14);
+            const out = { overview: cleanChat(str(r.overview, 900)), sections, mustKnow: arr(r.mustKnow, 12, 300), terms, pitfalls: arr(r.pitfalls, 6, 300), plan: cleanChat(str(r.plan, 500)) };
+            if (!out.overview && !sections.length) { await refundAction(req.user, day); return res.status(502).json({ error: 'مقدرتش أعمل الملخص، جرب تاني' }); }
+            res.json(out);
+        } catch (e) { await refundAction(req.user, day); console.error('summary:', e.message); res.status(aiStatus(e)).json(aiErr(e)); }
     });
 
     // ====================== 5) القاموس ======================
@@ -793,14 +869,14 @@ function registerTranslateRoutes(app, deps) {
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
             const r = await generate({
-                system: DEFINE_SYSTEM, json: true, maxTokens: 800, temperature: 0.2,
+                system: DEFINE_SYSTEM, json: true, maxTokens: 2000, temperature: 0.2,
                 contents: [{ role: 'user', parts: [{ text: `Term: ${term}` }] }]
             });
             const out = { en: str(r.en, 120) || term, ar: str(r.ar, 160), def: str(r.def, 600) };
             if (!out.ar) { await refundAction(req.user, day); return res.status(502).json({ error: 'مقدرتش ألاقي معنى المصطلح' }); }
             await saveTerms(req.user.username, [out]);
             res.json(Object.assign({ fromGlossary: false }, out));
-        } catch (e) { await refundAction(req.user, day); console.error('define:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر البحث عن المصطلح' }); }
+        } catch (e) { await refundAction(req.user, day); console.error('define:', e.message); res.status(aiStatus(e)).json(aiErr(e)); }
     });
 
     // ====================== 6) السجل والمفضلة والمجلدات ======================
@@ -1024,4 +1100,4 @@ function registerTranslateRoutes(app, deps) {
 }
 
 module.exports = registerTranslateRoutes;
-module.exports.__test = { createLineParser, extractObjects, normalizeItem, streamGemini, termKey, cleanChat };
+module.exports.__test = { createLineParser, extractObjects, normalizeItem, streamGemini, termKey, cleanChat, aiErr, THINK };
