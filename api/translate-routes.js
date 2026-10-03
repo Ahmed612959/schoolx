@@ -311,7 +311,7 @@ function registerTranslateRoutes(app, deps) {
 
     const paymentSchema = new Schema({
         username: String, fullName: String, plan: String, amount: Number,
-        method: { type: String, enum: ['vodafone_cash', 'fawry', 'instapay'] },
+        method: { type: String, enum: ['etisalat_cash', 'vodafone_cash', 'fawry', 'instapay'] },
         reference: String, note: { type: String, default: '' },
         groupUsernames: { type: [String], default: [] },
         status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
@@ -828,7 +828,7 @@ function registerTranslateRoutes(app, deps) {
         } catch (e) { console.error(e.message); res.status(500).json({ error: 'خطأ في تفعيل الكود' }); }
     });
 
-    // طلب اشتراك: الطالب يحوّل بـ Vodafone Cash/Fawry/InstaPay ويكتب رقم العملية → الأدمن يراجع ويفعّل.
+    // طلب اشتراك: الطالب يحوّل بـ اتصالات كاش ويكتب رقم العملية → الأدمن يراجع ويفعّل.
     // (مفيش ربط تلقائي ببوابة دفع — التحقق يدوي من الأدمن.)
     app.post('/api/translate/payment', verifyToken, payLimiter, async (req, res) => {
         try {
@@ -836,7 +836,7 @@ function registerTranslateRoutes(app, deps) {
             const b = req.body || {};
             const plan = PLANS[b.plan] ? b.plan : null;
             if (!plan) return res.status(400).json({ error: 'اختار باقة' });
-            if (!['vodafone_cash', 'fawry', 'instapay'].includes(b.method)) return res.status(400).json({ error: 'اختار طريقة الدفع' });
+            if (b.method !== 'etisalat_cash') return res.status(400).json({ error: 'اختار طريقة الدفع' });
             const reference = str(b.reference, 60);
             if (reference.length < 5) return res.status(400).json({ error: 'اكتب رقم العملية أو رقم التليفون اللي حوّلت منه' });
             await connectToDatabase();
