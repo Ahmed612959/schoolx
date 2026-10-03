@@ -16,7 +16,7 @@
 const crypto = require('crypto');
 
 const MODEL = process.env.TR_GEMINI_MODEL || 'gemini-flash-latest';
-const PROMPT_VERSION = 'v1';
+const PROMPT_VERSION = 'v2';
 const FREE_DAILY_PAGES = Number(process.env.TR_FREE_DAILY_PAGES) || 3;
 const FREE_DAILY_ACTIONS = Number(process.env.TR_FREE_DAILY_ACTIONS) || 10;
 const REFERRAL_BONUS = Number(process.env.TR_REFERRAL_BONUS) || 5;
@@ -111,6 +111,11 @@ function normalizeItem(o) {
             const items = Array.isArray(o.items) ? o.items.map(s => str(String(s || ''), 400)).filter(Boolean).slice(0, 12) : [];
             return items.length ? { t: 'key', items } : null;
         }
+        case 'tip': {
+            const items = Array.isArray(o.items) ? o.items.map(s => str(String(s || ''), 400)).filter(Boolean).slice(0, 6) : [];
+            const mnemonic = str(o.mnemonic, 300);
+            return items.length || mnemonic ? { t: 'tip', items, mnemonic } : null;
+        }
         case 'cmp': {
             const headers = Array.isArray(o.headers) ? o.headers.slice(0, 6).map(s => str(String(s || ''), 120)) : [];
             const rows = Array.isArray(o.rows) ? o.rows.slice(0, 14).map(r => Array.isArray(r) ? r.slice(0, 6).map(c => str(String(c == null ? '' : c), 300)) : []) : [];
@@ -124,44 +129,81 @@ function normalizeItem(o) {
 }
 
 // ====================== البرومبتات ======================
-const TRANSLATE_SYSTEM = `You are a senior nursing/medical educator and professional medical translator. You translate pages of English nursing and medical textbooks into Arabic for students at an Egyptian technical nursing institute.
+const TRANSLATE_SYSTEM = `You are a senior nursing/medical educator AND an expert medical translator. You translate pages of English nursing and medical textbooks into Arabic for students at an Egyptian technical nursing institute. Your Arabic must read like it was written by an Arabic-speaking nursing lecturer, never like a machine translation.
 
 TRANSLATION QUALITY RULES (most important):
-1. Translate by MEANING, sentence by sentence — NEVER word-by-word. Understand the clinical idea first, then write it the way an Arabic medical lecturer would explain it. If a literal translation sounds awkward, unclear or machine-like, rephrase it naturally.
-2. Use clear, correct, simple Modern Standard Arabic with scientifically accurate terminology as used in Arabic medical/nursing references (e.g. hypertension = ارتفاع ضغط الدم, hyperkalemia = فرط بوتاسيوم الدم).
-3. The first time a medical term appears, write the Arabic term followed by the English term in parentheses, e.g. "فرط بوتاسيوم الدم (Hyperkalemia)". Later occurrences can be Arabic only.
-4. Keep in Latin script exactly as written: drug names, abbreviations (BP, ECG, IV, ICU, CBC...), units (mg, mmHg, mEq/L), lab values, and numbers (use Western digits 0-9).
-5. Keep lists, steps and numbering in order. Keep the meaning of labels such as "Rationale", "Nursing diagnosis", "Assessment".
-6. Never add facts that are not on the page and never skip content. If something is illegible, write "[غير واضح]" in the Arabic field and keep what you can read in English.
-7. If a MANDATORY GLOSSARY is provided you MUST use exactly those Arabic terms for those English terms.
+1. Meaning first. Read each passage, understand the clinical idea, then re-express it in natural Arabic. NEVER translate word-by-word and never copy English sentence structure. Split long English sentences into shorter clear Arabic sentences. Prefer active voice and plain wording. Avoid awkward calques (for example do not write "من المهم ملاحظة أن" when "لازم نلاحظ" or a direct statement is clearer in Modern Standard Arabic).
+2. Register: clear, correct Modern Standard Arabic, simple enough for an institute student, but scientifically exact. Do not simplify away medical meaning.
+3. Terminology: use the standard Arabic term used in Arabic medical and nursing references (hypertension = ارتفاع ضغط الدم, hyperkalemia = فرط بوتاسيوم الدم, edema = وذمة, vital signs = العلامات الحيوية). If a term has no established Arabic equivalent, use a clear descriptive Arabic phrase and keep the English in parentheses.
+4. First mention of a medical term: Arabic term then English in parentheses, e.g. "فرط بوتاسيوم الدم (Hyperkalemia)". Later mentions: Arabic only. First mention of an abbreviation: Arabic meaning followed by the abbreviation, e.g. "تعداد الدم الكامل (CBC)".
+5. Standard nursing labels (use these exact Arabic forms): Assessment = التقييم, Nursing diagnosis = التشخيص التمريضي, Planning = التخطيط, Implementation = التنفيذ, Evaluation = التقويم, Rationale = التعليل (السبب العلمي), Nursing interventions = التدخلات التمريضية, Patient education = تثقيف المريض, Signs and symptoms = العلامات والأعراض, Risk factors = عوامل الخطورة, Complications = المضاعفات, Contraindications = موانع الاستعمال, Side effects = الآثار الجانبية, Expected outcomes = النتائج المتوقعة.
+6. Keep in Latin script exactly as written: drug names, abbreviations, units (mg, mmHg, mEq/L), lab values and numbers (use Western digits 0-9). Never change a number, dose, frequency or route.
+7. Patient-safety accuracy: negations (do not, avoid, never), contraindications, warnings, doses and "before/after" ordering must keep EXACTLY the same meaning. Translate them with extra care.
+8. Never add facts that are not on the page and never skip content. If a word is illegible write "[غير واضح]" in the Arabic field, but use medical context to restore words that are only slightly blurry.
+9. If a MANDATORY GLOSSARY is provided you MUST use exactly those Arabic terms for those English terms.
+10. Silent self-check for every block before you output it: (a) same meaning as the English, nothing added or missing, (b) sounds natural when read aloud in Arabic, (c) terms are consistent with the rest of the page and the glossary. Fix anything that fails the check.
 
 PAGE READING:
 - Read the page image(s) in natural reading order (columns top-to-bottom). Transcribe the English text faithfully into "en". Ignore page numbers, running headers/footers and copyright lines.
-- Split the page into logical blocks: headings, paragraphs (split long paragraphs at sentence boundaries into blocks of at most 3-4 sentences), each bullet or numbered item as its own block, boxed notes.
+- Split the page into logical blocks: headings, paragraphs (long paragraphs split at sentence boundaries into blocks of at most 3-4 sentences), each bullet or numbered item as its own block, boxed notes.
 - For diagrams/figures add a block k="cap" with the caption and a short description of what the figure shows.
 
-OUTPUT FORMAT — STRICT: JSON Lines. Exactly one compact JSON object per line. No markdown, no code fences, no commentary, no pretty-printing. Types in this order:
+OUTPUT FORMAT - STRICT: JSON Lines. Exactly one compact JSON object per line. No markdown, no code fences, no commentary, no pretty-printing. Types in this order:
 {"t":"title","en":"short page title in English","ar":"عنوانه بالعربي"}   (first line, exactly once)
 {"t":"b","k":"h|p|li|cap|note","en":"original English text","ar":"Arabic translation"}   (one per block; h=heading, p=paragraph, li=list item, cap=figure caption/description, note=boxed note/warning/tip)
 {"t":"tbl","en":[["cell","cell"],["cell","cell"]],"ar":[["خلية","خلية"],["خلية","خلية"]]}   (for a table printed on the page; first row = headers; en and ar grids must have the same shape)
-{"t":"term","en":"Medical term","ar":"المصطلح بالعربي","def":"شرح مبسط للمصطلح في جملة أو اتنين"}   (5 to 15 of the most important terms, after all blocks)
+{"t":"term","en":"Medical term","ar":"المصطلح بالعربي","def":"شرح مبسط للمصطلح في جملة أو اتنين"}   (6 to 15 of the most important terms, after all blocks)
 {"t":"key","items":["نقطة رئيسية","..."]}   (exactly once, after the terms; 4 to 8 key points in Arabic summarizing the page)
+{"t":"tip","items":["نقطة بتيجي كتير في الامتحان","..."],"mnemonic":"حيلة حفظ قصيرة بالعربي أو فاضي"}   (exactly once, after key; 3 to 5 exam-focused points based ONLY on this page; mnemonic is optional and may be an empty string)
 {"t":"cmp","title":"عنوان المقارنة","headers":["","أ","ب"],"rows":[["الصفة","...","..."]]}   (ONLY if the page naturally compares two or more conditions/drugs/types; otherwise omit)
 If the image is not a readable book page output only: {"t":"err","msg":"سبب قصير بالعربي"}`;
 
-const EXPLAIN_SYSTEM = `You are a friendly Egyptian nursing instructor. Explain the given passage to a nursing institute student in SIMPLE EGYPTIAN COLLOQUIAL ARABIC (عامية مصرية بسيطة ومحترمة), as if explaining to a friend before an exam. Keep key medical terms in English in parentheses. Do not contradict the passage and do not invent facts.
-Then give ONE short realistic clinical example from nursing practice (a patient scenario and what the nurse notices/does).
-Return JSON only: {"simple":"الشرح المبسط","example":"المثال الإكلينيكي","tip":"نصيحة حفظ أو نقطة بتيجي في الامتحان (جملة واحدة، اختياري)"}`;
+const EXPLAIN_SYSTEM = `You are a warm, patient Egyptian nursing instructor who is loved by students because everything becomes easy after you explain it. Explain the given passage in SIMPLE EGYPTIAN COLLOQUIAL ARABIC (عامية مصرية بسيطة ومحترمة), as if explaining to a friend the night before an exam. Keep important medical terms in English in parentheses the first time. Stay faithful to the passage; never invent facts or contradict it.
 
-const QUIZ_SYSTEM = `You are a nursing exam writer. From the provided textbook content ONLY, write:
-- MCQs in English (exam style, 4 options, exactly one correct, plausible distractors, test understanding not trivia) with a short Arabic explanation of why the answer is correct.
-- Flashcards: "front" in English (a term or short question), "back" in Arabic (answer, include the English term in parentheses when useful).
+Return JSON only, with exactly these keys (use an empty string or empty array if a part does not apply; never pad):
+{
+ "simple": "الشرح المبسط: 3 إلى 6 جمل قصيرة، الفكرة الأساسية الأول ثم التفاصيل",
+ "analogy": "تشبيه من الحياة اليومية يوضح الفكرة (جملة أو اتنين). سيبها فاضية لو أي تشبيه هيضلل",
+ "example": "مثال إكلينيكي واقعي: مريض/حالة، وإيه اللي النرس بتلاحظه وبتعمله",
+ "nursing": ["إيه اللي النرس لازم تعمله أو تراقبه بخصوص الفكرة دي (من 2 إلى 4 نقاط قصيرة)"],
+ "mnemonic": "حيلة حفظ أو اختصار سهل (اختياري)",
+ "exam": ["نقطة بتيجي في الامتحان (من 2 إلى 3 نقاط)"],
+ "check": {"q":"سؤال قصير يختبر بيه الطالب نفسه","a":"إجابته في جملة"}
+}
+Write the values in Egyptian colloquial Arabic. No markdown symbols, no asterisks.
+If the user asks for MODE=simpler: use even shorter sentences and everyday words, as if the student has no background at all.
+If the user asks for MODE=deeper: also explain the mechanism (why and how it happens in the body) and the link to related concepts, still in colloquial Arabic and still clear.`;
+
+const QUIZ_SYSTEM = `You are an experienced nursing exam writer. From the provided textbook content ONLY, write:
+- MCQs in English (exam style, exactly 4 options, exactly one correct). Mix recall, understanding and short clinical-scenario questions. Distractors must be plausible and from the same topic. Avoid "all of the above"/"none of the above" and avoid giving away the answer by length. Add a short Arabic explanation ("why") that says why the correct option is right and, briefly, why the most tempting wrong option is wrong.
+- Flashcards: "front" in English (a term or short question), "back" in Arabic (a clear answer; include the English term in parentheses when useful). One idea per card.
 Return JSON only: {"mcqs":[{"q":"...","options":["A","B","C","D"],"answer":0,"why":"..."}],"flashcards":[{"front":"...","back":"..."}]}
-"answer" is the zero-based index of the correct option.`;
+"answer" is the zero-based index of the correct option. Vary the position of the correct answer.`;
 
-const CHAT_SYSTEM = `You are a helpful nursing tutor answering a student's question about a textbook page. Use the PAGE CONTENT as the primary source and answer in simple Arabic (Egyptian-friendly, clear). If the answer is not in the page, say so in one short sentence first, then give a brief standard medical answer clearly labeled "معلومة عامة:". Never invent things the page does not say. Keep answers concise and well organized.`;
+const CHAT_SYSTEM = `You are a friendly, sharp nursing tutor chatting with an Egyptian nursing student about ONE textbook page. The PAGE CONTENT (English text with its Arabic translation) is your main source.
 
-const DEFINE_SYSTEM = `You are a medical dictionary for Egyptian nursing students. For the given English medical term return JSON only: {"en":"the term","ar":"standard Arabic medical equivalent","def":"شرح مبسط بالعربي في جملة أو اتنين"}.`;
+How to answer:
+- Reply in simple clear Arabic (Egyptian-friendly, respectful). Keep medical terms in English in parentheses when helpful.
+- Start directly with the answer. No greetings, no repeating the question, no filler.
+- Keep it short and well organized: short paragraphs. For lists use lines that start with a dash and a space, or numbers like 1. 2. 3.
+- WRITE PLAIN TEXT ONLY: never use asterisks, never use markdown (no ** bold, no # headings, no backticks, no tables, no code blocks), and no emojis.
+- If the answer is not on the page, say so in one short sentence, then give a brief standard medical answer and start it with the words "معلومة عامة:".
+- Never invent things the page does not say. If the student asks you to quiz them, ask ONE question at a time and wait for the answer.
+- If asked to summarize, give 4 to 6 short points.`;
+
+const DEFINE_SYSTEM = `You are a medical dictionary for Egyptian nursing students. For the given English medical term return JSON only: {"en":"the term","ar":"standard Arabic medical equivalent as used in Arabic medical references","def":"شرح مبسط بالعربي في جملة أو اتنين، من غير تعقيد"}.`;
+
+// تنظيف ردود الشات من علامات الماركداون (نجوم/هاشتاج/باكتيك/جداول) — الرد يوصل نص نضيف
+function cleanChat(t) {
+    return String(t || '')
+        .replace(/```[a-z]*\n?/gi, '').replace(/`/g, '')
+        .replace(/^[ \t]{0,3}#{1,6}[ \t]*/gm, '')
+        .replace(/^[ \t]*[*•][ \t]+/gm, '- ')
+        .replace(/\*\*|__/g, '').replace(/\*/g, '')
+        .replace(/^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(\|[ \t]*:?-{3,}:?[ \t]*)*\|?[ \t]*$\n?/gm, '')
+        .replace(/^[ \t]*\|(.*)\|[ \t]*$/gm, (m, c) => c.split('|').map(x => x.trim()).filter(Boolean).join(' - '))
+        .replace(/\n{3,}/g, '\n\n').trim();
+}
 
 // ====================== Gemini ======================
 const GEN_URL = (stream) =>
@@ -199,13 +241,13 @@ function geminiBody({ system, contents, maxTokens, temperature, json }) {
     });
 }
 
-async function* streamGemini({ system, parts, maxTokens, temperature, signal }) {
+async function* streamGemini({ system, parts, contents, maxTokens, temperature, signal }) {
     if (!geminiKey()) { const e = new Error('خدمة الترجمة مش مفعّلة (GEMINI_API_KEY مش مضبوط على السيرفر)'); e.code = 'ai_unavailable'; throw e; }
     const r = await fetchWithRetry(GEN_URL(true), {
         method: 'POST',
         headers: { 'x-goog-api-key': geminiKey(), 'Content-Type': 'application/json' },
         signal,
-        body: geminiBody({ system, contents: [{ role: 'user', parts }], maxTokens, temperature })
+        body: geminiBody({ system, contents: contents || [{ role: 'user', parts }], maxTokens, temperature })
     });
     if (!r.ok) { const e = new Error(await errDetail(r)); e.code = 'ai_call_failed'; e.status = r.status; throw e; }
     const reader = r.body.getReader();
@@ -400,12 +442,16 @@ function registerTranslateRoutes(app, deps) {
         await ensureUsage(user.username, day);
         if (await isUnlimited(user, profile)) {
             await TrUsage.updateOne({ username: user.username, day }, { $inc: { actions: 1 } });
-            return true;
+            return day;
         }
         const ok = await TrUsage.findOneAndUpdate(
             { username: user.username, day, actions: { $lt: FREE_DAILY_ACTIONS } }, { $inc: { actions: 1 } }
         );
-        return !!ok;
+        return ok ? day : null;
+    }
+    async function refundAction(user, day) {
+        try { if (day) await TrUsage.updateOne({ username: user.username, day, actions: { $gt: 0 } }, { $inc: { actions: -1 } }); }
+        catch (e) { console.error('refund action failed', e.message); }
     }
     const actionDenied = (res) => res.status(402).json({
         error: `خلّصت عمليات الذكاء الاصطناعي المجانية النهاردة (${FREE_DAILY_ACTIONS}). ارجع بكرة أو فعّل الباقة.`, code: 'quota_exceeded'
@@ -600,65 +646,112 @@ function registerTranslateRoutes(app, deps) {
         }
     });
 
-    // ====================== 2) شرح بالعامية + مثال إكلينيكي ======================
+    // ====================== 2) شرح بالعامية + تشبيه + مثال إكلينيكي ======================
     app.post('/api/translate/explain', verifyToken, apiLimiter, async (req, res) => {
+        let day = null;
         try {
             const en = str(req.body && req.body.en, 3000), ar = str(req.body && req.body.ar, 3500);
+            const mode = ['simpler', 'deeper'].includes(req.body && req.body.mode) ? req.body.mode : 'normal';
             if (!en && !ar) return res.status(400).json({ error: 'النص مطلوب' });
             await connectToDatabase();
-            if (!(await reserveAction(req.user))) return actionDenied(res);
+            day = await reserveAction(req.user);
+            if (!day) return actionDenied(res);
             const r = await generate({
-                system: EXPLAIN_SYSTEM, json: true, maxTokens: 3000, temperature: 0.5,
-                contents: [{ role: 'user', parts: [{ text: `English passage:\n${en}\n\nArabic translation:\n${ar}` }] }]
+                system: EXPLAIN_SYSTEM, json: true, maxTokens: 4000, temperature: 0.5,
+                contents: [{ role: 'user', parts: [{ text: `MODE=${mode}\\n\\nEnglish passage:\\n${en}\\n\\nArabic translation:\\n${ar}` }] }]
             });
-            res.json({ simple: str(r.simple, 3000), example: str(r.example, 2000), tip: str(r.tip, 400) });
-        } catch (e) { console.error('explain:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر الشرح' }); }
+            const list = (v, n) => (Array.isArray(v) ? v.map(x => cleanChat(str(String(x || ''), 400)).replace(/^[-•]\s+/, '')).filter(Boolean).slice(0, n) : []);
+            const chk = r.check && typeof r.check === 'object' ? { q: cleanChat(str(r.check.q, 300)), a: cleanChat(str(r.check.a, 500)) } : null;
+            res.json({
+                mode,
+                simple: cleanChat(str(r.simple, 3000)), analogy: cleanChat(str(r.analogy, 800)), example: cleanChat(str(r.example, 2000)),
+                nursing: list(r.nursing, 5), mnemonic: cleanChat(str(r.mnemonic, 400)), exam: list(r.exam, 4),
+                check: chk && chk.q && chk.a ? chk : null
+            });
+        } catch (e) { await refundAction(req.user, day); console.error('explain:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر الشرح' }); }
     });
 
     // ====================== 3) MCQs + Flashcards ======================
     app.post('/api/translate/quiz', verifyToken, apiLimiter, async (req, res) => {
+        let day = null;
         try {
             const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 80) : [];
-            const text = items.filter(i => i && i.en).map(i => str(i.en, 1500)).join('\n').slice(0, 14000);
+            const text = items.filter(i => i && i.en).map(i => str(i.en, 1500)).join('\\n').slice(0, 14000);
             if (text.length < 60) return res.status(400).json({ error: 'المحتوى قليل لتوليد أسئلة' });
             const mcqN = Math.min(10, Math.max(3, Number(req.body.mcq) || 6));
             const fcN = Math.min(15, Math.max(4, Number(req.body.flash) || 10));
             await connectToDatabase();
-            if (!(await reserveAction(req.user))) return actionDenied(res);
+            day = await reserveAction(req.user);
+            if (!day) return actionDenied(res);
             const r = await generate({
                 system: QUIZ_SYSTEM, json: true, maxTokens: 6000, temperature: 0.5,
-                contents: [{ role: 'user', parts: [{ text: `Write ${mcqN} MCQs and ${fcN} flashcards from this content:\n\n${text}` }] }]
+                contents: [{ role: 'user', parts: [{ text: `Write ${mcqN} MCQs and ${fcN} flashcards from this content:\\n\\n${text}` }] }]
             });
             const mcqs = (Array.isArray(r.mcqs) ? r.mcqs : []).map(q => {
                 const options = Array.isArray(q.options) ? q.options.map(o => str(String(o || ''), 300)).filter(Boolean).slice(0, 4) : [];
                 const answer = Number.isInteger(q.answer) ? q.answer : -1;
-                return { q: str(q.q, 600), options, answer, why: str(q.why, 700) };
+                return { q: str(q.q, 600), options, answer, why: cleanChat(str(q.why, 700)) };
             }).filter(q => q.q && q.options.length === 4 && q.answer >= 0 && q.answer < 4).slice(0, mcqN);
             const flashcards = (Array.isArray(r.flashcards) ? r.flashcards : [])
-                .map(f => ({ front: str(f.front, 300), back: str(f.back, 600) })).filter(f => f.front && f.back).slice(0, fcN);
-            if (!mcqs.length && !flashcards.length) return res.status(502).json({ error: 'مقدرتش أولّد أسئلة — جرب تاني' });
+                .map(f => ({ front: str(f.front, 300), back: cleanChat(str(f.back, 600)) })).filter(f => f.front && f.back).slice(0, fcN);
+            if (!mcqs.length && !flashcards.length) { await refundAction(req.user, day); return res.status(502).json({ error: 'مقدرتش أولّد أسئلة، جرب تاني' }); }
             res.json({ mcqs, flashcards });
-        } catch (e) { console.error('quiz:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر توليد الأسئلة' }); }
+        } catch (e) { await refundAction(req.user, day); console.error('quiz:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر توليد الأسئلة' }); }
     });
 
-    // ====================== 4) شات "اسأل عن الصفحة" ======================
+    // ====================== 4) شات "اسأل عن الصفحة" (بث تدريجي اختياري) ======================
     app.post('/api/translate/chat', verifyToken, apiLimiter, async (req, res) => {
+        let day = null;
         try {
-            const question = str(req.body && req.body.question, 1000);
+            const question = str(req.body && req.body.question, 1500);
             const context = str(req.body && req.body.context, 20000);
             if (!question) return res.status(400).json({ error: 'السؤال مطلوب' });
             if (!context) return res.status(400).json({ error: 'مفيش محتوى صفحة للسؤال عنه' });
             await connectToDatabase();
-            if (!(await reserveAction(req.user))) return actionDenied(res);
-            const hist = (Array.isArray(req.body.history) ? req.body.history : []).slice(-6)
-                .map(m => ({ role: m && m.role === 'model' ? 'model' : 'user', parts: [{ text: str(m && m.text, 1500) || '.' }] }));
+            day = await reserveAction(req.user);
+            if (!day) return actionDenied(res);
+            const hist = (Array.isArray(req.body.history) ? req.body.history : []).slice(-10)
+                .map(m => ({ role: m && m.role === 'model' ? 'model' : 'user', parts: [{ text: str(m && m.text, 3000) || '.' }] }));
             while (hist.length && hist[0].role !== 'user') hist.shift();
-            const contents = [{ role: 'user', parts: [{ text: `PAGE CONTENT:\n"""\n${context}\n"""` }] },
+            const contents = [{ role: 'user', parts: [{ text: `PAGE CONTENT:\\n"""\\n${context}\\n"""` }] },
                 { role: 'model', parts: [{ text: 'تمام، قريت محتوى الصفحة. اسأل.' }] }]
                 .concat(hist, [{ role: 'user', parts: [{ text: question }] }]);
-            const answer = await generate({ system: CHAT_SYSTEM, contents, maxTokens: 2500, temperature: 0.4 });
-            res.json({ answer: str(answer, 6000) });
-        } catch (e) { console.error('chat:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر الرد' }); }
+
+            if (!req.body.stream) {
+                const answer = await generate({ system: CHAT_SYSTEM, contents, maxTokens: 3000, temperature: 0.4 });
+                return res.json({ answer: cleanChat(answer).slice(0, 8000) });
+            }
+
+            res.status(200);
+            res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.setHeader('Connection', 'keep-alive');
+            res.setHeader('X-Accel-Buffering', 'no');
+            if (res.flushHeaders) res.flushHeaders();
+            const send = (o) => { res.write('data: ' + JSON.stringify(o) + '\\n\\n'); if (res.flush) res.flush(); };
+            const controller = new AbortController();
+            res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+            let got = false, finish = null, failed = null;
+            try {
+                for await (const ev of streamGemini({ system: CHAT_SYSTEM, contents, maxTokens: 3000, temperature: 0.4, signal: controller.signal })) {
+                    if (ev.text) { got = true; send({ t: 'delta', text: ev.text }); }
+                    if (ev.finish) finish = ev.finish;
+                }
+            } catch (e) { if (!controller.signal.aborted) failed = e; }
+            if (controller.signal.aborted) return;
+            if (!got) {
+                await refundAction(req.user, day);
+                send({ t: 'fatal', msg: failed ? 'حصلت مشكلة في الاتصال بالذكاء الاصطناعي، جرب تاني' : 'مفيش رد، جرب تاني' });
+            } else {
+                send({ t: 'done', truncated: finish === 'MAX_TOKENS' || !!failed });
+            }
+            return res.end();
+        } catch (e) {
+            await refundAction(req.user, day);
+            console.error('chat:', e.message);
+            if (res.headersSent) { try { res.write('data: ' + JSON.stringify({ t: 'fatal', msg: 'حصل خطأ في السيرفر' }) + '\\n\\n'); } catch (_) {} return res.end(); }
+            res.status(aiStatus(e)).json({ error: e.message || 'تعذر الرد' });
+        }
     });
 
     // ====================== 5) القاموس ======================
@@ -690,22 +783,24 @@ function registerTranslateRoutes(app, deps) {
     });
 
     app.post('/api/translate/define', verifyToken, apiLimiter, async (req, res) => {
+        let day = null;
         try {
             const term = str(req.body && req.body.term, 120);
             if (!term) return res.status(400).json({ error: 'اكتب المصطلح' });
             await connectToDatabase();
             const have = await TrGlossary.findOne({ username: req.user.username, key: termKey(term) }).select('en ar def -_id').lean();
             if (have) return res.json(Object.assign({ fromGlossary: true }, have));
-            if (!(await reserveAction(req.user))) return actionDenied(res);
+            day = await reserveAction(req.user);
+            if (!day) return actionDenied(res);
             const r = await generate({
                 system: DEFINE_SYSTEM, json: true, maxTokens: 800, temperature: 0.2,
                 contents: [{ role: 'user', parts: [{ text: `Term: ${term}` }] }]
             });
             const out = { en: str(r.en, 120) || term, ar: str(r.ar, 160), def: str(r.def, 600) };
-            if (!out.ar) return res.status(502).json({ error: 'مقدرتش ألاقي معنى المصطلح' });
+            if (!out.ar) { await refundAction(req.user, day); return res.status(502).json({ error: 'مقدرتش ألاقي معنى المصطلح' }); }
             await saveTerms(req.user.username, [out]);
             res.json(Object.assign({ fromGlossary: false }, out));
-        } catch (e) { console.error('define:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر البحث عن المصطلح' }); }
+        } catch (e) { await refundAction(req.user, day); console.error('define:', e.message); res.status(aiStatus(e)).json({ error: e.message || 'تعذر البحث عن المصطلح' }); }
     });
 
     // ====================== 6) السجل والمفضلة والمجلدات ======================
@@ -929,4 +1024,4 @@ function registerTranslateRoutes(app, deps) {
 }
 
 module.exports = registerTranslateRoutes;
-module.exports.__test = { createLineParser, extractObjects, normalizeItem, streamGemini, termKey };
+module.exports.__test = { createLineParser, extractObjects, normalizeItem, streamGemini, termKey, cleanChat };
