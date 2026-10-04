@@ -37,7 +37,6 @@ const str = (v, max) => (typeof v === 'string' ? v.replace(/\u0000/g, '').trim()
 const termKey = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const makeCode = () => crypto.randomBytes(4).toString('hex').toUpperCase().slice(0, 6);
-const geminiKey = () => process.env.GEMINI_API_KEY || '';
 
 // ====================== تنظيف ناتج الموديل (JSON Lines) ======================
 // كل سطر = كائن JSON مستقل → لو الرد اتقطع في النص، اللي اتبعت قبل كده يفضل سليم.
@@ -217,117 +216,419 @@ function cleanChat(t) {
         .replace(/\n{3,}/g, '\n\n').trim();
 }
 
-// ====================== Gemini ======================
-const GEN_URL = (stream) =>
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
+// ====================== مزودو الذكاء الاصطناعي مع تحويل تلقائي (Failover) ======================
+// كل جزء في الصفحة (ترجمة / شرح / شات / أسئلة / ملخص / مصطلحات) له "مسار" = قائمة مزودين بالترتيب.
+// لو أول مزود فشل (مفتاح غلط، 429، خطأ سيرفر، مهلة، رد فاضي) بنحوّل للتاني لحد ما واحد ينجح.
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const AI_FEATURES = [
+    { id: 'translate', label: 'ترجمة الصفحات', vision: true },
+    { id: 'explain', label: 'زر اشرحلي' },
+    { id: 'chat', label: 'شات اسأل عن الصفحة' },
+    { id: 'quiz', label: 'الأسئلة والامتحان' },
+    { id: 'summary', label: 'ملخص الفصل' },
+    { id: 'define', label: 'معاني المصطلحات' }
+];
+const FEATURE_IDS = AI_FEATURES.map(f => f.id);
+const AI_TYPES = ['gemini', 'openai', 'anthropic'];
+const AI_TIMEOUT_MS = Number(process.env.TR_AI_TIMEOUT_MS) || 28000;        // مهلة المحاولة الواحدة (بدون بث)
+const AI_FIRST_BYTE_MS = Number(process.env.TR_AI_FIRST_BYTE_MS) || 22000;  // مهلة أول رد في البث
+const AI_IDLE_MS = 30000;                                                    // مهلة السكون بين أجزاء البث
+const AI_BUDGET_MS = Number(process.env.TR_AI_BUDGET_MS) || 50000;          // بعد الوقت ده مش بنبدأ مزود جديد (حد Vercel 60 ثانية)
+
 const SAFETY = ['HARASSMENT', 'HATE_SPEECH', 'SEXUALLY_EXPLICIT', 'DANGEROUS_CONTENT']
     .map(c => ({ category: 'HARM_CATEGORY_' + c, threshold: 'BLOCK_ONLY_HIGH' })); // كتب طبية: مصطلحات حساسة طبيعية
+// وضع "التفكير" في Gemini بياخد من حد التوكنز ويقدر يسيب الرد فاضي. بنقفله، ولو الموديل ما يدعمش بنرجع من غيره تلقائي.
+const THINK = { off: true };
 
-async function errDetail(r) {
-    try { const d = await r.json(); return d?.error?.message || ('Gemini ' + r.status); } catch (_) { return 'Gemini ' + r.status; }
+function mkErr(msg, status, code) {
+    const e = new Error(msg);
+    if (status != null) e.status = status;
+    e.code = code || 'ai_call_failed';
+    return e;
 }
-
-async function fetchWithRetry(url, options, retries = 2) {
+async function errDetail(r, label) {
+    let d = null, txt = '';
+    try {
+        if (typeof r.text === 'function') { txt = await r.text(); try { d = JSON.parse(txt); } catch (_) {} }
+        else if (typeof r.json === 'function') d = await r.json();
+    } catch (_) {}
+    const m = d && ((d.error && (d.error.message || (typeof d.error === 'string' ? d.error : ''))) || d.message);
+    return String(m || (label + ' ' + r.status + (txt ? ': ' + txt.slice(0, 160) : ''))).slice(0, 300);
+}
+async function fetchWithRetry(url, options, retries = 0) {
     for (let a = 0; ; a++) {
         let r;
         try { r = await fetch(url, options); }
         catch (e) {
             if ((options.signal && options.signal.aborted) || a >= retries) throw e;
-            await sleep(1000 * (a + 1));
+            await sleep(700 * (a + 1));
             continue;
         }
-        if (r.ok || a >= retries || ![429, 500, 503, 504].includes(r.status)) return r;
-        await sleep(1200 * (a + 1));
+        if (r.ok || a >= retries || ![429, 500, 502, 503, 504].includes(r.status)) return r;
+        await sleep(900 * (a + 1));
     }
 }
-
-// وضع "التفكير" في موديلات Gemini بياخد من حد التوكنز ويقدر يسيب الرد فاضي. بنقفله، ولو الموديل ما يدعمش بنرجع من غيره تلقائي.
-const THINK = { off: true };
-function geminiBody({ system, contents, maxTokens, temperature, json }) {
-    return JSON.stringify({
-        system_instruction: { parts: [{ text: system }] },
-        contents,
-        safetySettings: SAFETY,
-        generationConfig: Object.assign(
-            { maxOutputTokens: maxTokens, temperature },
-            json ? { responseMimeType: 'application/json' } : {},
-            THINK.off ? { thinkingConfig: { thinkingBudget: 0 } } : {}
-        )
-    });
+function withTimeout(parent, ms) {
+    const ctrl = new AbortController(); let timedOut = false, timer = null;
+    const onAbort = () => ctrl.abort();
+    if (parent) { if (parent.aborted) ctrl.abort(); else parent.addEventListener('abort', onAbort, { once: true }); }
+    const arm = (m) => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, m); };
+    arm(ms);
+    return { signal: ctrl.signal, arm, done() { clearTimeout(timer); if (parent) parent.removeEventListener('abort', onAbort); }, get timedOut() { return timedOut; } };
 }
-async function postGemini(stream, args, signal) {
-    for (let pass = 0; pass < 2; pass++) {
-        const r = await fetchWithRetry(GEN_URL(stream), {
-            method: 'POST',
-            headers: { 'x-goog-api-key': geminiKey(), 'Content-Type': 'application/json' },
-            signal, body: geminiBody(args)
-        });
-        if (!r.ok && r.status === 400 && THINK.off && pass === 0) {
-            let d = null; try { d = await r.clone().json(); } catch (_) {}
-            if (/think/i.test(JSON.stringify(d || {}))) { THINK.off = false; continue; }
-        }
-        return r;
-    }
-}
-// رسالة عربي مفهومة للطالب + التفصيل الأصلي للأدمن
-function aiErr(e) {
-    const st = e && e.status, raw = String((e && e.message) || '');
-    let msg = raw;
-    if (e && e.code === 'ai_unavailable') msg = 'خدمة الذكاء الاصطناعي مش مفعّلة على السيرفر';
-    else if (st === 429) msg = 'ضغط كبير على الذكاء الاصطناعي دلوقتي، جرب تاني بعد دقيقة';
-    else if (st === 401 || st === 403 || /api key/i.test(raw)) msg = 'مفتاح الذكاء الاصطناعي على السيرفر غير صالح أو متوقف';
-    else if (st === 404) msg = 'موديل الذكاء الاصطناعي غير موجود، راجع إعدادات السيرفر';
-    else if (st >= 500) msg = 'خدمة الذكاء الاصطناعي واقفة مؤقتًا، جرب تاني';
-    else if (e && (e.code === 'ai_bad_response' || e.code === 'ai_bad_json')) msg = raw || 'الرد مكانش مفهوم، جرب تاني';
-    else if (!/[\u0600-\u06FF]/.test(msg)) msg = 'حصلت مشكلة مع الذكاء الاصطناعي، جرب تاني';
-    return { error: msg, detail: raw.slice(0, 300) };
-}
-
-async function* streamGemini({ system, parts, contents, maxTokens, temperature, signal }) {
-    if (!geminiKey()) { const e = new Error('خدمة الترجمة مش مفعّلة (GEMINI_API_KEY مش مضبوط على السيرفر)'); e.code = 'ai_unavailable'; throw e; }
-    const r = await postGemini(true, { system, contents: contents || [{ role: 'user', parts }], maxTokens, temperature }, signal);
-    if (!r.ok) { const e = new Error(await errDetail(r)); e.code = 'ai_call_failed'; e.status = r.status; throw e; }
-    const reader = r.body.getReader();
-    const dec = new TextDecoder();
+async function* sseData(r) {
+    const reader = r.body.getReader(), dec = new TextDecoder();
     let buf = '';
+    const take = (line) => { line = line.replace(/\r$/, ''); if (!line.startsWith('data:')) return null; const p = line.slice(5).trim(); return p && p !== '[DONE]' ? p : null; };
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += dec.decode(value, { stream: true });
         let nl;
-        while ((nl = buf.indexOf('\n')) !== -1) {
-            const line = buf.slice(0, nl).replace(/\r$/, '');
-            buf = buf.slice(nl + 1);
-            if (!line.startsWith('data:')) continue;
-            const payload = line.slice(5).trim();
-            if (!payload || payload === '[DONE]') continue;
-            let j;
-            try { j = JSON.parse(payload); } catch (_) { continue; }
-            const cand = j.candidates && j.candidates[0];
-            const text = ((cand && cand.content && cand.content.parts) || []).filter(p => !p.thought).map(p => p.text || '').join('');
-            if (text) yield { text };
-            if (cand && cand.finishReason) yield { finish: cand.finishReason };
-            if (j.promptFeedback && j.promptFeedback.blockReason) yield { finish: 'BLOCKED' };
-        }
+        while ((nl = buf.indexOf('\n')) !== -1) { const p = take(buf.slice(0, nl)); buf = buf.slice(nl + 1); if (p) yield p; }
     }
+    const tail = take(buf); if (tail) yield tail;
 }
-
-async function generate({ system, contents, maxTokens = 2000, temperature = 0.4, json = false }) {
-    if (!geminiKey()) { const e = new Error('خدمة الذكاء الاصطناعي مش مفعّلة'); e.code = 'ai_unavailable'; throw e; }
-    const r = await postGemini(false, { system, contents, maxTokens, temperature, json });
-    if (!r.ok) { const e = new Error(await errDetail(r)); e.code = 'ai_call_failed'; e.status = r.status; throw e; }
-    const d = await r.json();
-    const text = ((d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts) || [])
-        .filter(p => !p.thought).map(p => p.text || '').join('').trim();
-    if (!text) { const e = new Error('الذكاء الاصطناعي مرجّعش رد — جرب تاني'); e.code = 'ai_bad_response'; throw e; }
-    if (!json) return text;
-    const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+function parseJsonLoose(text) {
+    const cleaned = String(text).replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
     try { return JSON.parse(cleaned); }
     catch (_) {
         const objs = extractObjects(cleaned);
         if (objs.length) return objs[0];
-        const e = new Error('رد الذكاء الاصطناعي مكانش مفهوم — جرب تاني'); e.code = 'ai_bad_json'; throw e;
+        throw mkErr('رد الذكاء الاصطناعي مكانش مفهوم، جرب تاني', null, 'ai_bad_json');
     }
+}
+const finishMap = (r) => ({ length: 'MAX_TOKENS', max_tokens: 'MAX_TOKENS', stop: 'STOP', end_turn: 'STOP', content_filter: 'BLOCKED' }[r] || String(r || '').toUpperCase());
+
+// ---------- Gemini ----------
+const geminiUrl = (p, stream) => `${(p.baseUrl || GEMINI_BASE).replace(/\/+$/, '')}/models/${encodeURIComponent(p.model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
+function geminiBody(a) {
+    return JSON.stringify({
+        system_instruction: { parts: [{ text: a.system }] },
+        contents: a.contents,
+        safetySettings: SAFETY,
+        generationConfig: Object.assign(
+            { maxOutputTokens: a.maxTokens, temperature: a.temperature },
+            a.json ? { responseMimeType: 'application/json' } : {},
+            THINK.off ? { thinkingConfig: { thinkingBudget: 0 } } : {}
+        )
+    });
+}
+async function geminiPost(p, stream, a, signal) {
+    for (let pass = 0; pass < 2; pass++) {
+        const r = await fetchWithRetry(geminiUrl(p, stream), {
+            method: 'POST', headers: { 'x-goog-api-key': p.key, 'Content-Type': 'application/json' }, signal, body: geminiBody(a)
+        }, a.retries);
+        if (r.ok) return r;
+        const detail = await errDetail(r, 'Gemini');
+        if (r.status === 400 && THINK.off && pass === 0 && /think/i.test(detail)) { THINK.off = false; continue; }
+        throw mkErr(detail, r.status);
+    }
+}
+const geminiText = (cand) => ((cand && cand.content && cand.content.parts) || []).filter(x => !x.thought).map(x => x.text || '').join('');
+async function* geminiStream(p, a, signal) {
+    const r = await geminiPost(p, true, a, signal);
+    for await (const payload of sseData(r)) {
+        let j; try { j = JSON.parse(payload); } catch (_) { continue; }
+        const cand = j.candidates && j.candidates[0], text = geminiText(cand);
+        if (text) yield { text };
+        if (cand && cand.finishReason) yield { finish: cand.finishReason };
+        if (j.promptFeedback && j.promptFeedback.blockReason) yield { finish: 'BLOCKED' };
+    }
+}
+async function geminiGen(p, a, signal) {
+    const r = await geminiPost(p, false, a, signal);
+    const d = await r.json();
+    return geminiText(d.candidates && d.candidates[0]).trim();
+}
+
+// ---------- OpenAI-compatible (OpenAI, Groq, OpenRouter, DeepSeek, Mistral, Together, xAI...) ----------
+const isOpenAIHost = (u) => { try { return /(^|\.)api\.openai\.com$/i.test(new URL(u).hostname); } catch (_) { return false; } };
+function openaiMessages(system, contents) {
+    const msgs = [{ role: 'system', content: system }];
+    for (const c of contents) {
+        const role = c.role === 'model' ? 'assistant' : 'user';
+        const parts = (c.parts || []).map(pt => pt.inline_data
+            ? { type: 'image_url', image_url: { url: `data:${pt.inline_data.mime_type};base64,${pt.inline_data.data}` } }
+            : { type: 'text', text: String(pt.text == null ? '' : pt.text) || '.' });
+        const textOnly = parts.every(x => x.type === 'text'), last = msgs[msgs.length - 1];
+        if (textOnly) {
+            const t = parts.map(x => x.text).join('\n');
+            if (last.role === role && typeof last.content === 'string' && last.role !== 'system') last.content += '\n\n' + t; else msgs.push({ role, content: t });
+        } else msgs.push({ role, content: parts });
+    }
+    return msgs;
+}
+async function openaiPost(p, stream, a, signal) {
+    const url = p.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+    const body = { model: p.model, messages: openaiMessages(a.system, a.contents), stream: !!stream };
+    if (isOpenAIHost(p.baseUrl)) body.max_completion_tokens = a.maxTokens; else body.max_tokens = a.maxTokens;
+    if (a.temperature != null) body.temperature = a.temperature;
+    if (a.json && !p.noJsonMode) body.response_format = { type: 'json_object' };
+    for (let pass = 0; pass < 4; pass++) {
+        const r = await fetchWithRetry(url, {
+            method: 'POST', headers: { Authorization: 'Bearer ' + p.key, 'Content-Type': 'application/json' }, signal, body: JSON.stringify(body)
+        }, a.retries);
+        if (r.ok) return r;
+        const detail = await errDetail(r, 'API');
+        if (r.status === 400 || r.status === 422) {
+            if (/temperature/i.test(detail) && 'temperature' in body) { delete body.temperature; continue; }
+            if (/response_format|json_object|json mode/i.test(detail) && body.response_format) { delete body.response_format; continue; }
+            if (/max_tokens/i.test(detail) && body.max_tokens != null) { body.max_completion_tokens = body.max_tokens; delete body.max_tokens; continue; }
+        }
+        throw mkErr(detail, r.status);
+    }
+    throw mkErr('رفض المزود الطلب بعد عدة محاولات', 400);
+}
+async function* openaiStream(p, a, signal) {
+    const r = await openaiPost(p, true, a, signal);
+    for await (const payload of sseData(r)) {
+        let j; try { j = JSON.parse(payload); } catch (_) { continue; }
+        if (j.error) throw mkErr(j.error.message || 'خطأ من المزود', 500);
+        const ch = j.choices && j.choices[0]; if (!ch) continue;
+        const t = ch.delta && ch.delta.content;
+        if (typeof t === 'string' && t) yield { text: t };
+        if (ch.finish_reason) yield { finish: finishMap(ch.finish_reason) };
+    }
+}
+async function openaiGen(p, a, signal) {
+    const r = await openaiPost(p, false, a, signal);
+    const d = await r.json();
+    const m = d.choices && d.choices[0] && d.choices[0].message, c = m && m.content;
+    return (Array.isArray(c) ? c.map(x => x.text || '').join('') : String(c || '')).trim();
+}
+
+// ---------- Anthropic (Claude) ----------
+function anthropicMessages(contents) {
+    const out = [];
+    for (const c of contents) {
+        const role = c.role === 'model' ? 'assistant' : 'user';
+        const blocks = (c.parts || []).map(pt => pt.inline_data
+            ? { type: 'image', source: { type: 'base64', media_type: pt.inline_data.mime_type, data: pt.inline_data.data } }
+            : { type: 'text', text: String(pt.text == null ? '' : pt.text) || '.' });
+        const last = out[out.length - 1];
+        if (last && last.role === role) last.content.push(...blocks); else out.push({ role, content: blocks });
+    }
+    while (out.length && out[0].role !== 'user') out.shift();
+    return out;
+}
+async function anthropicPost(p, stream, a, signal) {
+    const url = p.baseUrl.replace(/\/+$/, '') + '/messages';
+    const body = { model: p.model, max_tokens: a.maxTokens, system: a.system, messages: anthropicMessages(a.contents), stream: !!stream };
+    if (a.temperature != null) body.temperature = Math.min(1, a.temperature);
+    for (let pass = 0; pass < 2; pass++) {
+        const r = await fetchWithRetry(url, {
+            method: 'POST', headers: { 'x-api-key': p.key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }, signal, body: JSON.stringify(body)
+        }, a.retries);
+        if (r.ok) return r;
+        const detail = await errDetail(r, 'Claude');
+        if (r.status === 400 && /temperature/i.test(detail) && 'temperature' in body) { delete body.temperature; continue; }
+        throw mkErr(detail, r.status);
+    }
+}
+async function* anthropicStream(p, a, signal) {
+    const r = await anthropicPost(p, true, a, signal);
+    for await (const payload of sseData(r)) {
+        let j; try { j = JSON.parse(payload); } catch (_) { continue; }
+        if (j.type === 'error') throw mkErr((j.error && j.error.message) || 'خطأ من المزود', 500);
+        if (j.type === 'content_block_delta' && j.delta && j.delta.type === 'text_delta' && j.delta.text) yield { text: j.delta.text };
+        if (j.type === 'message_delta' && j.delta && j.delta.stop_reason) yield { finish: finishMap(j.delta.stop_reason) };
+    }
+}
+async function anthropicGen(p, a, signal) {
+    const r = await anthropicPost(p, false, a, signal);
+    const d = await r.json();
+    return ((d.content || []).filter(x => x.type === 'text').map(x => x.text || '').join('')).trim();
+}
+const ADAPTERS = {
+    gemini: { stream: geminiStream, gen: geminiGen },
+    openai: { stream: openaiStream, gen: openaiGen },
+    anthropic: { stream: anthropicStream, gen: anthropicGen }
+};
+
+// ---------- مزودو البيئة (بدون قاعدة بيانات) ----------
+// GEMINI_API_KEY / GEMINI_API_KEYS (مفاتيح كتير بفاصلة) + TR_AI_PROVIDERS (JSON اختياري)
+function envProviders() {
+    const out = [], seen = new Set();
+    const keys = [process.env.GEMINI_API_KEY].concat(String(process.env.GEMINI_API_KEYS || '').split(','))
+        .map(s => (s || '').trim()).filter(k => k && !seen.has(k) && seen.add(k));
+    keys.forEach((k, i) => out.push({ id: `env-gemini-${i + 1}`, name: `Gemini (مفتاح البيئة ${i + 1})`, type: 'gemini', baseUrl: GEMINI_BASE, model: MODEL, key: k, vision: true, enabled: true, priority: i, source: 'env' }));
+    try {
+        const arr = JSON.parse(process.env.TR_AI_PROVIDERS || '[]');
+        (Array.isArray(arr) ? arr : []).forEach((x, i) => {
+            if (!x || !AI_TYPES.includes(x.type) || !x.key || !x.model) return;
+            const base = x.baseUrl || (x.type === 'gemini' ? GEMINI_BASE : x.type === 'anthropic' ? 'https://api.anthropic.com/v1' : '');
+            if (!base) return;
+            out.push({ id: `env-json-${i + 1}`, name: str(x.name, 60) || `${x.type} ${i + 1}`, type: x.type, baseUrl: base, model: String(x.model), key: String(x.key),
+                vision: x.vision != null ? !!x.vision : x.type !== 'openai', enabled: true, priority: Number.isFinite(x.priority) ? x.priority : 50 + i, source: 'env', noJsonMode: !!x.noJsonMode });
+        });
+    } catch (_) {}
+    return out;
+}
+
+// ---------- تشفير مفاتيح المزودين المحفوظة في قاعدة البيانات (AES-256-GCM) ----------
+const secretKey = () => { const s = process.env.TR_KEYS_SECRET || process.env.JWT_SECRET || ''; return s ? crypto.createHash('sha256').update('tr-ai-keys:' + s).digest() : null; };
+function encKey(plain) {
+    const k = secretKey(); if (!k) throw mkErr('اضبط TR_KEYS_SECRET (أو JWT_SECRET) على السيرفر الأول علشان نقدر نحفظ المفاتيح مشفّرة', 400, 'no_secret');
+    const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', k, iv);
+    const enc = Buffer.concat([c.update(String(plain), 'utf8'), c.final()]);
+    return [iv, c.getAuthTag(), enc].map(b => b.toString('base64')).join('.');
+}
+function decKey(s) {
+    const k = secretKey(); if (!k || !s) return '';
+    const [iv, tag, enc] = String(s).split('.').map(x => Buffer.from(x, 'base64'));
+    const d = crypto.createDecipheriv('aes-256-gcm', k, iv); d.setAuthTag(tag);
+    return Buffer.concat([d.update(enc), d.final()]).toString('utf8');
+}
+const maskKey = (k) => (!k ? '' : k.length > 12 ? k.slice(0, 4) + '…' + k.slice(-4) : '••••');
+
+// ---------- تصنيف الأعطال: إيه اللي نريّحه مؤقتًا ----------
+function cooldownFor(e) {
+    const st = e && e.status;
+    if (e && e.code === 'ai_timeout') return 30000;
+    if (st === 429) return 60000;
+    if (st === 401 || st === 403 || st === 404) return 15 * 60000;
+    if (st >= 500) return 30000;
+    if (st == null && !['ai_bad_response', 'ai_bad_json'].includes(e && e.code)) return 30000; // خطأ شبكة
+    return 0; // 400 أو رد فاضي/مش مفهوم: مش عطل في المزود نفسه
+}
+const isAbort = (e, signal) => !!(signal && signal.aborted && e && e.name === 'AbortError');
+function aggregateErr(attempts) {
+    const pick = attempts.find(x => ![401, 403, 404].includes(x.e.status)) || attempts[attempts.length - 1];
+    const e = mkErr(pick.e.message, pick.e.status, pick.e.code);
+    e.attempts = attempts.map(x => `${x.p.name}: ${x.e.status != null ? x.e.status + ' ' : ''}${String(x.e.message).slice(0, 120)}`);
+    return e;
+}
+// رسالة عربي مفهومة للطالب + التفصيل الأصلي للأدمن
+function aiErr(e) {
+    const st = e && e.status, raw = String((e && e.message) || '');
+    let msg = raw;
+    if (e && e.code === 'ai_unavailable') msg = 'مفيش مزود ذكاء اصطناعي متفعّل للجزء ده على السيرفر';
+    else if (e && e.code === 'ai_timeout') msg = 'الذكاء الاصطناعي اتأخر في الرد، جرب تاني';
+    else if (st === 429) msg = 'ضغط كبير على الذكاء الاصطناعي دلوقتي، جرب تاني بعد دقيقة';
+    else if (st === 401 || st === 403 || /api key/i.test(raw)) msg = 'مفتاح الذكاء الاصطناعي على السيرفر غير صالح أو متوقف';
+    else if (st === 404) msg = 'موديل الذكاء الاصطناعي غير موجود، راجع إعدادات السيرفر';
+    else if (st >= 500) msg = 'خدمة الذكاء الاصطناعي واقفة مؤقتًا، جرب تاني';
+    else if (e && (e.code === 'ai_bad_response' || e.code === 'ai_bad_json')) msg = /[\u0600-\u06FF]/.test(raw) ? raw : 'الرد مكانش مفهوم، جرب تاني';
+    else if (!/[\u0600-\u06FF]/.test(msg)) msg = 'حصلت مشكلة مع الذكاء الاصطناعي، جرب تاني';
+    return { error: msg, detail: (e && e.attempts ? e.attempts.join(' | ') : raw).slice(0, 500) };
+}
+
+// ---------- الراوتر: بيختار سلسلة المزودين ويحوّل عند الفشل ----------
+function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
+    let cache = null, cacheAt = 0;
+    const TTL = 15000;
+    const invalidate = () => { cache = null; };
+
+    async function load() {
+        if (cache && Date.now() - cacheAt < TTL) return cache;
+        let dbp = [], cfg = null, stats = [];
+        try {
+            [dbp, cfg, stats] = await Promise.all([TrAIProvider.find({}).lean(), TrAIConfig.findOne({ key: 'main' }).lean(), TrAIStat.find({}).lean()]);
+        } catch (e) { console.error('ai config load failed:', e.message); }
+        const disabledEnv = new Set((cfg && cfg.disabledEnv) || []);
+        const env = envProviders().map(p => Object.assign(p, { enabled: !disabledEnv.has(p.id) }));
+        const db = (dbp || []).map(d => {
+            let key = ''; try { key = decKey(d.keyEnc); } catch (_) {}
+            return { id: String(d._id), name: d.name, type: d.type, baseUrl: d.baseUrl, model: d.model, key, vision: !!d.vision,
+                enabled: d.enabled !== false && !!key, priority: Number.isFinite(d.priority) ? d.priority : 100, source: 'db', noJsonMode: !!d.noJsonMode, keyBroken: !key };
+        });
+        const health = {}; (stats || []).forEach(s => { health[s.pid] = s; });
+        cache = { providers: env.concat(db), routes: (cfg && cfg.routes) || {}, health, disabledEnv: Array.from(disabledEnv) };
+        cacheAt = Date.now();
+        return cache;
+    }
+    function buildChain(st, feature, vision) {
+        const byId = new Map(st.providers.map(p => [p.id, p]));
+        const route = st.routes && st.routes[feature];
+        let list = Array.isArray(route) && route.length
+            ? route.map(id => byId.get(id)).filter(Boolean)
+            : st.providers.slice().sort((a, b) => a.priority - b.priority);
+        list = list.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision));
+        const now = Date.now(), cooling = (p) => (st.health[p.id] && st.health[p.id].cooldownUntil > now);
+        return list.filter(p => !cooling(p)).concat(list.filter(cooling)); // المريّحين في الآخر (لكن بنجربهم لو الباقي فشل)
+    }
+    const persist = (pid, update) => { try { Promise.resolve(TrAIStat.updateOne({ pid }, update, { upsert: true })).catch(() => {}); } catch (_) {} };
+    function markOk(p, ms) {
+        if (cache) { const h = cache.health[p.id] || (cache.health[p.id] = { pid: p.id }); h.cooldownUntil = 0; h.ok = (h.ok || 0) + 1; h.lastOkAt = new Date(); h.lastMs = ms; }
+        persist(p.id, { $inc: { ok: 1 }, $set: { lastOkAt: new Date(), cooldownUntil: 0, lastMs: ms } });
+    }
+    function markFail(p, e) {
+        const cd = cooldownFor(e), msg = String((e && e.message) || '').slice(0, 200);
+        if (cache) { const h = cache.health[p.id] || (cache.health[p.id] = { pid: p.id }); h.fail = (h.fail || 0) + 1; h.lastError = msg; h.lastErrorAt = new Date(); if (cd) h.cooldownUntil = Date.now() + cd; }
+        const set = { lastError: msg, lastErrorAt: new Date() }; if (cd) set.cooldownUntil = Date.now() + cd;
+        persist(p.id, { $inc: { fail: 1 }, $set: set });
+    }
+    async function chainFor(feature, vision) {
+        const st = await load(), chain = buildChain(st, feature, vision);
+        if (!chain.length) throw mkErr('no providers', 503, 'ai_unavailable');
+        return chain;
+    }
+    async function available(feature, vision) { try { return (await chainFor(feature, vision)).length > 0; } catch (_) { return false; } }
+
+    async function generate(feature, a) {
+        const chain = await chainFor(feature, !!a.vision);
+        const args = Object.assign({ temperature: 0.4, maxTokens: 2000 }, a, { retries: chain.length > 1 ? 0 : 1 });
+        const attempts = [], t0 = Date.now();
+        for (const p of chain) {
+            if (attempts.length && Date.now() - t0 > AI_BUDGET_MS) break;
+            const t1 = Date.now(), wt = withTimeout(a.signal, AI_TIMEOUT_MS);
+            try {
+                const text = await ADAPTERS[p.type].gen(p, args, wt.signal);
+                if (!text) throw mkErr('الذكاء الاصطناعي مرجّعش رد', null, 'ai_bad_response');
+                const out = a.json ? parseJsonLoose(text) : text;
+                markOk(p, Date.now() - t1); return out;
+            } catch (e0) {
+                const e = wt.timedOut ? mkErr('انتهت مهلة المزود', 0, 'ai_timeout') : e0;
+                if (isAbort(e0, a.signal)) throw e0;
+                attempts.push({ p, e }); markFail(p, e);
+            } finally { wt.done(); }
+        }
+        throw aggregateErr(attempts);
+    }
+
+    // بث: التحويل للمزود التاني ممكن بس قبل ما أول جزء من الرد يوصل للطالب
+    async function* stream(feature, a) {
+        const chain = await chainFor(feature, !!a.vision);
+        const args = Object.assign({ temperature: 0.4, maxTokens: 2000 }, a, { retries: chain.length > 1 ? 0 : 1 });
+        const attempts = [], t0 = Date.now();
+        for (const p of chain) {
+            if (attempts.length && Date.now() - t0 > AI_BUDGET_MS) break;
+            const t1 = Date.now(), wt = withTimeout(a.signal, AI_FIRST_BYTE_MS);
+            let started = false, pending = [];
+            try {
+                for await (const ev of ADAPTERS[p.type].stream(p, args, wt.signal)) {
+                    wt.arm(AI_IDLE_MS);
+                    if (ev.text) { started = true; for (const x of pending) yield x; pending = []; yield ev; }
+                    else if (started) yield ev; else pending.push(ev);
+                }
+                if (!started) throw mkErr('الذكاء الاصطناعي مرجّعش رد', null, 'ai_bad_response');
+                markOk(p, Date.now() - t1);
+                for (const x of pending) yield x;
+                return;
+            } catch (e0) {
+                const e = wt.timedOut ? mkErr('انتهت مهلة المزود', 0, 'ai_timeout') : e0;
+                if (isAbort(e0, a.signal)) throw e0;
+                markFail(p, e);
+                if (started) { e.partial = true; throw e; }   // خلاص بعتنا جزء من الرد، مينفعش نبدّل المزود
+                attempts.push({ p, e });
+            } finally { wt.done(); }
+        }
+        throw aggregateErr(attempts);
+    }
+
+    async function test(p) {
+        const t1 = Date.now(), wt = withTimeout(null, AI_TIMEOUT_MS);
+        try {
+            const text = await ADAPTERS[p.type].gen(p, { system: 'You are a connectivity test.', contents: [{ role: 'user', parts: [{ text: 'Reply with the single word OK.' }] }], maxTokens: 30, temperature: 0, retries: 0 }, wt.signal);
+            if (!text) throw mkErr('رجّع رد فاضي', null, 'ai_bad_response');
+            const ms = Date.now() - t1; markOk(p, ms); return { ok: true, ms, sample: text.slice(0, 40) };
+        } catch (e0) {
+            const e = wt.timedOut ? mkErr('انتهت مهلة المزود', 0, 'ai_timeout') : e0;
+            markFail(p, e); return { ok: false, status: e.status || 0, error: String(e.message).slice(0, 300) };
+        } finally { wt.done(); }
+    }
+    return { load, invalidate, generate, stream, available, test, markOk, markFail, buildChain };
 }
 
 const aiStatus = (e) => (e.code === 'ai_unavailable' ? 503 : 502);
@@ -393,6 +694,21 @@ function registerTranslateRoutes(app, deps) {
         handledBy: { type: String, default: '' }
     }, { timestamps: true });
     const TrPayment = model('TrPayment', paymentSchema);
+
+    // مزودو الذكاء الاصطناعي (المفاتيح مشفّرة) + مسارات كل جزء + عدّادات الصحة
+    const TrAIProvider = model('TrAIProvider', new Schema({
+        name: String, type: String, baseUrl: String, model: String, keyEnc: String,
+        vision: { type: Boolean, default: false }, enabled: { type: Boolean, default: true },
+        priority: { type: Number, default: 100 }, noJsonMode: { type: Boolean, default: false }
+    }, { timestamps: true }));
+    const TrAIConfig = model('TrAIConfig', new Schema({
+        key: { type: String, unique: true }, routes: { type: Schema.Types.Mixed, default: {} }, disabledEnv: { type: [String], default: [] }
+    }, { timestamps: true }));
+    const TrAIStat = model('TrAIStat', new Schema({
+        pid: { type: String, unique: true }, ok: { type: Number, default: 0 }, fail: { type: Number, default: 0 },
+        lastError: String, lastErrorAt: Date, lastOkAt: Date, lastMs: Number, cooldownUntil: { type: Number, default: 0 }
+    }));
+    const ai = createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat });
 
     // ---------- Limiters (بالـ username مش بالـ IP — عشان شبكة المعهد/الواي فاي مش تتحسب كلها واحد) ----------
     const keyGen = (req) => (req.user && req.user.username) || 'anon'; // كل المسارات وراء verifyToken فـ username موجود دايمًا
@@ -596,7 +912,7 @@ function registerTranslateRoutes(app, deps) {
                 return res.end();
             }
 
-            if (!geminiKey()) return res.status(503).json({ error: 'خدمة الترجمة مش مفعّلة حاليًا' });
+            if (!(await ai.available('translate', true))) return res.status(503).json({ error: 'خدمة الترجمة مش مفعّلة حاليًا (مفيش مزود ذكاء اصطناعي بيدعم قراءة الصور)' });
 
             // --- الرصيد: قبل ما نبدأ بث أي حاجة (عشان نرجّع 402 واضحة) ---
             reservation = await reservePages(req.user, images.length);
@@ -628,7 +944,7 @@ function registerTranslateRoutes(app, deps) {
                     send(it);
                 });
                 try {
-                    for await (const ev of streamGemini({ system: TRANSLATE_SYSTEM, parts, maxTokens: 16384, temperature: 0.2, signal: controller.signal })) {
+                    for await (const ev of ai.stream('translate', { system: TRANSLATE_SYSTEM, contents: [{ role: 'user', parts }], vision: true, maxTokens: 16384, temperature: 0.2, signal: controller.signal })) {
                         if (ev.text) { raw += ev.text; parser.push(ev.text); }
                         if (ev.finish) finish = ev.finish;
                     }
@@ -697,7 +1013,7 @@ function registerTranslateRoutes(app, deps) {
             await connectToDatabase();
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await generate({
+            const r = await ai.generate('explain', {
                 system: EXPLAIN_SYSTEM, json: true, maxTokens: 8000, temperature: 0.5,
                 contents: [{ role: 'user', parts: [{ text: `MODE=${mode}\n\nEnglish passage:\n${en}\n\nArabic translation:\n${ar}` }] }]
             });
@@ -729,7 +1045,7 @@ function registerTranslateRoutes(app, deps) {
             const ask = exam
                 ? `Write a mock exam of ${mcqN} MCQs covering the WHOLE content evenly (about 30% easy, 50% medium, 20% hard). Return "flashcards": [].\n\nContent:\n${text}`
                 : `Write ${mcqN} MCQs and ${fcN} flashcards from this content:\n\n${text}`;
-            const r = await generate({
+            const r = await ai.generate('quiz', {
                 system: QUIZ_SYSTEM, json: true, maxTokens: exam ? 14000 : 8000, temperature: 0.5,
                 contents: [{ role: 'user', parts: [{ text: ask }] }]
             });
@@ -764,7 +1080,7 @@ function registerTranslateRoutes(app, deps) {
                 .concat(hist, [{ role: 'user', parts: [{ text: question }] }]);
 
             if (!req.body.stream) {
-                const answer = await generate({ system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 });
+                const answer = await ai.generate('chat', { system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 });
                 return res.json({ answer: cleanChat(answer).slice(0, 8000) });
             }
 
@@ -779,7 +1095,7 @@ function registerTranslateRoutes(app, deps) {
             res.on('close', () => { if (!res.writableEnded) controller.abort(); });
             let got = false, finish = null, failed = null;
             try {
-                for await (const ev of streamGemini({ system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4, signal: controller.signal })) {
+                for await (const ev of ai.stream('chat', { system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4, signal: controller.signal })) {
                     if (ev.text) { got = true; send({ t: 'delta', text: ev.text }); }
                     if (ev.finish) finish = ev.finish;
                 }
@@ -788,7 +1104,7 @@ function registerTranslateRoutes(app, deps) {
             if (!got) {
                 // لو البث فشل أو رجع فاضي، نجرب نفس الطلب كرد كامل مرة واحدة
                 try {
-                    const full = cleanChat(await generate({ system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 }));
+                    const full = cleanChat(await ai.generate('chat', { system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 }));
                     if (full) { got = true; failed = null; send({ t: 'delta', text: full }); }
                 } catch (e2) { failed = e2; }
             }
@@ -820,7 +1136,7 @@ function registerTranslateRoutes(app, deps) {
             if (!(await requirePremium(req, res, 'ملخص الفصل'))) return;
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await generate({ system: SUMMARY_SYSTEM, json: true, maxTokens: 9000, temperature: 0.3, contents: [{ role: 'user', parts: [{ text }] }] });
+            const r = await ai.generate('summary', { system: SUMMARY_SYSTEM, json: true, maxTokens: 9000, temperature: 0.3, contents: [{ role: 'user', parts: [{ text }] }] });
             const arr = (v, n, m) => (Array.isArray(v) ? v.map(x => cleanChat(str(String(x || ''), m)).replace(/^[-•]\s+/, '')).filter(Boolean).slice(0, n) : []);
             const sections = (Array.isArray(r.sections) ? r.sections : []).map(sc => ({ title: cleanChat(str(sc && sc.title, 140)), points: arr(sc && sc.points, 8, 400) })).filter(sc => sc.title && sc.points.length).slice(0, 8);
             const terms = (Array.isArray(r.terms) ? r.terms : []).map(t => ({ en: str(t && t.en, 100), ar: str(t && t.ar, 140) })).filter(t => t.en && t.ar).slice(0, 14);
@@ -868,7 +1184,7 @@ function registerTranslateRoutes(app, deps) {
             if (have) return res.json(Object.assign({ fromGlossary: true }, have));
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await generate({
+            const r = await ai.generate('define', {
                 system: DEFINE_SYSTEM, json: true, maxTokens: 2000, temperature: 0.2,
                 contents: [{ role: 'user', parts: [{ text: `Term: ${term}` }] }]
             });
@@ -1096,8 +1412,146 @@ function registerTranslateRoutes(app, deps) {
         } catch (e) { console.error(e.message); res.status(500).json({ error: 'خطأ في الإحصائيات' }); }
     });
 
+    // ====================== 9) إدارة مزودي الذكاء الاصطناعي (أدمن) ======================
+    const validBaseUrl = (u) => {
+        try {
+            const x = new URL(u), h = x.hostname;
+            if (x.protocol !== 'https:' || !h.includes('.')) return false;
+            if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.)/i.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)) return false;
+            return true;
+        } catch (_) { return false; }
+    };
+    const defaultBase = (t) => (t === 'gemini' ? GEMINI_BASE : t === 'anthropic' ? 'https://api.anthropic.com/v1' : '');
+    const isId = (v) => typeof v === 'string' && v.length > 0 && v.length < 80;
+    function readProviderBody(b, partial) {
+        const out = {}, err = (m) => { const e = new Error(m); e.bad = true; throw e; };
+        if (!partial || b.name !== undefined) { out.name = str(b.name, 60); if (!out.name) err('اكتب اسم للمزود'); }
+        if (!partial || b.type !== undefined) { out.type = String(b.type || ''); if (!AI_TYPES.includes(out.type)) err('نوع المزود غير صحيح'); }
+        if (!partial || b.model !== undefined) { out.model = str(b.model, 120); if (!out.model) err('اكتب اسم الموديل'); }
+        if (!partial || b.baseUrl !== undefined) {
+            const t = out.type || b.type || 'openai';
+            out.baseUrl = str(b.baseUrl, 300) || defaultBase(t);
+            if (!out.baseUrl) err('اكتب رابط الـ API (Base URL)');
+            if (!validBaseUrl(out.baseUrl)) err('رابط الـ API لازم يكون https ودومين عام');
+            out.baseUrl = out.baseUrl.replace(/\/+$/, '');
+        }
+        if (b.vision !== undefined) out.vision = !!b.vision;
+        if (b.enabled !== undefined) out.enabled = !!b.enabled;
+        if (b.noJsonMode !== undefined) out.noJsonMode = !!b.noJsonMode;
+        if (b.priority !== undefined) { const n = Number(b.priority); out.priority = Number.isFinite(n) ? Math.max(-1000, Math.min(1000, Math.round(n))) : 100; }
+        if (b.apiKey !== undefined && String(b.apiKey).trim()) {
+            const k = String(b.apiKey).trim();
+            if (k.length < 8 || k.length > 500 || /\s/.test(k)) err('المفتاح غير صحيح (من غير مسافات)');
+            out.keyEnc = encKey(k);
+        } else if (!partial) err('اكتب مفتاح الـ API');
+        return out;
+    }
+    const aiErrStatus = (e) => (e.bad || e.code === 'no_secret' ? 400 : 500);
+    const publicAI = (p, st) => {
+        const h = st.health[p.id] || {};
+        return {
+            id: p.id, name: p.name, type: p.type, baseUrl: p.baseUrl, model: p.model, vision: !!p.vision, enabled: !!p.enabled, priority: p.priority,
+            source: p.source, keyMask: maskKey(p.key), keyBroken: !!p.keyBroken, noJsonMode: !!p.noJsonMode,
+            stats: { ok: h.ok || 0, fail: h.fail || 0, lastError: h.lastError || '', lastErrorAt: h.lastErrorAt || null, lastOkAt: h.lastOkAt || null, lastMs: h.lastMs || 0 },
+            cooling: !!(h.cooldownUntil && h.cooldownUntil > Date.now()), cooldownUntil: h.cooldownUntil || 0
+        };
+    };
+
+    app.get('/api/translate/admin/ai', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase(); ai.invalidate();
+            const st = await ai.load();
+            res.json({ features: AI_FEATURES, routes: st.routes || {}, providers: st.providers.map(p => publicAI(p, st)), secretReady: !!secretKey(), model: MODEL });
+        } catch (e) { console.error('ai admin get:', e.message); res.status(500).json({ error: 'خطأ في جلب إعدادات الذكاء الاصطناعي' }); }
+    });
+
+    app.post('/api/translate/admin/ai/providers', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            if ((await TrAIProvider.countDocuments({})) >= 20) return res.status(400).json({ error: 'الحد الأقصى 20 مزود' });
+            const d = readProviderBody(req.body || {}, false);
+            if (d.vision === undefined) d.vision = d.type !== 'openai';
+            if (d.priority === undefined) d.priority = 100;
+            const doc = await TrAIProvider.create(d);
+            ai.invalidate();
+            res.json({ success: true, id: String(doc._id) });
+        } catch (e) { if (!e.bad && e.code !== 'no_secret') console.error('ai add:', e.message); res.status(aiErrStatus(e)).json({ error: e.bad || e.code === 'no_secret' ? e.message : 'خطأ في إضافة المزود' }); }
+    });
+
+    app.patch('/api/translate/admin/ai/providers/:id', verifyToken, isAdmin, async (req, res) => {
+        try {
+            const id = String(req.params.id); await connectToDatabase();
+            if (id.startsWith('env-')) {   // مزودو البيئة: التفعيل والإيقاف بس
+                if (req.body && req.body.enabled !== undefined) {
+                    await TrAIConfig.updateOne({ key: 'main' }, req.body.enabled ? { $pull: { disabledEnv: id } } : { $addToSet: { disabledEnv: id } }, { upsert: true });
+                    ai.invalidate();
+                }
+                return res.json({ success: true });
+            }
+            if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'معرّف غير صالح' });
+            const cur = await TrAIProvider.findOne({ _id: id }).lean();
+            if (!cur) return res.status(404).json({ error: 'المزود مش موجود' });
+            const b = Object.assign({}, req.body || {});
+            if (b.type !== undefined && b.baseUrl === undefined) b.baseUrl = cur.baseUrl;
+            const d = readProviderBody(b, true);
+            if (!Object.keys(d).length) return res.status(400).json({ error: 'مفيش تعديل' });
+            await TrAIProvider.updateOne({ _id: id }, { $set: d });
+            ai.invalidate();
+            res.json({ success: true });
+        } catch (e) { if (!e.bad && e.code !== 'no_secret') console.error('ai patch:', e.message); res.status(aiErrStatus(e)).json({ error: e.bad || e.code === 'no_secret' ? e.message : 'خطأ في التعديل' }); }
+    });
+
+    app.delete('/api/translate/admin/ai/providers/:id', verifyToken, isAdmin, async (req, res) => {
+        try {
+            const id = String(req.params.id);
+            if (id.startsWith('env-')) return res.status(400).json({ error: 'مزود البيئة بيتشال من Environment Variables، تقدر توقفه بس' });
+            if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'معرّف غير صالح' });
+            await connectToDatabase();
+            await TrAIProvider.deleteOne({ _id: id });
+            await TrAIStat.deleteOne({ pid: id });
+            const cfg = await TrAIConfig.findOne({ key: 'main' }).lean();
+            if (cfg && cfg.routes) {
+                const routes = {}; Object.keys(cfg.routes).forEach(f => { routes[f] = (cfg.routes[f] || []).filter(x => x !== id); });
+                await TrAIConfig.updateOne({ key: 'main' }, { $set: { routes } });
+            }
+            ai.invalidate(); res.json({ success: true });
+        } catch (e) { console.error('ai delete:', e.message); res.status(500).json({ error: 'خطأ في الحذف' }); }
+    });
+
+    app.post('/api/translate/admin/ai/providers/:id/test', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase(); ai.invalidate();
+            const st = await ai.load(), p = st.providers.find(x => x.id === String(req.params.id));
+            if (!p) return res.status(404).json({ error: 'المزود مش موجود' });
+            if (!p.key) return res.json({ ok: false, status: 0, error: 'المفتاح مش مقروء. اتأكد من TR_KEYS_SECRET أو JWT_SECRET وأعد إدخال المفتاح' });
+            res.json(await ai.test(p));
+        } catch (e) { console.error('ai test:', e.message); res.status(500).json({ error: 'خطأ في الاختبار' }); }
+    });
+
+    app.post('/api/translate/admin/ai/providers/:id/reset', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            await TrAIStat.updateOne({ pid: String(req.params.id) }, { $set: { cooldownUntil: 0 } }, { upsert: true });
+            ai.invalidate(); res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: 'خطأ' }); }
+    });
+
+    app.put('/api/translate/admin/ai/routes', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase(); ai.invalidate();
+            const st = await ai.load(), known = new Set(st.providers.map(p => p.id));
+            const inRoutes = (req.body && req.body.routes) || {}, routes = {};
+            FEATURE_IDS.forEach(f => {
+                const list = Array.isArray(inRoutes[f]) ? inRoutes[f].filter(x => isId(x) && known.has(x)) : [];
+                routes[f] = Array.from(new Set(list)).slice(0, 12);
+            });
+            await TrAIConfig.updateOne({ key: 'main' }, { $set: { routes } }, { upsert: true });
+            ai.invalidate(); res.json({ success: true, routes });
+        } catch (e) { console.error('ai routes:', e.message); res.status(500).json({ error: 'خطأ في حفظ المسارات' }); }
+    });
+
     console.log('✅ translate-routes جاهزة (/api/translate/*)');
 }
 
 module.exports = registerTranslateRoutes;
-module.exports.__test = { createLineParser, extractObjects, normalizeItem, streamGemini, termKey, cleanChat, aiErr, THINK };
+module.exports.__test = { createLineParser, extractObjects, normalizeItem, termKey, cleanChat, aiErr, THINK, ADAPTERS, parseJsonLoose, envProviders, encKey, decKey, maskKey, mkErr, createAIRouter, cooldownFor, sseData };
