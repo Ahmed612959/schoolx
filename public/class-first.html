@@ -175,14 +175,14 @@
         .search-input-wrap { position: relative; flex: 1; min-width: 240px; }
         .search-input-wrap i { position: absolute; inset-inline-start: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.85rem; }
         .search-input {
-            width: 100%; padding: 12px 44px 12px 18px;
+            width: 100%; min-height: 46px; padding: 12px 44px 12px 18px;
             border-radius: var(--r-pill); border: 1.5px solid var(--line);
-            font-size: 0.85rem; font-family: 'Tajawal', sans-serif;
+            font-size: 16px; font-family: 'Tajawal', sans-serif;
             background: var(--card); transition: 0.2s;
         }
         .search-input:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 4px rgba(201,166,86,0.15); }
         .filter-select {
-            padding: 12px 18px; border-radius: var(--r-pill); border: 1.5px solid var(--line);
+            min-height: 46px; padding: 12px 18px; border-radius: var(--r-pill); border: 1.5px solid var(--line);
             font-size: 0.82rem; font-family: 'Tajawal', sans-serif; background: var(--card);
             cursor: pointer; font-weight: 600; color: var(--ink);
         }
@@ -198,21 +198,94 @@
         .segmented-btn.active[data-gender="male"] { color: var(--boy); }
         .segmented-btn.active[data-gender="female"] { color: var(--girl); }
 
-        /* ===== Table ===== */
-        .table-wrapper { overflow-x: auto; background: var(--card); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); border: 1px solid var(--line); }
-        .data-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; min-width: 1280px; }
-        .data-table th {
-            background: var(--navy);
-            color: rgba(255,255,255,0.92);
-            padding: 15px 12px; font-weight: 700; font-size: 0.78rem;
-            white-space: nowrap; position: sticky; top: 0; z-index: 5;
+        /* ===== Student rows list ===== */
+        .list-wrap { background: var(--card); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); border: 1px solid var(--line); overflow: hidden; }
+        .list-toolbar {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+            padding: 12px 18px; border-bottom: 1px solid var(--line); background: #fafbfc;
         }
-        .data-table th:first-child { border-top-right-radius: var(--r-lg); }
-        .data-table th:last-child { border-top-left-radius: var(--r-lg); }
-        .data-table td { padding: 13px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-        .data-table tbody tr { transition: background 0.15s; }
-        .data-table tbody tr:hover td { background: #f7f9fb; }
-        .data-table tbody tr:last-child td { border-bottom: none; }
+        .list-count { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+        .list-count b { color: var(--navy); font-weight: 800; }
+        .select-all-label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 700; color: var(--navy); cursor: pointer; user-select: none; }
+
+        .list-head { display: none; }
+        .s-row {
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr) auto;
+            grid-template-areas:
+                "chk name act"
+                "chk meta meta"
+                "chk contact contact";
+            column-gap: 12px; row-gap: 8px; align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--line);
+            border-inline-start: 4px solid transparent;
+            transition: background 0.15s;
+        }
+        .s-row:last-child { border-bottom: none; }
+        .s-row:hover { background: #f7f9fb; }
+        .s-row.g-male { border-inline-start-color: var(--boy); }
+        .s-row.g-female { border-inline-start-color: var(--girl); }
+        .s-row.selected { background: #fffaf0; }
+
+        .c-chk { grid-area: chk; align-self: start; padding-top: 3px; }
+        .c-num { display: none; }
+        .c-name { grid-area: name; min-width: 0; }
+        .c-name b { display: block; font-size: 0.92rem; color: var(--navy); font-weight: 800; overflow-wrap: anywhere; line-height: 1.35; }
+        .c-name small { display: block; color: var(--muted); font-size: 0.72rem; font-weight: 500; margin-top: 1px; overflow-wrap: anywhere; direction: ltr; text-align: right; }
+        .c-act { grid-area: act; display: flex; gap: 6px; align-self: start; }
+        .c-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .c-contact { grid-area: contact; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.78rem; color: var(--ink); }
+        .c-contact .info { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+        .c-contact .info i { color: var(--gold); font-size: 0.72rem; width: 14px; text-align: center; }
+        .c-contact .info.empty { color: #a0aab4; }
+        .c-contact a.info { color: var(--navy-light); text-decoration: none; font-weight: 600; }
+        .c-contact .info.pid { direction: ltr; unicode-bidi: plaintext; }
+
+        .chip {
+            display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px;
+            border-radius: var(--r-pill); font-size: 0.72rem; font-weight: 700;
+            background: #f1f5f9; color: var(--navy);
+        }
+        .chip i { font-size: 0.68rem; color: var(--gold); }
+        .chip.code { background: var(--navy); color: var(--gold-light); letter-spacing: 0.3px; }
+        .chip.code i { color: var(--gold); }
+
+        .row-checkbox, #selectAllCheckbox { width: 18px; height: 18px; cursor: pointer; accent-color: var(--navy); }
+
+        /* Inline edit form (inside the same row) */
+        .s-row.editing { display: block; background: #fdf9f0; border-inline-start-color: var(--gold); padding: 18px 16px; }
+        .edit-head { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 800; color: var(--navy); margin-bottom: 14px; }
+        .edit-head i { color: var(--gold); }
+        .edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 14px; }
+        .field { min-width: 0; }
+        .field label { display: block; font-size: 0.72rem; font-weight: 800; color: var(--navy); margin-bottom: 5px; }
+        .field.wide { grid-column: 1 / -1; }
+        .edit-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px dashed #e5d6a8; }
+
+        @media (min-width: 1100px) {
+            .list-head, .s-row:not(.editing) {
+                grid-template-columns: 34px 36px minmax(0, 2.1fr) 84px minmax(0, 1.25fr) 86px minmax(0, 1.2fr) minmax(0, 1.6fr) 96px;
+                grid-template-areas: "chk num name gender class code phone parent act";
+                column-gap: 12px; row-gap: 0;
+            }
+            .list-head {
+                display: grid; align-items: center; padding: 12px 16px;
+                background: var(--navy); color: rgba(255,255,255,0.92);
+                font-size: 0.76rem; font-weight: 700;
+                border-inline-start: 4px solid transparent;
+            }
+            .c-chk { padding-top: 0; align-self: center; }
+            .c-num { display: block; grid-area: num; color: var(--muted); font-size: 0.75rem; font-weight: 700; text-align: center; }
+            .c-meta, .c-contact { display: contents; }
+            .c-meta > .m-gender { grid-area: gender; }
+            .c-meta > .m-class { grid-area: class; display: flex; flex-wrap: wrap; gap: 4px; }
+            .c-meta > .m-code { grid-area: code; justify-self: start; }
+            .c-contact > .info { font-size: 0.8rem; }
+            .c-contact > .phone { grid-area: phone; }
+            .c-contact > .parent { grid-area: parent; flex-direction: column; align-items: flex-start; gap: 2px; }
+            .c-act { align-self: center; justify-self: end; }
+        }
 
         .gender-badge {
             display: inline-flex; align-items: center; gap: 5px;
@@ -237,10 +310,9 @@
         .bulk-gender-btn.female { background: var(--girl); }
         .bulk-gender-btn.clear { background: #94a3b8; }
         .bulk-gender-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .row-checkbox, #selectAllCheckbox { width: 17px; height: 17px; cursor: pointer; }
 
         .duplicate-scan-btn {
-            border: none; border-radius: var(--r-sm, 10px); padding: 10px 16px; font-size: 0.8rem; font-weight: 800;
+            min-height: 46px; justify-content: center; border: none; border-radius: var(--r-sm, 10px); padding: 10px 16px; font-size: 0.8rem; font-weight: 800;
             cursor: pointer; display: flex; align-items: center; gap: 8px; color: #fff;
             background: linear-gradient(135deg, var(--navy-light), var(--navy)); white-space: nowrap;
         }
@@ -272,7 +344,8 @@
         .dup-member small { color: var(--muted); display: block; margin-top: 2px; }
         .dup-empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 0.85rem; }
 
-        input, select { padding: 9px 12px; border-radius: var(--r-sm); border: 1.5px solid var(--line); font-family: 'Tajawal', sans-serif; font-size: 0.83rem; transition: 0.2s; width: 100%; background: var(--card); color: var(--ink); }
+        input[type=checkbox] { width: 18px; min-height: 0; padding: 0; }
+        input, select { min-height: 42px; font-size: 16px; padding: 9px 12px; border-radius: var(--r-sm); border: 1.5px solid var(--line); font-family: 'Tajawal', sans-serif; font-size: 0.83rem; transition: 0.2s; width: 100%; background: var(--card); color: var(--ink); }
         input:focus, select:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 3px rgba(201,166,86,0.15); }
         .password-wrapper { display: flex; align-items: center; gap: 6px; }
         .password-wrapper input { flex: 1; }
@@ -280,9 +353,12 @@
         .toggle-password:hover { background: var(--gold); color: white; }
 
         .btn-edit, .btn-save, .btn-delete, .btn-cancel {
-            border: none; padding: 8px 15px; border-radius: var(--r-pill); font-weight: 700; font-size: 0.76rem;
-            cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; margin: 2px;
+            border: none; min-height: 40px; min-width: 40px; padding: 0 14px; border-radius: var(--r-pill); font-weight: 700; font-size: 0.78rem;
+            font-family: 'Tajawal', sans-serif;
+            cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
         }
+        .c-act .btn-edit, .c-act .btn-delete { width: 40px; padding: 0; }
+        .c-act .btn-label { display: none; }
         .btn-edit { background: #e6f2ec; color: var(--success); } .btn-edit:hover { background: var(--success); color: white; }
         .btn-save { background: var(--success); color: white; box-shadow: 0 4px 12px rgba(31,122,82,0.25); } .btn-save:hover { background: #17603f; }
         .btn-delete { background: #fbeaea; color: var(--danger); } .btn-delete:hover { background: var(--danger); color: white; }
@@ -361,16 +437,20 @@
         .ios-toast-time { font-size: 0.66rem; color: #8a94a0; flex-shrink: 0; }
         .ios-toast-msg { font-size: 0.82rem; color: #1c2430; font-weight: 600; margin-top: 2px; line-height: 1.35; }
 
-        @media (max-width: 768px) {
-            .data-table, .data-table thead, .data-table tbody, .data-table th, .data-table td, .data-table tr { display: block; }
-            .data-table thead { display: none; }
-            .data-table tbody { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
-            .data-table tr { background: var(--card); border-radius: var(--r-md); padding: 16px; box-shadow: var(--shadow-sm); border: 1px solid var(--line); }
-            .data-table td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); text-align: right; }
-            .data-table td:last-child { border-bottom: none; padding-top: 12px; justify-content: flex-start; flex-wrap: wrap; }
-            .data-table td::before { content: attr(data-label); font-weight: 800; color: var(--navy); font-size: 0.75rem; min-width: 110px; }
-            .data-table td input, .data-table td select { width: auto; min-width: 150px; }
+        @media (max-width: 640px) {
+            .container { padding: 0 12px 40px; margin-top: 16px; }
+            .welcome-card { padding: 18px 18px; }
+            .search-input-wrap { min-width: 100%; }
+            .filter-select, .duplicate-scan-btn { flex: 1 1 100%; }
+            .segmented { width: 100%; }
+            .segmented-btn { flex: 1; justify-content: center; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .stats-grid .stat-card:first-child { grid-column: 1 / -1; }
+            .edit-grid { grid-template-columns: 1fr; }
+            .edit-actions > button { flex: 1; }
+            .list-toolbar { padding: 10px 14px; }
         }
+        html, body { overflow-x: hidden; }
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
         }
@@ -451,29 +531,17 @@
         </div>
     </div>
 
-    <div class="table-wrapper">
-        <table class="data-table" id="studentsTable">
-            <thead>
-                <tr>
-                    <th><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
-                    <th>#</th>
-                    <th>الاسم الكامل</th>
-                    <th>النوع</th>
-                    <th>اسم المستخدم</th>
-                    <th>كلمة المرور</th>
-                    <th>رقم الجلوس</th>
-                    <th>الصف</th>
-                    <th>الترم</th>
-                    <th>رقم الهاتف</th>
-                    <th>ولي الأمر</th>
-                    <th>رقم بطاقة ولي الأمر</th>
-                    <th>الإجراءات</th>
-                </tr>
-            </thead>
-            <tbody id="studentsTableBody">
-                <tr><td colspan="13" class="no-data"><i class="fas fa-spinner fa-pulse"></i>جاري تحميل البيانات...</td></tr>
-            </tbody>
-        </table>
+    <div class="list-wrap">
+        <div class="list-toolbar">
+            <span class="list-count" id="listCount" aria-live="polite">جاري التحميل...</span>
+            <label class="select-all-label"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"> تحديد الكل</label>
+        </div>
+        <div class="list-head" aria-hidden="true">
+            <span></span><span style="text-align:center">#</span><span>الاسم</span><span>النوع</span><span>الصف / الترم</span><span>رقم الجلوس</span><span>الهاتف</span><span>ولي الأمر</span><span></span>
+        </div>
+        <div id="studentsList" role="list">
+            <div class="no-data"><i class="fas fa-spinner fa-pulse"></i>جاري تحميل البيانات...</div>
+        </div>
     </div>
 </div>
 
@@ -602,10 +670,10 @@
     }
 
     function escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
+        if (str === null || str === undefined || str === '') return '';
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function togglePassword(btn, inputId) {
@@ -624,12 +692,13 @@
     };
 
     window.toggleSelectAll = function(checkboxEl) {
-        const rowBoxes = document.querySelectorAll('#studentsTableBody .row-checkbox');
+        const rowBoxes = document.querySelectorAll('#studentsList .row-checkbox');
         rowBoxes.forEach(box => {
             box.checked = checkboxEl.checked;
             const code = box.getAttribute('data-code');
             if (checkboxEl.checked) selectedCodes.add(code);
             else selectedCodes.delete(code);
+            box.closest('.s-row')?.classList.toggle('selected', checkboxEl.checked);
         });
         updateBulkBar();
     };
@@ -647,6 +716,7 @@
         if (!bar || !countEl) return;
         countEl.innerText = selectedCodes.size;
         bar.style.display = selectedCodes.size > 0 ? 'flex' : 'none';
+        syncSelectAll();
     }
 
     window.applyBulkGender = async function(gender) {
@@ -739,8 +809,17 @@
         return `<span class="gender-badge unknown"><i class="fas fa-question"></i> غير محدد</span>`;
     }
 
+    const GRADE_SHORT = { first: 'الأول', second: 'الثاني', third: 'الثالث' };
+    const GRADE_ICON = { first: 'fa-graduation-cap', second: 'fa-book', third: 'fa-star' };
+
+    let searchTimer = null;
+    function applyFiltersDebounced() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(applyFilters, 150);
+    }
+
     function applyFilters() {
-        const searchVal = document.getElementById('searchInput')?.value.toLowerCase() || '';
+        const searchVal = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
         const gradeVal = document.getElementById('gradeFilter')?.value || 'all';
 
         let filtered = allStudents;
@@ -749,106 +828,181 @@
                 (s.fullName || '').toLowerCase().includes(searchVal) ||
                 (s.username || '').toLowerCase().includes(searchVal) ||
                 (s.studentCode || '').toLowerCase().includes(searchVal) ||
-                (s.profile?.parentName || '').toLowerCase().includes(searchVal)
+                (s.profile?.parentName || '').toLowerCase().includes(searchVal) ||
+                (s.profile?.phone || '').includes(searchVal)
             );
         }
-        if (gradeVal !== 'all') {
-            filtered = filtered.filter(s => s.grade === gradeVal);
-        }
-        if (currentGenderFilter !== 'all') {
-            filtered = filtered.filter(s => s.gender === currentGenderFilter);
-        }
+        if (gradeVal !== 'all') filtered = filtered.filter(s => s.grade === gradeVal);
+        if (currentGenderFilter !== 'all') filtered = filtered.filter(s => s.gender === currentGenderFilter);
+
+        visibleCodes = filtered.map(s => s.studentCode);
         renderStudents(filtered);
         updateBulkBar();
     }
 
+    let visibleCodes = [];
+
+    function updateListCount(shown) {
+        const el = document.getElementById('listCount');
+        if (!el) return;
+        el.innerHTML = `عرض <b>${shown}</b> من <b>${allStudents.length}</b> طالب`;
+    }
+
+    function syncSelectAll() {
+        const box = document.getElementById('selectAllCheckbox');
+        if (!box) return;
+        const total = visibleCodes.length;
+        const selectedVisible = visibleCodes.filter(c => selectedCodes.has(c)).length;
+        box.checked = total > 0 && selectedVisible === total;
+        box.indeterminate = selectedVisible > 0 && selectedVisible < total;
+    }
+
+    function viewRowHTML(student, index) {
+        const code = escapeHtml(student.studentCode);
+        const isChecked = selectedCodes.has(student.studentCode);
+        const g = student.gender === 'male' ? 'g-male' : student.gender === 'female' ? 'g-female' : '';
+        const grade = student.grade;
+        const phone = student.profile?.phone;
+        const parentName = student.profile?.parentName;
+        const parentId = student.profile?.parentId;
+
+        return `
+        <div class="s-row ${g} ${isChecked ? 'selected' : ''}" role="listitem" data-code="${code}">
+            <div class="c-chk"><input type="checkbox" class="row-checkbox" data-code="${code}" aria-label="تحديد ${escapeHtml(student.fullName)}" ${isChecked ? 'checked' : ''}></div>
+            <div class="c-num">${index + 1}</div>
+            <div class="c-name"><b>${escapeHtml(student.fullName)}</b><small>@${escapeHtml(student.username)}</small></div>
+            <div class="c-meta">
+                <span class="m-gender">${genderBadge(student.gender)}</span>
+                <span class="m-class">
+                    <span class="chip"><i class="fas ${GRADE_ICON[grade] || 'fa-book'}"></i> ${GRADE_SHORT[grade] || '-'}</span>
+                    <span class="chip">الترم ${student.semester === 'second' ? 'الثاني' : 'الأول'}</span>
+                </span>
+                <span class="m-code chip code" title="رقم الجلوس"><i class="fas fa-hashtag"></i> ${code}</span>
+            </div>
+            <div class="c-contact">
+                ${phone
+                    ? `<a class="info phone" href="tel:${escapeHtml(phone)}"><i class="fas fa-phone"></i> ${escapeHtml(phone)}</a>`
+                    : `<span class="info phone empty"><i class="fas fa-phone"></i> -</span>`}
+                <span class="info parent ${parentName ? '' : 'empty'}">
+                    <span><i class="fas fa-user-shield"></i> ${escapeHtml(parentName || '-')}</span>
+                    ${parentId ? `<span class="pid"><i class="fas fa-id-card"></i> ${escapeHtml(parentId)}</span>` : ''}
+                </span>
+            </div>
+            <div class="c-act">
+                <button type="button" class="btn-edit" data-action="edit" data-code="${code}" title="تعديل" aria-label="تعديل ${escapeHtml(student.fullName)}"><i class="fas fa-edit"></i><span class="btn-label">تعديل</span></button>
+                <button type="button" class="btn-delete" data-action="delete" data-code="${code}" title="حذف" aria-label="حذف ${escapeHtml(student.fullName)}"><i class="fas fa-trash"></i><span class="btn-label">حذف</span></button>
+            </div>
+        </div>`;
+    }
+
+    function editRowHTML(student) {
+        const code = escapeHtml(student.studentCode);
+        const sc = student.studentCode;
+        const pwdId = `pwd-${sc}`;
+        return `
+        <div class="s-row editing" role="listitem" data-code="${code}">
+            <div class="edit-head"><i class="fas fa-user-pen"></i> تعديل بيانات الطالب</div>
+            <div class="edit-grid">
+                <div class="field wide"><label for="full-${code}">الاسم الكامل</label><input type="text" id="full-${code}" value="${escapeHtml(student.fullName)}" required></div>
+                <div class="field"><label for="user-${code}">اسم المستخدم</label><input type="text" id="user-${code}" value="${escapeHtml(student.username)}" required autocomplete="off"></div>
+                <div class="field"><label for="${escapeHtml(pwdId)}">كلمة المرور</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="${escapeHtml(pwdId)}" placeholder="اتركه فارغاً" autocomplete="new-password">
+                        <button type="button" class="toggle-password" data-action="toggle-pwd" data-target="${escapeHtml(pwdId)}" aria-label="إظهار كلمة المرور"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="field"><label for="code-${code}">رقم الجلوس</label><input type="text" id="code-${code}" value="${code}" maxlength="7" inputmode="numeric" required></div>
+                <div class="field"><label for="gender-${code}">النوع</label>
+                    <select id="gender-${code}">
+                        <option value="" ${!student.gender ? 'selected' : ''}>غير محدد</option>
+                        <option value="male" ${student.gender === 'male' ? 'selected' : ''}>👦 ولد</option>
+                        <option value="female" ${student.gender === 'female' ? 'selected' : ''}>👧 بنت</option>
+                    </select>
+                </div>
+                <div class="field"><label for="grade-${code}">الصف</label>
+                    <select id="grade-${code}">
+                        <option value="first" ${student.grade === 'first' ? 'selected' : ''}>🎓 الصف الأول</option>
+                        <option value="second" ${student.grade === 'second' ? 'selected' : ''}>📖 الصف الثاني</option>
+                        <option value="third" ${student.grade === 'third' ? 'selected' : ''}>📘 الصف الثالث</option>
+                    </select>
+                </div>
+                <div class="field"><label for="semester-${code}">الترم</label>
+                    <select id="semester-${code}">
+                        <option value="first" ${student.semester === 'second' ? '' : 'selected'}>الترم الأول</option>
+                        <option value="second" ${student.semester === 'second' ? 'selected' : ''}>الترم الثاني</option>
+                    </select>
+                </div>
+                <div class="field"><label for="phone-${code}">رقم الهاتف</label><input type="tel" id="phone-${code}" value="${escapeHtml(student.profile?.phone || '')}" placeholder="01xxxxxxxxx" inputmode="tel"></div>
+                <div class="field"><label for="parent-${code}">ولي الأمر</label><input type="text" id="parent-${code}" value="${escapeHtml(student.profile?.parentName || '')}" placeholder="اسم ولي الأمر"></div>
+                <div class="field"><label for="parentId-${code}">رقم بطاقة ولي الأمر</label><input type="text" id="parentId-${code}" value="${escapeHtml(student.profile?.parentId || '')}" placeholder="14 رقم" maxlength="14" inputmode="numeric"></div>
+            </div>
+            <div class="edit-actions">
+                <button type="button" class="btn-save" data-action="save" data-code="${code}"><i class="fas fa-save"></i> حفظ</button>
+                <button type="button" class="btn-cancel" data-action="cancel"><i class="fas fa-times"></i> إلغاء</button>
+            </div>
+        </div>`;
+    }
+
     function renderStudents(students) {
-        const tbody = document.getElementById('studentsTableBody');
-        if (!tbody) return;
+        const list = document.getElementById('studentsList');
+        if (!list) return;
+        updateListCount(students.length);
 
         if (students.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="13" class="no-data"><i class="fas fa-inbox"></i>لا يوجد طلاب مطابقين للبحث</td></tr>';
-            updateBulkBar();
+            list.innerHTML = '<div class="no-data"><i class="fas fa-inbox"></i>لا يوجد طلاب مطابقين للبحث</div>';
+            syncSelectAll();
             return;
         }
 
-        tbody.innerHTML = students.map((student, index) => {
-            const studentCode = student.studentCode;
-            const isEditing = (editingStudentCode === studentCode);
-            const pwdId = `pwd-${studentCode}`;
-
-            if (!isEditing) {
-                // وضع العرض
-                const isChecked = selectedCodes.has(studentCode);
-                return `
-                    <tr>
-                        <td data-label=""><input type="checkbox" class="row-checkbox" data-code="${escapeHtml(studentCode)}" ${isChecked ? 'checked' : ''} onchange="toggleSelectOne('${studentCode}', this)"></td>
-                        <td data-label="#">${index + 1}</td>
-                        <td data-label="الاسم"><b>${escapeHtml(student.fullName)}</b></td>
-                        <td data-label="النوع">${genderBadge(student.gender)}</td>
-                        <td data-label="المستخدم">${escapeHtml(student.username)}</td>
-                        <td data-label="كلمة المرور">••••••</td>
-                        <td data-label="رقم الجلوس">${escapeHtml(student.studentCode)}</td>
-                        <td data-label="الصف">${student.grade === 'first' ? '🎓 الأول' : student.grade === 'second' ? '📖 الثاني' : '📘 الثالث'}</td>
-                        <td data-label="الترم">${student.semester === 'second' ? 'الثاني' : 'الأول'}</td>
-                        <td data-label="الهاتف">${escapeHtml(student.profile?.phone || '-')}</td>
-                        <td data-label="ولي الأمر">${escapeHtml(student.profile?.parentName || '-')}</td>
-                        <td data-label="رقم البطاقة">${escapeHtml(student.profile?.parentId || '-')}</td>
-                        <td data-label="إجراءات">
-                            <button class="btn-edit" onclick="startEdit('${studentCode}')"><i class="fas fa-edit"></i> تعديل</button>
-                            <button class="btn-delete" onclick="deleteStudent('${studentCode}')"><i class="fas fa-trash"></i> حذف</button>
-                        </td>
-                    </tr>`;
-            } else {
-                // وضع التعديل
-                return `
-                    <tr style="background:#fdf9f0;">
-                        <td data-label=""></td>
-                        <td data-label="#">${index + 1}</td>
-                        <td data-label="الاسم"><input type="text" id="full-${studentCode}" value="${escapeHtml(student.fullName)}" required></td>
-                        <td data-label="النوع">
-                            <select id="gender-${studentCode}">
-                                <option value="" ${!student.gender ? 'selected' : ''}>غير محدد</option>
-                                <option value="male" ${student.gender === 'male' ? 'selected' : ''}>👦 ولد</option>
-                                <option value="female" ${student.gender === 'female' ? 'selected' : ''}>👧 بنت</option>
-                            </select>
-                        </td>
-                        <td data-label="المستخدم"><input type="text" id="user-${studentCode}" value="${escapeHtml(student.username)}" required></td>
-                        <td data-label="كلمة المرور">
-                            <div class="password-wrapper">
-                                <input type="password" id="${pwdId}" placeholder="اتركه فارغاً" autocomplete="new-password">
-                                <button type="button" class="toggle-password" onclick="togglePassword(this, '${pwdId}')"><i class="fas fa-eye"></i></button>
-                            </div>
-                        </td>
-                        <td data-label="رقم الجلوس"><input type="text" id="code-${studentCode}" value="${escapeHtml(student.studentCode)}" maxlength="7" required></td>
-                        <td data-label="الصف">
-                            <select id="grade-${studentCode}">
-                                <option value="first" ${student.grade === 'first' ? 'selected' : ''}>🎓 الصف الأول</option>
-                                <option value="second" ${student.grade === 'second' ? 'selected' : ''}>📖 الصف الثاني</option>
-                                <option value="third" ${student.grade === 'third' ? 'selected' : ''}>📘 الصف الثالث</option>
-                            </select>
-                        </td>
-                        <td data-label="الترم">
-                            <select id="semester-${studentCode}">
-                                <option value="first" ${student.semester === 'second' ? '' : 'selected'}>الترم الأول</option>
-                                <option value="second" ${student.semester === 'second' ? 'selected' : ''}>الترم الثاني</option>
-                            </select>
-                        </td>
-                        <td data-label="الهاتف"><input type="tel" id="phone-${studentCode}" value="${escapeHtml(student.profile?.phone || '')}" placeholder="01xxxxxxxxx"></td>
-                        <td data-label="ولي الأمر"><input type="text" id="parent-${studentCode}" value="${escapeHtml(student.profile?.parentName || '')}" placeholder="اسم ولي الأمر"></td>
-                        <td data-label="رقم البطاقة"><input type="text" id="parentId-${studentCode}" value="${escapeHtml(student.profile?.parentId || '')}" placeholder="14 رقم" maxlength="14"></td>
-                        <td data-label="إجراءات">
-                            <button class="btn-save" onclick="saveEdit('${studentCode}')"><i class="fas fa-save"></i> حفظ</button>
-                            <button class="btn-cancel" onclick="cancelEdit()"><i class="fas fa-times"></i> إلغاء</button>
-                        </td>
-                    </tr>`;
-            }
-        }).join('');
+        list.innerHTML = students.map((student, index) =>
+            editingStudentCode === student.studentCode ? editRowHTML(student) : viewRowHTML(student, index)
+        ).join('');
+        syncSelectAll();
     }
+
+    // ===== Events (delegation) =====
+    document.addEventListener('DOMContentLoaded', function() {
+        const list = document.getElementById('studentsList');
+
+        list.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const code = btn.getAttribute('data-code');
+            switch (btn.dataset.action) {
+                case 'edit': startEdit(code); break;
+                case 'delete': deleteStudent(code); break;
+                case 'save': saveEdit(code); break;
+                case 'cancel': cancelEdit(); break;
+                case 'toggle-pwd': togglePassword(btn, btn.dataset.target); break;
+            }
+        });
+
+        list.addEventListener('change', function(e) {
+            const box = e.target.closest('.row-checkbox');
+            if (!box) return;
+            toggleSelectOne(box.getAttribute('data-code'), box);
+            box.closest('.s-row')?.classList.toggle('selected', box.checked);
+        });
+
+        list.addEventListener('keydown', function(e) {
+            const row = e.target.closest('.s-row.editing');
+            if (!row) return;
+            if (e.key === 'Escape') { cancelEdit(); }
+            else if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+                e.preventDefault();
+                saveEdit(row.getAttribute('data-code'));
+            }
+        });
+    });
 
     window.startEdit = function(studentCode) {
         editingStudentCode = studentCode;
         applyFilters();
+        const row = document.querySelector('.s-row.editing');
+        if (row) {
+            row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            row.querySelector('input[type=text]')?.focus({ preventScroll: true });
+        }
     };
 
     window.cancelEdit = function() {
@@ -966,7 +1120,7 @@
 
     // ✅ البحث والتصفية
     document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('searchInput')?.addEventListener('input', applyFilters);
+        document.getElementById('searchInput')?.addEventListener('input', applyFiltersDebounced);
         document.getElementById('gradeFilter')?.addEventListener('change', applyFilters);
     });
 
