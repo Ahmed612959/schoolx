@@ -6,7 +6,8 @@
  *   require('./translate-routes')(app, { mongoose, rateLimit, verifyToken, isAdmin, connectToDatabase, Student });
  *
  * متغيرات البيئة (Vercel → Settings → Environment Variables):
- *   GEMINI_API_KEY          (إجباري)  مفتاح Gemini من Google AI Studio — على السيرفر بس، عمره ما يتكتب في الفرونت.
+ *   GEMINI_KEY_1، GEMINI_KEY_2، ...  (إجباري واحد على الأقل) مفاتيح Gemini من Google AI Studio، بأي اسم يبدأ بـ GEMINI_API_KEY أو GEMINI_KEY. الطلبات بتتوزّع بينهم وبيتحوّل تلقائي لو واحد فشل.
+ *   (اختياري) GROQ_KEY_1 + TR_GROQ_MODEL ، OPENROUTER_KEY_1 + TR_OPENROUTER_MODEL  احتياطي للنصوص بس
  *   TR_GEMINI_MODEL         (اختياري) الافتراضي gemini-flash-latest
  *   TR_FREE_DAILY_PAGES     (اختياري) الصفحات المجانية يوميًا — الافتراضي 3
  *   TR_FREE_DAILY_ACTIONS   (اختياري) عمليات شرح/MCQ/شات مجانية يوميًا — الافتراضي 10
@@ -446,13 +447,21 @@ const ADAPTERS = {
     anthropic: { stream: anthropicStream, gen: anthropicGen }
 };
 
-// ---------- مزودو البيئة (بدون قاعدة بيانات) ----------
-// GEMINI_API_KEY / GEMINI_API_KEYS (مفاتيح كتير بفاصلة) + TR_AI_PROVIDERS (JSON اختياري)
+// ---------- مزودو البيئة (المصدر الوحيد للمفاتيح) ----------
+// أي متغير في Vercel اسمه يبدأ بـ GEMINI_API_KEY أو GEMINI_KEY (مثلاً GEMINI_KEY_1 و GEMINI_KEY_2 و GEMINI_KEY_ALI) بيتحسب مفتاح Gemini.
+// ممكن المتغير الواحد يحتوي أكتر من مفتاح مفصولين بفاصلة. الطلبات بتتوزّع بين المفاتيح، ولو واحد فشل بنحوّل للتاني.
+// احتياطي اختياري: GROQ_KEY_* مع TR_GROQ_MODEL، و OPENROUTER_KEY_* مع TR_OPENROUTER_MODEL. وكمان TR_AI_PROVIDERS (JSON).
 function envProviders() {
-    const out = [], seen = new Set();
-    const keys = [process.env.GEMINI_API_KEY].concat(String(process.env.GEMINI_API_KEYS || '').split(','))
-        .map(s => (s || '').trim()).filter(k => k && !seen.has(k) && seen.add(k));
-    keys.forEach((k, i) => out.push({ id: `env-gemini-${i + 1}`, name: `Gemini (مفتاح البيئة ${i + 1})`, type: 'gemini', baseUrl: GEMINI_BASE, model: MODEL, key: k, vision: true, enabled: true, priority: i, source: 'env' }));
+    const out = [], seen = new Set(), names = Object.keys(process.env).sort();
+    const scan = (re, make) => names.forEach(n => {
+        if (!re.test(n)) return;
+        String(process.env[n] || '').split(',').map(x => x.trim()).filter(Boolean).forEach((k, j) => {
+            if (seen.has(k)) return; seen.add(k); make(n, k, j > 0 ? '#' + (j + 1) : '');
+        });
+    });
+    scan(/^GEMINI(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-gemini-${n}${sfx}`, name: `Gemini · ${n}${sfx}`, type: 'gemini', baseUrl: GEMINI_BASE, model: MODEL, key: k, vision: true, enabled: true, priority: 0, source: 'env' }));
+    if (process.env.TR_GROQ_MODEL) scan(/^GROQ(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-groq-${n}${sfx}`, name: `Groq · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: process.env.TR_GROQ_MODEL, key: k, vision: false, enabled: true, priority: 10, source: 'env' }));
+    if (process.env.TR_OPENROUTER_MODEL) scan(/^OPENROUTER(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-openrouter-${n}${sfx}`, name: `OpenRouter · ${n}${sfx}`, type: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: process.env.TR_OPENROUTER_MODEL, key: k, vision: false, enabled: true, priority: 20, source: 'env', noJsonMode: true }));
     try {
         const arr = JSON.parse(process.env.TR_AI_PROVIDERS || '[]');
         (Array.isArray(arr) ? arr : []).forEach((x, i) => {
@@ -526,25 +535,23 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
         try {
             [dbp, cfg, stats] = await Promise.all([TrAIProvider.find({}).lean(), TrAIConfig.findOne({ key: 'main' }).lean(), TrAIStat.find({}).lean()]);
         } catch (e) { console.error('ai config load failed:', e.message); }
-        const disabledEnv = new Set((cfg && cfg.disabledEnv) || []);
-        const env = envProviders().map(p => Object.assign(p, { enabled: !disabledEnv.has(p.id) }));
-        const db = (dbp || []).map(d => {
-            let key = ''; try { key = decKey(d.keyEnc); } catch (_) {}
-            return { id: String(d._id), name: d.name, type: d.type, baseUrl: d.baseUrl, model: d.model, key, vision: !!d.vision,
-                enabled: d.enabled !== false && !!key, priority: Number.isFinite(d.priority) ? d.priority : 100, source: 'db', noJsonMode: !!d.noJsonMode, keyBroken: !key };
-        });
+        const env = envProviders();
+        const db = []; // المفاتيح بتيجي من متغيرات البيئة بس
         const health = {}; (stats || []).forEach(s => { health[s.pid] = s; });
-        cache = { providers: env.concat(db), routes: (cfg && cfg.routes) || {}, health, disabledEnv: Array.from(disabledEnv) };
+        cache = { providers: env.concat(db), routes: {}, health, disabledEnv: [] };
         cacheAt = Date.now();
         return cache;
     }
     function buildChain(st, feature, vision) {
-        const byId = new Map(st.providers.map(p => [p.id, p]));
-        const route = st.routes && st.routes[feature];
-        let list = Array.isArray(route) && route.length
-            ? route.map(id => byId.get(id)).filter(Boolean)
-            : st.providers.slice().sort((a, b) => a.priority - b.priority);
-        list = list.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision));
+        const all = st.providers.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision));
+        // نفس الأولوية = توزيع عشوائي بين المفاتيح علشان الحمل يتقسم عليهم، والأقل أولوية بيتجرّب بعدهم
+        const groups = new Map(); all.forEach(p => { const k = p.priority; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+        const list = [];
+        Array.from(groups.keys()).sort((x, y) => x - y).forEach(k => {
+            const g = groups.get(k);
+            for (let i = g.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [g[i], g[j]] = [g[j], g[i]]; }
+            list.push(...g);
+        });
         const now = Date.now(), cooling = (p) => (st.health[p.id] && st.health[p.id].cooldownUntil > now);
         return list.filter(p => !cooling(p)).concat(list.filter(cooling)); // المريّحين في الآخر (لكن بنجربهم لو الباقي فشل)
     }
@@ -912,7 +919,7 @@ function registerTranslateRoutes(app, deps) {
                 return res.end();
             }
 
-            if (!(await ai.available('translate', true))) return res.status(503).json({ error: 'خدمة الترجمة مش مفعّلة حاليًا (مفيش مزود ذكاء اصطناعي بيدعم قراءة الصور)' });
+            if (!(await ai.available('translate', true))) return res.status(503).json({ error: 'خدمة الترجمة مش مفعّلة حاليًا (مفيش مفتاح Gemini على السيرفر، ضيف GEMINI_KEY_1 في Vercel)' });
 
             // --- الرصيد: قبل ما نبدأ بث أي حاجة (عشان نرجّع 402 واضحة) ---
             reservation = await reservePages(req.user, images.length);
@@ -1461,61 +1468,8 @@ function registerTranslateRoutes(app, deps) {
         try {
             await connectToDatabase(); ai.invalidate();
             const st = await ai.load();
-            res.json({ features: AI_FEATURES, routes: st.routes || {}, providers: st.providers.map(p => publicAI(p, st)), secretReady: !!secretKey(), model: MODEL });
+            res.json({ features: AI_FEATURES, routes: st.routes || {}, providers: st.providers.map(p => publicAI(p, st)), secretReady: true, model: MODEL });
         } catch (e) { console.error('ai admin get:', e.message); res.status(500).json({ error: 'خطأ في جلب إعدادات الذكاء الاصطناعي' }); }
-    });
-
-    app.post('/api/translate/admin/ai/providers', verifyToken, isAdmin, async (req, res) => {
-        try {
-            await connectToDatabase();
-            if ((await TrAIProvider.countDocuments({})) >= 20) return res.status(400).json({ error: 'الحد الأقصى 20 مزود' });
-            const d = readProviderBody(req.body || {}, false);
-            if (d.vision === undefined) d.vision = d.type !== 'openai';
-            if (d.priority === undefined) d.priority = 100;
-            const doc = await TrAIProvider.create(d);
-            ai.invalidate();
-            res.json({ success: true, id: String(doc._id) });
-        } catch (e) { if (!e.bad && e.code !== 'no_secret') console.error('ai add:', e.message); res.status(aiErrStatus(e)).json({ error: e.bad || e.code === 'no_secret' ? e.message : 'خطأ في إضافة المزود' }); }
-    });
-
-    app.patch('/api/translate/admin/ai/providers/:id', verifyToken, isAdmin, async (req, res) => {
-        try {
-            const id = String(req.params.id); await connectToDatabase();
-            if (id.startsWith('env-')) {   // مزودو البيئة: التفعيل والإيقاف بس
-                if (req.body && req.body.enabled !== undefined) {
-                    await TrAIConfig.updateOne({ key: 'main' }, req.body.enabled ? { $pull: { disabledEnv: id } } : { $addToSet: { disabledEnv: id } }, { upsert: true });
-                    ai.invalidate();
-                }
-                return res.json({ success: true });
-            }
-            if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'معرّف غير صالح' });
-            const cur = await TrAIProvider.findOne({ _id: id }).lean();
-            if (!cur) return res.status(404).json({ error: 'المزود مش موجود' });
-            const b = Object.assign({}, req.body || {});
-            if (b.type !== undefined && b.baseUrl === undefined) b.baseUrl = cur.baseUrl;
-            const d = readProviderBody(b, true);
-            if (!Object.keys(d).length) return res.status(400).json({ error: 'مفيش تعديل' });
-            await TrAIProvider.updateOne({ _id: id }, { $set: d });
-            ai.invalidate();
-            res.json({ success: true });
-        } catch (e) { if (!e.bad && e.code !== 'no_secret') console.error('ai patch:', e.message); res.status(aiErrStatus(e)).json({ error: e.bad || e.code === 'no_secret' ? e.message : 'خطأ في التعديل' }); }
-    });
-
-    app.delete('/api/translate/admin/ai/providers/:id', verifyToken, isAdmin, async (req, res) => {
-        try {
-            const id = String(req.params.id);
-            if (id.startsWith('env-')) return res.status(400).json({ error: 'مزود البيئة بيتشال من Environment Variables، تقدر توقفه بس' });
-            if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'معرّف غير صالح' });
-            await connectToDatabase();
-            await TrAIProvider.deleteOne({ _id: id });
-            await TrAIStat.deleteOne({ pid: id });
-            const cfg = await TrAIConfig.findOne({ key: 'main' }).lean();
-            if (cfg && cfg.routes) {
-                const routes = {}; Object.keys(cfg.routes).forEach(f => { routes[f] = (cfg.routes[f] || []).filter(x => x !== id); });
-                await TrAIConfig.updateOne({ key: 'main' }, { $set: { routes } });
-            }
-            ai.invalidate(); res.json({ success: true });
-        } catch (e) { console.error('ai delete:', e.message); res.status(500).json({ error: 'خطأ في الحذف' }); }
     });
 
     app.post('/api/translate/admin/ai/providers/:id/test', verifyToken, isAdmin, async (req, res) => {
@@ -1536,19 +1490,6 @@ function registerTranslateRoutes(app, deps) {
         } catch (e) { res.status(500).json({ error: 'خطأ' }); }
     });
 
-    app.put('/api/translate/admin/ai/routes', verifyToken, isAdmin, async (req, res) => {
-        try {
-            await connectToDatabase(); ai.invalidate();
-            const st = await ai.load(), known = new Set(st.providers.map(p => p.id));
-            const inRoutes = (req.body && req.body.routes) || {}, routes = {};
-            FEATURE_IDS.forEach(f => {
-                const list = Array.isArray(inRoutes[f]) ? inRoutes[f].filter(x => isId(x) && known.has(x)) : [];
-                routes[f] = Array.from(new Set(list)).slice(0, 12);
-            });
-            await TrAIConfig.updateOne({ key: 'main' }, { $set: { routes } }, { upsert: true });
-            ai.invalidate(); res.json({ success: true, routes });
-        } catch (e) { console.error('ai routes:', e.message); res.status(500).json({ error: 'خطأ في حفظ المسارات' }); }
-    });
 
     console.log('✅ translate-routes جاهزة (/api/translate/*)');
 }
