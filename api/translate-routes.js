@@ -383,6 +383,11 @@ async function openaiPost(p, stream, a, signal) {
         const detail = await errDetail(r, 'API');
         if (r.status === 400 || r.status === 422) {
             if (p.extra && /thinking|reasoning/i.test(detail) && Object.keys(p.extra).some(k => k in body)) { Object.keys(p.extra).forEach(k => delete body[k]); continue; }
+            if (/token/i.test(detail)) { // لو المزود رفض الطول وقال الحد الأقصى، نصغّر الطلب للحد ده ونعيد
+                const k = body.max_tokens != null ? 'max_tokens' : 'max_completion_tokens', cur = body[k];
+                const lim = Math.max(0, ...((detail.match(/\d{3,6}/g) || []).map(Number).filter(n => n >= 256 && n < cur)));
+                if (cur && lim) { body[k] = lim; continue; }
+            }
             if (/temperature/i.test(detail) && 'temperature' in body) { delete body.temperature; continue; }
             if (/response_format|json_object|json mode/i.test(detail) && body.response_format) { delete body.response_format; continue; }
             if (/max_tokens/i.test(detail) && body.max_tokens != null) { body.max_completion_tokens = body.max_tokens; delete body.max_tokens; continue; }
@@ -481,6 +486,17 @@ function envProviders() {
     // قراءة الصور بنموذج DeepSeek الجديد: TR_COMET_VISION_MODEL (مثلاً deepseek-v4-flash-vision-exp) — بيتجرّب بعد مفاتيح Gemini (أولوية 5)، غيّرها بـ TR_COMET_VISION_PRIORITY (-5 = الأول)
     if (process.env.TR_COMET_VISION_MODEL) scan(/^COMET(API)?_(API_)?KEY/i, (n, k, sfx) => out.push({ id: `env-comet-vision-${n}${sfx}`, name: `CometAPI صور · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.cometapi.com/v1', model: process.env.TR_COMET_VISION_MODEL, key: k, vision: true, visionOnly: true, enabled: true,
         priority: Number.isFinite(Number(process.env.TR_COMET_VISION_PRIORITY)) && process.env.TR_COMET_VISION_PRIORITY !== '' ? Number(process.env.TR_COMET_VISION_PRIORITY) : 5, source: 'env', extra: { thinking: { type: 'disabled' } } }), true);
+    // موديلات إضافية على نفس مفتاح CometAPI: TR_COMET_MODEL_2 (مثلاً gpt-6-luna) و TR_COMET_MODEL_3.
+    //   _VISION=on|off (افتراضي on = بيقرا صور) ، _PRIORITY أولوية قراءة الصور ، _TEXT_PRIORITY أولوية النصوص ، _REASONING=low|medium|high|minimal|off (افتراضي low)
+    //   الافتراضي للموديل 2: الأول في قراءة الصور (-10) واحتياطي في النصوص (8) ، وللموديل 3: احتياطي (8) في الاتنين.
+    ['2', '3'].forEach(i => {
+        const m = process.env['TR_COMET_MODEL_' + i]; if (!m) return;
+        const num = (k, d) => { const v = process.env['TR_COMET_MODEL_' + i + k]; return v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d; };
+        const vis = String(process.env['TR_COMET_MODEL_' + i + '_VISION'] || 'on').toLowerCase() !== 'off';
+        const rs = String(process.env['TR_COMET_MODEL_' + i + '_REASONING'] || 'low').toLowerCase();
+        scan(/^COMET(API)?_(API_)?KEY/i, (n, k, sfx) => out.push({ id: `env-comet-m${i}-${n}${sfx}`, name: `CometAPI · ${m} · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.cometapi.com/v1', model: m, key: k, vision: vis, enabled: true,
+            priority: num('_PRIORITY', i === '2' ? -10 : 8), textPriority: num('_TEXT_PRIORITY', 8), source: 'env', extra: rs === 'off' ? null : { reasoning_effort: rs } }), true);
+    });
     if (process.env.TR_GROQ_MODEL) scan(/^GROQ(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-groq-${n}${sfx}`, name: `Groq · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: process.env.TR_GROQ_MODEL, key: k, vision: false, enabled: true, priority: 10, source: 'env' }));
     if (process.env.TR_OPENROUTER_MODEL) scan(/^OPENROUTER(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-openrouter-${n}${sfx}`, name: `OpenRouter · ${n}${sfx}`, type: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: process.env.TR_OPENROUTER_MODEL, key: k, vision: false, enabled: true, priority: 20, source: 'env', noJsonMode: true }));
     try {
@@ -566,7 +582,7 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
     function buildChain(st, feature, vision) {
         const all = st.providers.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision) && (vision || !p.visionOnly));
         // نفس الأولوية = توزيع عشوائي بين المفاتيح علشان الحمل يتقسم عليهم، والأقل أولوية بيتجرّب بعدهم
-        const groups = new Map(); all.forEach(p => { const k = p.priority; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+        const groups = new Map(); all.forEach(p => { const k = (!vision && p.textPriority != null) ? p.textPriority : p.priority; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
         const list = [];
         Array.from(groups.keys()).sort((x, y) => x - y).forEach(k => {
             const g = groups.get(k);
