@@ -374,13 +374,15 @@ async function openaiPost(p, stream, a, signal) {
     if (isOpenAIHost(p.baseUrl)) body.max_completion_tokens = a.maxTokens; else body.max_tokens = a.maxTokens;
     if (a.temperature != null) body.temperature = a.temperature;
     if (a.json && !p.noJsonMode) body.response_format = { type: 'json_object' };
-    for (let pass = 0; pass < 4; pass++) {
+    if (p.extra) Object.assign(body, p.extra);
+    for (let pass = 0; pass < 5; pass++) {
         const r = await fetchWithRetry(url, {
             method: 'POST', headers: { Authorization: 'Bearer ' + p.key, 'Content-Type': 'application/json' }, signal, body: JSON.stringify(body)
         }, a.retries);
         if (r.ok) return r;
         const detail = await errDetail(r, 'API');
         if (r.status === 400 || r.status === 422) {
+            if (p.extra && /thinking|reasoning/i.test(detail) && Object.keys(p.extra).some(k => k in body)) { Object.keys(p.extra).forEach(k => delete body[k]); continue; }
             if (/temperature/i.test(detail) && 'temperature' in body) { delete body.temperature; continue; }
             if (/response_format|json_object|json mode/i.test(detail) && body.response_format) { delete body.response_format; continue; }
             if (/max_tokens/i.test(detail) && body.max_tokens != null) { body.max_completion_tokens = body.max_tokens; delete body.max_tokens; continue; }
@@ -461,13 +463,24 @@ const ADAPTERS = {
 // احتياطي اختياري: GROQ_KEY_* مع TR_GROQ_MODEL، و OPENROUTER_KEY_* مع TR_OPENROUTER_MODEL. وكمان TR_AI_PROVIDERS (JSON).
 function envProviders() {
     const out = [], seen = new Set(), names = Object.keys(process.env).sort();
-    const scan = (re, make) => names.forEach(n => {
+    const scan = (re, make, dup) => names.forEach(n => {
         if (!re.test(n)) return;
         String(process.env[n] || '').split(',').map(x => x.trim()).filter(Boolean).forEach((k, j) => {
-            if (seen.has(k)) return; seen.add(k); make(n, k, j > 0 ? '#' + (j + 1) : '');
+            if (!dup && seen.has(k)) return; seen.add(k); make(n, k, j > 0 ? '#' + (j + 1) : '');
         });
     });
     scan(/^GEMINI(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-gemini-${n}${sfx}`, name: `Gemini · ${n}${sfx}`, type: 'gemini', baseUrl: GEMINI_BASE, model: MODEL, key: k, vision: true, enabled: true, priority: 0, source: 'env' }));
+    // CometAPI (متوافق مع OpenAI): COMETAPI_KEY أو COMET_KEY_1 ... — بيشتغل للنصوص بس (شرح/أسئلة/شات/ملخص/تعريف) وبيتجرّب الأول لتوفير حصة Gemini للصور.
+    // TR_COMET_MODEL (افتراضي deepseek-v4-flash) ، TR_COMET_THINKING=on|off (افتراضي off لسرعة أعلى) ، TR_COMET_PRIORITY (افتراضي -5 يعني الأول؛ حط 30 لو عايزه احتياطي)
+    scan(/^COMET(API)?_(API_)?KEY/i, (n, k, sfx) => {
+        const think = String(process.env.TR_COMET_THINKING || 'off').toLowerCase() === 'on';
+        out.push({ id: `env-comet-${n}${sfx}`, name: `CometAPI · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.cometapi.com/v1', model: process.env.TR_COMET_MODEL || 'deepseek-v4-flash', key: k, vision: false, enabled: true,
+            priority: Number.isFinite(Number(process.env.TR_COMET_PRIORITY)) && process.env.TR_COMET_PRIORITY !== '' ? Number(process.env.TR_COMET_PRIORITY) : -5, source: 'env',
+            extra: think ? { thinking: { type: 'enabled' }, reasoning_effort: 'high' } : { thinking: { type: 'disabled' } } });
+    });
+    // قراءة الصور بنموذج DeepSeek الجديد: TR_COMET_VISION_MODEL (مثلاً deepseek-v4-flash-vision-exp) — بيتجرّب بعد مفاتيح Gemini (أولوية 5)، غيّرها بـ TR_COMET_VISION_PRIORITY (-5 = الأول)
+    if (process.env.TR_COMET_VISION_MODEL) scan(/^COMET(API)?_(API_)?KEY/i, (n, k, sfx) => out.push({ id: `env-comet-vision-${n}${sfx}`, name: `CometAPI صور · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.cometapi.com/v1', model: process.env.TR_COMET_VISION_MODEL, key: k, vision: true, visionOnly: true, enabled: true,
+        priority: Number.isFinite(Number(process.env.TR_COMET_VISION_PRIORITY)) && process.env.TR_COMET_VISION_PRIORITY !== '' ? Number(process.env.TR_COMET_VISION_PRIORITY) : 5, source: 'env', extra: { thinking: { type: 'disabled' } } }), true);
     if (process.env.TR_GROQ_MODEL) scan(/^GROQ(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-groq-${n}${sfx}`, name: `Groq · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: process.env.TR_GROQ_MODEL, key: k, vision: false, enabled: true, priority: 10, source: 'env' }));
     if (process.env.TR_OPENROUTER_MODEL) scan(/^OPENROUTER(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-openrouter-${n}${sfx}`, name: `OpenRouter · ${n}${sfx}`, type: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: process.env.TR_OPENROUTER_MODEL, key: k, vision: false, enabled: true, priority: 20, source: 'env', noJsonMode: true }));
     try {
@@ -503,7 +516,7 @@ const maskKey = (k) => (!k ? '' : k.length > 12 ? k.slice(0, 4) + '…' + k.slic
 function cooldownFor(e) {
     const st = e && e.status;
     if (e && e.code === 'ai_timeout') return 30000;
-    if (st === 429) return 60000;
+    if (st === 429) { const m = String((e && e.message) || ''); return (/per.?day|daily|current quota|billing/i.test(m) && !/per.?minute/i.test(m)) ? 30 * 60000 : 60000; } // خلصت حصة اليوم = راحة نص ساعة
     if (st === 401 || st === 403 || st === 404) return 15 * 60000;
     if (st >= 500) return 30000;
     if (st == null && !['ai_bad_response', 'ai_bad_json'].includes(e && e.code)) return 30000; // خطأ شبكة
@@ -522,7 +535,7 @@ function aiErr(e) {
     let msg = raw;
     if (e && e.code === 'ai_unavailable') msg = 'مفيش مزود ذكاء اصطناعي متفعّل للجزء ده على السيرفر';
     else if (e && e.code === 'ai_timeout') msg = 'الذكاء الاصطناعي اتأخر في الرد، جرب تاني';
-    else if (st === 429) msg = 'ضغط كبير على الذكاء الاصطناعي دلوقتي، جرب تاني بعد دقيقة';
+    else if (st === 429 || /quota|rate.?limit|resource.?exhausted/i.test(raw)) msg = 'الذكاء الاصطناعي عليه ضغط كبير دلوقتي أو الحصة المجانية خلصت، جرب تاني بعد شوية';
     else if (st === 401 || st === 403 || /api key/i.test(raw)) msg = 'مفتاح الذكاء الاصطناعي على السيرفر غير صالح أو متوقف';
     else if (st === 404) msg = 'موديل الذكاء الاصطناعي غير موجود، راجع إعدادات السيرفر';
     else if (st >= 500) msg = 'خدمة الذكاء الاصطناعي واقفة مؤقتًا، جرب تاني';
@@ -551,7 +564,7 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
         return cache;
     }
     function buildChain(st, feature, vision) {
-        const all = st.providers.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision));
+        const all = st.providers.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision) && (vision || !p.visionOnly));
         // نفس الأولوية = توزيع عشوائي بين المفاتيح علشان الحمل يتقسم عليهم، والأقل أولوية بيتجرّب بعدهم
         const groups = new Map(); all.forEach(p => { const k = p.priority; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
         const list = [];
