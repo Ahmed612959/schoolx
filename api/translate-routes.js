@@ -231,8 +231,8 @@ const AI_FEATURES = [
 ];
 const FEATURE_IDS = AI_FEATURES.map(f => f.id);
 const AI_TYPES = ['gemini', 'openai', 'anthropic'];
-const AI_TIMEOUT_MS = Number(process.env.TR_AI_TIMEOUT_MS) || 28000;        // مهلة المحاولة الواحدة (بدون بث)
-const AI_FIRST_BYTE_MS = Number(process.env.TR_AI_FIRST_BYTE_MS) || 22000;  // مهلة أول رد في البث
+const AI_TIMEOUT_MS = Number(process.env.TR_AI_TIMEOUT_MS) || 40000;        // مهلة المحاولة الواحدة (بدون بث)
+const AI_FIRST_BYTE_MS = Number(process.env.TR_AI_FIRST_BYTE_MS) || 32000;  // مهلة أول رد في البث
 const AI_IDLE_MS = 30000;                                                    // مهلة السكون بين أجزاء البث
 const AI_BUDGET_MS = Number(process.env.TR_AI_BUDGET_MS) || 50000;          // بعد الوقت ده مش بنبدأ مزود جديد (حد Vercel 60 ثانية)
 
@@ -303,7 +303,15 @@ const finishMap = (r) => ({ length: 'MAX_TOKENS', max_tokens: 'MAX_TOKENS', stop
 
 // ---------- Gemini ----------
 const geminiUrl = (p, stream) => `${(p.baseUrl || GEMINI_BASE).replace(/\/+$/, '')}/models/${encodeURIComponent(p.model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
-function geminiBody(a) {
+// التفكير: Gemini 3.x بيستخدم thinkingLevel (والـ 3.5 Flash بيفكّر "medium" افتراضيًا وده بطيء)، و 2.x بيستخدم thinkingBudget.
+// TR_GEMINI_THINKING = minimal (افتراضي) | low | medium | high | off
+function geminiThinking(p) {
+    const mode = String(process.env.TR_GEMINI_THINKING || 'minimal').toLowerCase();
+    if (!THINK.off || mode === 'off') return {};
+    if (/gemini-(1|2)\./.test(p.model || '')) return { thinkingConfig: { thinkingBudget: 0 } };
+    return { thinkingConfig: { thinkingLevel: ['minimal', 'low', 'medium', 'high'].includes(mode) ? mode : 'minimal' } };
+}
+function geminiBody(p, a) {
     return JSON.stringify({
         system_instruction: { parts: [{ text: a.system }] },
         contents: a.contents,
@@ -311,14 +319,14 @@ function geminiBody(a) {
         generationConfig: Object.assign(
             { maxOutputTokens: a.maxTokens, temperature: a.temperature },
             a.json ? { responseMimeType: 'application/json' } : {},
-            THINK.off ? { thinkingConfig: { thinkingBudget: 0 } } : {}
+            geminiThinking(p)
         )
     });
 }
 async function geminiPost(p, stream, a, signal) {
     for (let pass = 0; pass < 2; pass++) {
         const r = await fetchWithRetry(geminiUrl(p, stream), {
-            method: 'POST', headers: { 'x-goog-api-key': p.key, 'Content-Type': 'application/json' }, signal, body: geminiBody(a)
+            method: 'POST', headers: { 'x-goog-api-key': p.key, 'Content-Type': 'application/json' }, signal, body: geminiBody(p, a)
         }, a.retries);
         if (r.ok) return r;
         const detail = await errDetail(r, 'Gemini');
