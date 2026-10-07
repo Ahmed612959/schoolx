@@ -1505,7 +1505,8 @@ function registerTranslateRoutes(app, deps) {
         try {
             await connectToDatabase(); ai.invalidate();
             const st = await ai.load();
-            res.json({ features: AI_FEATURES, routes: st.routes || {}, providers: st.providers.map(p => publicAI(p, st)), secretReady: true, model: MODEL });
+            res.json({ features: AI_FEATURES, routes: st.routes || {}, providers: st.providers.map(p => publicAI(p, st)), secretReady: true, model: MODEL,
+                envSeen: Object.keys(process.env).filter(n => /KEY|COMET|GEMINI|GROQ|OPENROUTER|^TR_/i.test(n) && !/SECRET|TOKEN|PASS|MONGO|JWT/i.test(n)).sort() }); // أسماء المتغيرات بس (من غير قيم) للتشخيص
         } catch (e) { console.error('ai admin get:', e.message); res.status(500).json({ error: 'خطأ في جلب إعدادات الذكاء الاصطناعي' }); }
     });
 
