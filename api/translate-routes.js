@@ -227,7 +227,9 @@ const AI_FEATURES = [
     { id: 'chat', label: 'شات اسأل عن الصفحة' },
     { id: 'quiz', label: 'الأسئلة والامتحان' },
     { id: 'summary', label: 'ملخص الفصل' },
-    { id: 'define', label: 'معاني المصطلحات' }
+    { id: 'define', label: 'معاني المصطلحات' },
+    { id: 'mindmap', label: 'الخريطة الذهنية' },
+    { id: 'correct', label: 'تصحيح الترجمة' }
 ];
 const FEATURE_IDS = AI_FEATURES.map(f => f.id);
 const AI_TYPES = ['gemini', 'openai', 'anthropic'];
@@ -679,7 +681,7 @@ const aiStatus = (e) => (e.code === 'ai_unavailable' ? 503 : 502);
 
 // ====================== التركيب ======================
 function registerTranslateRoutes(app, deps) {
-    const { mongoose, rateLimit, verifyToken, isAdmin, connectToDatabase, Student } = deps;
+    const { mongoose, rateLimit, verifyToken, isAdmin, connectToDatabase, Student, sendPushToUser } = deps;
     const { Schema } = mongoose;
     const model = (name, schema) => mongoose.models[name] || mongoose.model(name, schema);
 
@@ -717,7 +719,8 @@ function registerTranslateRoutes(app, deps) {
         items: { type: Schema.Types.Mixed, default: [] },
         highlights: { type: Schema.Types.Mixed, default: {} },
         blockNotes: { type: Schema.Types.Mixed, default: {} },
-        quiz: { type: Schema.Types.Mixed, default: null }
+        quiz: { type: Schema.Types.Mixed, default: null },
+        mindmap: { type: Schema.Types.Mixed, default: null }
     }, { timestamps: true });
     historySchema.index({ username: 1, createdAt: -1 });
     const TrHistory = model('TrHistory', historySchema);
@@ -1528,6 +1531,11 @@ function registerTranslateRoutes(app, deps) {
         } catch (e) { res.status(500).json({ error: 'خطأ' }); }
     });
 
+
+    // ---------- مميزات إضافية: إحصائيات/ستريك/مجموعات/خريطة ذهنية/اسأل كتابك/تصحيح/تذكير (ملف translate-extras.js) ----------
+    try {
+        require('./translate-extras')(app, { mongoose, Student, verifyToken, apiLimiter, connectToDatabase, ai, reserveAction, refundAction, actionDenied, str, cleanChat, aiErr, aiStatus, TrHistory, sendPushToUser });
+    } catch (e) { console.error('❌ translate-extras فشل التحميل:', e && e.message); }
 
     console.log('✅ translate-routes جاهزة (/api/translate/*)');
 }

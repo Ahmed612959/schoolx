@@ -15336,7 +15336,7 @@ app.delete('/api/exam-msn/:id', verifyToken, isAdmin, async (req, res) => {
 });
 // مترجم الصفحات الطبية — لو الملف ناقص أو فيه خطأ، باقي السيرفر يفضل شغال والخطأ يظهر في Logs
 try {
-    require('./translate-routes')(app, { mongoose, rateLimit, verifyToken, isAdmin, connectToDatabase, Student });
+    require('./translate-routes')(app, { mongoose, rateLimit, verifyToken, isAdmin, connectToDatabase, Student, sendPushToUser });
 } catch (e) {
     console.error('❌ translate-routes فشل التحميل:', e && e.message);
 }
