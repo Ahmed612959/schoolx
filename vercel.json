@@ -1,7 +1,7 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/index.js", "use": "@vercel/node" },
+    { "src": "api/index.js", "use": "@vercel/node", "config": { "maxDuration": 60 } },
     { "src": "public/**", "use": "@vercel/static" }
   ],
   "routes": [
@@ -15,5 +15,8 @@
         { "key": "Access-Control-Allow-Origin", "value": "*" }
       ]
     }
+  ],
+  "crons": [
+    { "path": "/api/translate/cron/reminders?all=1", "schedule": "0 15 * * *" }
   ]
 }
