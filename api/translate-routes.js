@@ -1836,7 +1836,7 @@ function registerTranslateRoutes(app, deps) {
     });
 
     // ---------- أجزاء كانت مجانية وبقت للمشتركين بس (تتغيّر بـ TR_PRO_ONLY، وفاضي = الكل مجاني) ----------
-    const PRO_ONLY = String(process.env.TR_PRO_ONLY === undefined ? 'mindmap,correct,ask-all' : process.env.TR_PRO_ONLY).split(',').map(x => x.trim()).filter(Boolean);
+    const PRO_ONLY = String(process.env.TR_PRO_ONLY === undefined ? '' : process.env.TR_PRO_ONLY).split(',').map(x => x.trim()).filter(Boolean);
     if (PRO_ONLY.length) {
         app.use(PRO_ONLY.map(x => '/api/translate/' + x), verifyToken, async (req, res, next) => {
             if (req.method !== 'POST') return next();

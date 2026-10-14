@@ -87,7 +87,9 @@ const ASK_SYSTEM = `You are a sharp, friendly nursing tutor answering an Egyptia
 Answer in simple Egyptian Arabic, keep medical terms in English in parentheses, and mention which chapter/page title the information came from. If the excerpts do not contain the answer, say so honestly and do not invent. Use short paragraphs or simple lists. No markdown headers.`;
 
 module.exports = function registerExtras(app, ctx) {
-    const { mongoose, Student, verifyToken, apiLimiter, connectToDatabase, ai, reserveAction, refundAction, actionDenied, str, cleanChat, aiErr, aiStatus, TrHistory, sendPushToUser } = ctx;
+    const { mongoose, Student, verifyToken, apiLimiter, connectToDatabase, ai, reserveAction, refundAction, actionDenied, str, cleanChat, aiErr, aiStatus, TrHistory, sendPushToUser, premiumFor } = ctx;
+    // الخريطة الذهنية و«اسأل كتابك» و«صحّح ترجمتي» للمشتركين بس، وبتشتغل بموديلات Premium (ومنها الموديل اللي المشترك اختاره)
+    const proOnly = (res) => res.status(403).json({ error: 'الميزة دي للمشتركين في الباقة بس', code: 'premium_only' });
     const { Schema } = mongoose;
     const model = (name, schema) => mongoose.models[name] || mongoose.model(name, schema);
 
@@ -209,11 +211,12 @@ module.exports = function registerExtras(app, ctx) {
         try {
             const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 500) : [];
             const text = items.filter((i) => i && i.en).map((i) => str(i.en, 1500) + (i.ar ? '\n' + str(i.ar, 1500) : '')).join('\n\n').slice(0, 22000);
-            if (text.length < 120) return res.status(400).json({ error: 'المحتوى قليل لعمل خريطة ذهنية' });
             await connectToDatabase();
+            const pro = await premiumFor(req.user); if (!pro) return proOnly(res);
+            if (text.length < 120) return res.status(400).json({ error: 'المحتوى قليل لعمل خريطة ذهنية' });
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await ai.generate('mindmap', { system: MINDMAP_SYSTEM, json: true, maxTokens: 4000, temperature: 0.3, contents: [{ role: 'user', parts: [{ text }] }] });
+            const r = await ai.generate('mindmap', { premium: pro, system: MINDMAP_SYSTEM, json: true, maxTokens: 4000, temperature: 0.3, contents: [{ role: 'user', parts: [{ text }] }] });
             const branches = (Array.isArray(r.branches) ? r.branches : []).map((b) => ({ t: cleanLabel(b && b.t, 70), kids: (Array.isArray(b && b.kids) ? b.kids : []).map((k) => cleanLabel(k, 90)).filter(Boolean).slice(0, 5) })).filter((b) => b.t).slice(0, 7);
             if (branches.length < 2) { await refundAction(req.user, day); return res.status(502).json({ error: 'مقدرتش أعمل الخريطة، جرب تاني' }); }
             const out = { title: cleanLabel(r.title, 80) || 'خريطة ذهنية', branches };
@@ -231,6 +234,7 @@ module.exports = function registerExtras(app, ctx) {
             const question = str(req.body && req.body.question, 800);
             if (question.length < 3) return res.status(400).json({ error: 'اكتب سؤالك' });
             await connectToDatabase();
+            const pro = await premiumFor(req.user); if (!pro) return proOnly(res);
             const q = { username: req.user.username };
             if (req.body.folder) q.folder = str(String(req.body.folder), 60);
             const docs = await TrHistory.find(q).sort({ createdAt: -1 }).limit(150).select('title items').lean();
@@ -243,7 +247,7 @@ module.exports = function registerExtras(app, ctx) {
             const hist = (Array.isArray(req.body.history) ? req.body.history : []).slice(-6).map((m) => ({ role: m && m.role === 'model' ? 'model' : 'user', parts: [{ text: str(m && m.text, 2000) || '.' }] }));
             while (hist.length && hist[0].role !== 'user') hist.shift();
             const contents = [{ role: 'user', parts: [{ text: `EXCERPTS:\n"""\n${ctxText}\n"""` }] }, { role: 'model', parts: [{ text: 'تمام، قريت مقتطفاتك. اسأل.' }] }].concat(hist, [{ role: 'user', parts: [{ text: question }] }]);
-            const answer = cleanChat(await ai.generate('chat', { system: ASK_SYSTEM, contents, maxTokens: 6000, temperature: 0.3 })).slice(0, 8000);
+            const answer = cleanChat(await ai.generate('chat', { premium: pro, system: ASK_SYSTEM, contents, maxTokens: 6000, temperature: 0.3 })).slice(0, 8000);
             if (!answer) { await refundAction(req.user, day); return res.status(502).json({ error: 'الذكاء الاصطناعي مرجّعش رد، جرب تاني' }); }
             const seen = new Set(), sources = [];
             picked.forEach((c) => { if (!seen.has(c.id) && sources.length < 5) { seen.add(c.id); sources.push({ id: c.id, title: c.title }); } });
@@ -260,9 +264,10 @@ module.exports = function registerExtras(app, ctx) {
             if (en.length < 8) return res.status(400).json({ error: 'مفيش نص إنجليزي للمقارنة' });
             if (mine.length < 5) return res.status(400).json({ error: 'اكتب ترجمتك الأول' });
             await connectToDatabase();
+            const pro = await premiumFor(req.user); if (!pro) return proOnly(res);
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await ai.generate('correct', { system: CORRECT_SYSTEM, json: true, maxTokens: 4000, temperature: 0.2, contents: [{ role: 'user', parts: [{ text: `ENGLISH PASSAGE:\n${en}\n\nSTUDENT'S ARABIC TRANSLATION:\n${mine}` }] }] });
+            const r = await ai.generate('correct', { premium: pro, system: CORRECT_SYSTEM, json: true, maxTokens: 4000, temperature: 0.2, contents: [{ role: 'user', parts: [{ text: `ENGLISH PASSAGE:\n${en}\n\nSTUDENT'S ARABIC TRANSLATION:\n${mine}` }] }] });
             const score = Math.max(0, Math.min(100, Math.round(Number(r.score)) || 0));
             const list = (v, n, m) => (Array.isArray(v) ? v.map((x) => cleanChat(str(String(x || ''), m))).filter(Boolean).slice(0, n) : []);
             const out = {
