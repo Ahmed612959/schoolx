@@ -229,9 +229,25 @@ const AI_FEATURES = [
     { id: 'summary', label: 'ملخص الفصل' },
     { id: 'define', label: 'معاني المصطلحات' },
     { id: 'mindmap', label: 'الخريطة الذهنية' },
-    { id: 'correct', label: 'تصحيح الترجمة' }
+    { id: 'correct', label: 'تصحيح الترجمة' },
+    // ===== أدوات المشتركين (translate-pro.js) =====
+    { id: 'tutor', label: 'المعلّم الذكي' },
+    { id: 'notes', label: 'ملاحظات كورنيل' },
+    { id: 'mnemonic', label: 'حيل الحفظ' },
+    { id: 'case', label: 'الحالة الإكلينيكية' },
+    { id: 'careplan', label: 'خطة الرعاية التمريضية' },
+    { id: 'drugs', label: 'كروت الأدوية' },
+    { id: 'abbr', label: 'الاختصارات والقيم المعملية' },
+    { id: 'quizx', label: 'أسئلة متنوعة وتصحيح المقالي' },
+    { id: 'procedure', label: 'قائمة الإجراء التمريضي' },
+    { id: 'handout', label: 'نشرة توعية المريض' },
+    { id: 'compare', label: 'جدول المقارنة' },
+    { id: 'review', label: 'مراجعة جودة الترجمة' },
+    { id: 'planner', label: 'خطة المذاكرة' }
 ];
 const FEATURE_IDS = AI_FEATURES.map(f => f.id);
+// الأجزاء اللي المشترك بياخد فيها موديلات Premium (الافتراضي كلها). لتحديد أجزاء بعينها: TR_PREMIUM_FEATURES=translate,explain,chat
+const PREMIUM_FEATURES = new Set(String(process.env.TR_PREMIUM_FEATURES || FEATURE_IDS.join(',')).split(',').map(x => x.trim()).filter(Boolean));
 const AI_TYPES = ['gemini', 'openai', 'anthropic'];
 const AI_TIMEOUT_MS = Number(process.env.TR_AI_TIMEOUT_MS) || 40000;        // مهلة المحاولة الواحدة (بدون بث)
 const AI_FIRST_BYTE_MS = Number(process.env.TR_AI_FIRST_BYTE_MS) || 32000;  // مهلة أول رد في البث
@@ -499,6 +515,25 @@ function envProviders() {
         scan(/^COMET(API)?_(API_)?KEY/i, (n, k, sfx) => out.push({ id: `env-comet-m${i}-${n}${sfx}`, name: `CometAPI · ${m} · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.cometapi.com/v1', model: m, key: k, vision: vis, enabled: true,
             priority: num('_PRIORITY', i === '2' ? -10 : 8), textPriority: num('_TEXT_PRIORITY', 8), source: 'env', extra: rs === 'off' ? null : { reasoning_effort: rs } }), true);
     });
+    // ===== موديلات Premium (للمشتركين بس) =====
+    // TR_PREMIUM_MODEL (و _2 و _3) = اسم الموديل. المفاتيح: PREMIUM_KEY_* لو موجودة، وإلا نفس مفاتيح CometAPI.
+    // TR_PREMIUM_TYPE = openai (افتراضي) | anthropic | gemini ، TR_PREMIUM_BASE_URL (افتراضي CometAPI)
+    // لكل موديل: TR_PREMIUM_MODEL_2_VISION=on|off (افتراضي on) ، _REASONING=minimal|low|medium|high|off (افتراضي off) ، _PRIORITY (الأقل = الأول)
+    {
+        const pType = ['openai', 'anthropic', 'gemini'].includes(String(process.env.TR_PREMIUM_TYPE || '').toLowerCase()) ? String(process.env.TR_PREMIUM_TYPE).toLowerCase() : 'openai';
+        const pBase = process.env.TR_PREMIUM_BASE_URL || (pType === 'gemini' ? GEMINI_BASE : pType === 'anthropic' ? 'https://api.anthropic.com/v1' : 'https://api.cometapi.com/v1');
+        const ownKeys = names.some(n => /^PREMIUM(_API)?_KEY/i.test(n) && process.env[n]);
+        const keyRe = ownKeys ? /^PREMIUM(_API)?_KEY/i : /^COMET(API)?_(API_)?KEY/i;
+        ['', '_2', '_3'].forEach((sfx, idx) => {
+            const m = process.env['TR_PREMIUM_MODEL' + sfx]; if (!m) return;
+            const pre = 'TR_PREMIUM_MODEL' + sfx;
+            const num = (k, d) => { const v = process.env[pre + k]; return v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d; };
+            const vis = String(process.env[pre + '_VISION'] || 'on').toLowerCase() !== 'off';
+            const rs = String(process.env[pre + '_REASONING'] || 'off').toLowerCase();
+            scan(keyRe, (n, k, s2) => out.push({ id: `env-premium${sfx || '_1'}-${n}${s2}`, name: `Premium · ${m} · ${n}${s2}`, type: pType, baseUrl: pBase, model: m, key: k, vision: vis, tier: 'premium', enabled: true,
+                priority: num('_PRIORITY', -20 + idx), source: 'env', extra: (pType === 'openai' && rs !== 'off') ? { reasoning_effort: rs } : null }), true);
+        });
+    }
     if (process.env.TR_GROQ_MODEL) scan(/^GROQ(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-groq-${n}${sfx}`, name: `Groq · ${n}${sfx}`, type: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: process.env.TR_GROQ_MODEL, key: k, vision: false, enabled: true, priority: 10, source: 'env' }));
     if (process.env.TR_OPENROUTER_MODEL) scan(/^OPENROUTER(_API)?_KEY/i, (n, k, sfx) => out.push({ id: `env-openrouter-${n}${sfx}`, name: `OpenRouter · ${n}${sfx}`, type: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: process.env.TR_OPENROUTER_MODEL, key: k, vision: false, enabled: true, priority: 20, source: 'env', noJsonMode: true }));
     try {
@@ -508,7 +543,7 @@ function envProviders() {
             const base = x.baseUrl || (x.type === 'gemini' ? GEMINI_BASE : x.type === 'anthropic' ? 'https://api.anthropic.com/v1' : '');
             if (!base) return;
             out.push({ id: `env-json-${i + 1}`, name: str(x.name, 60) || `${x.type} ${i + 1}`, type: x.type, baseUrl: base, model: String(x.model), key: String(x.key),
-                vision: x.vision != null ? !!x.vision : x.type !== 'openai', enabled: true, priority: Number.isFinite(x.priority) ? x.priority : 50 + i, source: 'env', noJsonMode: !!x.noJsonMode });
+                vision: x.vision != null ? !!x.vision : x.type !== 'openai', tier: x.tier === 'premium' ? 'premium' : 'standard', enabled: true, priority: Number.isFinite(x.priority) ? x.priority : 50 + i, source: 'env', noJsonMode: !!x.noJsonMode });
         });
     } catch (_) {}
     return out;
@@ -540,6 +575,38 @@ function cooldownFor(e) {
     if (st == null && !['ai_bad_response', 'ai_bad_json'].includes(e && e.code)) return 30000; // خطأ شبكة
     return 0; // 400 أو رد فاضي/مش مفهوم: مش عطل في المزود نفسه
 }
+// تصنيف العطل لنوع مفهوم + سبب محتمل + الحل المقترح (بيظهر للأدمن في صفحة الموديلات)
+const KIND_INFO = {
+    auth: { ar: 'المفتاح مرفوض', fix: 'المفتاح غلط أو منتهي أو اتلغى. اعمل مفتاح جديد من لوحة المزود وحطه من تعديل الموديل.' },
+    forbidden: { ar: 'مفيش صلاحية', fix: 'المفتاح مالوش صلاحية على الموديل ده، أو الحساب موقوف، أو الدولة/الـ IP محظور عند المزود.' },
+    model_not_found: { ar: 'الموديل مش موجود', fix: 'اسم الموديل غلط أو مش متاح لحسابك. اتأكد من الاسم بالظبط، ومن إن الـ Base URL صح (غالبًا بينتهي بـ /v1).' },
+    quota: { ar: 'الرصيد/الحصة خلصت', fix: 'اشحن الرصيد أو ارفع الحد عند المزود، أو ضيف مفتاح تاني بنفس الموديل علشان الحمل يتوزّع.' },
+    rate_limit: { ar: 'ضغط/حد سرعة', fix: 'المزود حدّد عدد الطلبات في الدقيقة. ضيف مفاتيح إضافية لنفس الموديل أو قلّل الأولوية.' },
+    no_vision: { ar: 'مش بيقرا صور', fix: 'الموديل ده مش بيدعم الصور. قفل خيار «بيقرا الصور» عنده علشان الترجمة متروحلوش.' },
+    too_long: { ar: 'الطلب أطول من المسموح', fix: 'الموديل حدّه الأقصى للتوكنز أقل من المطلوب. استخدم موديل بسياق أكبر لجزء الترجمة.' },
+    bad_request: { ar: 'طلب مرفوض (400)', fix: 'المزود رفض شكل الطلب. جرّب تقفل وضع JSON أو تشيل الإعدادات الإضافية (Extra JSON / التفكير).' },
+    server: { ar: 'عطل عند المزود', fix: 'المشكلة من عند المزود نفسه وغالبًا مؤقتة. الموقع بيحوّل لموديل تاني تلقائي.' },
+    timeout: { ar: 'اتأخر في الرد', fix: 'الموديل بطيء. قلّل التفكير (reasoning=off) أو استخدم نسخة أسرع، أو زوّد TR_AI_TIMEOUT_MS.' },
+    network: { ar: 'مشكلة اتصال', fix: 'مقدرتش أوصل للمزود: اتأكد من الـ Base URL ومن إن المزود شغال.' },
+    bad_output: { ar: 'رد فاضي أو مش مفهوم', fix: 'الموديل رجّع رد مش JSON أو فاضي. جرّب تفعّل «من غير JSON mode» أو قلّل التفكير.' },
+    other: { ar: 'خطأ غير مصنّف', fix: 'راجع نص الخطأ الأصلي تحت.' }
+};
+function classifyErr(e) {
+    const st = e && e.status, m = String((e && e.message) || ''), code = e && e.code;
+    let kind = 'other';
+    if (code === 'ai_timeout') kind = 'timeout';
+    else if (st === 401) kind = 'auth';
+    else if (st === 403) kind = 'forbidden';
+    else if (st === 404) kind = 'model_not_found';
+    else if (st === 402 || (st === 429 && /quota|billing|insufficient|credit|balance|per.?day|exhaust/i.test(m) && !/per.?minute/i.test(m))) kind = 'quota';
+    else if (st === 429) kind = 'rate_limit';
+    else if (st === 400 || st === 422) kind = /image|vision|multimodal|modalit|image_url/i.test(m) ? 'no_vision' : /context|too long|maximum.*token|token.*limit/i.test(m) ? 'too_long' : /model/i.test(m) && /not.?found|does not exist|invalid/i.test(m) ? 'model_not_found' : 'bad_request';
+    else if (st >= 500) kind = 'server';
+    else if (code === 'ai_bad_json' || code === 'ai_bad_response') kind = 'bad_output';
+    else if (st == null || st === 0) kind = 'network';
+    return Object.assign({ kind }, KIND_INFO[kind]);
+}
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const isAbort = (e, signal) => !!(signal && signal.aborted && e && e.name === 'AbortError');
 function aggregateErr(attempts) {
     const pick = attempts.find(x => ![401, 403, 404].includes(x.e.status)) || attempts[attempts.length - 1];
@@ -563,7 +630,7 @@ function aiErr(e) {
 }
 
 // ---------- الراوتر: بيختار سلسلة المزودين ويحوّل عند الفشل ----------
-function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
+function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat, TrAIErrLog }) {
     let cache = null, cacheAt = 0;
     const TTL = 15000;
     const invalidate = () => { cache = null; };
@@ -575,16 +642,32 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
             [dbp, cfg, stats] = await Promise.all([TrAIProvider.find({}).lean(), TrAIConfig.findOne({ key: 'main' }).lean(), TrAIStat.find({}).lean()]);
         } catch (e) { console.error('ai config load failed:', e.message); }
         const env = envProviders();
-        const db = []; // المفاتيح بتيجي من متغيرات البيئة بس
+        const off = new Set((cfg && cfg.disabledEnv) || []);
+        env.forEach(p => { if (off.has(p.id)) p.enabled = false; p.label = p.label || p.model; });
+        // موديلات اتضافت من صفحة الموديلات: المفتاح متشفّر في الداتا بيز وبيتفك هنا بس
+        const db = (dbp || []).map(d => {
+            let key = '', broken = false;
+            try { key = decKey(d.keyEnc); } catch (_) { broken = true; }
+            if (!key) broken = true;
+            const ex = {};
+            if (d.type === 'openai' && d.reasoning && d.reasoning !== 'off') ex.reasoning_effort = d.reasoning;
+            if (d.extra && typeof d.extra === 'object') Object.assign(ex, d.extra);
+            return { id: 'db-' + d._id, name: d.name, label: d.label || d.model, type: d.type, baseUrl: d.baseUrl, model: d.model, key, keyBroken: broken,
+                vision: !!d.vision, tier: d.tier === 'premium' ? 'premium' : 'standard', enabled: d.enabled !== false, priority: Number.isFinite(d.priority) ? d.priority : 100,
+                textPriority: Number.isFinite(d.textPriority) ? d.textPriority : undefined, noJsonMode: !!d.noJsonMode, extra: Object.keys(ex).length ? ex : null,
+                features: Array.isArray(d.features) ? d.features : [], notes: d.notes || '', reasoning: d.reasoning || 'off', source: 'db', createdAt: d.createdAt, lastTest: d.lastTest || null };
+        });
         const health = {}; (stats || []).forEach(s => { health[s.pid] = s; });
-        cache = { providers: env.concat(db), routes: {}, health, disabledEnv: [] };
+        cache = { providers: env.concat(db), routes: {}, health, disabledEnv: Array.from(off) };
         cacheAt = Date.now();
         return cache;
     }
-    function buildChain(st, feature, vision) {
-        const all = st.providers.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision) && (vision || !p.visionOnly));
+    function buildChain(st, feature, vision, premium) {
+        const pinId = typeof premium === 'string' ? premium : null; // المشترك اختار موديل بعينه → بيتجرّب الأول وباقي الموديلات احتياطي
+        const all = st.providers.filter(p => p.enabled && p.key && AI_TYPES.includes(p.type) && (!vision || p.vision) && (vision || !p.visionOnly) && (premium || p.tier !== 'premium')
+            && (!p.features || !p.features.length || p.features.includes(feature)));
         // نفس الأولوية = توزيع عشوائي بين المفاتيح علشان الحمل يتقسم عليهم، والأقل أولوية بيتجرّب بعدهم
-        const groups = new Map(); all.forEach(p => { const k = (!vision && p.textPriority != null) ? p.textPriority : p.priority; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+        const groups = new Map(); all.forEach(p => { const k = ((!vision && p.textPriority != null) ? p.textPriority : p.priority) + (premium && p.tier === 'premium' ? -10000 : 0) + (pinId && p.tier === 'premium' && p.model === pinId ? -100000 : 0); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
         const list = [];
         Array.from(groups.keys()).sort((x, y) => x - y).forEach(k => {
             const g = groups.get(k);
@@ -596,24 +679,38 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
     }
     const persist = (pid, update) => { try { Promise.resolve(TrAIStat.updateOne({ pid }, update, { upsert: true })).catch(() => {}); } catch (_) {} };
     function markOk(p, ms) {
-        if (cache) { const h = cache.health[p.id] || (cache.health[p.id] = { pid: p.id }); h.cooldownUntil = 0; h.ok = (h.ok || 0) + 1; h.lastOkAt = new Date(); h.lastMs = ms; }
-        persist(p.id, { $inc: { ok: 1 }, $set: { lastOkAt: new Date(), cooldownUntil: 0, lastMs: ms } });
+        if (cache) { const h = cache.health[p.id] || (cache.health[p.id] = { pid: p.id }); h.cooldownUntil = 0; h.ok = (h.ok || 0) + 1; h.totalMs = (h.totalMs || 0) + ms; h.lastOkAt = new Date(); h.lastMs = ms; }
+        persist(p.id, { $inc: { ok: 1, totalMs: ms }, $set: { lastOkAt: new Date(), cooldownUntil: 0, lastMs: ms } });
     }
-    function markFail(p, e) {
+    function markFail(p, e, feature) {
         const cd = cooldownFor(e), msg = String((e && e.message) || '').slice(0, 200);
         if (cache) { const h = cache.health[p.id] || (cache.health[p.id] = { pid: p.id }); h.fail = (h.fail || 0) + 1; h.lastError = msg; h.lastErrorAt = new Date(); if (cd) h.cooldownUntil = Date.now() + cd; }
         const set = { lastError: msg, lastErrorAt: new Date() }; if (cd) set.cooldownUntil = Date.now() + cd;
         persist(p.id, { $inc: { fail: 1 }, $set: set });
+        if (TrAIErrLog) { // سجل المشاكل اللي بيظهر في صفحة الموديلات
+            try { Promise.resolve(TrAIErrLog.create({ pid: p.id, name: p.name, model: p.model, tier: p.tier || 'standard', feature: feature || '', status: e && e.status != null ? e.status : 0, code: (e && e.code) || '', kind: classifyErr(e).kind, message: String((e && e.message) || '').slice(0, 400) })).catch(() => {}); } catch (_) {}
+        }
     }
-    async function chainFor(feature, vision) {
-        const st = await load(), chain = buildChain(st, feature, vision);
+    async function chainFor(feature, vision, premium) {
+        const st = await load(), chain = buildChain(st, feature, vision, premium && PREMIUM_FEATURES.has(feature) ? premium : false);
         if (!chain.length) throw mkErr('no providers', 503, 'ai_unavailable');
         return chain;
     }
-    async function available(feature, vision) { try { return (await chainFor(feature, vision)).length > 0; } catch (_) { return false; } }
+    async function available(feature, vision, premium) { try { return (await chainFor(feature, vision, premium)).length > 0; } catch (_) { return false; } }
+    async function premiumModels() {
+        try {
+            const st = await load(), seen = new Map();
+            st.providers.filter(p => p.tier === 'premium' && p.enabled && p.key).forEach(p => {
+                if (!seen.has(p.model)) seen.set(p.model, { model: p.model, label: p.label || p.model, vision: !!p.vision });
+                else if (p.vision) seen.get(p.model).vision = true;
+            });
+            return Array.from(seen.values());
+        } catch (_) { return []; }
+    }
+    async function hasPremium() { try { const st = await load(); return st.providers.some(p => p.tier === 'premium' && p.enabled && p.key); } catch (_) { return false; } }
 
     async function generate(feature, a) {
-        const chain = await chainFor(feature, !!a.vision);
+        const chain = await chainFor(feature, !!a.vision, a.premium);
         const args = Object.assign({ temperature: 0.4, maxTokens: 2000 }, a, { retries: chain.length > 1 ? 0 : 1 });
         const attempts = [], t0 = Date.now();
         for (const p of chain) {
@@ -627,7 +724,7 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
             } catch (e0) {
                 const e = wt.timedOut ? mkErr('انتهت مهلة المزود', 0, 'ai_timeout') : e0;
                 if (isAbort(e0, a.signal)) throw e0;
-                attempts.push({ p, e }); markFail(p, e);
+                attempts.push({ p, e }); markFail(p, e, feature);
             } finally { wt.done(); }
         }
         throw aggregateErr(attempts);
@@ -635,7 +732,7 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
 
     // بث: التحويل للمزود التاني ممكن بس قبل ما أول جزء من الرد يوصل للطالب
     async function* stream(feature, a) {
-        const chain = await chainFor(feature, !!a.vision);
+        const chain = await chainFor(feature, !!a.vision, a.premium);
         const args = Object.assign({ temperature: 0.4, maxTokens: 2000 }, a, { retries: chain.length > 1 ? 0 : 1 });
         const attempts = [], t0 = Date.now();
         for (const p of chain) {
@@ -645,7 +742,7 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
             try {
                 for await (const ev of ADAPTERS[p.type].stream(p, args, wt.signal)) {
                     wt.arm(AI_IDLE_MS);
-                    if (ev.text) { started = true; for (const x of pending) yield x; pending = []; yield ev; }
+                    if (ev.text) { if (!started) yield { engine: { tier: p.tier || 'standard' } }; started = true; for (const x of pending) yield x; pending = []; yield ev; }
                     else if (started) yield ev; else pending.push(ev);
                 }
                 if (!started) throw mkErr('الذكاء الاصطناعي مرجّعش رد', null, 'ai_bad_response');
@@ -655,7 +752,7 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
             } catch (e0) {
                 const e = wt.timedOut ? mkErr('انتهت مهلة المزود', 0, 'ai_timeout') : e0;
                 if (isAbort(e0, a.signal)) throw e0;
-                markFail(p, e);
+                markFail(p, e, feature);
                 if (started) { e.partial = true; throw e; }   // خلاص بعتنا جزء من الرد، مينفعش نبدّل المزود
                 attempts.push({ p, e });
             } finally { wt.done(); }
@@ -663,18 +760,22 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat }) {
         throw aggregateErr(attempts);
     }
 
-    async function test(p) {
+    async function test(p, o = {}) {
         const t1 = Date.now(), wt = withTimeout(null, AI_TIMEOUT_MS);
+        const parts = [{ text: o.vision ? 'Reply with the single word OK if you can see this image.' : 'Reply with the single word OK.' }];
+        if (o.vision) parts.push({ inline_data: { mime_type: 'image/png', data: PNG_1PX } });
         try {
-            const text = await ADAPTERS[p.type].gen(p, { system: 'You are a connectivity test.', contents: [{ role: 'user', parts: [{ text: 'Reply with the single word OK.' }] }], maxTokens: 30, temperature: 0, retries: 0 }, wt.signal);
+            const text = await ADAPTERS[p.type].gen(p, { system: 'You are a connectivity test.', contents: [{ role: 'user', parts }], maxTokens: 80, temperature: 0, retries: 0 }, wt.signal);
             if (!text) throw mkErr('رجّع رد فاضي', null, 'ai_bad_response');
-            const ms = Date.now() - t1; markOk(p, ms); return { ok: true, ms, sample: text.slice(0, 40) };
+            const ms = Date.now() - t1; if (!o.silent) markOk(p, ms); return { ok: true, ms, sample: text.slice(0, 40), vision: !!o.vision };
         } catch (e0) {
             const e = wt.timedOut ? mkErr('انتهت مهلة المزود', 0, 'ai_timeout') : e0;
-            markFail(p, e); return { ok: false, status: e.status || 0, error: String(e.message).slice(0, 300) };
+            if (!o.silent) markFail(p, e, 'test');
+            const k = classifyErr(e);
+            return { ok: false, status: e.status || 0, error: String(e.message).slice(0, 300), kind: k.kind, kindAr: k.ar, hint: k.fix, vision: !!o.vision };
         } finally { wt.done(); }
     }
-    return { load, invalidate, generate, stream, available, test, markOk, markFail, buildChain };
+    return { load, invalidate, generate, stream, available, hasPremium, premiumModels, test, markOk, markFail, buildChain };
 }
 
 const aiStatus = (e) => (e.code === 'ai_unavailable' ? 503 : 502);
@@ -699,7 +800,8 @@ function registerTranslateRoutes(app, deps) {
         bonusPages: { type: Number, default: 0 },
         referredBy: { type: String, default: '' },
         planUntil: { type: Date, default: null },
-        planName: { type: String, default: '' }
+        planName: { type: String, default: '' },
+        prefModel: { type: String, default: '' }
     }, { timestamps: true });
     const TrProfile = model('TrProfile', profileSchema);
 
@@ -746,16 +848,28 @@ function registerTranslateRoutes(app, deps) {
     const TrAIProvider = model('TrAIProvider', new Schema({
         name: String, type: String, baseUrl: String, model: String, keyEnc: String,
         vision: { type: Boolean, default: false }, enabled: { type: Boolean, default: true },
-        priority: { type: Number, default: 100 }, noJsonMode: { type: Boolean, default: false }
+        priority: { type: Number, default: 100 }, noJsonMode: { type: Boolean, default: false },
+        // موديلات Premium المضافة من صفحة الموديلات
+        label: { type: String, default: '' }, tier: { type: String, default: 'standard' }, textPriority: { type: Number, default: null },
+        features: { type: [String], default: [] }, reasoning: { type: String, default: 'off' }, extra: { type: Schema.Types.Mixed, default: null },
+        notes: { type: String, default: '' }, createdBy: { type: String, default: '' }, lastTest: { type: Schema.Types.Mixed, default: null }
     }, { timestamps: true }));
+    const TrAIErrLog = model('TrAIErrLog', (() => {
+        const sc = new Schema({
+            pid: { type: String, index: true }, name: String, model: String, tier: String, feature: String, status: Number, code: String, kind: String, message: String,
+            at: { type: Date, default: Date.now, expires: 60 * 60 * 24 * 14 }
+        });
+        sc.index({ at: -1 });
+        return sc;
+    })());
     const TrAIConfig = model('TrAIConfig', new Schema({
         key: { type: String, unique: true }, routes: { type: Schema.Types.Mixed, default: {} }, disabledEnv: { type: [String], default: [] }
     }, { timestamps: true }));
     const TrAIStat = model('TrAIStat', new Schema({
         pid: { type: String, unique: true }, ok: { type: Number, default: 0 }, fail: { type: Number, default: 0 },
-        lastError: String, lastErrorAt: Date, lastOkAt: Date, lastMs: Number, cooldownUntil: { type: Number, default: 0 }
+        lastError: String, lastErrorAt: Date, lastOkAt: Date, lastMs: Number, totalMs: { type: Number, default: 0 }, cooldownUntil: { type: Number, default: 0 }
     }));
-    const ai = createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat });
+    const ai = createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat, TrAIErrLog });
 
     // ---------- Limiters (بالـ username مش بالـ IP — عشان شبكة المعهد/الواي فاي مش تتحسب كلها واحد) ----------
     const keyGen = (req) => (req.user && req.user.username) || 'anon'; // كل المسارات وراء verifyToken فـ username موجود دايمًا
@@ -791,6 +905,17 @@ function registerTranslateRoutes(app, deps) {
         if (profile.planUntil && profile.planUntil > new Date()) return true;
         const s = await Student.findOne({ username: user.username }).select('premiumFeatures').lean();
         return !!(s && (s.premiumFeatures || []).includes(PREMIUM_KEY));
+    }
+
+    // مشترك (أو أدمن) = بياخد موديلات Premium
+    // بيرجّع false (مش مشترك) | true (مشترك) | اسم الموديل اللي اختاره المشترك لو لسه متاح
+    async function premiumFor(user) {
+        try {
+            const profile = await getProfile(user.username);
+            if (!(await isUnlimited(user, profile))) return false;
+            if (profile.prefModel && (await ai.premiumModels()).some(m => m.model === profile.prefModel)) return profile.prefModel;
+            return true;
+        } catch (_) { return false; }
     }
 
     async function ensureUsage(username, day) {
@@ -872,7 +997,8 @@ function registerTranslateRoutes(app, deps) {
             pagesLeft: unlimited ? null : Math.max(0, FREE_DAILY_PAGES - used) + (profile.bonusPages || 0),
             actionsLeft: unlimited ? null : Math.max(0, FREE_DAILY_ACTIONS - actions),
             referralCode: profile.referralCode, referredBy: profile.referredBy || '', referralBonus: REFERRAL_BONUS,
-            plans: PLANS, maxBatch: unlimited ? 50 : 20,
+            plans: PLANS, maxBatch: unlimited ? 50 : 20, premiumEngine: unlimited && (await ai.hasPremium()),
+            premiumModels: unlimited ? await ai.premiumModels() : [], prefModel: unlimited ? (profile.prefModel || '') : '',
             daysLeft: profile.planUntil && profile.planUntil > new Date() ? Math.ceil((profile.planUntil - Date.now()) / 86400000) : null
         };
     }
@@ -931,9 +1057,12 @@ function registerTranslateRoutes(app, deps) {
             const subject = str((req.body.subject || '').replace(/[\r\n]+/g, ' '), 40);
 
             await connectToDatabase();
+            // لو في موديلات Premium متضافة والمستخدم مشترك → ترجمة Premium (وكاش منفصل علشان الجودة متتخلطش)
+            const pr0 = await premiumFor(req.user), premium = pr0 && (await ai.hasPremium()) ? pr0 : false;
 
             // --- Cache بـ hash الصورة: لو اتترجمت قبل كده من أي طالب → من غير تكلفة API ولا خصم من الرصيد ---
             const h = crypto.createHash('sha256').update(PROMPT_VERSION);
+            if (premium) h.update('|premium');
             images.forEach(im => h.update(im.data));
             const hash = h.digest('hex');
 
@@ -953,13 +1082,13 @@ function registerTranslateRoutes(app, deps) {
                 await ensureUsage(req.user.username, day);
                 await TrUsage.updateOne({ username: req.user.username, day }, { $inc: { cachedPages: images.length } });
                 sse();
-                send({ t: 'meta', cached: true });
+                send({ t: 'meta', cached: true, premium: !!premium });
                 for (const it of cached.items) send(it);
                 send({ t: 'done', cached: true, charged: 0, hash });
                 return res.end();
             }
 
-            if (!(await ai.available('translate', true))) return res.status(503).json({ error: 'خدمة الترجمة مش مفعّلة حاليًا (مفيش مفتاح Gemini على السيرفر، ضيف GEMINI_KEY_1 في Vercel)' });
+            if (!(await ai.available('translate', true, premium))) return res.status(503).json({ error: 'خدمة الترجمة مش مفعّلة حاليًا (مفيش مفتاح Gemini على السيرفر، ضيف GEMINI_KEY_1 في Vercel)' });
 
             // --- الرصيد: قبل ما نبدأ بث أي حاجة (عشان نرجّع 402 واضحة) ---
             reservation = await reservePages(req.user, images.length);
@@ -980,7 +1109,7 @@ function registerTranslateRoutes(app, deps) {
             const controller = new AbortController();
             res.on('close', () => { if (!res.writableEnded) controller.abort(); });
 
-            let items = [], finish = null, gotBlock = false, lastErr = null, raw = '';
+            let items = [], finish = null, gotBlock = false, lastErr = null, raw = '', engineTier = null;
             for (let attempt = 0; attempt < 2 && !gotBlock; attempt++) {
                 items = []; finish = null; raw = '';
                 const parser = createLineParser((o) => {
@@ -991,7 +1120,8 @@ function registerTranslateRoutes(app, deps) {
                     send(it);
                 });
                 try {
-                    for await (const ev of ai.stream('translate', { system: TRANSLATE_SYSTEM, contents: [{ role: 'user', parts }], vision: true, maxTokens: 16384, temperature: 0.2, signal: controller.signal })) {
+                    for await (const ev of ai.stream('translate', { system: TRANSLATE_SYSTEM, contents: [{ role: 'user', parts }], vision: true, premium, maxTokens: 16384, temperature: 0.2, signal: controller.signal })) {
+                        if (ev.engine) { engineTier = ev.engine.tier; send({ t: 'engine', premium: ev.engine.tier === 'premium' }); }
                         if (ev.text) { raw += ev.text; parser.push(ev.text); }
                         if (ev.finish) finish = ev.finish;
                     }
@@ -1031,13 +1161,13 @@ function registerTranslateRoutes(app, deps) {
 
             // نخزّن في الكاش بس لو الترجمة كاملة
             const clean = items.filter(i => i.t !== 'err');
-            if (!truncated && finish !== 'BLOCKED' && clean.length) {
+            if (!truncated && finish !== 'BLOCKED' && clean.length && (!premium || engineTier === 'premium')) { // لو المشترك وقع على موديل عادي مش بنحفظها في كاش Premium
                 TrCache.updateOne({ hash }, { $setOnInsert: { items: clean, hits: 0 } }, { upsert: true }).catch(() => {});
             }
             saveTerms(req.user.username, items.filter(i => i.t === 'term')).catch(() => {});
 
             const snap = await quotaSnapshot(req.user).catch(() => null);
-            send({ t: 'done', cached: false, charged: images.length, hash, truncated, pagesLeft: snap ? snap.pagesLeft : null });
+            send({ t: 'done', cached: false, charged: images.length, hash, truncated, premium: engineTier === 'premium', pagesLeft: snap ? snap.pagesLeft : null });
             return res.end();
         } catch (e) {
             console.error('❌ translate/page:', e.message);
@@ -1060,7 +1190,7 @@ function registerTranslateRoutes(app, deps) {
             await connectToDatabase();
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await ai.generate('explain', {
+            const r = await ai.generate('explain', { premium: await premiumFor(req.user),
                 system: EXPLAIN_SYSTEM, json: true, maxTokens: 8000, temperature: 0.5,
                 contents: [{ role: 'user', parts: [{ text: `MODE=${mode}\n\nEnglish passage:\n${en}\n\nArabic translation:\n${ar}` }] }]
             });
@@ -1092,7 +1222,7 @@ function registerTranslateRoutes(app, deps) {
             const ask = exam
                 ? `Write a mock exam of ${mcqN} MCQs covering the WHOLE content evenly (about 30% easy, 50% medium, 20% hard). Return "flashcards": [].\n\nContent:\n${text}`
                 : `Write ${mcqN} MCQs and ${fcN} flashcards from this content:\n\n${text}`;
-            const r = await ai.generate('quiz', {
+            const r = await ai.generate('quiz', { premium: await premiumFor(req.user),
                 system: QUIZ_SYSTEM, json: true, maxTokens: exam ? 14000 : 8000, temperature: 0.5,
                 contents: [{ role: 'user', parts: [{ text: ask }] }]
             });
@@ -1117,6 +1247,7 @@ function registerTranslateRoutes(app, deps) {
             if (!question) return res.status(400).json({ error: 'السؤال مطلوب' });
             if (!context) return res.status(400).json({ error: 'مفيش محتوى صفحة للسؤال عنه' });
             await connectToDatabase();
+            const premium = await premiumFor(req.user);
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
             const hist = (Array.isArray(req.body.history) ? req.body.history : []).slice(-10)
@@ -1127,7 +1258,7 @@ function registerTranslateRoutes(app, deps) {
                 .concat(hist, [{ role: 'user', parts: [{ text: question }] }]);
 
             if (!req.body.stream) {
-                const answer = await ai.generate('chat', { system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 });
+                const answer = await ai.generate('chat', { premium, system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 });
                 return res.json({ answer: cleanChat(answer).slice(0, 8000) });
             }
 
@@ -1142,7 +1273,7 @@ function registerTranslateRoutes(app, deps) {
             res.on('close', () => { if (!res.writableEnded) controller.abort(); });
             let got = false, finish = null, failed = null;
             try {
-                for await (const ev of ai.stream('chat', { system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4, signal: controller.signal })) {
+                for await (const ev of ai.stream('chat', { premium, system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4, signal: controller.signal })) {
                     if (ev.text) { got = true; send({ t: 'delta', text: ev.text }); }
                     if (ev.finish) finish = ev.finish;
                 }
@@ -1151,7 +1282,7 @@ function registerTranslateRoutes(app, deps) {
             if (!got) {
                 // لو البث فشل أو رجع فاضي، نجرب نفس الطلب كرد كامل مرة واحدة
                 try {
-                    const full = cleanChat(await ai.generate('chat', { system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 }));
+                    const full = cleanChat(await ai.generate('chat', { premium, system: CHAT_SYSTEM, contents, maxTokens: 8000, temperature: 0.4 }));
                     if (full) { got = true; failed = null; send({ t: 'delta', text: full }); }
                 } catch (e2) { failed = e2; }
             }
@@ -1183,7 +1314,7 @@ function registerTranslateRoutes(app, deps) {
             if (!(await requirePremium(req, res, 'ملخص الفصل'))) return;
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await ai.generate('summary', { system: SUMMARY_SYSTEM, json: true, maxTokens: 9000, temperature: 0.3, contents: [{ role: 'user', parts: [{ text }] }] });
+            const r = await ai.generate('summary', { premium: true, system: SUMMARY_SYSTEM, json: true, maxTokens: 9000, temperature: 0.3, contents: [{ role: 'user', parts: [{ text }] }] });
             const arr = (v, n, m) => (Array.isArray(v) ? v.map(x => cleanChat(str(String(x || ''), m)).replace(/^[-•]\s+/, '')).filter(Boolean).slice(0, n) : []);
             const sections = (Array.isArray(r.sections) ? r.sections : []).map(sc => ({ title: cleanChat(str(sc && sc.title, 140)), points: arr(sc && sc.points, 8, 400) })).filter(sc => sc.title && sc.points.length).slice(0, 8);
             const terms = (Array.isArray(r.terms) ? r.terms : []).map(t => ({ en: str(t && t.en, 100), ar: str(t && t.ar, 140) })).filter(t => t.en && t.ar).slice(0, 14);
@@ -1231,7 +1362,7 @@ function registerTranslateRoutes(app, deps) {
             if (have) return res.json(Object.assign({ fromGlossary: true }, have));
             day = await reserveAction(req.user);
             if (!day) return actionDenied(res);
-            const r = await ai.generate('define', {
+            const r = await ai.generate('define', { premium: await premiumFor(req.user),
                 system: DEFINE_SYSTEM, json: true, maxTokens: 2000, temperature: 0.2,
                 contents: [{ role: 'user', parts: [{ text: `Term: ${term}` }] }]
             });
@@ -1320,10 +1451,13 @@ function registerTranslateRoutes(app, deps) {
                 if (JSON.stringify(b.quiz).length > 100000) return res.status(413).json({ error: 'الأسئلة كبيرة جدًا للحفظ' });
                 set.quiz = b.quiz;
             }
-            if (!Object.keys(set).length) return res.status(400).json({ error: 'مفيش تعديل' });
+            const fixes = Array.isArray(b.fixes) ? b.fixes.slice(0, 40).filter(f => f && Number.isInteger(f.i) && f.i >= 0 && f.i < 3000 && str(f.ar, 3500)) : [];
+            if (!Object.keys(set).length && !fixes.length) return res.status(400).json({ error: 'مفيش تعديل' });
             await connectToDatabase();
-            const r = await TrHistory.updateOne({ _id: req.params.id, username: req.user.username }, { $set: set });
-            if (!r.matchedCount) return res.status(404).json({ error: 'مش موجود' });
+            let matched = 1;
+            if (Object.keys(set).length) { const r0 = await TrHistory.updateOne({ _id: req.params.id, username: req.user.username }, { $set: set }); matched = r0.matchedCount; }
+            if (!matched) return res.status(404).json({ error: 'مش موجود' });
+            for (const f of fixes) await TrHistory.updateOne({ _id: req.params.id, username: req.user.username, ['items.' + f.i + '.t']: 'b' }, { $set: { ['items.' + f.i + '.ar']: str(f.ar, 3500) } });
             res.json({ success: true });
         } catch (e) { console.error(e.message); res.status(500).json({ error: 'خطأ في التعديل' }); }
     });
@@ -1459,58 +1593,176 @@ function registerTranslateRoutes(app, deps) {
         } catch (e) { console.error(e.message); res.status(500).json({ error: 'خطأ في الإحصائيات' }); }
     });
 
-    // ====================== 9) إدارة مزودي الذكاء الاصطناعي (أدمن) ======================
+    // ====================== 9) إدارة موديلات الذكاء الاصطناعي (أدمن): إضافة/تعديل/اختبار/سجل مشاكل ======================
     const validBaseUrl = (u) => {
         try {
-            const x = new URL(u), h = x.hostname;
-            if (x.protocol !== 'https:' || !h.includes('.')) return false;
-            if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.)/i.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)) return false;
+            const x = new URL(u), hn = x.hostname.toLowerCase();
+            if (x.protocol !== 'https:' || !hn.includes('.') || x.username || x.password) return false;
+            if (/^\[/.test(hn) || /^\d+$/.test(hn)) return false;
+            if (/(^|\.)(localhost|local|internal|lan|home|corp|intranet)$/.test(hn)) return false;
+            if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(hn) || /^172\.(1[6-9]|2\d|3[01])\./.test(hn) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(hn)) return false;
             return true;
         } catch (_) { return false; }
     };
     const defaultBase = (t) => (t === 'gemini' ? GEMINI_BASE : t === 'anthropic' ? 'https://api.anthropic.com/v1' : '');
-    const isId = (v) => typeof v === 'string' && v.length > 0 && v.length < 80;
+    const REASONING = ['off', 'minimal', 'low', 'medium', 'high'];
+    const MAX_DB_PROVIDERS = 60;
+    const dbIdOf = (id) => (/^db-[a-f0-9]{24}$/.test(String(id)) ? String(id).slice(3) : null);
+    const bad = (m) => { const e = new Error(m); e.bad = true; return e; };
+
+    // بيقرا حقول الموديل (من غير المفتاح). partial=true للتعديل (الحقول المبعوتة بس)
     function readProviderBody(b, partial) {
-        const out = {}, err = (m) => { const e = new Error(m); e.bad = true; throw e; };
-        if (!partial || b.name !== undefined) { out.name = str(b.name, 60); if (!out.name) err('اكتب اسم للمزود'); }
-        if (!partial || b.type !== undefined) { out.type = String(b.type || ''); if (!AI_TYPES.includes(out.type)) err('نوع المزود غير صحيح'); }
-        if (!partial || b.model !== undefined) { out.model = str(b.model, 120); if (!out.model) err('اكتب اسم الموديل'); }
-        if (!partial || b.baseUrl !== undefined) {
+        const out = {}, has = (k) => b[k] !== undefined;
+        if (!partial || has('name')) { out.name = str(b.name, 60); if (!out.name) throw bad('اكتب اسم للموديل'); }
+        if (!partial || has('label')) out.label = str(b.label, 60);
+        if (!partial || has('type')) { out.type = String(b.type || ''); if (!AI_TYPES.includes(out.type)) throw bad('نوع المزود غير صحيح'); }
+        if (!partial || has('model')) { out.model = str(b.model, 120); if (!out.model) throw bad('اكتب اسم الموديل (Model ID)'); if (/\s/.test(out.model)) throw bad('اسم الموديل مينفعش فيه مسافات'); }
+        if (!partial || has('baseUrl') || has('type')) {
             const t = out.type || b.type || 'openai';
-            out.baseUrl = str(b.baseUrl, 300) || defaultBase(t);
-            if (!out.baseUrl) err('اكتب رابط الـ API (Base URL)');
-            if (!validBaseUrl(out.baseUrl)) err('رابط الـ API لازم يكون https ودومين عام');
-            out.baseUrl = out.baseUrl.replace(/\/+$/, '');
+            const raw = has('baseUrl') ? str(b.baseUrl, 300) : '';
+            if (!partial || has('baseUrl')) {
+                out.baseUrl = (raw || defaultBase(t)).replace(/\/+$/, '');
+                if (!out.baseUrl) throw bad('اكتب رابط الـ API (Base URL)');
+                if (!validBaseUrl(out.baseUrl)) throw bad('رابط الـ API لازم يكون https ودومين عام (مش localhost ولا IP داخلي)');
+                if (/\/chat\/completions$|\/messages$/.test(out.baseUrl)) throw bad('اكتب الـ Base URL بس من غير /chat/completions أو /messages (زي https://api.cometapi.com/v1)');
+            }
         }
-        if (b.vision !== undefined) out.vision = !!b.vision;
-        if (b.enabled !== undefined) out.enabled = !!b.enabled;
-        if (b.noJsonMode !== undefined) out.noJsonMode = !!b.noJsonMode;
-        if (b.priority !== undefined) { const n = Number(b.priority); out.priority = Number.isFinite(n) ? Math.max(-1000, Math.min(1000, Math.round(n))) : 100; }
-        if (b.apiKey !== undefined && String(b.apiKey).trim()) {
-            const k = String(b.apiKey).trim();
-            if (k.length < 8 || k.length > 500 || /\s/.test(k)) err('المفتاح غير صحيح (من غير مسافات)');
-            out.keyEnc = encKey(k);
-        } else if (!partial) err('اكتب مفتاح الـ API');
+        if (has('vision')) out.vision = !!b.vision;
+        if (has('enabled')) out.enabled = !!b.enabled;
+        if (has('noJsonMode')) out.noJsonMode = !!b.noJsonMode;
+        if (has('tier')) out.tier = b.tier === 'standard' ? 'standard' : 'premium'; else if (!partial) out.tier = 'premium';
+        const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(-1000, Math.min(1000, Math.round(n))) : d; };
+        if (has('priority')) out.priority = num(b.priority, 0); else if (!partial) out.priority = 0;
+        if (has('textPriority')) out.textPriority = (b.textPriority === null || b.textPriority === '') ? null : num(b.textPriority, null);
+        if (has('features')) out.features = Array.isArray(b.features) ? Array.from(new Set(b.features.map(String).filter(x => FEATURE_IDS.includes(x)))) : [];
+        if (has('reasoning')) out.reasoning = REASONING.includes(String(b.reasoning)) ? String(b.reasoning) : 'off';
+        if (has('notes')) out.notes = str(b.notes, 400);
+        if (has('extraJson')) {
+            const raw = String(b.extraJson || '').trim();
+            if (!raw) out.extra = null;
+            else {
+                let o; try { o = JSON.parse(raw); } catch (_) { throw bad('الإعدادات الإضافية (Extra JSON) مش JSON صحيح'); }
+                if (!o || typeof o !== 'object' || Array.isArray(o) || raw.length > 2000) throw bad('الإعدادات الإضافية لازم تكون كائن JSON صغير');
+                ['model', 'messages', 'stream', 'system', 'api_key', 'key', 'authorization'].forEach(k => { if (k in o) throw bad('مينفعش تغيّر ' + k + ' من الإعدادات الإضافية'); });
+                out.extra = o;
+            }
+        }
         return out;
     }
+    const readKey = (b, required) => {
+        const k = b.apiKey !== undefined ? String(b.apiKey).trim() : '';
+        if (!k) { if (required) throw bad('اكتب مفتاح الـ API'); return ''; }
+        if (k.length < 8 || k.length > 500 || /\s/.test(k)) throw bad('المفتاح غير صحيح (من غير مسافات)');
+        return k;
+    };
+    const mkExtra = (type, reasoning, user) => {
+        const o = {};
+        if (type === 'openai' && reasoning && reasoning !== 'off') o.reasoning_effort = reasoning;
+        if (user && typeof user === 'object') Object.assign(o, user);
+        return Object.keys(o).length ? o : null;
+    };
     const aiErrStatus = (e) => (e.bad || e.code === 'no_secret' ? 400 : 500);
     const publicAI = (p, st) => {
         const h = st.health[p.id] || {};
         return {
-            id: p.id, name: p.name, type: p.type, baseUrl: p.baseUrl, model: p.model, vision: !!p.vision, enabled: !!p.enabled, priority: p.priority,
-            source: p.source, keyMask: maskKey(p.key), keyBroken: !!p.keyBroken, noJsonMode: !!p.noJsonMode,
-            stats: { ok: h.ok || 0, fail: h.fail || 0, lastError: h.lastError || '', lastErrorAt: h.lastErrorAt || null, lastOkAt: h.lastOkAt || null, lastMs: h.lastMs || 0 },
+            id: p.id, name: p.name, label: p.label || p.model, tier: p.tier || 'standard', type: p.type, baseUrl: p.baseUrl, model: p.model, vision: !!p.vision, enabled: !!p.enabled,
+            priority: p.priority, textPriority: p.textPriority != null ? p.textPriority : null, source: p.source, keyMask: maskKey(p.key), keyBroken: !!p.keyBroken, noJsonMode: !!p.noJsonMode,
+            features: p.features || [], notes: p.notes || '', reasoning: p.reasoning || (p.extra && p.extra.reasoning_effort) || 'off', extra: p.source === 'db' && p.extra ? Object.fromEntries(Object.entries(p.extra).filter(([k]) => k !== 'reasoning_effort')) : null,
+            createdAt: p.createdAt || null, lastTest: p.lastTest || null,
+            stats: { ok: h.ok || 0, fail: h.fail || 0, avgMs: h.ok ? Math.round((h.totalMs || 0) / h.ok) : 0, lastError: h.lastError || '', lastErrorAt: h.lastErrorAt || null, lastOkAt: h.lastOkAt || null, lastMs: h.lastMs || 0 },
             cooling: !!(h.cooldownUntil && h.cooldownUntil > Date.now()), cooldownUntil: h.cooldownUntil || 0
         };
     };
+    // معاينة ثابتة (من غير عشوائية) لسلسلة الموديلات اللي هتتجرّب لكل جزء: للمشترك وللعادي
+    function previewChains(st) {
+        const out = {};
+        AI_FEATURES.forEach(f => {
+            const mk = (prem) => st.providers.filter(p => p.enabled && p.key && (!f.vision || p.vision) && (f.vision || !p.visionOnly) && (prem || p.tier !== 'premium') && (!p.features || !p.features.length || p.features.includes(f.id)))
+                .map(p => ({ p, k: ((!f.vision && p.textPriority != null) ? p.textPriority : p.priority) + (prem && p.tier === 'premium' ? -10000 : 0) }))
+                .sort((x, y) => x.k - y.k).map(x => ({ id: x.p.id, name: x.p.name, tier: x.p.tier || 'standard' }));
+            out[f.id] = { pro: PREMIUM_FEATURES.has(f.id) ? mk(true) : mk(false), free: mk(false) };
+        });
+        return out;
+    }
+    async function runTest(p, vision) {
+        const r = await ai.test(p, { vision: !!vision });
+        const did = dbIdOf(p.id);
+        if (did) TrAIProvider.updateOne({ _id: did }, { $set: { lastTest: { ok: r.ok, ms: r.ms || 0, at: new Date(), error: r.ok ? '' : r.error, kind: r.kind || '', vision: !!vision } } }).catch(() => {});
+        return r;
+    }
 
     app.get('/api/translate/admin/ai', verifyToken, isAdmin, async (req, res) => {
         try {
             await connectToDatabase(); ai.invalidate();
             const st = await ai.load();
-            res.json({ features: AI_FEATURES, routes: st.routes || {}, providers: st.providers.map(p => publicAI(p, st)), secretReady: true, model: MODEL,
-                envSeen: Object.keys(process.env).filter(n => /KEY|COMET|GEMINI|GROQ|OPENROUTER|^TR_/i.test(n) && !/SECRET|TOKEN|PASS|MONGO|JWT/i.test(n)).sort() }); // أسماء المتغيرات بس (من غير قيم) للتشخيص
+            const lastErr = {};
+            try { (await TrAIErrLog.aggregate([{ $sort: { at: -1 } }, { $group: { _id: '$pid', kind: { $first: '$kind' }, at: { $first: '$at' }, n: { $sum: 1 } } }])).forEach(x => { lastErr[x._id] = x; }); } catch (_) {}
+            const pub = st.providers.map(p => { const o = publicAI(p, st), e = lastErr[p.id]; if (e) { const k = KIND_INFO[e.kind] || KIND_INFO.other; o.lastKind = e.kind; o.kindAr = k.ar; o.hint = k.fix; o.errors14d = e.n; o.lastErrorAt = e.at; } return o; });
+            const prem = pub.filter(p => p.tier === 'premium');
+            const since = new Date(Date.now() - 24 * 3600 * 1000);
+            const err24 = await TrAIErrLog.countDocuments({ at: { $gte: since } }).catch(() => 0);
+            res.json({
+                features: AI_FEATURES, premiumFeatures: Array.from(PREMIUM_FEATURES), providers: pub, secretReady: !!secretKey(), model: MODEL, kinds: KIND_INFO,
+                summary: { total: pub.length, premium: prem.length, premiumLive: prem.filter(p => p.enabled && !p.keyBroken && !p.cooling).length, cooling: pub.filter(p => p.cooling).length, broken: pub.filter(p => p.keyBroken).length, errors24h: err24, fromDb: pub.filter(p => p.source === 'db').length },
+                routing: previewChains(st),
+                envSeen: Object.keys(process.env).filter(n => /KEY|COMET|GEMINI|GROQ|OPENROUTER|^TR_/i.test(n) && !/SECRET|TOKEN|PASS|MONGO|JWT/i.test(n)).sort()
+            });
         } catch (e) { console.error('ai admin get:', e.message); res.status(500).json({ error: 'خطأ في جلب إعدادات الذكاء الاصطناعي' }); }
+    });
+
+    app.post('/api/translate/admin/ai/providers', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            if (await TrAIProvider.countDocuments({}) >= MAX_DB_PROVIDERS) return res.status(400).json({ error: `وصلت للحد الأقصى (${MAX_DB_PROVIDERS} موديل)` });
+            const b = req.body || {}, f = readProviderBody(b, false), key = readKey(b, true);
+            const doc = await TrAIProvider.create(Object.assign(f, { keyEnc: encKey(key), createdBy: req.user.username }));
+            ai.invalidate();
+            res.json({ success: true, id: 'db-' + doc._id });
+        } catch (e) { if (!e.bad) console.error('ai create:', e.message); res.status(aiErrStatus(e)).json({ error: e.bad || e.code === 'no_secret' ? e.message : 'خطأ في حفظ الموديل' }); }
+    });
+
+    app.patch('/api/translate/admin/ai/providers/:id', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            const b = req.body || {}, id = String(req.params.id), did = dbIdOf(id);
+            if (!did) { // مزود من متغيرات البيئة: التفعيل/الإيقاف بس
+                if (!id.startsWith('env-') || b.enabled === undefined) return res.status(400).json({ error: 'مزودو البيئة بيتعدّلوا من Vercel، تقدر توقفهم أو تشغّلهم بس' });
+                await TrAIConfig.updateOne({ key: 'main' }, b.enabled ? { $pull: { disabledEnv: id } } : { $addToSet: { disabledEnv: id } }, { upsert: true });
+                ai.invalidate(); return res.json({ success: true });
+            }
+            const f = readProviderBody(b, true), key = readKey(b, false);
+            if (key) f.keyEnc = encKey(key);
+            if (!Object.keys(f).length) return res.status(400).json({ error: 'مفيش تعديل' });
+            const r = await TrAIProvider.updateOne({ _id: did }, { $set: f });
+            if (!r.matchedCount && !r.n) return res.status(404).json({ error: 'الموديل مش موجود' });
+            if (key || f.model || f.baseUrl) await TrAIStat.updateOne({ pid: id }, { $set: { cooldownUntil: 0 } }, { upsert: true }).catch(() => {});
+            ai.invalidate(); res.json({ success: true });
+        } catch (e) { if (!e.bad) console.error('ai patch:', e.message); res.status(aiErrStatus(e)).json({ error: e.bad || e.code === 'no_secret' ? e.message : 'خطأ في التعديل' }); }
+    });
+
+    app.delete('/api/translate/admin/ai/providers/:id', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            const did = dbIdOf(req.params.id); if (!did) return res.status(400).json({ error: 'مينفعش تحذف مزود من البيئة، وقّفه بس' });
+            await TrAIProvider.deleteOne({ _id: did });
+            await TrAIStat.deleteOne({ pid: String(req.params.id) }).catch(() => {});
+            ai.invalidate(); res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: 'خطأ في الحذف' }); }
+    });
+
+    // نسخ موديل بنفس المفتاح (مثلاً نفس مفتاح CometAPI لموديل تاني)
+    app.post('/api/translate/admin/ai/providers/:id/duplicate', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            const did = dbIdOf(req.params.id); if (!did) return res.status(400).json({ error: 'النسخ للموديلات المحفوظة بس' });
+            if (await TrAIProvider.countDocuments({}) >= MAX_DB_PROVIDERS) return res.status(400).json({ error: `وصلت للحد الأقصى (${MAX_DB_PROVIDERS} موديل)` });
+            const src = await TrAIProvider.findById(did).lean(); if (!src) return res.status(404).json({ error: 'الموديل مش موجود' });
+            const b = req.body || {}, o = Object.assign({}, src); delete o._id; delete o.createdAt; delete o.updatedAt; delete o.__v; o.lastTest = null; o.createdBy = req.user.username;
+            o.name = str(b.name, 60) || (src.name + ' (نسخة)');
+            if (b.model) { o.model = str(b.model, 120); if (!o.model || /\s/.test(o.model)) return res.status(400).json({ error: 'اسم الموديل غير صحيح' }); o.label = str(b.label, 60) || ''; }
+            const doc = await TrAIProvider.create(o); ai.invalidate();
+            res.json({ success: true, id: 'db-' + doc._id });
+        } catch (e) { console.error('ai dup:', e.message); res.status(500).json({ error: 'خطأ في النسخ' }); }
     });
 
     app.post('/api/translate/admin/ai/providers/:id/test', verifyToken, isAdmin, async (req, res) => {
@@ -1518,9 +1770,31 @@ function registerTranslateRoutes(app, deps) {
             await connectToDatabase(); ai.invalidate();
             const st = await ai.load(), p = st.providers.find(x => x.id === String(req.params.id));
             if (!p) return res.status(404).json({ error: 'المزود مش موجود' });
-            if (!p.key) return res.json({ ok: false, status: 0, error: 'المفتاح مش مقروء. اتأكد من TR_KEYS_SECRET أو JWT_SECRET وأعد إدخال المفتاح' });
-            res.json(await ai.test(p));
+            if (!p.key) return res.json({ ok: false, status: 0, error: 'المفتاح مش مقروء. اتأكد من TR_KEYS_SECRET أو JWT_SECRET (لازم يكونوا نفس القيمة اللي اتحفظ بيها المفتاح) وأعد إدخال المفتاح', kind: 'auth', kindAr: 'المفتاح مش مقروء', hint: 'لو غيّرت JWT_SECRET بعد ما حفظت الموديل، المفاتيح القديمة بتتلف. اعمل تعديل وحط المفتاح من جديد.' });
+            res.json(await runTest(p, !!(req.body && req.body.vision)));
         } catch (e) { console.error('ai test:', e.message); res.status(500).json({ error: 'خطأ في الاختبار' }); }
+    });
+
+    // تجربة إعدادات قبل الحفظ (بالمفتاح اللي اتكتب، أو بمفتاح موديل محفوظ لو في تعديل)
+    app.post('/api/translate/admin/ai/test-draft', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            const b = req.body || {}; let key = readKey(b, false);
+            if (!key && b.fromId) { const st = await ai.load(), src = st.providers.find(x => x.id === String(b.fromId)); key = (src && src.key) || ''; }
+            if (!key) return res.status(400).json({ error: 'اكتب مفتاح الـ API' });
+            const f = readProviderBody(b, false);
+            const p = { id: 'draft', name: f.name, type: f.type, baseUrl: f.baseUrl, model: f.model, key, vision: !!f.vision, noJsonMode: !!f.noJsonMode, extra: mkExtra(f.type, f.reasoning, f.extra) };
+            res.json(await ai.test(p, { vision: !!b.testVision, silent: true }));
+        } catch (e) { res.status(aiErrStatus(e)).json({ error: e.bad ? e.message : 'خطأ في الاختبار' }); }
+    });
+
+    app.post('/api/translate/admin/ai/test-all', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase(); ai.invalidate();
+            const st = await ai.load(), list = st.providers.filter(p => p.key && p.enabled && (!req.body || !req.body.premiumOnly || p.tier === 'premium'));
+            const results = await Promise.all(list.map(async p => Object.assign({ id: p.id, name: p.name }, await runTest(p, false))));
+            ai.invalidate(); res.json({ results });
+        } catch (e) { console.error('ai test-all:', e.message); res.status(500).json({ error: 'خطأ في الفحص' }); }
     });
 
     app.post('/api/translate/admin/ai/providers/:id/reset', verifyToken, isAdmin, async (req, res) => {
@@ -1530,15 +1804,61 @@ function registerTranslateRoutes(app, deps) {
             ai.invalidate(); res.json({ success: true });
         } catch (e) { res.status(500).json({ error: 'خطأ' }); }
     });
+    app.post('/api/translate/admin/ai/providers/:id/clear-stats', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            await TrAIStat.deleteOne({ pid: String(req.params.id) });
+            await TrAIErrLog.deleteMany({ pid: String(req.params.id) });
+            ai.invalidate(); res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: 'خطأ' }); }
+    });
 
+    // سجل المشاكل: آخر الأعطال + تجميع بنوع العطل + الحل المقترح
+    app.get('/api/translate/admin/ai/errors', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase();
+            const q = req.query.pid ? { pid: str(String(req.query.pid), 80) } : {}, limit = Math.min(200, Math.max(10, Number(req.query.limit) || 80));
+            const since = new Date(Date.now() - 24 * 3600 * 1000);
+            const [list, byKind, byPid] = await Promise.all([
+                TrAIErrLog.find(q).sort({ at: -1 }).limit(limit).lean(),
+                TrAIErrLog.aggregate([{ $match: Object.assign({ at: { $gte: since } }, q) }, { $group: { _id: '$kind', n: { $sum: 1 } } }, { $sort: { n: -1 } }]),
+                TrAIErrLog.aggregate([{ $match: { at: { $gte: since } } }, { $group: { _id: '$pid', n: { $sum: 1 } } }])
+            ]);
+            res.json({
+                list: list.map(x => ({ id: String(x._id), pid: x.pid, name: x.name, model: x.model, tier: x.tier, feature: x.feature, status: x.status, kind: x.kind, kindAr: (KIND_INFO[x.kind] || KIND_INFO.other).ar, hint: (KIND_INFO[x.kind] || KIND_INFO.other).fix, message: x.message, at: x.at })),
+                byKind: byKind.map(k => ({ kind: k._id, ar: (KIND_INFO[k._id] || KIND_INFO.other).ar, n: k.n })), byPid: byPid.map(k => ({ pid: k._id, n: k.n }))
+            });
+        } catch (e) { console.error('ai errors:', e.message); res.status(500).json({ error: 'خطأ في جلب السجل' }); }
+    });
+    app.delete('/api/translate/admin/ai/errors', verifyToken, isAdmin, async (req, res) => {
+        try { await connectToDatabase(); await TrAIErrLog.deleteMany(req.query.pid ? { pid: str(String(req.query.pid), 80) } : {}); res.json({ success: true }); }
+        catch (e) { res.status(500).json({ error: 'خطأ' }); }
+    });
+
+    // ---------- أجزاء كانت مجانية وبقت للمشتركين بس (تتغيّر بـ TR_PRO_ONLY، وفاضي = الكل مجاني) ----------
+    const PRO_ONLY = String(process.env.TR_PRO_ONLY === undefined ? 'mindmap,correct,ask-all' : process.env.TR_PRO_ONLY).split(',').map(x => x.trim()).filter(Boolean);
+    if (PRO_ONLY.length) {
+        app.use(PRO_ONLY.map(x => '/api/translate/' + x), verifyToken, async (req, res, next) => {
+            if (req.method !== 'POST') return next();
+            let pro = false;
+            try { await connectToDatabase(); pro = !!(await premiumFor(req.user)); } catch (e) { return res.status(500).json({ error: 'خطأ مؤقت، جرب تاني' }); }
+            if (pro) return next();
+            return res.status(403).json({ error: 'الميزة دي للمشتركين في الباقة بس', code: 'premium_only' });
+        });
+    }
 
     // ---------- مميزات إضافية: إحصائيات/ستريك/مجموعات/خريطة ذهنية/اسأل كتابك/تصحيح/تذكير (ملف translate-extras.js) ----------
     try {
-        require('./translate-extras')(app, { mongoose, Student, verifyToken, apiLimiter, connectToDatabase, ai, reserveAction, refundAction, actionDenied, str, cleanChat, aiErr, aiStatus, TrHistory, sendPushToUser });
+        require('./translate-extras')(app, { mongoose, Student, verifyToken, apiLimiter, connectToDatabase, ai, reserveAction, refundAction, actionDenied, str, cleanChat, aiErr, aiStatus, TrHistory, sendPushToUser, premiumFor });
     } catch (e) { console.error('❌ translate-extras فشل التحميل:', e && e.message); }
+
+    // ---------- أدوات المشتركين الجديدة (ملف translate-pro.js) ----------
+    try {
+        require('./translate-pro')(app, { mongoose, rateLimit, verifyToken, connectToDatabase, ai, premiumFor, Student, TrGlossary, TrProfile, TrHistory, termKey, str, cleanChat, aiErr, aiStatus, todayEG, isUnlimited, getProfile, FREE_DAILY_ACTIONS });
+    } catch (e) { console.error('❌ translate-pro فشل التحميل:', e && e.message); }
 
     console.log('✅ translate-routes جاهزة (/api/translate/*)');
 }
 
 module.exports = registerTranslateRoutes;
-module.exports.__test = { createLineParser, extractObjects, normalizeItem, termKey, cleanChat, aiErr, THINK, ADAPTERS, parseJsonLoose, envProviders, encKey, decKey, maskKey, mkErr, createAIRouter, cooldownFor, sseData };
+module.exports.__test = { createLineParser, extractObjects, normalizeItem, termKey, cleanChat, aiErr, THINK, ADAPTERS, parseJsonLoose, envProviders, encKey, decKey, maskKey, mkErr, createAIRouter, cooldownFor, sseData, classifyErr };
