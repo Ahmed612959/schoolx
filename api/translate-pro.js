@@ -38,6 +38,10 @@ module.exports = function registerPro(app, deps) {
     mistakeSchema.index({ username: 1, resolved: 1, lastAt: -1 });
     const TrMistake = model('TrMistake', mistakeSchema);
 
+    const savedSchema = new Schema({ username: { type: String, required: true, index: true }, tool: String, title: String, doc: { type: String, default: '' }, data: Schema.Types.Mixed }, { timestamps: true });
+    savedSchema.index({ username: 1, createdAt: -1 });
+    const TrProSaved = model('TrProSaved', savedSchema);
+
     // ====================== Helpers ======================
     const hash = (s) => crypto.createHash('sha1').update(String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 20);
     const S = (v, n) => cleanChat(str(String(v == null ? '' : v), n));
@@ -224,6 +228,41 @@ module.exports = function registerPro(app, deps) {
         } catch (e) { console.error('pro/' + key + ':', e.message); res.status(aiStatus(e)).json(aiErr(e)); }
     });
 
+    // ====================== المحفوظات: احفظ أي نتيجة أداة وافتحها بعدين ======================
+    const SAVABLE = ['notes', 'mnemonic', 'case', 'careplan', 'drugs', 'abbr', 'quizx', 'procedure', 'handout', 'compare', 'review'];
+    app.post('/api/translate/pro/saved', verifyToken, dataLimiter, proGuard, async (req, res) => {
+        try {
+            const b = req.body || {}, tool = String(b.tool || '');
+            if (!SAVABLE.includes(tool)) return res.status(400).json({ error: 'الأداة دي مش قابلة للحفظ' });
+            const username = req.user.username, T = TOOLS[tool];
+            if (JSON.stringify(b.data || {}).length > 80000) return res.status(400).json({ error: 'النتيجة كبيرة' });
+            const data = T.clean(b.data && typeof b.data === 'object' ? b.data : {}, { kind: b.data && b.data.kind }, null);
+            if (!T.ok(data)) return res.status(400).json({ error: 'مفيش نتيجة صالحة للحفظ' });
+            if (await TrProSaved.countDocuments({ username }) >= 200) return res.status(400).json({ error: 'وصلت للحد الأقصى (200 محفوظة)، امسح القديم' });
+            const doc = await TrProSaved.create({ username, tool, title: S(b.title, 140) || T.feature, doc: str(b.doc, 100), data });
+            res.json({ success: true, id: String(doc._id) });
+        } catch (e) { console.error('saved add:', e.message); res.status(500).json({ error: 'خطأ في الحفظ' }); }
+    });
+    app.get('/api/translate/pro/saved', verifyToken, dataLimiter, proGuard, async (req, res) => {
+        try {
+            const q = { username: req.user.username }; if (req.query.tool && SAVABLE.includes(String(req.query.tool))) q.tool = String(req.query.tool);
+            const list = await TrProSaved.find(q).sort({ createdAt: -1 }).limit(120).lean();
+            res.json({ list: list.map(x => ({ id: String(x._id), tool: x.tool, title: x.title, doc: x.doc, at: x.createdAt })) });
+        } catch (e) { res.status(500).json({ error: 'خطأ' }); }
+    });
+    app.get('/api/translate/pro/saved/:id', verifyToken, dataLimiter, proGuard, async (req, res) => {
+        try {
+            if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'معرّف غير صالح' });
+            const x = await TrProSaved.findOne({ _id: req.params.id, username: req.user.username }).lean();
+            if (!x) return res.status(404).json({ error: 'مش موجود' });
+            res.json({ id: String(x._id), tool: x.tool, title: x.title, doc: x.doc, data: x.data });
+        } catch (e) { res.status(500).json({ error: 'خطأ' }); }
+    });
+    app.delete('/api/translate/pro/saved/:id', verifyToken, dataLimiter, proGuard, async (req, res) => {
+        try { if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'معرّف غير صالح' }); await TrProSaved.deleteOne({ _id: req.params.id, username: req.user.username }); res.json({ success: true }); }
+        catch (e) { res.status(500).json({ error: 'خطأ' }); }
+    });
+
     // ====================== المراجعة المتباعدة (SRS) ======================
     // SM-2 مبسّط: 0 تاني، 1 صعب، 2 كويس، 3 سهل
     function schedule(c, q) {
@@ -264,11 +303,12 @@ module.exports = function registerPro(app, deps) {
     app.get('/api/translate/pro/srs/stats', verifyToken, dataLimiter, proGuard, async (req, res) => {
         try {
             const today = todayEG(), username = req.user.username;
-            const [total, due, mature, tomorrow] = await Promise.all([
+            const days = [1, 2, 3, 4, 5, 6, 7].map(n => addDays(today, n));
+            const [total, due, mature, ...fc] = await Promise.all([
                 TrSrs.countDocuments({ username }), TrSrs.countDocuments({ username, due: { $lte: today } }),
-                TrSrs.countDocuments({ username, interval: { $gte: 21 } }), TrSrs.countDocuments({ username, due: addDays(today, 1) })
+                TrSrs.countDocuments({ username, interval: { $gte: 21 } }), ...days.map(d => TrSrs.countDocuments({ username, due: d }))
             ]);
-            res.json({ total, due, mature, tomorrow });
+            res.json({ total, due, mature, tomorrow: fc[0], forecast: fc.map((n, i) => ({ date: days[i], n })) });
         } catch (e) { res.status(500).json({ error: 'خطأ' }); }
     });
     app.post('/api/translate/pro/srs/grade', verifyToken, dataLimiter, proGuard, async (req, res) => {

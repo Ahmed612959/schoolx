@@ -760,6 +760,18 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat, TrAIErrLog }) {
         throw aggregateErr(attempts);
     }
 
+    // تشغيل سؤال حر على موديل واحد من غير ما يأثر على الإحصائيات (لساحة المقارنة)
+    async function probe(p, o) {
+        const t1 = Date.now(), wt = withTimeout(null, AI_TIMEOUT_MS);
+        try {
+            const text = await ADAPTERS[p.type].gen(p, { system: o.system, contents: [{ role: 'user', parts: [{ text: o.text }] }], maxTokens: o.maxTokens || 900, temperature: 0.2, retries: 0 }, wt.signal);
+            if (!text) throw mkErr('رجّع رد فاضي', null, 'ai_bad_response');
+            return { ok: true, ms: Date.now() - t1, text: String(text).slice(0, 4000) };
+        } catch (e0) {
+            const e = wt.timedOut ? mkErr('انتهت مهلة المزود', 0, 'ai_timeout') : e0, k = classifyErr(e);
+            return { ok: false, ms: Date.now() - t1, status: e.status || 0, error: String(e.message).slice(0, 300), kind: k.kind, kindAr: k.ar, hint: k.fix };
+        } finally { wt.done(); }
+    }
     async function test(p, o = {}) {
         const t1 = Date.now(), wt = withTimeout(null, AI_TIMEOUT_MS);
         const parts = [{ text: o.vision ? 'Reply with the single word OK if you can see this image.' : 'Reply with the single word OK.' }];
@@ -775,7 +787,7 @@ function createAIRouter({ TrAIProvider, TrAIConfig, TrAIStat, TrAIErrLog }) {
             return { ok: false, status: e.status || 0, error: String(e.message).slice(0, 300), kind: k.kind, kindAr: k.ar, hint: k.fix, vision: !!o.vision };
         } finally { wt.done(); }
     }
-    return { load, invalidate, generate, stream, available, hasPremium, premiumModels, test, markOk, markFail, buildChain };
+    return { load, invalidate, generate, stream, available, hasPremium, premiumModels, test, probe, markOk, markFail, buildChain };
 }
 
 const aiStatus = (e) => (e.code === 'ai_unavailable' ? 503 : 502);
@@ -1795,6 +1807,23 @@ function registerTranslateRoutes(app, deps) {
             const results = await Promise.all(list.map(async p => Object.assign({ id: p.id, name: p.name }, await runTest(p, false))));
             ai.invalidate(); res.json({ results });
         } catch (e) { console.error('ai test-all:', e.message); res.status(500).json({ error: 'خطأ في الفحص' }); }
+    });
+
+    // ساحة المقارنة: نفس النص على أكتر من موديل جنب بعض (السرعة والجودة)
+    app.post('/api/translate/admin/ai/compare', verifyToken, isAdmin, async (req, res) => {
+        try {
+            await connectToDatabase(); ai.invalidate();
+            const b = req.body || {}, text = str(b.text, 1500);
+            if (text.length < 10) return res.status(400).json({ error: 'اكتب نص للتجربة (10 حروف على الأقل)' });
+            const ids = Array.isArray(b.ids) ? b.ids.map(String).slice(0, 6) : [];
+            if (!ids.length) return res.status(400).json({ error: 'اختار موديل واحد على الأقل' });
+            const system = b.mode === 'explain'
+                ? 'You are a nursing tutor. Explain the text simply in Egyptian-friendly Arabic in 3 to 4 sentences, keeping medical terms in English in parentheses. Plain text only.'
+                : 'You are a professional medical translator. Translate the English text into clear Modern Standard Arabic suitable for Egyptian nursing students, keep key medical terms in English in parentheses, preserve numbers and units exactly. Output only the translation.';
+            const st = await ai.load(), list = ids.map(id => st.providers.find(p => p.id === id)).filter(p => p && p.key);
+            const results = await Promise.all(list.map(async p => Object.assign({ id: p.id, name: p.name, model: p.model, tier: p.tier || 'standard' }, await ai.probe(p, { system, text }))));
+            res.json({ results });
+        } catch (e) { console.error('ai compare:', e.message); res.status(500).json({ error: 'خطأ في المقارنة' }); }
     });
 
     app.post('/api/translate/admin/ai/providers/:id/reset', verifyToken, isAdmin, async (req, res) => {
